@@ -10,15 +10,16 @@ if [ -f .env.local ]; then
   set +a
 fi
 
-export NODE_ENV=production
 export GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 export BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+echo "Installing dependencies..."
+npm install --legacy-peer-deps --include=dev
+
+export NODE_ENV=production
+
 echo "Cleaning old build..."
 rm -rf .next
-
-echo "Installing dependencies..."
-npm install --legacy-peer-deps
 
 echo "Building Peerify..."
 npm run build
