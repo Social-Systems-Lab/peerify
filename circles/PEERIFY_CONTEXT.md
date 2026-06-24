@@ -6,8 +6,8 @@
 The Peerify server is currently running a working MVP/pilot flow on:
 
 - Server: `tim@65.21.91.96`
-- App path: `~/apps/peerify/circles`
-- Public URL: `http://65.21.91.96:3000`
+- App path: `~/apps/peerify-app/circles`
+- Public URL: `https://peerify.one`
 - PM2 process: `peerify`
 
 Current working flow:

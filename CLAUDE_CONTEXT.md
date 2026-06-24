@@ -1,151 +1,171 @@
 # CLAUDE_CONTEXT.md
-# Kamooni / Circles — Persistent AI Context
+# Peerify — Persistent AI Context
 
 This file is the stable foundation for AI-assisted development sessions.
-Paste this into Claude at the start of each session, along with SESSION_LOG.md.
 
----
+Peerify is a community-powered music platform for discovering, supporting and hosting real musicians.
 
-## What Kamooni Is
+It is built from the Circles/Kamooni codebase, but now lives in its own repository so Peerify work is separated from Kamooni.
 
-Kamooni is a pro-social, non-extractive alternative to conventional social platforms, built on
-the open-source Circles codebase by Social Systems Lab. It is designed for changemakers,
-activists, volunteers, and community builders.
+Live app:
 
-Core principles:
-- No ads, no data mining, no algorithmic manipulation
-- Membership-funded (€5/month or €50/year target)
-- All surplus returned to members via the Altruistic Wallet
-- Open-source, member-governed, oligarch-free
+    https://peerify.one
 
-Core features:
-- Map-based interface for discovering people, projects, places ("opportunity-rolling")
-- Circles: semi-autonomous community spaces with governance tools
-- Goals, tasks, proposals, events, discussions, funding asks
-- Contribution-based identity ("passport of character") — reputation earned through action
-- Altruistic Wallet: a wallet whose contents can only be spent on others
-- Chat and DMs (Mongo-native, not Matrix)
-- Stripe integration for memberships and project funding
-- LiveKit integration planned for video meetings
+GitHub:
 
-The platform is live at: https://kamooni.org
-GitHub: https://github.com/Social-Systems-Lab/circles
+    https://github.com/Social-Systems-Lab/peerify
 
----
+## Current repository
 
-## Tech Stack
+Canonical repo:
 
-| Layer | Technology |
-|---|---|
-| Framework | Next.js 15 (App Router), TypeScript |
-| Database | MongoDB |
-| Object storage | MinIO |
-| Vector/semantic search | Qdrant |
-| Infrastructure | Docker / Docker Compose |
-| Reverse proxy (prod) | nginx |
-| Email | Postmark |
-| Payments | Stripe |
-| UI | Radix UI, Tailwind CSS, shadcn/ui |
-| Maps | Mapbox GL |
-| Auth | Custom (JWT/jose) |
-| Video (planned) | LiveKit |
+    Social-Systems-Lab/peerify
 
-Version at time of writing: 0.8.15
+Server repo path:
 
----
+    /home/tim/apps/peerify-app
 
-## Repo Structure
+Application path:
 
-Root: `/Users/timmidnightmac/circles/`
-App code: `/Users/timmidnightmac/circles/circles/`
-Docs: `/Users/timmidnightmac/circles/docs/`
+    /home/tim/apps/peerify-app/circles
 
-Key source paths:
-- `circles/src/app/` — App Router pages, layouts, API routes
-- `circles/src/components/` — UI and feature components
-- `circles/src/lib/data/` — MongoDB access and backend logic
-- `circles/src/models/` — shared schema/data shape definitions
+The application still lives inside the nested circles/ directory. Do not flatten or rename this casually.
 
-Important files:
-- `circles/src/lib/data/mongo-chat.ts` — chat backend
-- `circles/src/components/modules/chat/` — chat UI + actions
-- `circles/src/components/layout/user-toolbox.tsx` — personal dashboard/clipboard
-- `circles/src/lib/data/event.ts` — events logic
-- `circles/src/lib/data/member.ts` — memberships/permissions
-- `circles/src/app/api/version/` — deployment verification endpoint
+Old source branch:
 
----
+    Social-Systems-Lab/circles product/peerify
 
-## Production Environment
+The old branch is retained temporarily for rollback/history only. Do not continue Peerify development there.
 
-- Server: Cleura (kamooniorg)
-- SSH: `ssh ubuntu@91.123.202.241` then `sudo -i`
-- App directory on server: `/root/circles/circles/circles`
-- Deploy: `git pull --ff-only origin main` then `docker compose up -d --build circles nginx cron`
-- Verify deployment: `curl -s https://kamooni.org/api/version`
-- Note: gitSha may show as unknown on Cleura — verify by checking `git rev-parse --short HEAD` and live UI
+## What Peerify is
 
----
+Peerify is a not-for-profit, community-driven music platform focused on:
 
-## Development Workflow
+- artist discovery
+- direct artist/fan relationships
+- fair creator economics
+- map-based discovery
+- live and local music
+- hosts, venues and house concerts
+- human-created music rather than AI-generated content
 
-1. Make changes on a feature branch (never directly on main)
-2. Test locally at localhost
-3. If happy, merge to main (fast-forward preferred)
-4. SSH into Cleura, pull main, rebuild with docker compose
-5. Verify with `/api/version`
-6. Update SESSION_LOG.md
+Peerify is not intended to be another streaming platform. It is a toolbox and ecosystem for artists, fans and hosts.
 
-Golden rules:
-- Never edit directly on main
-- Fast-forward merges preferred
-- Conflicts on main are a hard stop
-- Verify deployment after every push
+## Tech stack
 
----
+- Next.js 15 App Router
+- TypeScript
+- MongoDB
+- MinIO
+- Qdrant
+- PM2 production runtime
+- nginx reverse proxy
+- Postmark email integration where configured
+- Stripe integration where configured
+- Tailwind CSS / Radix UI
+- Mapbox GL
 
-## Architecture Notes
+Version at time of migration:
 
-- Chat is Mongo-native (not Matrix — all Matrix references are legacy)
-- `chatConversations.updatedAt` must update on every message insert (controls sidebar order)
-- User DID must never change (breaks chat membership, DM visibility, identity references)
-- Images stored in MinIO; absolute URLs written to MongoDB at upload time using `CIRCLES_URL`
-- If `CIRCLES_URL` is wrong, broken URLs are permanently written to DB and need repair
-- Image delivery: Browser → nginx → /storage → MinIO
+    0.8.15
 
----
+## Production environment
 
-## AI Workflow Rules (from AGENTS.md)
+Server:
 
-The human operator is not an experienced developer and can only copy/paste commands.
+    tim@65.21.91.96
 
-Priority order for all changes:
-1. Claude Code investigation
-2. Claude Code patch
-3. Automated edit (sed/perl/script)
-4. Manual edit by human (last resort — avoid)
+Public URL:
 
-Instruction rules:
-- Provide exact commands only
-- Commands must be copy-paste safe
-- Specify where each command runs (local Mac terminal / Cleura server / Docker container)
-- One step at a time: human runs → pastes output → Claude analyzes → next step
+    https://peerify.one
 
-Coding philosophy:
-- Small patches, minimal surface changes
-- Explicit code, predictable behaviour
-- No large refactors, no unnecessary abstractions
-- Always ask: "What is the smallest safe fix?"
+App path:
 
----
+    /home/tim/apps/peerify-app/circles
 
-## Session Workflow
+PM2 process:
 
-At the start of each session:
-1. Paste CLAUDE_CONTEXT.md + SESSION_LOG.md into Claude chat
-2. Describe what you want to work on
-3. Claude plans and confirms approach
-4. Claude writes implementation brief for Claude Code
-5. Run in Claude Code, test locally
-6. If happy, push to main and deploy
-7. Update SESSION_LOG.md together before closing
+    peerify
+
+Deploy:
+
+    cd ~/apps/peerify-app/circles
+    ./scripts/deploy-peerify.sh
+
+Verify:
+
+    curl -fsSL https://peerify.one/api/version
+    curl -I https://peerify.one/
+    pm2 describe peerify
+
+Expected PM2 script path:
+
+    /home/tim/apps/peerify-app/circles/.next/standalone/server.js
+
+## Important runtime notes
+
+.env.local is required on the production server and is intentionally ignored by Git.
+
+Required production values include:
+
+    NEXT_PUBLIC_APP_URL=https://peerify.one
+    CIRCLES_COOKIE_SECURE=true
+    CIRCLES_HOST=127.0.0.1
+    CIRCLES_PORT=3000
+
+Do not put NODE_ENV=development in .env.local.
+
+## Naming caution
+
+Many inherited internals still use circles or CIRCLES_* names.
+
+Do not mass-replace these names. Some are tied to database records, routes, auth/session logic, storage URLs, or migration history.
+
+Safe cleanup areas:
+
+- docs
+- public branding
+- Peerify-specific copy
+- deploy paths
+- package identity
+
+Risky cleanup areas:
+
+- database collection names
+- auth/session variable names
+- CIRCLES_URL/CIRCLES_* runtime usage
+- route names used by existing data
+- Docker volumes and storage buckets
+
+## AI workflow rules
+
+The human operator mainly copy-pastes commands.
+
+Instructions should be:
+
+- exact
+- copy-paste safe
+- one step at a time
+- explicit about the working directory
+
+Prefer automated patches using Python scripts over manual editing.
+
+Before changing code, inspect logs, Git status, environment assumptions and runtime paths.
+
+## Development notes
+
+Dependencies currently require:
+
+    npm install --legacy-peer-deps --include=dev
+
+The project uses React 19 RC packages, so plain npm install may fail with peer dependency resolution errors.
+
+## Session workflow
+
+At the start of a session:
+
+1. Confirm the repo path.
+2. Check git status.
+3. Confirm whether the task is docs, code, deploy or production debugging.
+4. Prefer small, reversible changes.
+5. Verify with build, PM2 status or browser checks as appropriate.

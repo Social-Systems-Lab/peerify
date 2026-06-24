@@ -7,9 +7,9 @@ Current deployment target:
 
 ```text
 Server: tim@65.21.91.96
-Path: ~/apps/peerify/circles
+Path: ~/apps/peerify-app/circles
 PM2 process: peerify
-URL: http://65.21.91.96:3000
+URL: https://peerify.one
 ```
 
 Current known-good state:
@@ -26,7 +26,7 @@ Current known-good state:
 Required deploy sequence after each build:
 
 ```bash
-cd ~/apps/peerify/circles
+cd ~/apps/peerify-app/circles
 
 rm -rf .next
 npm run build && \
@@ -43,7 +43,7 @@ Important PM2/env note:
 If `.env.local` changes, especially auth/session variables, restart PM2 by explicitly loading env:
 
 ```bash
-cd ~/apps/peerify/circles
+cd ~/apps/peerify-app/circles
 
 pm2 delete peerify
 
@@ -106,7 +106,7 @@ Decision:
   3. avoid large route-folder moves until visual regressions are better understood.
 
 Current dev URL:
-- http://65.21.91.96:3000
+- https://peerify.one
 
 ## 2026-06-10 HTTPS pilot domain checkpoint
 
@@ -173,7 +173,7 @@ CIRCLES_PORT=3000
 
 Useful recovery sequence:
 
-cd ~/apps/peerify/circles
+cd ~/apps/peerify-app/circles
 perl -ni -e 'print unless /^\s*NODE_ENV\s*=/' .env.local
 unset NODE_ENV
 rm -rf .next

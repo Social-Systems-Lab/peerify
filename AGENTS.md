@@ -1,232 +1,145 @@
-# AGENTS.md — AI Agent Instructions for Kamooni / Circles
+# AGENTS.md — AI Agent Instructions for Peerify
 
-This repository is developed using AI‑assisted workflows (Codex + ChatGPT).
-The human operator is **not an experienced developer** and can reliably **only copy and paste commands**.
+This repository contains Peerify, a community-powered music platform for discovering, supporting and hosting real musicians.
 
-Agents must therefore operate with **extreme clarity, minimal manual editing, and safe production practices**.
+Peerify was split out from Social-Systems-Lab/circles and now lives in its own repository:
 
----
+    Social-Systems-Lab/peerify
 
-# Core Principle
+Live app:
 
-Prefer **Codex investigation and patches** over asking the human to edit files manually.
+    https://peerify.one
+
+The human operator is not an experienced developer and can reliably only copy and paste commands.
+
+Agents must operate with extreme clarity, minimal manual editing, and safe production practices.
+
+## Core principle
+
+Prefer investigation and automated patches over asking the human to edit files manually.
 
 Priority order:
 
-1. Codex investigation
-2. Codex patch
-3. Automated edit (sed / perl / script)
-4. Manual edit by human (last resort)
+1. Investigation
+2. Patch
+3. Automated edit using a script
+4. Manual edit by human as last resort
 
-Manual editing by the human should be minimized.
-
----
-
-# Interaction Rules
+## Interaction rules
 
 When giving instructions:
 
-• Provide **exact commands only**  
-• Commands must be **copy‑paste safe**  
-• Specify **where the command must run**
-
-Examples:
-
-- Local Mac terminal
-- Genesis2 production server
-- Docker container
-- VS Code terminal
-- Browser
-
-Never assume the human can infer missing steps.
-
----
-
-# One Step Rule
-
-Only provide **one action at a time**.
+- Provide exact commands only.
+- Commands must be copy-paste safe.
+- Specify where the command must run.
+- Use one action at a time unless explicitly asked otherwise.
 
 Workflow:
 
-1. Human runs command
-2. Human pastes output
-3. Agent analyzes output
-4. Agent provides next step
+1. Human runs command.
+2. Human pastes output.
+3. Agent analyzes output.
+4. Agent provides the next step.
 
-Do not give multi‑step blocks unless explicitly requested.
-
----
-
-# Production Environment
+## Production environment
 
 Server:
 
-Circles‑Genesis2
+    tim@65.21.91.96
 
 Application directory:
 
-/root/circles/circles
+    /home/tim/apps/peerify-app/circles
 
----
+Public URL:
 
-# Deployment
+    https://peerify.one
 
-Preferred deployment command on Genesis2:
+PM2 process:
 
-deploykamooni
+    peerify
 
-Which expands to:
+## Deployment
 
-cd /root/circles/circles
-./deploy-genesis2.sh main
+Preferred deployment command on the Peerify server:
 
-Avoid ad‑hoc docker build commands unless troubleshooting.
+    cd ~/apps/peerify-app/circles
+    ./scripts/deploy-peerify.sh
 
----
+The deploy script loads .env.local, installs dependencies with legacy peer dependency handling, builds the standalone Next.js app, copies static assets, restarts PM2, and exposes build metadata through /api/version.
 
-# Deployment Verification
+## Deployment verification
 
 Always verify deployment with:
 
-curl -sS https://kamooni.org/api/version && echo
+    curl -fsSL https://peerify.one/api/version
+    curl -I https://peerify.one/
 
-The returned **gitSha must match the deployed commit**.
+The returned gitSha should match the deployed commit.
 
-Optional runtime verification:
+Also verify PM2 points at the new repo path:
 
-docker compose exec -T circles cat /app/VERSION || docker compose exec -T circles cat /VERSION
+    pm2 describe peerify
 
----
+Expected script path:
 
-# Development Workflow
+    /home/tim/apps/peerify-app/circles/.next/standalone/server.js
 
-Preferred workflow:
+## Repository safety
 
-1. Investigate using Codex
-2. Implement change using Codex
-3. Test locally or in staging
-4. Merge to main
-5. Deploy on Genesis2
-6. Verify deployment
+The old Peerify branch in Social-Systems-Lab/circles is retained for rollback/history only:
 
-Follow the Dev → Main checklist when promoting changes.
+    product/peerify
 
-Golden rules:
+Do not continue Peerify development in Social-Systems-Lab/circles.
 
-• Never edit directly on main  
-• Fast‑forward merges are preferred  
-• Conflicts on main are a hard stop
+The old remote may exist locally as circles-origin and should remain fetch-only:
 
----
+    circles-origin DISABLED (push)
 
-# Chat Architecture
+## Naming caution
 
-MongoDB is the authoritative chat backend.
+Some internal code, routes, database concepts, docs, and environment variables still use circles or CIRCLES_*.
 
-Collections:
+Do not mass-replace these names blindly.
 
-chatConversations
-chatRoomMembers
-chatMessageDocs
-chatReadStates
+Safe to change gradually:
 
-Critical rule:
+- README and developer docs
+- Peerify branding
+- deployment paths
+- public app metadata
+- package identity
+- Peerify-specific feature copy
 
-chatConversations.updatedAt must update whenever a message is inserted.
+Do not change blindly:
 
-This controls sidebar ordering.
+- database collection names
+- auth/session environment variables
+- migration history
+- route names used by existing data
+- Docker volume names
+- storage bucket assumptions
 
-Earlier Matrix behavior included a fallback that attempted to force‑join a user to a room when send errors indicated they were not a member.
+## Development notes
 
----
+Dependencies currently require:
 
-# Identity Invariant
+    npm install --legacy-peer-deps --include=dev
 
-User **DID must never change** during password reset.
+The project uses React 19 RC packages, so plain npm install may fail with peer dependency resolution errors.
 
-Changing DID breaks:
-
-• chat membership
-• DM visibility
-• identity references across collections
-
----
-
-# Toolbox / Clipboard System
-
-The **User Toolbox (clipboard)** is a client‑side dashboard aggregating personal workflow items such as:
-
-• events
-• tasks
-• goals
-• issues
-
-The UI lives in:
-
-src/components/layout/user-toolbox.tsx
-
-It fetches events, tasks, goals, and issues via server actions and merges them into a single chronological milestone timeline.
-
----
-
-# Image Storage Architecture
-
-Images are stored in **MinIO**.
-
-Absolute URLs are written into MongoDB **at upload time** using the `CIRCLES_URL` environment variable.
-
-Example:
-
-https://kamooni.org/storage/<owner-id>/<filename>
-
-If `CIRCLES_URL` is incorrect (for example `http://127.0.0.1`), broken URLs are permanently written to MongoDB and require database repair.
-
-Images are delivered via:
-
-Browser → nginx → /storage → MinIO
-Next.js → /_next/image → Sharp optimizer
-
-Sharp must exist inside the runtime container for thumbnails to work.
-
----
-
-# Debugging Philosophy
-
-Before modifying code, verify:
-
-• logs
-• MongoDB records
-• environment variables
-• deployment version
-• container state
-
-Prefer **inspection before mutation**.
-
----
-
-# Coding Philosophy
+## Coding philosophy
 
 Prefer:
 
-• small patches
-• minimal surface changes
-• explicit code
-• predictable behavior
+- small patches
+- minimal surface changes
+- explicit code
+- predictable behavior
 
 Avoid:
 
-• large refactors
-• unnecessary abstractions
-• renaming files unless necessary
-
-Always ask:
-
-“What is the smallest safe fix?”
-
----
-
-# Final Rule
-
-When uncertain:
-
-Choose the safest change requiring the **least manual work from the human** and the **lowest risk to production**.
+- large refactors
+- unnecessary abstractions
+- renaming files unless necessary
