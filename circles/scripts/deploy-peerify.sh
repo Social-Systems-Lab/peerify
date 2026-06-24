@@ -11,9 +11,14 @@ if [ -f .env.local ]; then
 fi
 
 export NODE_ENV=production
+export GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+export BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 echo "Cleaning old build..."
 rm -rf .next
+
+echo "Installing dependencies..."
+npm install --legacy-peer-deps
 
 echo "Building Peerify..."
 npm run build
@@ -31,3 +36,4 @@ echo "Restarting PM2..."
 pm2 restart peerify --update-env
 
 echo "Peerify deployed."
+echo "Version: ${GIT_SHA} @ ${BUILD_TIME}"
