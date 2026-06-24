@@ -3,7 +3,7 @@
 import fs from "fs";
 const packageJson = JSON.parse(fs.readFileSync("./package.json", "utf8"));
 const version = packageJson.version;
-const devSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.CIRCLES_URL;
+const devSiteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.PEERIFY_URL || process.env.CIRCLES_URL;
 const allowedDevOrigins = [];
 
 if (devSiteUrl) {

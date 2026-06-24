@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd ~/apps/peerify/circles
+cd ~/apps/peerify-app/circles
 
 echo "Loading production environment..."
 if [ -f .env.local ]; then
