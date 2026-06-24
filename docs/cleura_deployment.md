@@ -1,3 +1,21 @@
+# LEGACY CLEURA/KAMOONI DEPLOYMENT NOTE
+
+This file describes inherited Kamooni deployment practices and is not the current Peerify production deployment reference.
+
+Current Peerify production uses:
+
+    Server: tim@65.21.91.96
+    App path: /home/tim/apps/peerify-app/circles
+    PM2 process: peerify
+    URL: https://peerify.one
+    Deploy: ./scripts/deploy-peerify.sh
+
+Do not use this file for Peerify deployment unless intentionally auditing old inherited infrastructure.
+
+The inherited content below is retained temporarily for reference only.
+
+---
+
 # Cleura Deployment
 
 This document describes the standard production deployment workflow for Kamooni on Cleura.

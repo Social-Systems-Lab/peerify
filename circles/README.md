@@ -1,17 +1,18 @@
-# Circles
+# Peerify app directory
 
-For information on how to set up the local development environment on circles read [Circles Dev Onboarding](../docs/dev-onboarding.md). More docs [here](../README.md).
+This nested circles/ directory contains the active Peerify application.
 
-## Genesis2 deploy
+Current production path:
 
-From `/root/circles/circles` on Genesis2:
+    /home/tim/apps/peerify-app/circles
 
-```bash
-./deploy-genesis2.sh
-```
+Current deploy command:
 
-Optional branch argument:
+    ./scripts/deploy-peerify.sh
 
-```bash
-./deploy-genesis2.sh codex/refactor/chat-sidebar-search
-```
+Current PM2 process:
+
+    peerify
+
+The old Genesis2/Kamooni deploy notes that were previously in this file have been removed to avoid accidental use.
+

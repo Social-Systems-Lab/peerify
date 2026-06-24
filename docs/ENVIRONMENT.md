@@ -1,3 +1,26 @@
+# LEGACY ENVIRONMENT NOTE
+
+This file was inherited from the Kamooni/Circles repository. Some variable names still apply because Peerify inherited runtime internals, but this file should not be treated as a complete Peerify production reference.
+
+Current Peerify production environment file:
+
+    /home/tim/apps/peerify-app/circles/.env.local
+
+Important current values include:
+
+    NEXT_PUBLIC_APP_URL=https://peerify.one
+    CIRCLES_COOKIE_SECURE=true
+    CIRCLES_HOST=127.0.0.1
+    CIRCLES_PORT=3000
+
+Do not put NODE_ENV=development in .env.local.
+
+Do not mass-rename CIRCLES_* variables without inspecting the code and production data dependencies.
+
+The inherited content below is retained temporarily for reference only.
+
+---
+
 # Environment Variables
 
 This document explains the main environment variables used by Kamooni.

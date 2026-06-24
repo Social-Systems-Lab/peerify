@@ -1,3 +1,24 @@
+# LEGACY DEPLOYMENT NOTE
+
+This file was inherited from the Kamooni/Circles repository and does not describe the current Peerify production deployment.
+
+Current Peerify production deployment:
+
+    Server: tim@65.21.91.96
+    Repo: /home/tim/apps/peerify-app
+    App: /home/tim/apps/peerify-app/circles
+    PM2 process: peerify
+    Public URL: https://peerify.one
+    Deploy command:
+        cd ~/apps/peerify-app/circles
+        ./scripts/deploy-peerify.sh
+
+Do not follow Kamooni, Cleura, Genesis2, /root/circles, deploykamooni, or kamooni.org instructions for Peerify.
+
+The inherited content below is retained temporarily for reference only.
+
+---
+
 # Deployment
 
 This document describes the current deployment workflow for Kamooni.

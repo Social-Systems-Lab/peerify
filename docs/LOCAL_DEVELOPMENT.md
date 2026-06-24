@@ -1,3 +1,25 @@
+# LEGACY LOCAL DEVELOPMENT NOTE
+
+This file was inherited from the Kamooni/Circles repository and may still mention the old Social-Systems-Lab/circles repo.
+
+Current Peerify repo:
+
+    https://github.com/Social-Systems-Lab/peerify
+
+Current app directory inside the repo:
+
+    circles/
+
+Dependencies currently require:
+
+    npm install --legacy-peer-deps --include=dev
+
+Do not follow old Kamooni-specific clone URLs or production deploy instructions for Peerify.
+
+The inherited content below is retained temporarily for reference only.
+
+---
+
 # Local Development
 
 This guide is for developers setting up Kamooni locally.

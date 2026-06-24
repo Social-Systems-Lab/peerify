@@ -1,3 +1,24 @@
+# LEGACY TROUBLESHOOTING NOTE
+
+This file was inherited from the Kamooni/Circles repository.
+
+For current Peerify production checks, start with:
+
+    pm2 status
+    pm2 describe peerify
+    curl -fsSL https://peerify.one/api/version
+    curl -I https://peerify.one/
+
+Current Peerify app path:
+
+    /home/tim/apps/peerify-app/circles
+
+Do not follow kamooni.org, deploykamooni, Genesis2, Cleura, or /root/circles instructions for Peerify unless deliberately working on inherited infrastructure.
+
+The inherited content below is retained temporarily for reference only.
+
+---
+
 # Troubleshooting
 
 This document covers common setup and runtime issues in Kamooni.

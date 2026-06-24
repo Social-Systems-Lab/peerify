@@ -1,14 +1,12 @@
-# Nginx config (Kamooni / Circles)
+# Nginx config notes
 
-This deployment uses a static nginx.conf bind-mounted into the nginx container.
+This directory contains inherited nginx configuration examples from the Circles/Kamooni codebase.
 
-Key detail:
-- Nginx is configured to use Docker's embedded DNS resolver:
-  resolver 127.0.0.11 valid=10s ipv6=off;
+Current Peerify production is served at:
 
-- The upstream is referenced via a variable:
-  set $circles_upstream "circles:3000";
-  proxy_pass http://$circles_upstream;
+    https://peerify.one
 
-Why:
-This forces nginx to re-resolve the `circles` service name and avoids caching a stale container IP after restarts/recreates.
+The live nginx configuration may be managed outside this repository on the server.
+
+Do not assume these inherited nginx files are the live Peerify configuration without checking the server first.
+
