@@ -25,13 +25,24 @@ echo "Building Peerify..."
 npm run build
 
 echo "Copying standalone assets..."
-mkdir -p .next/standalone/.next
+STANDALONE_ROOT=".next/standalone/apps/peerify-app/circles"
 
-rm -rf .next/standalone/.next/static
-cp -r .next/static .next/standalone/.next/static
+if [ ! -d "${STANDALONE_ROOT}" ]; then
+  echo "Could not find standalone app root at ${STANDALONE_ROOT}"
+  exit 1
+fi
 
-rm -rf .next/standalone/public
-cp -r public .next/standalone/public
+mkdir -p "${STANDALONE_ROOT}/.next"
+
+rm -rf "${STANDALONE_ROOT}/.next/static"
+cp -r .next/static "${STANDALONE_ROOT}/.next/static"
+
+rm -rf "${STANDALONE_ROOT}/public"
+cp -r public "${STANDALONE_ROOT}/public"
+
+if [ -f VERSION ]; then
+  cp VERSION "${STANDALONE_ROOT}/VERSION"
+fi
 
 echo "Restarting PM2..."
 STANDALONE_ROOT=".next/standalone/apps/peerify-app/circles"
