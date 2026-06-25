@@ -53,7 +53,7 @@ const sendVerificationUpdateEmail = async ({
                 actionUrl: `${baseUrl}${actionUrl}`,
                 productUrl: baseUrl,
                 introText: subject,
-                bodyText: "Click the button below to review this on Kamooni.",
+                bodyText: "Click the button below to review this on Peerify.",
                 summaryText: subject,
                 actionText: "Review Update",
             },

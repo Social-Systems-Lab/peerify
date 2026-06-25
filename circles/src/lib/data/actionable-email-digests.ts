@@ -220,10 +220,10 @@ export const processDailyActionableEmailDigests = async (limit: number = DEFAULT
                     notifications: summaryLines,
                     actionUrl: baseUrl,
                     productUrl: baseUrl,
-                    introText: "You have activity waiting on Kamooni.",
+                    introText: "You have activity waiting on Peerify.",
                     bodyText: "Here is your daily digest of actionable updates.",
                     summaryText: summaryLines.join(" • "),
-                    actionText: "Open Kamooni",
+                    actionText: "Open Peerify",
                 },
             });
 

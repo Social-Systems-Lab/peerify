@@ -285,9 +285,9 @@ const processClaimedMessageEmailReminder = async (
                 notifications: [`${senderName} sent you a message: ${messagePreview}`],
                 actionUrl,
                 productUrl: baseUrl,
-                introText: "You have an unread message on Kamooni.",
+                introText: "You have an unread message on Peerify.",
                 bodyText: "Click the button below to view your messages.",
-                summaryText: "You have an unread message on Kamooni. Click the button below to view your messages.",
+                summaryText: "You have an unread message on Peerify. Click the button below to view your messages.",
                 actionText: "View Messages",
             },
         });

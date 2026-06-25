@@ -44,14 +44,14 @@ export const applyEmailTemplateDefaults = (templateModel: Record<string, any>): 
     const defaults = { ...templateModel };
 
     defaults.product_url = productUrl;
-    defaults.product_name = "Kamooni";
+    defaults.product_name = "Peerify";
     defaults.company_name = "Social Systems Lab";
     defaults.company_url = SOCIAL_SYSTEMS_LAB_URL;
     defaults.company_address = "";
     defaults.email_signoff_html =
-        `Thanks for being part of Kamooni!<br><br>The Kamooni Team at <a href="${SOCIAL_SYSTEMS_LAB_URL}">Social Systems Lab</a>`;
+        `Thanks for being part of Peerify!<br><br>The Peerify Team at <a href="${SOCIAL_SYSTEMS_LAB_URL}">Social Systems Lab</a>`;
     defaults.email_signoff_text =
-        `Thanks for being part of Kamooni!\n\nThe Kamooni Team at Social Systems Lab\n${SOCIAL_SYSTEMS_LAB_URL}`;
+        `Thanks for being part of Peerify!\n\nThe Peerify Team at Social Systems Lab\n${SOCIAL_SYSTEMS_LAB_URL}`;
     defaults.name = templateModel.name || "User";
     defaults.action_url = actionUrl;
     if (actionText) {
