@@ -16,7 +16,7 @@ export type PlatformBroadcastMessageDisplay = Omit<PlatformBroadcastMessage, "_i
 };
 
 export const PLATFORM_ANNOUNCEMENT_HANDLE = "kamooni-announcements";
-export const PLATFORM_ANNOUNCEMENT_TITLE = "Kamooni Announcements";
+export const PLATFORM_ANNOUNCEMENT_TITLE = "Peerify Announcements";
 export const PLATFORM_ANNOUNCEMENT_SYSTEM_TYPE = "announcement" as const;
 export const PLATFORM_ANNOUNCEMENT_SOURCE = "platform_admin" as const;
 const PLATFORM_ANNOUNCEMENT_SENDER = getKamooniSystemSender();

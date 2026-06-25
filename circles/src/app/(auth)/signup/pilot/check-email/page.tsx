@@ -33,33 +33,32 @@ export default async function PilotCheckEmailPage(props: PageProps) {
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e8720c]">Peerify Pilot Signup</p>
                     <CardTitle className="text-3xl text-[#181512]">Check your email</CardTitle>
                     <p className="text-sm text-[#6b5f52]">
-                        We&apos;ve sent a verification link to your email address. Verify your email before continuing
-                        with profile setup so we know we can reach you.
+                        We&apos;ve sent a verification link to your email address. You can verify now, or continue into
+                        Peerify and come back to it later.
                     </p>
                     <p className="text-sm text-[#6b5f52]">
-                        This step only confirms your email address. After that, you can continue into Peerify and choose what
-                        you want to do first.
+                        Email verification simply confirms that we can reach you. Some account and trust features may ask
+                        for it later.
                     </p>
                     {searchParams.email ? <p className="text-sm font-medium text-[#181512]">{searchParams.email}</p> : null}
                 </CardHeader>
                 <CardContent className="space-y-5">
                     <div className="rounded-lg border border-[#e3d5c2] bg-white/70 p-4 text-sm text-[#181512]">
-                        <div className="font-medium">Next step</div>
-                        <p className="mt-1">Open the verification link we sent to your email.</p>
+                        <div className="font-medium">Recommended next step</div>
+                        <p className="mt-1">Open the verification link we sent to your email, then continue setting up your Peerify profile.</p>
                     </div>
 
                     <div className="flex flex-wrap gap-3">
+                        <Button asChild className="bg-[#e8720c] text-[#181512] hover:bg-[#ff8c2a]">
+                            <Link href={continueUrl}>Continue to Peerify</Link>
+                        </Button>
                         <Button asChild variant="outline">
-                            <Link href="/login">Go to login</Link>
+                            <Link href="/login">Back to login</Link>
                         </Button>
                     </div>
 
                     <p className="text-sm text-[#6b5f52]">
-                        Having trouble? You can{" "}
-                        <Link href={continueUrl} className="underline hover:text-[#181512]">
-                            continue for now
-                        </Link>
-                        , but some account steps may require email verification.
+                        Didn&apos;t get the email? Check your spam folder. We&apos;ll add a resend option soon.
                     </p>
                 </CardContent>
             </Card>
