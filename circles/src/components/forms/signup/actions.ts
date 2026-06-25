@@ -6,9 +6,15 @@ import { updateCircle } from "@/lib/data/circle";
 import { getUserPrivate } from "@/lib/data/user";
 import { ensureWelcomeMessageForNewUser } from "@/lib/data/mongo-chat";
 import { getResolvedWelcomeTemplate } from "@/lib/data/system-message-templates";
+import { verifyAltchaPayload } from "@/lib/auth/altcha";
 
 export const submitSignupFormAction = async (values: Record<string, any>): Promise<FormSubmitResponse> => {
     try {
+        const altchaOk = await verifyAltchaPayload(values.altcha);
+        if (!altchaOk) {
+            return { success: false, message: "Please complete the human-verification check." };
+        }
+
         const normalizedHandle = String(values.handle || "")
             .trim()
             .toLowerCase()

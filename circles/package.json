@@ -102,7 +102,9 @@
         "uuid": "^10.0.0",
         "vaul": "^1.1.2",
         "weaviate-client": "^3.5.3",
-        "zod": "^3.24.4"
+        "zod": "^3.24.4",
+        "altcha": "^3.1.0",
+        "altcha-lib": "^2.2.0"
     },
     "devDependencies": {
         "@types/fs-extra": "^11.0.4",
