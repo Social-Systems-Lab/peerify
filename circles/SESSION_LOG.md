@@ -58,3 +58,48 @@ Still pending (carried forward):
 - Doc hygiene: ARCHITECTURE.md / SESSION_LOG header / CLAUDE.md are stale (Kamooni/npm).
 - Audio-pipeline feature is now testable on staging (was the original goal of staging).
 - Product question: artist profile setup via Create vs Settings (separate from personal identity).
+
+---
+
+## 2026-06-27 (cont.) — Prod deploy of isolation fixes + Stripe regression caught
+
+Headline: Deployed the db.ts + storage.ts isolation fixes to production
+(merge staging→main, rebuild, restart). Surfaced and fixed a mislabeled Stripe
+regression and an env-loading trap along the way. peerify.one verified live with
+correct data layer (circles), CSS, and images. No active users; downtime moot.
+
+Sequence:
+- Pre-flight (read-only): captured rollback hash 0737b2b2; reviewed git log
+  main..staging; confirmed prod .env.local reads /circles + circles.
+- Fast-forward merged staging → main (commit 3713d215).
+- First build FAILED: Stripe apiVersion type error. Investigation showed commit
+  3f9c3472 ("align Stripe apiVersion...") actually did the REVERSE — it changed
+  the value FROM the correct "2026-05-27.dahlia" TO the wrong "2026-03-25.dahlia".
+  The installed stripe lib (^22.0.2) wants 2026-05-27.dahlia.
+- Fixed line back to 2026-05-27.dahlia; committed to main (8a3c7d87). Rebuilt OK.
+- Ran the required static-copy step into prod's standalone path
+  (.next/standalone/apps/peerify-app/circles/{.next/static,public}). Verified
+  no double-nesting; fresh build-id present.
+- pm2 restart peerify --update-env — but logs showed MONGODB_URI = /peerify (!!).
+  ROOT CAUSE: --update-env re-applies PM2's STORED env, not .env.local. PM2's
+  dump still held a stale /peerify URI. With the new db.ts fix now HONORING the
+  URI, prod briefly pointed at an (empty) "peerify" DB. No data lost — real
+  circles DB untouched.
+- FIX: `set -a; source .env.local; set +a` then pm2 restart --update-env.
+  Verified pm2 env 0 → MONGODB_URI=/circles, MINIO_BUCKET=circles. Boot log
+  confirms /circles. Site verified in incognito (content + CSS + images OK).
+- pm2 save — dump now holds /circles only (no stale /peerify). Reboot-safe.
+
+State after this session:
+- Prod (main, 8a3c7d87): isolation fixes LIVE and reading env correctly.
+- main is AHEAD of staging by the Stripe correction (8a3c7d87).
+
+Carry-forward (do before next staging build):
+- MERGE main → staging. staging still has the bad 2026-03-25 Stripe value and
+  will fail to build until reconciled. This also brings these doc updates over.
+- Deploy script MUST source .env.local before pm2 start (set -a; source; set +a),
+  NOT rely on --update-env alone — or the /peerify trap recurs. Include the
+  static-copy step too.
+- .env.staging is sitting in the PROD worktree (harmless, but a foot-gun) — relocate/remove.
+- Still pending from earlier: grep -rn '"circles"' src/ audit; remove DEBUG DB/AUTH
+  console.logs in db.ts/auth.ts; stage-test feature/audio-pipeline.
