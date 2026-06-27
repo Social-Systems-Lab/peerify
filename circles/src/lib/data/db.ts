@@ -38,6 +38,8 @@ const MONGODB_URI =
     process.env.MONGODB_URI ||
     `mongodb://${process.env.MONGO_ROOT_USERNAME || "admin"}:${process.env.MONGO_ROOT_PASSWORD || "password"}@${process.env.MONGO_HOST || "127.0.0.1"}:${process.env.MONGO_PORT || "27017"}`;
 
+const dbName = new URL(MONGODB_URI).pathname.replace(/^\//, '') || 'circles';
+
 const options: MongoClientOptions = {};
 
 console.log("DEBUG DB: process.env.MONGODB_URI =", (process.env.MONGODB_URI || "").replace(/\/\/([^:]+):([^@]+)@/, "//$1:***@"));
@@ -92,7 +94,7 @@ if (process.env.IS_BUILD !== "true") {
         console.error("MongoDB connection error:", err);
     });
 
-    db = client.db("circles");
+    db = client.db(dbName);
 
     Circles = db.collection<Circle>("circles");
     ServerSettingsCollection = db.collection<ServerSettings>("serverSettings");
@@ -136,7 +138,7 @@ export async function getDb() {
   if (!client) throw new Error("Mongo client not initialised (IS_BUILD=true?)");
   // If not connected yet (or got reloaded), ensure connection is established
   await client.connect();
-  return client.db("circles");
+  return client.db(dbName);
 }
 
 export {
