@@ -1,327 +1,103 @@
-# Kamooni System Architecture
+# Peerify — System Architecture
 
-High-level architecture overview for the Kamooni platform.
+*Technical architecture of the Peerify platform. For operational procedures (deploy, debug, common tasks) see `OPERATIONS.md`. For product vision and design see `PEERIFY_CONTEXT.md`. Last verified: 2026-06-27.*
 
----
-
-# 1. Platform Overview
-
-Kamooni is a community collaboration platform designed to help people discover projects, contribute skills, coordinate collective action, and respond to meaningful opportunities to help.
-
-The system combines:
-
-- social networking
-- volunteer coordination
-- project collaboration
-- real-time messaging
-- in-app notifications
-
-Core goals:
-
-- enable contribution
-- surface opportunities to help
-- build trust and reputation
-- connect communities globally
+> This file replaces an earlier `ARCHITECTURE.md` that described **Kamooni** (wrong server, `deploykamooni`, Docker, `/root/circles/circles`). None of that applied to Peerify.
 
 ---
 
-# 2. Core Technology Stack
+## 1. What Peerify is built on
 
-Frontend:
+Peerify is a Next.js application built on the **Circles** codebase — the same foundation as its sibling project Kamooni. Peerify and Kamooni are separate deployments on separate servers, sharing Circles primitives (accounts, circles, events, members, feeds, messages, reviews, settings) but with their own products layered on top.
 
-Next.js (App Router)
+Peerify was migrated (~2026-06-25) from a branch on the shared `Social-Systems-Lab/circles` repo into its own standalone `Social-Systems-Lab/peerify` repo.
 
-Backend:
-
-Node.js server actions and route handlers
-
-Database:
-
-MongoDB
-
-Storage:
-
-MinIO (S3-compatible object storage)
-
-Vector Search:
-
-Qdrant (used for semantic search and future matching)
-
-Chat:
-
-Mongo-native chat engine
-
-Notifications:
-
-Mongo-backed in-app notification system
-
-Deployment:
-
-Docker containers on Circles-Genesis2
+- **Framework:** Next.js (App Router), built as a **standalone** output.
+- **Language:** TypeScript.
+- **Build tool:** `bun`.
+- **Runtime:** bare Node.js (v22) running the standalone `server.js`, managed by **PM2**. Not containerized in production.
+- **Datastore:** MongoDB (single instance, local).
+- **Object storage:** MinIO (S3-compatible, single instance, local).
+- **Email:** Postmark.
+- **Maps:** Mapbox.
+- **Human verification:** ALTCHA (self-hosted, open-source).
+- **Payments (present, not in critical path for current milestone):** Stripe.
 
 ---
 
-# 3. Major System Components
+## 2. Runtime topology
 
-## Identity System
+```
+                         Internet
+                            │
+                    ┌───────┴────────┐
+                    │  system nginx  │  (host-level, TLS via Let's Encrypt/Certbot)
+                    └───┬────────┬───┘
+        peerify.one ────┘        └──── staging.peerify.one
+              │                              │
+       127.0.0.1:3000                 127.0.0.1:3001
+       PM2: peerify                   PM2: peerify-staging
+       (Next.js standalone)           (Next.js standalone)
+              │                              │
+              ├──────────────┬──────────────┤
+              ▼              ▼               ▼
+        MongoDB         MinIO          (shared host services,
+     127.0.0.1:27017  127.0.0.1:9000   logically separated by
+        db: circles     bucket:          db name / bucket name)
+        (prod)          circles (prod)
+        db: peerify_    bucket:
+        staging         circles-staging
+```
 
-User identities are stored as circles with:
-
-circleType: "user"
-
-This allows users and organizations to share the same core data model.
-
----
-
-## Circles System
-
-Circles represent:
-
-- individuals
-- projects
-- communities
-- organizations
-
-Each circle can contain:
-
-- offers (skills available)
-- needs (skills requested)
-- tasks
-- events
-- posts
+Both app instances run on the same physical server (`65.21.91.96`). nginx routes by hostname to the correct port. The two instances are isolated at the data layer by **database name** (Mongo) and **bucket name** (MinIO), not by separate database/storage servers.
 
 ---
 
-## Chat System
+## 3. Data layer
 
-Chat is implemented as a Mongo-native messaging engine.
+### MongoDB
+- Connection string in `MONGODB_URI`. **The database name is derived from the URI path** (`new URL(uri).pathname` with a `circles` fallback) — see `src/lib/data/db.ts`. This was fixed on 2026-06-27; previously the name was hardcoded to `circles`, which broke environment isolation.
+- Production database: `circles`. Staging database: `peerify_staging`.
+- Core collection: `circles` (holds users/accounts, circles, and related documents; site-wide admin is the `isAdmin` boolean on user docs).
 
-Collections:
+### MinIO / object storage
+- Client configured from `MINIO_HOST` / `MINIO_PORT` / `MINIO_ROOT_*`. **Bucket name comes from `MINIO_BUCKET`** (fallback `circles`) — see `src/lib/data/storage.ts`. Also fixed 2026-06-27 (was hardcoded).
+- Production bucket: `circles`. Staging bucket: `circles-staging`.
+- Uploads (profile images, hero images, audio derivatives) are written by `storage.ts` (`saveFile`, `deleteFile`, `ensureBucketExists`) and served back through app routes `src/app/storage/[...path]/route.ts` and `src/app/uploads/[...path]/route.ts`, which proxy from MinIO using signed/app-level access (MinIO is not directly browser-reachable).
 
-- chatConversations
-- chatMessageDocs
-- chatRoomMembers
-- chatReadStates
-
-Supported conversation types:
-
-- dm
-- group
-- announcement
-
-Architecture details:
-
-See:
-
-docs/CHAT_SYSTEM_ARCHITECTURE.md
+### User key material
+- Per-user encryption keys live on disk under `APP_DIR` (read in `src/lib/auth/auth.ts`), *not* in MongoDB. Each environment has its own `APP_DIR`, so accounts/keys do not cross between prod and staging. This is why an account that exists in prod cannot log in on staging without signing up there.
 
 ---
 
-## Verification Workflow
+## 4. The audio pipeline
 
-Verification clarification threads use a dedicated workflow and do not create DM/chat rooms.
-
-Collections:
-
-- verifications
-- verificationMessages
-
----
-
-## Notifications System
-
-Kamooni now uses a Mongo-backed in-app notification system.
-
-Current launch behavior:
-
-- **Mail icon** owns unread message activity
-  - direct messages
-  - group chat unread
-  - help/contact thread unread
-
-- **Bell icon** owns non-message activity
-  - mentions
-  - approvals
-  - requests
-  - other system notifications
-
-Notification delivery is intentionally conservative.
-Kamooni is not designed around attention capture or high-frequency engagement loops.
-
-Current implementation includes:
-
-- Mongo-backed notification persistence
-- unread bell count endpoint
-- notification list endpoint
-- mark-all-read endpoint
-- chat-triggered PM notifications routed into the notifications system
-
-Important launch note:
-
-- chat/message mentions remain enabled
-- non-chat mentions in posts/comments/discussions are intentionally disabled for launch and should be rebuilt later using the working chat mention path as the reference implementation
+- Track model + private MinIO storage.
+- On upload: synchronous ffmpeg conversion to a single ~192kbps MP3 derivative (`ffmpeg-static`, installed via bun at build time).
+- Playback: native `<audio>` element fed by a signed, expiring app-level stream route with HTTP range support (not MinIO presigned URLs).
+- Upload is gated (admins/moderators/verified users); public viewing/playback is allowed for unauthenticated visitors (the "discover → listen" path).
+- Deferred to later product phases: multi-bitrate, DRM, async/queued conversion, real payments.
 
 ---
 
-## System Messaging
+## 5. Environments
 
-Platform messages are delivered through chat.
+| | Production | Staging |
+|---|---|---|
+| Branch | `main` | `staging` |
+| App dir (git worktree) | `/home/tim/apps/peerify-app/circles` | `/home/tim/apps/peerify-staging/circles/circles` |
+| Process | PM2 `peerify` :3000 | PM2 `peerify-staging` :3001 |
+| Mongo DB | `circles` | `peerify_staging` |
+| MinIO bucket | `circles` | `circles-staging` |
+| Env loading | PM2 inline (`--update-env`) | Node `--env-file` |
 
-Examples:
-
-- welcome messages
-- platform announcements
-- admin broadcasts
-
-System messages reuse the Mongo chat infrastructure rather than a separate transport.
-
----
-
-## Matching Engine
-
-Matching connects:
-
-- offers (skills people have)
-- needs (skills projects request)
-
-Matching is used in:
-
-- circle pages
-- explore page
-- future task/help system
+Deploy flow: feature → `staging` → test on staging.peerify.one → `staging` merged to `main` → production. Operational detail (including the required post-build static-asset copy step) lives in `OPERATIONS.md`.
 
 ---
 
-## Task / Help System
+## 6. Known architectural debt
 
-Tasks and help requests are a major future engagement path.
-
-These will eventually support:
-
-- skill matching
-- contribution history
-- reputation tracking
-- high-signal notifications when someone is needed
-
----
-
-# 4. Deployment Architecture
-
-Production environment:
-
-Server: Circles-Genesis2
-
-Core services:
-
-- Next.js app container
-- MongoDB
-- MinIO
-- Qdrant
-- cron container
-
-Deployment command:
-
-deploykamooni
-
-Production code path:
-
-/root/circles/circles
-
-Deployment verification:
-
-curl -sS https://kamooni.org/api/version && echo
-
-Rollback point before the notifications polish release:
-
-pre-notifications-polish-20260321-1008
-
----
-
-# 5. Key Architectural Principles
-
-Kamooni architecture prioritizes:
-
-- simplicity
-- transparency
-- extensibility
-- high-signal communication over notification overload
-
-Important rules:
-
-1. Mongo is the primary data store
-2. Chat uses the same DB as the platform
-3. Notifications are Mongo-backed
-4. Mail and Bell are intentionally separated
-5. Conversations normalize before UI use
-6. UI must rely on normalized flags
-7. System messages reuse chat infrastructure
-8. Notifications should bring users back only when something meaningful happened
-
----
-
-# 6. Current Launch State
-
-Current launch-ready communication model:
-
-- Search is implemented
-- Mongo chat is active
-- Mail/Bell split is active
-- In-app notifications are active
-- Chat mentions work
-- Non-chat mentions are intentionally disabled for launch
-- Missed-message email reminder MVP is active for DMs
-- Missed-message emails are gated by the user-level `emailMissedMessages` flag
-- Notification settings MVP is active
-- Notification settings are currently per circle/profile entity, not global
-- Notification settings currently control Bell-owned non-message activity only
-- Task/goal/proposal/issue notifications are role-relevant, not broadcast to everyone in a circle
-- Launch-facing notification settings UI is simplified to high-signal grouped categories
-
-Deferred items:
-
-- web push notifications
-- broader email notification settings UI
-- rebuilt non-chat mentions for posts/comments/discussions
-- broader notification taxonomy refinement
-
----
-
-# 7. Future Architecture Expansion
-
-Upcoming major systems include:
-
-- web push notifications
-- task/help notification routing expansion
-- contribution history
-- reputation signals
-- improved semantic search
-- rebuilt non-chat mentions outside chat
-- broader notification settings evolution beyond the current MVP
-
-These systems build on the same core identity and circle model.
-
----
-
-# 8. Developer Entry Points
-
-Start here when exploring the codebase:
-
-- src/app
-- src/components
-- src/lib/data
-- src/lib/chat
-
-Additional details:
-
-See related architecture docs below.
-
----
-
-# Related Architecture Documents
-
-For deeper technical details see:
-
-- docs/CHAT_SYSTEM_ARCHITECTURE.md
-- docs/chat.md
-- docs/CHAT_RUNTIME_NOTE.md
-- docs/CHAT_DEBUG_PLAYBOOK.md
+- **The "circles" hardcode lineage.** Because Circles named everything `circles`, several modules hardcoded that literal instead of reading env vars, silently defeating environment isolation. Two were fixed (db, storage); the codebase should be swept for others.
+- **Standalone static assets.** Next.js standalone output omits `.next/static` and `public`; they must be copied next to `server.js` per deploy. Should be folded into a deploy script.
+- **Legacy `APP_DIR` path.** Production's `APP_DIR` still points at a pre-rename directory that holds the live keys; migrating it is a careful future task, not a quick fix.
+- **Inherited Kamooni docs.** Some repo docs still carry Kamooni identity/content; being corrected incrementally.
