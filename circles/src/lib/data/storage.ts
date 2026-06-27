@@ -35,7 +35,7 @@ const minioClient = new MinioClient({
     secretKey: process.env.MINIO_ROOT_PASSWORD || "minioadmin",
 });
 
-const bucketName = "circles";
+const bucketName = process.env.MINIO_BUCKET || "circles";
 
 export const isFile = (file: any) => {
     return file && typeof file === "object" && file.type && file.size;
