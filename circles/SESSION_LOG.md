@@ -266,3 +266,18 @@ Carry-forward (do before next staging build):
   circles-staging, APP_DIR /home/tim/apps/peerify-staging-data, env at
   /home/tim/apps/peerify-staging/circles/.env.local (one level up from worktree).
 - FFMPEG_PATH added to staging .env.local pointing at source node_modules ffmpeg binary.
+
+---
+
+## 2026-06-27 (cont.) — Hardcoded "circles" audit: COMPLETE, no further bugs
+
+Ran `grep -rn '"circles"' src/`. ~60 hits, all classified:
+- Mongo $lookup `from: "circles"` and `db.collection("circles")` across
+  task/feed/event/proposal/goal/discussion/membership-requests/verification-workflow/db.ts
+  — these are the COLLECTION name, genuinely "circles" in both prod and staging. CORRECT, left alone.
+- storage.ts:38 `MINIO_BUCKET || "circles"` — the fix's fallback. Correct.
+- middleware.ts:56/60 — URL path routing ("/circles" segment). Correct.
+- vdb.ts (Qdrant vector collection "circles", ~7 hits) — the only other candidates,
+  BUT: no QDRANT/VDB/VECTOR env in either .env.local, and no Qdrant running on :6333.
+  Dormant code, never executes. Not a live bug. Revisit IF vector search is ever enabled.
+Conclusion: db.ts + storage.ts were the ONLY live isolation bugs. Isolation now fully closed.
