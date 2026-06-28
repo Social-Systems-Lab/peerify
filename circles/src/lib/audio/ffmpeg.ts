@@ -9,9 +9,11 @@ import os from "os";
 import path from "path";
 
 // Resolve an ffmpeg binary. Order:
-//   1. FFMPEG_PATH env (explicit override, e.g. system install in Docker)
-//   2. system "ffmpeg" on PATH
-//   3. the ffmpeg-static bundled binary (covers local dev with no system ffmpeg)
+//   1. FFMPEG_PATH env (explicit override, e.g. system install on bare-Node prod)
+//   2. system "ffmpeg" on PATH (default for prod/staging with host ffmpeg)
+//   3. the ffmpeg-static bundled binary, but ONLY if it actually exists on disk
+//      (covers local dev with no system ffmpeg; skipped under Next standalone
+//      bundling where the traced path points at a non-existent binary)
 const resolveFfmpegPath = (): string => {
     if (process.env.FFMPEG_PATH) {
         return process.env.FFMPEG_PATH;
@@ -19,7 +21,7 @@ const resolveFfmpegPath = (): string => {
     try {
         const ffmpegStatic = require("ffmpeg-static");
         const staticPath = typeof ffmpegStatic === "string" ? ffmpegStatic : ffmpegStatic?.default;
-        if (staticPath) {
+        if (staticPath && fs.existsSync(staticPath)) {
             return staticPath;
         }
     } catch {
