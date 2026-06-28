@@ -3,14 +3,53 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-06-27)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main`.
-- Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001, branch `staging`.
+## Current Status (2026-06-28)
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 116e9394.
+- Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
+- Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
 - See OPERATIONS.md for full architecture and deploy procedure.
 
 ---
 
+## 2026-06-28 (cont. #2) — Ship audio pipeline to PROD: merge, lockfile fix, ffmpeg ENOENT fix
+
+Headline: Merged `feature/audio-pipeline` into `main` and deployed the full audio feature to production. MP3 upload → ffmpeg derivative → publish → playback now working end-to-end on prod (bare-Node PM2). Two deploy-blocking issues surfaced and were fixed: a pre-existing lockfile inconsistency, and an ffmpeg path-resolution bug that only manifests under Next.js standalone bundling.
+
+Pre-merge cleanup (on `feature/audio-pipeline`):
+- Removed DEBUG console.logs from auth.ts (3 lines) and admin/page.tsx ([ADMIN DEBUG], logged owner email) — commit 83367467, pushed.
+- Discarded a Kamooni CAPTCHA lockfile contamination (altcha/altcha-lib/hash-wasm + configVersion:0) that had appeared uncommitted in the staging worktree's bun.lock. NOTE: altcha is a LEGITIMATE Peerify dep on main (commit c57dcedf "Add ALTCHA verification to Peerify signup") — the contamination was only the stray worktree state, not the dep itself.
+
+Merge (feature/audio-pipeline -> main):
+- Done via a DETACHED throwaway worktree at /tmp/peerify-merge (main is checked out in the prod worktree, so neither staging nor prod was disturbed). --no-ff merge.
+- Only conflict was SESSION_LOG.md (add/add) — resolved union-style (kept both sides).
+- Verified all 5 merge hazards on the staged tree BEFORE committing: Tracks collection present in db.ts; no hardcoded db/bucket names; stripe apiVersion = 2026-03-25.dahlia (correct); no DEBUG logs reintroduced; FFMPEG_PATH only referenced as an OPTIONAL resolver override (not a hardcode). Merge commit 40576a43, pushed to origin/main.
+
+Deploy blocker 1 — lockfile inconsistency (PRE-EXISTING on main):
+- `bun install --frozen-lockfile` failed: main's package.json declared altcha deps but bun.lock never locked them. Independent of the audio merge — the audio deploy was just the first frozen-install to hit it.
+- Fix: regenerated bun.lock to lock the altcha deps, committed bun.lock only (commit dfbf3188), pushed.
+
+Deploy blocker 2 — ffmpeg ENOENT under standalone bundling:
+- After deploy, MP3 upload failed: "Could not process the audio (ffmpeg)."
+- Root cause: resolveFfmpegPath() in src/lib/audio/ffmpeg.ts trusted the ffmpeg-static path UNCONDITIONALLY. Under Next standalone bundling, require("ffmpeg-static") returns a traced path to a binary that was never copied into the bundle (.next/server/app/circles/[handle]/music/ffmpeg) -> spawn ENOENT. System ffmpeg at /usr/bin/ffmpeg (6.1.1) was available the whole time but never reached, because ffmpeg-static won resolution first (code order didn't match its own comment).
+- Immediate fix (no rebuild, reversible): added FFMPEG_PATH=/usr/bin/ffmpeg to prod .env.local; restarted prod via pm2 delete + fresh start with --update-env. Upload worked immediately. KEPT as an intentional explicit override.
+- Proper fix (code): guarded the ffmpeg-static branch with fs.existsSync(staticPath) so it's only used when the binary actually exists on disk; otherwise falls through to system "ffmpeg" on PATH. Commit 116e9394 (branch fix/ffmpeg-resolver, FF'd to main). Redeployed prod. Now belt-and-suspenders: env override + code fix.
+
+Verification: prod online (HTTP 200), no new ffmpeg/ENOENT errors after restart, and a real browser upload + playback confirmed working on peerify.one.
+
+State at end of session:
+- Prod: main @ 116e9394, PM2 `peerify` :3000, audio LIVE. .env.local has FFMPEG_PATH=/usr/bin/ffmpeg (intentional). Backup of pre-change env at /tmp/.env.local.bak.
+- Staging worktree: on branch fix/ffmpeg-resolver (was feature/audio-pipeline). .claude/settings.local.json modified but uncommitted (Claude Code settings — ignore).
+
+CARRY-FORWARD:
+1. Sync the ffmpeg resolver fix to STAGING — staging still runs the old resolver (relies on Docker-installed ffmpeg). Update staging to main-equivalent.
+2. Remove deploy-genesis2.sh from the peerify repo (Kamooni/Docker script, lives in circles/ — never run on peerify box). Proper `git rm` + commit on main.
+3. Rotate staging MINIO_ROOT_PASSWORD (exposed in a prior session).
+4. Verify the stray `[DEBUG getOpenEventsForListAction]` log is gone — it appeared in old prod logs but is NOT in current source; confirm it's not reintroduced anywhere.
+5. Decide handling for .claude/settings.local.json (commit, or add to .gitignore).
+6. Now that the code fix exists, decide whether to keep the prod FFMPEG_PATH override (recommended: keep) or rely on the resolver alone.
+
+---
 ## 2026-06-27 — Staging environment + two isolation-bug fixes
 
 Headline: Stood up a fully isolated staging environment at staging.peerify.one,
