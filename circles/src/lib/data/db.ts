@@ -42,9 +42,6 @@ const dbName = new URL(MONGODB_URI).pathname.replace(/^\//, '') || 'circles';
 
 const options: MongoClientOptions = {};
 
-console.log("DEBUG DB: process.env.MONGODB_URI =", (process.env.MONGODB_URI || "").replace(/\/\/([^:]+):([^@]+)@/, "//$1:***@"));
-console.log("DEBUG DB: fallback parts =", { MONGO_ROOT_USERNAME: process.env.MONGO_ROOT_USERNAME, MONGO_HOST: process.env.MONGO_HOST, MONGO_PORT: process.env.MONGO_PORT });
-
 // Initialize client and collections conditionally
 let client: MongoClient;
 let db: Db;
