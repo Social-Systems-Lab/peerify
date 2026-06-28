@@ -202,6 +202,26 @@ export const mediaSchema = z.object({
 
 export type Media = z.infer<typeof mediaSchema>;
 
+// Peerify: an uploaded audio track belonging to an artist profile (a circle).
+// We deliberately store storage *keys* (not public URLs) so that delivery can be
+// gated / signed at request time — this keeps purchased/gated playback possible
+// later without a data migration.
+export const trackSchema = z.object({
+    _id: z.any().optional(),
+    artistProfileId: z.string(), // circle _id of the artist/band this track belongs to
+    title: z.string(),
+    originalKey: z.string(), // private storage key for the uploaded original (never served publicly)
+    previewKey: z.string(), // private storage key for the generated web-playable MP3 derivative
+    durationSec: z.number().optional(), // best-effort, read from ffmpeg if cheap
+    originalMimeType: z.string().optional(),
+    rightsConfirmed: z.literal(true), // artist confirmed they own/control the rights
+    rightsConfirmedAt: z.date(),
+    createdAt: z.date(),
+    createdBy: didSchema,
+});
+
+export type Track = z.infer<typeof trackSchema>;
+
 export const mentionSchema = z.object({
     type: z.enum(["circle"]),
     id: z.string(),

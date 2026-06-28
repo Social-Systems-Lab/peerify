@@ -192,6 +192,66 @@ export const saveFile = async (
     }
 };
 
+// ---------------------------------------------------------------------------
+// Peerify private media storage
+//
+// The "circles" bucket above is public-read and is served by the unauthenticated
+// /storage/[...path] proxy. Audio originals + derivatives must NOT be reachable
+// that way, so they live in a SEPARATE bucket with no public policy. Objects here
+// are only ever streamed server-side through the signed /api/peerify/audio route.
+// ---------------------------------------------------------------------------
+
+const privateBucketName = process.env.MINIO_PRIVATE_BUCKET || "peerify-media";
+
+let privateBucketEnsured = false;
+const ensurePrivateBucket = async () => {
+    if (privateBucketEnsured) return;
+    const exists = await minioClient.bucketExists(privateBucketName);
+    if (!exists) {
+        await minioClient.makeBucket(privateBucketName);
+        // Intentionally NO public bucket policy: objects stay private.
+    }
+    privateBucketEnsured = true;
+};
+
+export const putPrivateObject = async (key: string, buffer: Buffer, contentType: string): Promise<void> => {
+    await ensurePrivateBucket();
+    await minioClient.putObject(privateBucketName, key, buffer, buffer.length, {
+        "Content-Type": contentType,
+    });
+};
+
+export type PrivateObjectStat = { size: number; contentType: string };
+
+export const statPrivateObject = async (key: string): Promise<PrivateObjectStat> => {
+    await ensurePrivateBucket();
+    const stat = await minioClient.statObject(privateBucketName, key);
+    return {
+        size: stat.size,
+        contentType: (stat.metaData?.["content-type"] as string) || "application/octet-stream",
+    };
+};
+
+// Returns a Node Readable stream for the object. When offset/length are provided
+// a partial (byte-range) stream is returned — used to satisfy HTTP Range requests
+// so native <audio> seeking works.
+export const getPrivateObjectStream = async (
+    key: string,
+    offset?: number,
+    length?: number,
+): Promise<NodeJS.ReadableStream> => {
+    await ensurePrivateBucket();
+    if (typeof offset === "number" && typeof length === "number") {
+        return minioClient.getPartialObject(privateBucketName, key, offset, length);
+    }
+    return minioClient.getObject(privateBucketName, key);
+};
+
+export const removePrivateObject = async (key: string): Promise<void> => {
+    await ensurePrivateBucket();
+    await minioClient.removeObject(privateBucketName, key);
+};
+
 // Function to delete a file from MinIO based on its URL
 export const deleteFile = async (fileUrl: string): Promise<void> => {
     try {

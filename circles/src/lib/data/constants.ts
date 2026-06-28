@@ -359,6 +359,31 @@ export const features = {
             module: "events",
         } as Feature,
     },
+    music: {
+        view: {
+            name: "View Music",
+            handle: "view",
+            description: "View uploaded music tracks",
+            defaultUserGroups: ["admins", "moderators", "members", "everyone"],
+            module: "music",
+        } as Feature,
+        upload: {
+            name: "Upload Music",
+            handle: "upload",
+            description: "Upload audio tracks",
+            defaultUserGroups: ["admins", "moderators"],
+            module: "music",
+            needsToBeVerified: true,
+        } as Feature,
+        manage: {
+            name: "Manage Music",
+            handle: "manage",
+            description: "Edit or delete music tracks",
+            defaultUserGroups: ["admins"],
+            module: "music",
+            needsToBeVerified: true,
+        } as Feature,
+    },
     proposals: {
         view: {
             name: "View Proposals",
@@ -652,6 +677,12 @@ export const modules: ModuleInfo[] = [
         handle: "events",
         description:
             "Create and discover upcoming meetups, cleanups and gatherings. Publish event details, locations or virtual links, and manage RSVPs with calendar integration.",
+    },
+    {
+        name: "Music",
+        handle: "music",
+        description:
+            "Share and discover music created by circle members. Upload tracks and stream audio directly from the profile.",
     },
     {
         name: "Funding Needs",

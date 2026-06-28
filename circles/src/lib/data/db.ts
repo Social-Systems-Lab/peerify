@@ -17,6 +17,7 @@ import {
     Proposal,
     Issue,
     Task,
+    Track,
     FundingAsk,
     RankedList,
     Goal,
@@ -63,6 +64,7 @@ let Challenges: Collection<Challenge>;
 let Proposals: Collection<Proposal>;
 let Issues: Collection<Issue>;
 let Tasks: Collection<Task>;
+let Tracks: Collection<Track>;
 let FundingAsks: Collection<FundingAsk>;
 let Goals: Collection<Goal>;
 let Events: Collection<Event>;
@@ -110,6 +112,7 @@ if (process.env.IS_BUILD !== "true") {
     Proposals = db.collection<Proposal>("proposals");
     Issues = db.collection<Issue>("issues");
     Tasks = db.collection<Task>("tasks");
+    Tracks = db.collection<Track>("tracks");
     FundingAsks = db.collection<FundingAsk>("fundingAsks");
     Goals = db.collection<Goal>("goals");
     Events = db.collection<Event>("events");
@@ -158,6 +161,7 @@ export {
     Proposals,
     Issues,
     Tasks,
+    Tracks,
     FundingAsks,
     Goals,
     Events,

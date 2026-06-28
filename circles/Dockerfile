@@ -38,6 +38,10 @@ ENV NODE_ENV production
 COPY package.json bun.lock ./
 
 # Runtime deps for sharp (Next image optimization + server-side thumbnails)
+# and ffmpeg (Peerify audio derivative generation — see src/lib/audio/ffmpeg.ts).
+# A system ffmpeg is installed here because Next's standalone output does not
+# reliably trace the ffmpeg-static binary into the runner image (same reason
+# sharp is hand-installed below). The ffmpeg resolver prefers this PATH binary.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -45,6 +49,7 @@ RUN apt-get update \
     libstdc++6 \
     libgcc-s1 \
     libvips \
+    ffmpeg \
   && rm -rf /var/lib/apt/lists/*
 
 # Install sharp into runtime node_modules (do not rely on Next standalone tracing)

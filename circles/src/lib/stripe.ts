@@ -13,7 +13,7 @@ export function getStripe(): Stripe {
 
     if (!stripeClient) {
         stripeClient = new Stripe(secretKey, {
-            apiVersion: "2026-05-27.dahlia",
+            apiVersion: "2026-03-25.dahlia", // MUST match installed stripe SDK (node_modules/stripe/cjs/apiVersion.d.ts). Do NOT bump without bumping the SDK first.
         });
     }
 
