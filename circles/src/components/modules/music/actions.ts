@@ -8,7 +8,7 @@ import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { getCircleById } from "@/lib/data/circle";
 import { putPrivateObject } from "@/lib/data/storage";
-import { createTrack } from "@/lib/data/track";
+import { createTrack, getTracksByCircleId, getTrackById, deleteTrack } from "@/lib/data/track";
 import { generateMp3Preview } from "@/lib/audio/ffmpeg";
 
 // Accepted upload formats → canonical mime used when storing the original.
@@ -17,6 +17,7 @@ const ACCEPTED_EXTENSIONS: Record<string, string> = {
 };
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_TRACKS_PER_ARTIST = 3;
 
 const uploadSchema = z.object({
     title: z.string().trim().min(1, "Title is required").max(200, "Title is too long"),
@@ -74,6 +75,15 @@ export async function uploadTrackAction(formData: FormData): Promise<UploadTrack
             return { success: false, message: "You are not authorized to upload tracks to this profile" };
         }
 
+        // Enforce the per-artist track cap (pilot limit).
+        const existingTracks = await getTracksByCircleId(circleId);
+        if (existingTracks.length >= MAX_TRACKS_PER_ARTIST) {
+            return {
+                success: false,
+                message: `You can have up to ${MAX_TRACKS_PER_ARTIST} tracks. Delete one to upload another.`,
+            };
+        }
+
         const buffer = Buffer.from(await file.arrayBuffer());
 
         // Random key id keeps the storage keys non-enumerable.
@@ -121,5 +131,39 @@ export async function uploadTrackAction(formData: FormData): Promise<UploadTrack
     } catch (error) {
         console.error("Error uploading track:", error);
         return { success: false, message: "Failed to upload track" };
+    }
+}
+
+export async function deleteTrackAction(trackId: string): Promise<{ success: boolean; message?: string }> {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in" };
+    }
+
+    try {
+        const track = await getTrackById(trackId);
+        if (!track) {
+            return { success: false, message: "Track not found" };
+        }
+
+        const circleId = track.artistProfileId;
+        const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+        if (!authorized) {
+            return { success: false, message: "You are not authorized to delete this track" };
+        }
+
+        // deleteTrack removes both private storage objects (explicit keys, no
+        // wildcards) and the Track document.
+        await deleteTrack(trackId);
+
+        const circle = await getCircleById(circleId);
+        if (circle?.handle) {
+            revalidatePath(`/circles/${circle.handle}/music`);
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error deleting track:", error);
+        return { success: false, message: "Failed to delete track" };
     }
 }

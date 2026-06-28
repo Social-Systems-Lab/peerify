@@ -7,8 +7,11 @@ import { getTracksByCircleId } from "@/lib/data/track";
 import { signAudioToken } from "@/lib/audio/audio-token";
 import TrackUploadForm from "@/components/modules/music/track-upload-form";
 import AudioPlayer from "@/components/modules/music/audio-player";
+import TrackDeleteButton from "@/components/modules/music/track-delete-button";
 import { Circle } from "@/models/models";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
+
+const MAX_TRACKS_PER_ARTIST = 3;
 
 type Props = {
     circle: Circle;
@@ -62,7 +65,19 @@ export default async function MusicModule({ circle }: Props) {
             <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
                 <h2 className="text-xl font-semibold">Music</h2>
 
-                {canUpload && <TrackUploadForm circleId={circleId} />}
+                {canUpload &&
+                    (tracksWithUrls.length >= MAX_TRACKS_PER_ARTIST ? (
+                        <p className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+                            You&apos;ve reached the {MAX_TRACKS_PER_ARTIST}-track limit. Delete a track to upload another.
+                        </p>
+                    ) : (
+                        <>
+                            <TrackUploadForm circleId={circleId} />
+                            <p className="text-sm font-medium text-gray-600">
+                                {tracksWithUrls.length} of {MAX_TRACKS_PER_ARTIST} tracks used
+                            </p>
+                        </>
+                    ))}
 
                 {tracksWithUrls.length === 0 ? (
                     <p className="text-sm text-gray-500">No tracks yet.</p>
@@ -72,6 +87,7 @@ export default async function MusicModule({ circle }: Props) {
                             <li key={track.id} className="flex flex-col gap-2 rounded-lg border p-4">
                                 <span className="font-medium">{track.title}</span>
                                 <AudioPlayer src={track.streamUrl} durationSec={track.durationSec} />
+                                {canUpload && <TrackDeleteButton trackId={track.id} title={track.title} />}
                             </li>
                         ))}
                     </ul>
