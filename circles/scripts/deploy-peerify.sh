@@ -14,7 +14,7 @@ export GIT_SHA="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
 export BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 echo "Installing dependencies..."
-npm install --legacy-peer-deps --include=dev
+bun install --frozen-lockfile
 
 export NODE_ENV=production
 
@@ -22,7 +22,7 @@ echo "Cleaning old build..."
 rm -rf .next
 
 echo "Building Peerify..."
-npm run build
+bun run build
 
 echo "Copying standalone assets..."
 STANDALONE_ROOT=".next/standalone/apps/peerify-app/circles"
