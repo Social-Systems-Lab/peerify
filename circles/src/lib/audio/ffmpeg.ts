@@ -17,7 +17,6 @@ const resolveFfmpegPath = (): string => {
         return process.env.FFMPEG_PATH;
     }
     try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const ffmpegStatic = require("ffmpeg-static");
         const staticPath = typeof ffmpegStatic === "string" ? ffmpegStatic : ffmpegStatic?.default;
         if (staticPath) {
