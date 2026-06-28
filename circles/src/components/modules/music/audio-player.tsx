@@ -21,7 +21,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, durationSec }) =>
     const duration = formatDuration(durationSec);
     return (
         <div className="flex flex-col gap-1">
-            <audio controls preload="metadata" src={src} className="w-full">
+            <audio
+                controls
+                controlsList="nodownload noplaybackrate"
+                onContextMenu={(e) => e.preventDefault()}
+                preload="metadata"
+                src={src}
+                className="w-full"
+            >
                 Your browser does not support the audio element.
             </audio>
             {duration && <span className="text-xs text-gray-500">{duration}</span>}
