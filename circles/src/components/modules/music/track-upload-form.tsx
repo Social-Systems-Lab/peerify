@@ -34,6 +34,10 @@ export const TrackUploadForm: React.FC<TrackUploadFormProps> = ({ circleId }) =>
             toast({ title: "Error", description: "Please choose an audio file.", variant: "destructive" });
             return;
         }
+        if (file.size > 20 * 1024 * 1024) {
+            toast({ title: "File too large", description: "Maximum size is 20MB.", variant: "destructive" });
+            return;
+        }
         if (!rightsConfirmed) {
             toast({
                 title: "Rights confirmation required",
@@ -91,10 +95,10 @@ export const TrackUploadForm: React.FC<TrackUploadFormProps> = ({ circleId }) =>
                     id="track-file"
                     ref={fileInputRef}
                     type="file"
-                    accept=".mp3,.wav,.flac,.m4a,audio/mpeg,audio/wav,audio/flac,audio/mp4,audio/x-m4a"
+                    accept=".mp3,audio/mpeg"
                     disabled={isPending}
                 />
-                <span className="text-xs text-gray-500">mp3, wav, flac or m4a (max 100MB)</span>
+                <span className="text-xs text-gray-500">mp3 only (max 20MB)</span>
             </div>
 
             <div className="flex items-start gap-2">

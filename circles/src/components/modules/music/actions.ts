@@ -14,12 +14,9 @@ import { generateMp3Preview } from "@/lib/audio/ffmpeg";
 // Accepted upload formats → canonical mime used when storing the original.
 const ACCEPTED_EXTENSIONS: Record<string, string> = {
     ".mp3": "audio/mpeg",
-    ".wav": "audio/wav",
-    ".flac": "audio/flac",
-    ".m4a": "audio/mp4",
 };
 
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100 MB
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 MB
 
 const uploadSchema = z.object({
     title: z.string().trim().min(1, "Title is required").max(200, "Title is too long"),
@@ -53,13 +50,18 @@ export async function uploadTrackAction(formData: FormData): Promise<UploadTrack
             return { success: false, message: "Please choose an audio file" };
         }
         if (file.size > MAX_UPLOAD_BYTES) {
-            return { success: false, message: "File is too large (max 100MB)" };
+            return { success: false, message: "File is too large (max 20MB)" };
         }
 
         const ext = path.extname(file.name).toLowerCase();
         const originalMimeType = ACCEPTED_EXTENSIONS[ext];
         if (!originalMimeType) {
-            return { success: false, message: "Unsupported format. Use mp3, wav, flac or m4a." };
+            return { success: false, message: "Unsupported format. MP3 only for now." };
+        }
+
+        // Defense-in-depth: the browser-reported type should also be MP3.
+        if (file.type && file.type !== "audio/mpeg" && file.type !== "audio/mp3") {
+            return { success: false, message: "Unsupported format. MP3 only for now." };
         }
 
         // Must own/administer this artist profile (same check the profile editor uses).
