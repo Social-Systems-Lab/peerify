@@ -38,10 +38,6 @@ export const APP_DIR =
         return process.env.NODE_ENV === "production" ? "/circles" : path.join(process.cwd(), "circles_data");
     })();
 
-console.log("DEBUG AUTH: NODE_ENV", process.env.NODE_ENV);
-console.log("DEBUG AUTH: APP_DIR", APP_DIR);
-console.log("DEBUG AUTH: CWD", process.cwd());
-
 export const USERS_DIR = path.join(APP_DIR, "users");
 export const SERVER_DIR = path.join(APP_DIR, "server"); // Also export SERVER_DIR if needed elsewhere, otherwise keep as const
 
