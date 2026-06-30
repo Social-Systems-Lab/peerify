@@ -1,0 +1,4 @@
+# Repo-root ignores (env files live here, above the nested circles/.gitignore)
+.env
+.env.local
+.env*.local
