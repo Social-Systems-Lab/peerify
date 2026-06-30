@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { Circle } from "@/models/models";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, Controller, Control, FieldValues } from "react-hook-form";
 import { saveAbout } from "@/app/circles/[handle]/settings/about/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -365,6 +365,17 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
     const [, setUser] = useAtom(userAtom);
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [bannerDismissed, setBannerDismissed] = useState(false);
+
+    useEffect(() => {
+        try {
+            if (localStorage.getItem("peerify_personal_profile_banner_dismissed") === "true") {
+                setBannerDismissed(true);
+            }
+        } catch {
+            // localStorage unavailable (private mode etc.) — show banner
+        }
+    }, []);
     const isIndependentCircle = circle.circleType !== "user" && circle.circleLevel !== "profile_child";
     const isUserProfile = circle.circleType === "user";
     const isPeerifyManagedVenueCircle = isPeerifyVenueIdentity(circle);
@@ -534,19 +545,35 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="formatted space-y-6">
-                {isUserProfile && (
-                    <Card className="bg-muted/40 border-muted">
-                        <CardContent className="pt-6">
-                            <p className="font-medium text-sm">This is your personal profile</p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                It&apos;s private by default and represents you as a person.
-                            </p>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                Artists, bands, and venues are separate identities. To create one, use the + Create
-                                button in the left sidebar.
-                            </p>
-                        </CardContent>
-                    </Card>
+                {isUserProfile && !bannerDismissed && (
+                    <div className="rounded-lg border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50 p-4 text-sm text-amber-950">
+                        <p className="font-medium">This is your personal profile</p>
+                        <p className="mt-1 text-amber-900">
+                            It&apos;s private by default and represents you as a person.
+                        </p>
+                        <p className="mt-1 text-amber-900">
+                            Artists, bands, and venues are separate identities. To create one, use the + Create button
+                            in the left sidebar.
+                        </p>
+                        <div className="mt-3 flex justify-end">
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-auto p-0 text-xs text-amber-700 hover:bg-transparent hover:text-amber-900"
+                                onClick={() => {
+                                    setBannerDismissed(true);
+                                    try {
+                                        localStorage.setItem("peerify_personal_profile_banner_dismissed", "true");
+                                    } catch {
+                                        // localStorage unavailable — dismiss for this session only
+                                    }
+                                }}
+                            >
+                                Don&apos;t show me this again
+                            </Button>
+                        </div>
+                    </div>
                 )}
 
                 <Card>
