@@ -12,13 +12,15 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 
 ## §0. Build Status — current reality
 
-*Last updated: 2026-06-28 (audio pipeline shipped to prod).*
+*Last updated: 2026-06-30.*
 
 ### Live on production right now (peerify.one)
 - **Signup + auth** — personal-account-first signup, email confirmation, login/session. ALTCHA human-verification on signup (self-hosted, open-source).
 - **Artist profiles** with a **Music module**: MP3 upload (mp3-only, 20MB cap), ffmpeg derivative generation, signed streaming, **play-only player**, 3-track-per-artist cap with ownership-checked delete. On-by-default for new artist profiles. **This is live and working end-to-end as of 2026-06-28.**
 - **Founding-member infrastructure** (inherited from Kamooni; counter, badge, cap).
 - Circles, events, messaging, reviews, noticeboards — inherited Circles primitives, present but not all Peerify-tailored yet.
+- **Personal-profile settings cleaned up**: the "Peerify Artist Profile" section (checkbox + all artist metadata fields) removed from the personal-profile About settings page. Replaced with a calm amber info banner ("This is your personal profile… use the + Create button") with a persistent localStorage dismiss. Artist/band/venue creation continues via the Create button flow — settings page no longer suggests otherwise.
+- **Peerify-branded default avatars live**: `default-user-picture.png`, `default-artist-avatar.png`, `default-band-avatar.png`, `default-venue-avatar.png` replaced with Peerify orange-on-dark 512×512 versions (~32–52 KB, pngquant-optimized, down from ~1.6 MB each).
 
 ### Infrastructure reality (important — supersedes older notes)
 - **Server:** Hetzner, `tim@peerify` (65.21.91.96). Kamooni is a *separate* machine (`ubuntu@91.123.202.241`) — never cross commands.
@@ -74,21 +76,23 @@ Concrete work toward it:
 - **Venue + Host profiles**, venue-owner view, tour-team / group-formation flow, customisation UI, mobile-optimised patterns, alternate discovery views (Calendar/List), advanced search. (All designed or partially designed in §1–§11 below.)
 
 ### Carry-forward ops cleanup (next working session)
-1. Sync the ffmpeg resolver fix to STAGING (staging still on old resolver).
-2. **Audit and remove inherited Kamooni/Cleura/Circles docs.** The repo carries
+1. **Audit and remove inherited Kamooni/Cleura/Circles docs.** The repo carries
    stale docs from the Circles fork that describe a DIFFERENT platform on a
    DIFFERENT host (e.g. the Kamooni-flavoured `SESSION_LOG.md` lineage,
    `docs/cleura_deployment.md`, `docs/circles-deployment.md`,
    `docs/circles-registry-deployment.md`, and the root `deploy-genesis2.sh`
-   Kamooni/Docker script). These are actively misleading — they caused real
-   confusion this session. Process: inventory `docs/` with previews, triage each
-   into {Kamooni-specific → remove, Circles-generic-still-useful → keep,
-   Peerify-current → keep}, then `git rm` removals in one reviewable commit.
-   Do NOT bulk-delete — same codebase means some Circles docs may still apply.
-3. Rotate staging `MINIO_ROOT_PASSWORD` (exposed in a prior session).
-4. Verify the stray `[DEBUG getOpenEventsForListAction]` log is gone (not in current source — confirm not reintroduced).
-5. Decide handling for `.claude/settings.local.json` (commit or gitignore).
-6. Tidy the merged `fix/ffmpeg-resolver` branch (delete local + origin once confirmed).
+   Kamooni/Docker script). These are actively misleading. Process: inventory
+   `docs/` with previews, triage each into {Kamooni-specific → remove,
+   Circles-generic-still-useful → keep, Peerify-current → keep}, then `git rm`
+   in one reviewable commit. Do NOT bulk-delete.
+2. **Songwriter managed-identity type** — add constant `PEERIFY_DEFAULT_SONGWRITER_AVATAR_URL`, wire into `getPeerifyDefaultAvatarUrl()`, identity-type list, and Create flow. Optimized avatar prepared, not yet in repo.
+3. **`default-profile-avatar.png`** (`public/peerify/`) un-optimized at ~1.6 MB — run pngquant.
+4. **Banner flash-on-reload** — localStorage-gated banners (personal-profile + Verify Profile) flash one frame before `useEffect` hides them. Fix consistently: mounted-guard pattern or server-side preference.
+5. **Dead `canEditPeerifyArtistProfile` var** — `about-settings-form.tsx:372`, unused — remove in next cleanup commit.
+6. **Personal profile still renders circle chrome** ("Manage your circle's profile…", Pages / User Groups / Access Rules / Follow Requests) — de-Kamooni audit, separate task.
+7. **`kam-yellow` / `kam-hero-yellow` color tokens** — Kamooni-named; rename to brand-neutral in palette overhaul.
+8. **Over-broad `circles/` gitignore rule** (`circles/.gitignore` ~line 61) — matches `src/components/modules/circles/`; anchor or scope it.
+9. **`*.bak` avatar backups** on staging + prod — delete now that prod is confirmed stable.
 
 ---
 

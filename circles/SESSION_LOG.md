@@ -371,3 +371,50 @@ Conclusion: db.ts + storage.ts were the ONLY live isolation bugs. Isolation now 
 - MinIO: systemd minio.service, 127.0.0.1:9000, /var/lib/minio/data, creds /etc/default/minio.
   Both apps auth as root (peerifyminio). New password rotated this session.
 - Branches: main + staging only. All three refs (main, staging, origin/*) aligned at fbc95685.
+
+---
+
+## 2026-06-30 (cont.) — Artist section removal, amber profile banner, branded default avatars, prod promotion
+
+Headline: UI cleanup sprint for the personal-profile settings page — removed the confusing artist-profile section, replaced it with a calm amber informational banner, and rolled out Peerify-branded default avatars app-wide. All changes promoted to prod via fast-forward.
+
+### Done
+
+- **Artist profile section removed from personal-profile About settings** (`about-settings-form.tsx`).
+  The `{canEditPeerifyArtistProfile ? (<Card>…</Card>) : null}` block (lines 753–1120 pre-edit) and the preceding `{renderSaveButton()}` were removed from the JSX — 370 lines total. The `peerifyArtistIntent` form field default and save assembly were deliberately LEFT intact; this was a UI-only removal (the field still round-trips silently). The variable `canEditPeerifyArtistProfile` is now declared but unused — confirmed zero non-rendering references across the entire repo before cutting. Dead var left in place for now (see carry-forward).
+
+- **Personal-profile amber info banner added** (`about-settings-form.tsx`).
+  Gated on `isUserProfile && !bannerDismissed`. Styled as the app's established amber notice idiom: `rounded-lg border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50 p-4 text-sm text-amber-950`, matching `verification-readiness-checklist.tsx:10` and `home-content.tsx:170`. Content: "This is your personal profile" (heading) / "It's private by default and represents you as a person." / "Artists, bands, and venues are separate identities. To create one, use the + Create button in the left sidebar."
+  Dismiss: `useEffect` reads `localStorage.getItem("peerify_personal_profile_banner_dismissed")` on mount (SSR/hydration-safe — NOT inline) and calls `setBannerDismissed(true)` if found. Ghost-variant dismiss button (right-aligned, amber-toned) writes the key and updates state. Both localStorage operations are try/catch guarded for private-mode safety. `useEffect` added to the existing `useState` import line.
+
+- **Peerify-branded default avatars replaced** (4 files, all 512×512 PNG).
+  Replaced generic grey placeholder images with Peerify-branded orange-on-dark versions, optimized via pngquant (~1.6 MB → 32–52 KB each):
+  - `public/images/default-user-picture.png` — personal profile / user silhouette
+  - `public/peerify/default-artist-avatar.png`
+  - `public/peerify/default-band-avatar.png`
+  - `public/peerify/default-venue-avatar.png`
+  Originals backed up as `*.bak` files on both staging and prod. A `*.bak` rule was added to the repo root `.gitignore` to prevent accidental commit of backups.
+
+- **Root-level `.gitignore` added** (`.env`, `.env.local`, `.env*.local`).
+  The repo root had no `.gitignore`; staging `.env.local` had been briefly committed and needed a `git reset`. Root `.gitignore` now closes that gap. (The app's own `circles/.gitignore` already covered the worktree level.)
+
+- **Promoted to prod**: fast-forward `main` → `7c028d29`, `bun run build`, static + public copied into `.next/standalone/apps/peerify-app/circles`, `pm2 restart`.
+
+### INCIDENT (resolved): prod restart → 502 / EADDRINUSE on port 3001
+
+**Cause:** SSH shell still had `PORT=3001` exported from an earlier staging `set -a; source .env.local`. Running `pm2 restart peerify --update-env` merged the shell env onto PM2's saved definition, writing `PORT=3001` to prod — colliding with the staging process already on 3001. Prod entered a crash-loop; nginx returned 502 for ~3 minutes.
+
+**Fix:** `export PORT=3000` in the contaminated shell, then `pm2 restart peerify --update-env`, then `pm2 save`.
+
+**Rule reinforced:** restart each PM2 app in a **FRESH shell** (or prefix `PORT=3000` inline). Run `echo $PORT` BEFORE every restart. `--update-env` is a MERGE onto saved state, not a replacement — shell contamination propagates silently. This is the same hazard documented in the 2026-06-30 cleanup-sprint Learnings above; this incident is a second real-world instance of it.
+
+### Carry-forward
+
+1. **Songwriter identity type** — new managed-identity type to add: constant `PEERIFY_DEFAULT_SONGWRITER_AVATAR_URL`, wire into `getPeerifyDefaultAvatarUrl()`, `PEERIFY_ARTIST_TYPE_OPTIONS` / identity-type list, and the Create flow. Optimized avatar already prepared locally, not yet placed in repo.
+2. **`default-profile-avatar.png`** (`public/peerify/`) still un-optimized at ~1.6 MB — needs pngquant pass separately.
+3. **Banner flash-on-reload** — localStorage-gated banners (this one + Verify Profile) flash for one render frame before `useEffect` hides them. Fix consistently with a mounted-guard pattern or server-side preference store.
+4. **Dead `canEditPeerifyArtistProfile` var** — `about-settings-form.tsx:372`, declared but never used — remove in next cleanup commit.
+5. **Personal profile still renders circle chrome** ("Manage your circle's profile…", Pages / User Groups / Access Rules / Follow Requests nav items) — de-Kamooni audit, separate task.
+6. **`kam-yellow` / `kam-hero-yellow` color tokens** — Kamooni-named brand tokens still in `tailwind.config.ts`; rename to brand-neutral in upcoming palette overhaul.
+7. **Over-broad `circles/` rule in `circles/.gitignore` ~line 61** — matches any directory named `circles`, including `src/components/modules/circles/`. Anchor or scope it (confirm what it was meant to ignore first).
+8. **`*.bak` avatar backups on staging + prod** — delete once prod is confirmed stable. It is; delete next session.
