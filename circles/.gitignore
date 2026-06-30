@@ -64,3 +64,4 @@ circles/
 
 # Claude Code per-machine local settings (not shared)
 .claude/settings.local.json
+*.bak
