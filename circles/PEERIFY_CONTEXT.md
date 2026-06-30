@@ -30,6 +30,16 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 - **Repo:** standalone `Social-Systems-Lab/peerify` (migrated off the shared Circles repo). HTTPS via nginx + Certbot. ffmpeg is a host dependency (`/usr/bin/ffmpeg` 6.1.1); prod `.env.local` sets `FFMPEG_PATH` explicitly.
 - **Golden rules:** confirm `hostname`/`pwd`/`git branch` before acting; staging before prod; one step at a time; review every diff; no autonomous git/infra changes; destructive commands as single standalone pastes.
 
+---
+**⚠️ PM2 deploy-safety rule (this has caused prod downtime TWICE):**
+- `--update-env` MERGES the current shell's env onto PM2's saved state — it does NOT replace it. A stray `PORT` exported earlier in the shell will silently propagate to the app you restart.
+- Prod (`peerify`, id 8) runs on **PORT 3000** (no PORT in its .env.local; PM2 default). Staging (`peerify-staging`, id 5) runs on **3001** (set in staging .env.local).
+- **ALWAYS** open a FRESH terminal tab for each app's deploy, OR run `unset PORT` before touching a different app.
+- **ALWAYS** run `echo $PORT` immediately BEFORE any `pm2 restart`. Expect empty-or-3000 for prod, 3001 for staging. If it's wrong, STOP.
+- After a correct prod restart, run `pm2 save` so a reboot resurrects the right port.
+- Full incident write-ups: see SESSION_LOG.md (2026-06-30 cleanup sprint Learnings + the 502/EADDRINUSE incident).
+---
+
 ### Design vs built — the gap ledger
 | Surface | Design state | Build state |
 |---|---|---|
