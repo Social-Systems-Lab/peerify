@@ -281,3 +281,93 @@ Ran `grep -rn '"circles"' src/`. ~60 hits, all classified:
   BUT: no QDRANT/VDB/VECTOR env in either .env.local, and no Qdrant running on :6333.
   Dormant code, never executes. Not a live bug. Revisit IF vector search is ever enabled.
 Conclusion: db.ts + storage.ts were the ONLY live isolation bugs. Isolation now fully closed.
+
+---
+
+## 2026-06-30 — Cleanup sprint: MinIO rotation, staging↔main sync, branch + log hygiene
+
+### Done
+- **PEERIFY_CONTEXT.md replaced** with the consolidated 512-line version (§0 Build
+  Status + §00 Roadmap + §1–§11 bible), superseding the stale 117-line repo copy.
+  Committed via detached throwaway worktree at /tmp (main is checked out in the prod
+  worktree, so can't be checked out twice). Tracked path is circles/PEERIFY_CONTEXT.md
+  (NOT repo root — a stray UNTRACKED root-level copy still sits in the prod worktree;
+  delete it next session, it's a confusion trap).
+- **MINIO_ROOT_PASSWORD rotated** (was exposed plaintext in prior + this session).
+  MinIO runs as systemd `minio.service`, bound 127.0.0.1:9000 (console :9001), creds in
+  /etc/default/minio. BOTH apps authenticate AS ROOT (MINIO_ROOT_USERNAME=peerifyminio +
+  password) — shared infra, one MinIO serves staging + prod. Rotated in 3 places:
+  /etc/default/minio, prod .env.local (repo root), staging .env.local (one level up).
+  Backups taken (.bak.<ts>) before edits. Restarted minio, verified new cred via mc
+  admin info, then restarted both PM2 apps. Verified: prod uploads+plays, staging streams
+  existing tracks. NOTE: best practice is per-app service accounts (mc admin user svcacct),
+  NOT apps using root — deferred, but worth doing.
+- **ffmpeg resolver fix synced to staging (Task 1).** Staging was on fix/ffmpeg-resolver
+  (116e9394), which PREDATED the resolver fix that's on main — ironic given the name.
+  Set up a dedicated `staging` branch (was diverged: carried unique commit 9fee32ec, a
+  15-line SESSION_LOG audit note, and was missing 10 main commits). Cherry-picked 9fee32ec
+  onto main FIRST (preserved the audit note; resolved a content conflict — both sides
+  appended after the same anchor, kept both), THEN reset `staging` --hard to origin/main,
+  force-pushed. Rebuilt staging (manual: bun run build → copy .next/static + public to the
+  NESTED .next/standalone/apps/peerify-staging/circles/circles/ path → sourced PM2 restart).
+  Upload verified working on staging.
+- **Branch cleanup (Task 6 + bonus):** deleted fix/ffmpeg-resolver and feature/audio-pipeline
+  (both fully merged), local + origin. Branch list now just main + staging.
+- **Removed DEBUG getOpenEventsForListAction log (Task 4).** It WAS still present at
+  src/components/modules/circles/map-explorer-actions.ts:53–59 (context doc wrongly said
+  "not in current source") — 7-line block (debugId/has/console.log). Removed.
+- **Untracked + gitignored .claude/settings.local.json (Task 5).** It was tracked (it
+  shouldn't be — per-machine Claude Code permissions w/ absolute paths). git rm --cached +
+  added rule to circles/.gitignore. (.claude/ contained ONLY this file.)
+- Both code changes (Task 4+5) committed together (fbc95685) on main, ff'd to both worktrees.
+
+### Learnings (mechanics — important)
+- **PM2 env contamination is a real hazard across one shell.** Sourcing staging's .env.local
+  (PORT=3001) then running `pm2 restart peerify --update-env` for PROD pushed PORT=3001 onto
+  prod → EADDRINUSE crash-loop (prod down ~3 min). `--update-env` MERGES shell env onto the
+  saved def and does NOT clear it; even `unset PORT` didn't help because PM2's SAVED def had
+  been poisoned. Fix: `PORT=3000 pm2 restart peerify --update-env` to override, then `pm2 save`.
+  RULE: restart each app in a FRESH shell (or explicit PORT=), and verify `echo PORT` BEFORE
+  the restart. Prod .env.local has no PORT (relies on PM2 saved def); staging .env.local sets
+  PORT=3001.
+- **deploy-peerify.sh is PROD-ONLY** — hardcodes `cd ~/apps/peerify-app/circles`, the prod
+  standalone path, and `pm2 delete peerify` + `PORT=3000 --name peerify`. Running it from the
+  staging worktree would rebuild+restart PROD, not staging. Same foot-gun class as
+  deploy-genesis2.sh (Kamooni). Staging has NO deploy script — use the manual sequence above.
+- **package.json `build` = `cross-env IS_BUILD=true next build`** (just compiles, no copy).
+  `build.sh` is a SEPARATE wrapper that copies to the UN-nested .next/standalone/ path (wrong
+  for staging) only when CI is unset. Staging deploy: don't use build.sh; copy manually to nested.
+- **circles/.gitignore line 61 `circles/` is overly broad** — matches ANY dir named circles,
+  incl. src/components/modules/circles/. Tracked files there survive only because they predate
+  the rule; new files would be silently ignored (hit this — needed `git add -f`). Likely meant
+  to be `/circles_data` style root-anchored cruft from the Circles fork. FIX NEEDED: anchor it
+  (leading slash) or scope it — but confirm what it was meant to ignore first.
+
+### Carry-forward
+1. **Task 2 (deferred to EOD):** audit + remove inherited Kamooni/Cleura/Circles docs
+   (SESSION_LOG lineage from Kamooni, docs/cleura_deployment.md, docs/circles-deployment.md,
+   docs/circles-registry-deployment.md, root deploy-genesis2.sh). Inventory docs/ with previews,
+   triage {Kamooni→remove, Circles-generic→keep, Peerify→keep}, git rm in one reviewable commit.
+   NO bulk-delete.
+2. Delete the stray UNTRACKED root-level PEERIFY_CONTEXT.md in the prod worktree.
+3. Fix the broad `circles/` gitignore rule (line 61) — see Learnings.
+4. `DEBUG AUTH:` logs still printing on staging boot (auth.ts) — known carry-forward, remove.
+5. Consider MinIO per-app service accounts instead of apps using root.
+6. Optional: remove the `circles-origin` remote (leftover from the shared-Circles-repo migration;
+   shows as remotes/circles-origin/product/peerify).
+7. Session cleanup: delete /tmp/minio_newpw.txt and the .env.local.bak.* / etc files once the
+   new MinIO password is saved in the password manager.
+8. Task 4+5 are code changes on main but NOT yet rebuilt into prod/staging running apps
+   (harmless console noise) — they'll ship with the next normal rebuild of each.
+
+### Environment notes (unchanged, confirmed this session)
+- Prod: PM2 `peerify` (id 8) :3000, branch main, source ~/apps/peerify-app/circles,
+  env at ~/apps/peerify-app/circles/.env.local (REPO ROOT), standalone server at
+  .next/standalone/apps/peerify-app/circles/server.js. No PORT in env (PM2 saved def).
+- Staging: PM2 `peerify-staging` (id 5) :3001, branch staging, source
+  ~/apps/peerify-staging/circles/circles, env at ~/apps/peerify-staging/circles/.env.local
+  (ONE LEVEL UP), standalone at .next/standalone/apps/peerify-staging/circles/circles/server.js
+  (NESTED). PORT=3001 + FFMPEG_PATH=/usr/bin/ffmpeg in env.
+- MinIO: systemd minio.service, 127.0.0.1:9000, /var/lib/minio/data, creds /etc/default/minio.
+  Both apps auth as root (peerifyminio). New password rotated this session.
+- Branches: main + staging only. All three refs (main, staging, origin/*) aligned at fbc95685.
