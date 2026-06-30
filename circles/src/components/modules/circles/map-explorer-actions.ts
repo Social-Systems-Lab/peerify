@@ -50,13 +50,6 @@ export async function getOpenEventsForListAction(range?: RangeInput): Promise<Ev
                 : undefined;
 
         const events = await getOpenEventsForList(userDid, parsedRange as any);
-	const debugId = "696a458852ed9d11bac10f71";
-const has = (events || []).some((e: any) => String((e as any)?._id ?? "") === debugId);
-console.log("[DEBUG getOpenEventsForListAction]", {
-  userDid: userDid ? userDid.slice(0, 10) + "…" : "",
-  count: (events || []).length,
-  hasDebugId: has,
-});
 
         return events || [];
     } catch (err) {
