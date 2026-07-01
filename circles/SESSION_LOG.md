@@ -25,6 +25,11 @@ Findings:
 
 Action queued: see 🔴 TOP PRIORITY item in `PEERIFY_CONTEXT.md` §00 Roadmap — restore the artist/band music-links form (from `044f52bd`'s parent), gated correctly for artist/band circles only, without Spotify. Blocks staging→main promotion.
 
+- **RESOLVED:** artist/band settings Card restored (commit `6c30ad88`), gated on `isPeerifyManagedArtistCircle`, Spotify removed. Verified rendering on staging (:3001): full artist form on artist/band circles (Band Identity notice, artist types, base city, genres, music links minus Spotify, featured link, looking-for, booking sub-form, save button); personal profiles correctly show amber banner + NO card. Data round-trips (Bandcamp URL populated).
+- Staging now has 4 unpushed commits ahead of prod: `4ca8d0e2`, `db0cd33c`, `af15bc5f`, `6c30ad88` (plus doc commits). All verified.
+- **NEXT SESSION (dedicated, fresh):** promote staging→main. Sequence: from prod worktree `~/apps/peerify-app/circles`, `git fetch && git merge --ff-only origin/staging`; prod build; PORT-safe restart (fresh tab, `echo $PORT` must be empty/3000, `--update-env`); `pm2 save`. This restart also clears prod's stale cached modules (process up since before last rebuild).
+- Deferred cleanup (separate session): remove now-dead `canEditPeerifyArtistProfile` const; general artist-settings polish.
+
 ---
 
 ## 2026-06-28 (cont. #2) — Ship audio pipeline to PROD: merge, lockfile fix, ffmpeg ENOENT fix

@@ -79,8 +79,10 @@ Concrete work toward it:
 
 ### Carry-forward ops cleanup (next working session)
 
-**🔴 TOP PRIORITY — blocks staging→main promotion:**
-Restore the artist/band persona music-links form (recover it from `044f52bd`'s parent commit), correctly gated for artist/band circles only (`isPeerifyManagedArtistCircle`, NOT `isUserProfile` — personal profiles should keep the current banner), **WITHOUT Spotify** (product decision: exclude Spotify entirely). Once restored it should render as icons on the public profile (see task: Socials frame). **Do NOT promote staging → main until this is done**, or the form loss becomes permanent on prod. Background: see the `canEditPeerifyArtistProfile` warning in item 5 below and the 2026-07-01 investigation in `SESSION_LOG.md`.
+**✅ RESOLVED (2026-07-01, commit `6c30ad88`) — artist/band music-links Card restored**, gated on `isPeerifyManagedArtistCircle` only (personal profiles correctly keep the amber banner, no Card), Spotify removed. Verified rendering + data round-trip on staging (:3001). See `SESSION_LOG.md` 2026-07-01 entry.
+
+**🔴 TOP PRIORITY — staging→main promotion (dedicated, fresh session):**
+Staging has 4 unpushed commits ahead of prod (`4ca8d0e2`, `db0cd33c`, `af15bc5f`, `6c30ad88` + doc commits), all verified. Sequence: from prod worktree `~/apps/peerify-app/circles`, `git fetch && git merge --ff-only origin/staging`; prod build; PORT-safe restart (fresh shell/tab, confirm `echo $PORT` is empty or 3000, use `--update-env`); `pm2 save`. The restart also clears prod's stale cached modules (process has been up since before the last rebuild — see 2026-07-01 `SESSION_LOG.md` entry).
 
 1. **Audit and remove inherited Kamooni/Cleura/Circles docs.** The repo carries
    stale docs from the Circles fork that describe a DIFFERENT platform on a
@@ -94,7 +96,7 @@ Restore the artist/band persona music-links form (recover it from `044f52bd`'s p
 2. **Songwriter managed-identity type** — add constant `PEERIFY_DEFAULT_SONGWRITER_AVATAR_URL`, wire into `getPeerifyDefaultAvatarUrl()`, identity-type list, and Create flow. Optimized avatar prepared, not yet in repo.
 3. **`default-profile-avatar.png`** (`public/peerify/`) un-optimized at ~1.6 MB — run pngquant.
 4. **Banner flash-on-reload** — localStorage-gated banners (personal-profile + Verify Profile) flash one frame before `useEffect` hides them. Fix consistently: mounted-guard pattern or server-side preference.
-5. **⚠️ WARNING — do NOT remove `canEditPeerifyArtistProfile` as cleanup.** It is dead in `about-settings-form.tsx` (declared ~line 383, unused) ONLY because commit `044f52bd` deleted the Card it gated. That deletion was a **REGRESSION**: `044f52bd` was meant to remove the personal-profile artist section, but because the gate was an OR (`isUserProfile || isPeerifyManagedArtistCircle`), it also deleted the artist/band persona **MUSIC-LINKS FORM** (Bandcamp/Spotify/SoundCloud/Apple Music/YouTube/Linktree). The dead variable is evidence of the missing form, not lint to clean up. **The music-links form must be RESTORED for artist/band circles before staging is promoted to prod.** See top-priority task in "Carry-forward ops cleanup" above / next-session task below.
+5. **`canEditPeerifyArtistProfile` dead-const cleanup (now safe)** — the music-links Card it used to gate has been restored (commit `6c30ad88`, correctly gated on `isPeerifyManagedArtistCircle` alone). The old `canEditPeerifyArtistProfile` const in `about-settings-form.tsx` is now genuinely dead and can be removed in a separate cleanup session, along with general artist-settings polish. (Previously this item warned NOT to remove it, since it was evidence of the missing form — that regression is resolved; see 2026-07-01 `SESSION_LOG.md`.)
 6. **Personal profile still renders circle chrome** ("Manage your circle's profile…", Pages / User Groups / Access Rules / Follow Requests) — de-Kamooni audit, separate task.
 7. **`kam-yellow` / `kam-hero-yellow` color tokens** — Kamooni-named; rename to brand-neutral in palette overhaul.
 8. **Over-broad `circles/` gitignore rule** (`circles/.gitignore` ~line 61) — matches `src/components/modules/circles/`; anchor or scope it.
