@@ -415,6 +415,7 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                         onCircleSelected={handleCircleSelected}
                         initialSelectedCircleId={initialSelectedCircleId}
                         showModuleEnableMessage={false}
+                        label="Post as:"
                     />
                 </div>
             )}
