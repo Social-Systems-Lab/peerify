@@ -25,9 +25,11 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 ### Infrastructure reality (important — supersedes older notes)
 - **Server:** Hetzner, `tim@peerify` (65.21.91.96). Kamooni is a *separate* machine (`ubuntu@91.123.202.241`) — never cross commands.
 - **Runtime:** bare-Node via PM2, NOT Docker (the repo Dockerfile exists but prod isn't deployed through it). Earlier context docs that imply Docker or `~/apps/peerify/circles` are STALE.
-- **Prod:** PM2 `peerify` :3000, branch `main`, source `~/apps/peerify-app/circles` (repo root; the app lives one level down with worktree prefix `circles/`).
+- **Prod:** PM2 `peerify` :3000, branch `main`, source `~/apps/peerify-app/circles` (repo root; the app lives one level down with worktree prefix `circles/`). **Confirmed 2026-07-01** via `pm2 jlist` + `ss -ltnp` + `/proc/<pid>/cwd` (independent cross-check, not just PM2's own bookkeeping): tracking `Social-Systems-Lab/peerify.git` (`origin`), branch `main`, HEAD `f7a4ebe6`, working tree clean.
 - **Staging:** PM2 `peerify-staging` :3001, DB `peerify_staging`, bucket `circles-staging`, source `~/apps/peerify-staging/circles/circles`, env one level up.
+- **`~/apps/peerify/circles` is a STALE leftover checkout** tracking the OLD `Social-Systems-Lab/circles.git` repo (pre-split). It is NOT serving anything — no PM2 process points at it. Do not confuse it with prod (`~/apps/peerify-app/circles`). Candidate for eventual removal.
 - **Repo:** standalone `Social-Systems-Lab/peerify` (migrated off the shared Circles repo). HTTPS via nginx + Certbot. ffmpeg is a host dependency (`/usr/bin/ffmpeg` 6.1.1); prod `.env.local` sets `FFMPEG_PATH` explicitly.
+- **⚠️ Prod PM2 process is long-running across the last rebuild:** `peerify` has been up since 2026-06-30 13:29 with no restart recorded since the 15:25 standalone rebuild that same day. Node caches required route modules in memory for the life of the process, so a route hit before 15:25 could still be serving a stale in-memory module even though the on-disk build is current. The on-disk build only becomes fully authoritative after a clean restart — treat "grep says X is in/out of the build" as necessary but not sufficient; a stale in-memory route is a live possibility until the next restart.
 - **Golden rules:** confirm `hostname`/`pwd`/`git branch` before acting; staging before prod; one step at a time; review every diff; no autonomous git/infra changes; destructive commands as single standalone pastes.
 
 ### Design vs built — the gap ledger
@@ -76,6 +78,10 @@ Concrete work toward it:
 - **Venue + Host profiles**, venue-owner view, tour-team / group-formation flow, customisation UI, mobile-optimised patterns, alternate discovery views (Calendar/List), advanced search. (All designed or partially designed in §1–§11 below.)
 
 ### Carry-forward ops cleanup (next working session)
+
+**🔴 TOP PRIORITY — blocks staging→main promotion:**
+Restore the artist/band persona music-links form (recover it from `044f52bd`'s parent commit), correctly gated for artist/band circles only (`isPeerifyManagedArtistCircle`, NOT `isUserProfile` — personal profiles should keep the current banner), **WITHOUT Spotify** (product decision: exclude Spotify entirely). Once restored it should render as icons on the public profile (see task: Socials frame). **Do NOT promote staging → main until this is done**, or the form loss becomes permanent on prod. Background: see the `canEditPeerifyArtistProfile` warning in item 5 below and the 2026-07-01 investigation in `SESSION_LOG.md`.
+
 1. **Audit and remove inherited Kamooni/Cleura/Circles docs.** The repo carries
    stale docs from the Circles fork that describe a DIFFERENT platform on a
    DIFFERENT host (e.g. the Kamooni-flavoured `SESSION_LOG.md` lineage,
@@ -88,7 +94,7 @@ Concrete work toward it:
 2. **Songwriter managed-identity type** — add constant `PEERIFY_DEFAULT_SONGWRITER_AVATAR_URL`, wire into `getPeerifyDefaultAvatarUrl()`, identity-type list, and Create flow. Optimized avatar prepared, not yet in repo.
 3. **`default-profile-avatar.png`** (`public/peerify/`) un-optimized at ~1.6 MB — run pngquant.
 4. **Banner flash-on-reload** — localStorage-gated banners (personal-profile + Verify Profile) flash one frame before `useEffect` hides them. Fix consistently: mounted-guard pattern or server-side preference.
-5. **Dead `canEditPeerifyArtistProfile` var** — `about-settings-form.tsx:372`, unused — remove in next cleanup commit.
+5. **⚠️ WARNING — do NOT remove `canEditPeerifyArtistProfile` as cleanup.** It is dead in `about-settings-form.tsx` (declared ~line 383, unused) ONLY because commit `044f52bd` deleted the Card it gated. That deletion was a **REGRESSION**: `044f52bd` was meant to remove the personal-profile artist section, but because the gate was an OR (`isUserProfile || isPeerifyManagedArtistCircle`), it also deleted the artist/band persona **MUSIC-LINKS FORM** (Bandcamp/Spotify/SoundCloud/Apple Music/YouTube/Linktree). The dead variable is evidence of the missing form, not lint to clean up. **The music-links form must be RESTORED for artist/band circles before staging is promoted to prod.** See top-priority task in "Carry-forward ops cleanup" above / next-session task below.
 6. **Personal profile still renders circle chrome** ("Manage your circle's profile…", Pages / User Groups / Access Rules / Follow Requests) — de-Kamooni audit, separate task.
 7. **`kam-yellow` / `kam-hero-yellow` color tokens** — Kamooni-named; rename to brand-neutral in palette overhaul.
 8. **Over-broad `circles/` gitignore rule** (`circles/.gitignore` ~line 61) — matches `src/components/modules/circles/`; anchor or scope it.

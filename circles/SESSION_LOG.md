@@ -12,6 +12,21 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-07-01 — Investigation: missing artist music-links form; prod ground-truth verification
+
+Headline: Investigated why the artist music-links form (Bandcamp/Spotify/SoundCloud/Apple Music/YouTube/Linktree on `/settings/about`) was visible on peerify.one a few days ago and isn't today. Root cause found: it wasn't a caching/build issue — the form was **deleted from source** by commit `044f52bd` as an unintended side effect. Read-only investigation, no code/build/restart changes made.
+
+Findings:
+- **Prod ground truth confirmed independently** (PM2 + `ss -ltnp` + `/proc/<pid>/cwd`, not just PM2's own records): `peerify` :3000 serves from `~/apps/peerify-app/circles`, tracking `Social-Systems-Lab/peerify.git`, branch `main`, HEAD `f7a4ebe6`, working tree clean.
+- `~/apps/peerify/circles` is a **stale leftover checkout** of the old `Social-Systems-Lab/circles.git` repo — nothing serves from it. Not to be confused with prod.
+- Prod's `peerify` PM2 process has been up since 2026-06-30 13:29 with **no restart since the 15:25 rebuild** that same day — meaning cached in-memory route modules are a possible confound for "what's actually being served" going forward; a clean restart is needed before trusting on-disk build state alone.
+- **Root cause of the missing form:** commit `044f52bd` ("Remove artist-profile section from personal profile settings") added a personal-profile info banner (correct, `isUserProfile`-gated) but ALSO deleted the entire pre-existing Card gated on `canEditPeerifyArtistProfile = isUserProfile || isPeerifyManagedArtistCircle` — an OR condition. Because of the OR, the deletion removed the music-links form not just for personal profiles but for **actual Peerify-managed artist/band circles too**. This is a regression beyond what the commit message describes, confirmed via `git show 044f52bd` on the staging repo (`~/apps/peerify-staging/circles/circles`) and cross-checked against prod's current source (dead `canEditPeerifyArtistProfile` variable at `about-settings-form.tsx:383`, unused — it's evidence, not lint).
+- Compiled build on disk confirmed to match source (no "Music links" form in the current `.next/standalone` build either) — ruled out a stale-build explanation for the *current* absence; the removal is a genuine source-level regression, already present at prod's HEAD.
+
+Action queued: see 🔴 TOP PRIORITY item in `PEERIFY_CONTEXT.md` §00 Roadmap — restore the artist/band music-links form (from `044f52bd`'s parent), gated correctly for artist/band circles only, without Spotify. Blocks staging→main promotion.
+
+---
+
 ## 2026-06-28 (cont. #2) — Ship audio pipeline to PROD: merge, lockfile fix, ffmpeg ENOENT fix
 
 Headline: Merged `feature/audio-pipeline` into `main` and deployed the full audio feature to production. MP3 upload → ffmpeg derivative → publish → playback now working end-to-end on prod (bare-Node PM2). Two deploy-blocking issues surfaced and were fixed: a pre-existing lockfile inconsistency, and an ffmpeg path-resolution bug that only manifests under Next.js standalone bundling.
