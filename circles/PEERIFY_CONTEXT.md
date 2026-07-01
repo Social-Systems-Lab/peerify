@@ -91,8 +91,9 @@ Concrete work toward it:
 
 **✅ RESOLVED (2026-07-01, commit `6c30ad88`) — artist/band music-links Card restored**, gated on `isPeerifyManagedArtistCircle` only (personal profiles correctly keep the amber banner, no Card), Spotify removed. Verified rendering + data round-trip on staging (:3001). See `SESSION_LOG.md` 2026-07-01 entry.
 
-**🔴 TOP PRIORITY — staging→main promotion (dedicated, fresh session):**
-Staging has 4 unpushed commits ahead of prod (`4ca8d0e2`, `db0cd33c`, `af15bc5f`, `6c30ad88` + doc commits), all verified. Sequence: from prod worktree `~/apps/peerify-app/circles`, `git fetch && git merge --ff-only origin/staging`; prod build; PORT-safe restart (fresh shell/tab, confirm `echo $PORT` is empty or 3000, use `--update-env`); `pm2 save`. The restart also clears prod's stale cached modules (process has been up since before the last rebuild — see 2026-07-01 `SESSION_LOG.md` entry).
+**✅ RESOLVED (2026-07-01) — staging→main promotion complete.** Merged staging into main (merge commit `1f26690f`), prod rebuilt, PORT-safe restart, `pm2 save`. Verified live on peerify.one. Prod, staging, and main are now in sync. See 2026-07-01 `SESSION_LOG.md` entry.
+
+Remaining carry-forward:
 
 1. **Audit and remove inherited Kamooni/Cleura/Circles docs.** The repo carries
    stale docs from the Circles fork that describe a DIFFERENT platform on a
@@ -111,6 +112,7 @@ Staging has 4 unpushed commits ahead of prod (`4ca8d0e2`, `db0cd33c`, `af15bc5f`
 7. **`kam-yellow` / `kam-hero-yellow` color tokens** — Kamooni-named; rename to brand-neutral in palette overhaul.
 8. **Over-broad `circles/` gitignore rule** (`circles/.gitignore` ~line 61) — matches `src/components/modules/circles/`; anchor or scope it.
 9. **`*.bak` avatar backups** on staging + prod — delete now that prod is confirmed stable.
+10. **Socials icon frame on public profile** — never built.
 
 ---
 
