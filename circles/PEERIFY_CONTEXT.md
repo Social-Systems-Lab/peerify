@@ -32,6 +32,16 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 - **⚠️ Prod PM2 process is long-running across the last rebuild:** `peerify` has been up since 2026-06-30 13:29 with no restart recorded since the 15:25 standalone rebuild that same day. Node caches required route modules in memory for the life of the process, so a route hit before 15:25 could still be serving a stale in-memory module even though the on-disk build is current. The on-disk build only becomes fully authoritative after a clean restart — treat "grep says X is in/out of the build" as necessary but not sufficient; a stale in-memory route is a live possibility until the next restart.
 - **Golden rules:** confirm `hostname`/`pwd`/`git branch` before acting; staging before prod; one step at a time; review every diff; no autonomous git/infra changes; destructive commands as single standalone pastes.
 
+---
+**⚠️ PM2 deploy-safety rule (this has caused prod downtime TWICE):**
+- `--update-env` MERGES the current shell's env onto PM2's saved state — it does NOT replace it. A stray `PORT` exported earlier in the shell will silently propagate to the app you restart.
+- Prod (`peerify`, id 8) runs on **PORT 3000** (no PORT in its .env.local; PM2 default). Staging (`peerify-staging`, id 5) runs on **3001** (set in staging .env.local).
+- **ALWAYS** open a FRESH terminal tab for each app's deploy, OR run `unset PORT` before touching a different app.
+- **ALWAYS** run `echo $PORT` immediately BEFORE any `pm2 restart`. Expect empty-or-3000 for prod, 3001 for staging. If it's wrong, STOP.
+- After a correct prod restart, run `pm2 save` so a reboot resurrects the right port.
+- Full incident write-ups: see SESSION_LOG.md (2026-06-30 cleanup sprint Learnings + the 502/EADDRINUSE incident).
+---
+
 ### Design vs built — the gap ledger
 | Surface | Design state | Build state |
 |---|---|---|

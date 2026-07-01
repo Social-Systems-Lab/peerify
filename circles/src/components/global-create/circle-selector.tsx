@@ -18,6 +18,7 @@ interface CircleSelectorProps {
     initialSelectedCircleId?: string;
     variant?: "standard" | "condensed"; // New variant prop
     showModuleEnableMessage?: boolean;
+    label?: string;
 }
 
 export const CircleSelector: React.FC<CircleSelectorProps> = ({
@@ -26,6 +27,7 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
     initialSelectedCircleId,
     variant = "standard", // Default to standard variant
     showModuleEnableMessage = true,
+    label = "Create in:",
 }) => {
     const [user] = useAtom(userAtom);
     const [selectableCircles, setSelectableCircles] = useState<Circle[]>([]);
@@ -141,7 +143,7 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
         <div className="flex flex-col">
             {variant === "standard" && (
                 <Label htmlFor="circle-select" className="mb-1 text-xs text-muted-foreground">
-                    Create in:
+                    {label}
                 </Label>
             )}
             <Select value={selectedCircleId || ""} onValueChange={handleSelectionChange}>
