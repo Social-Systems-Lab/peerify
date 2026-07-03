@@ -1135,7 +1135,7 @@ export default function AboutPage({
                         <div className="flex flex-col gap-6">
                             {hasBandInfoContent && (
                                 <div
-                                    className={`flex flex-col bg-white p-6 md:order-1 ${
+                                    className={`flex flex-col bg-white p-6 md:order-[10] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1201,7 +1201,7 @@ export default function AboutPage({
                             )}
 
                             {peerifyArtistProfile.lookingFor.length > 0 && (
-                                <div className="flex flex-col bg-white p-6 md:order-[1.5]">
+                                <div className="flex flex-col bg-white p-6 md:order-[20]">
                                     <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                         Open To
                                     </div>
@@ -1216,7 +1216,7 @@ export default function AboutPage({
                             )}
 
                             {shouldShowFundingPanel && (
-                                <div className="md:order-2">
+                                <div className="md:order-[30]">
                                     <FundingPanel
                                         circleHandle={circle.handle || ""}
                                         asks={fundingPreviewAsks}
@@ -1227,7 +1227,7 @@ export default function AboutPage({
                             )}
 
                             {shouldShowUpcomingShiftsPanel && (
-                                <div className="md:order-3">
+                                <div className="md:order-[40]">
                                     <UpcomingShiftsPanel
                                         circleHandle={circle.handle || ""}
                                         shifts={upcomingShiftTasks}
@@ -1238,7 +1238,7 @@ export default function AboutPage({
 
                             {hasNeedsMatchingDetails && (
                                 <div
-                                    className={`flex flex-col bg-white p-6 md:order-4 ${
+                                    className={`flex flex-col bg-white p-6 md:order-[50] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1320,7 +1320,7 @@ export default function AboutPage({
 
                             {shouldShowProfileStatus && (
                                 <div
-                                    className={`flex flex-col bg-white p-6 md:order-5 ${
+                                    className={`flex flex-col bg-white p-6 md:order-[60] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1344,7 +1344,7 @@ export default function AboutPage({
 
                             {hasOverviewDetails && (
                                 <div
-                                    className={`flex flex-col bg-white p-6 md:order-6 ${
+                                    className={`flex flex-col bg-white p-6 md:order-[70] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1493,7 +1493,7 @@ export default function AboutPage({
 
                             {shouldShowVerifiedContributions && (
                                 <div
-                                    className={`bg-white p-6 md:order-7 ${
+                                    className={`bg-white p-6 md:order-[80] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1505,14 +1505,14 @@ export default function AboutPage({
                             )}
 
                             {shouldShowProofOfHumanity && proofOfHumanitySummary && (
-                                <div className="md:order-8">
+                                <div className="md:order-[90]">
                                     <ProofOfHumanityCard circle={circle} summary={proofOfHumanitySummary} />
                                 </div>
                             )}
 
                             {hasAdminDetails && (
                                 <div
-                                    className={`flex flex-col bg-white p-6 md:order-9 ${
+                                    className={`flex flex-col bg-white p-6 md:order-[100] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1564,7 +1564,7 @@ export default function AboutPage({
                             )}
 
                             {shouldShowMembershipCredential && membershipCredential && (
-                                <div className="md:order-10">
+                                <div className="md:order-[110]">
                                     <MembershipCredentialCard credential={membershipCredential} />
                                 </div>
                             )}
