@@ -496,6 +496,7 @@ export default function AboutPage({
     const shouldShowProfileStatus =
         isUserProfile && !isPeerifyArtistProfile && (relationshipStatusLabel || followerCount > 0 || memberStatusLabel);
     const hasSidebarContent =
+        isPeerifyArtistProfile ||
         hasBandInfoContent ||
         peerifyArtistProfile.lookingFor.length > 0 ||
         shouldShowProfileStatus ||
@@ -1197,6 +1198,25 @@ export default function AboutPage({
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {isPeerifyArtistProfile && (
+                                <div className="flex flex-col bg-white p-6 md:order-[15]">
+                                    <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Support
+                                    </div>
+                                    <div className="mb-3 text-sm font-semibold text-foreground">
+                                        Ways to get involved
+                                    </div>
+                                    <ul className="mb-4 list-disc space-y-1 pl-5 text-[15px] text-foreground">
+                                        <li>Help make a show happen</li>
+                                        <li>Join a tour crew</li>
+                                        <li>Volunteer</li>
+                                    </ul>
+                                    <div className="text-xs text-muted-foreground">
+                                        More ways to get involved are coming soon.
+                                    </div>
                                 </div>
                             )}
 
