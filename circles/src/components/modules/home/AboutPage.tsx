@@ -5,6 +5,7 @@ import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/model
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MapPin, ExternalLink, CalendarRange, Music2, HandCoins, CheckCircle2 } from "lucide-react";
+import { SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getSkillDefinitionByHandle, skillCategoryLabels } from "@/lib/data/skills";
 import { useIsCompact } from "@/components/utils/use-is-compact";
@@ -109,6 +110,14 @@ const EMPTY_PLEDGE_FORM: PledgeFormState = {
     note: "",
 };
 
+const PEERIFY_SOCIAL_LINK_ICONS: Partial<Record<PeerifyMusicLinkKey, React.ComponentType<{ className?: string }>>> = {
+    bandcamp: SiBandcamp,
+    soundcloud: SiSoundcloud,
+    appleMusic: SiApplemusic,
+    youtube: SiYoutube,
+    linktree: SiLinktree,
+};
+
 const EMPTY_BOOKING_FORM: BookingFormState = {
     bookerLocation: "",
     eventType: "",
@@ -180,6 +189,11 @@ export default function AboutPage({
     const peerifyMusicLinks = (
         Object.entries(peerifyArtistProfile.musicLinks) as [PeerifyMusicLinkKey, string][]
     ).filter(([, url]) => Boolean(url));
+    const peerifyBandInfoWebsite = peerifyArtistProfile.musicLinks.website;
+    const peerifyBandInfoSocialLinks = peerifyMusicLinks.filter(([key]) => key !== "website");
+    const hasBandInfoContent =
+        isPeerifyArtistProfile &&
+        Boolean(peerifyArtistProfile.baseCity || peerifyBandInfoWebsite || peerifyBandInfoSocialLinks.length > 0);
     const bookingDetails = [
         bookingSettings.localBookingsOnly ? "Local bookings only" : null,
         typeof bookingSettings.travelRadiusKm === "number"
@@ -482,6 +496,7 @@ export default function AboutPage({
     const shouldShowProfileStatus =
         isUserProfile && !isPeerifyArtistProfile && (relationshipStatusLabel || followerCount > 0 || memberStatusLabel);
     const hasSidebarContent =
+        hasBandInfoContent ||
         shouldShowProfileStatus ||
         hasOverviewDetails ||
         hasAdminDetails ||
@@ -1186,6 +1201,73 @@ export default function AboutPage({
                 {hasSidebarContent && (
                     <div className="md:col-span-1">
                         <div className="flex flex-col gap-6">
+                            {hasBandInfoContent && (
+                                <div
+                                    className={`flex flex-col bg-white p-6 md:order-1 ${
+                                        isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
+                                    }`}
+                                >
+                                    <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Band Info
+                                    </div>
+
+                                    {peerifyArtistProfile.baseCity && (
+                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Location
+                                            </div>
+                                            <div className="flex flex-row items-center text-foreground">
+                                                <MapPin className="mr-1.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
+                                                <span className="text-[15px]">{peerifyArtistProfile.baseCity}</span>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {peerifyBandInfoWebsite && (
+                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Website
+                                            </div>
+                                            <a
+                                                href={peerifyBandInfoWebsite}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-2 break-all text-[15px] text-foreground underline"
+                                            >
+                                                <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                                <span>Visit website</span>
+                                            </a>
+                                        </div>
+                                    )}
+
+                                    {peerifyBandInfoSocialLinks.length > 0 && (
+                                        <div className="flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">
+                                                Listen & Follow
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {peerifyBandInfoSocialLinks.map(([key, url]) => {
+                                                    const Icon = PEERIFY_SOCIAL_LINK_ICONS[key];
+                                                    return (
+                                                        <a
+                                                            key={key}
+                                                            href={url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            aria-label={PEERIFY_MUSIC_LINK_LABELS[key]}
+                                                            title={PEERIFY_MUSIC_LINK_LABELS[key]}
+                                                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border text-foreground hover:bg-muted"
+                                                        >
+                                                            {Icon && <Icon className="h-4 w-4" />}
+                                                        </a>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {shouldShowFundingPanel && (
                                 <div className="md:order-2">
                                     <FundingPanel
