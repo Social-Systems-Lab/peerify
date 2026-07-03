@@ -4,7 +4,7 @@ import React from "react";
 import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MapPin, ExternalLink, CalendarRange, HandCoins, CheckCircle2 } from "lucide-react";
+import { MapPin, ExternalLink, CalendarRange, CheckCircle2 } from "lucide-react";
 import { SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getSkillDefinitionByHandle, skillCategoryLabels } from "@/lib/data/skills";
@@ -497,6 +497,7 @@ export default function AboutPage({
         isUserProfile && !isPeerifyArtistProfile && (relationshipStatusLabel || followerCount > 0 || memberStatusLabel);
     const hasSidebarContent =
         hasBandInfoContent ||
+        peerifyArtistProfile.lookingFor.length > 0 ||
         shouldShowProfileStatus ||
         hasOverviewDetails ||
         hasAdminDetails ||
@@ -867,26 +868,6 @@ export default function AboutPage({
                                         </p>
                                     )}
 
-                                    {peerifyArtistProfile.lookingFor.length > 0 && (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                                                <HandCoins className="h-4 w-4" />
-                                                <span>Open To</span>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {peerifyArtistProfile.lookingFor.map((item) => (
-                                                    <Badge
-                                                        key={item}
-                                                        variant="secondary"
-                                                        className="rounded-full px-3 py-1"
-                                                    >
-                                                        {item}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
                                     {peerifyArtistProfile.availability && (
                                         <div className="rounded-xl border bg-muted/30 p-4">
                                             <div className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
@@ -1216,6 +1197,21 @@ export default function AboutPage({
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {peerifyArtistProfile.lookingFor.length > 0 && (
+                                <div className="flex flex-col bg-white p-6 md:order-[1.5]">
+                                    <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Open To
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {peerifyArtistProfile.lookingFor.map((item) => (
+                                            <Badge key={item} variant="secondary" className="rounded-full px-3 py-1">
+                                                {item}
+                                            </Badge>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 
