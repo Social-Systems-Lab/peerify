@@ -439,3 +439,16 @@ Headline: UI cleanup sprint for the personal-profile settings page — removed t
 6. **`kam-yellow` / `kam-hero-yellow` color tokens** — Kamooni-named brand tokens still in `tailwind.config.ts`; rename to brand-neutral in upcoming palette overhaul.
 7. **Over-broad `circles/` rule in `circles/.gitignore` ~line 61** — matches any directory named `circles`, including `src/components/modules/circles/`. Anchor or scope it (confirm what it was meant to ignore first).
 8. **`*.bak` avatar backups on staging + prod** — delete once prod is confirmed stable. It is; delete next session.
+
+## 2026-07-03 — Band Info sidebar card promoted to prod
+- Shipped: Band Info card on artist/band profiles (AboutPage.tsx, +82 lines, additive). Adds two-column layout via hasBandInfoContent folded into hasSidebarContent OR-chain; card shows Location (metadata.peerify.artistProfile.baseCity), Website, and Listen & Follow brand icons (react-icons/si; bandcamp/soundcloud/appleMusic/youtube/linktree, no Spotify). Personal profiles unaffected (gated on isPeerifyArtistProfile).
+- Commits: ea18803b (staging) -> merge a0df7f86 (main). Verified live on peerify.one/circles/the-band/home; personal-profile regression check clean.
+- INCIDENT 1 — phantom commit: Claude Code reported committing the card but the change was left staged/uncommitted in the staging worktree. It rendered live on :3001 anyway because staging serves the built working tree. Caught by the Checkpoint-2 fetch/divergence gate (staging..main was empty). Fix: committed properly (ea18803b) then pushed. LESSON: always confirm the commit actually landed (git log/status) before treating a Claude Code "committed" as done.
+- INCIDENT 2 — blank Explore mid-deploy: copying fresh .next/static onto the live standalone dir while the OLD process was still running caused a build/manifest mismatch ("Failed to find Server Action") site-wide, in incognito and Brave too. NOT browser cache. Resolved by the pending PORT-safe restart, which realigned the in-memory manifest with on-disk files. LESSON: on prod, run copy + restart back-to-back with NO pause, and do not load the live site in the gap between them.
+- Deploy hygiene held: empty PORT confirmed before restart; staging (id 5) undisturbed; pm2 save after health confirmed; main pushed to origin.
+
+### Artist-page makeover backlog (next design session, mockups as north star)
+- Resolve sidebar/main redundancy: once Band Info card owns Location + Listen & Follow, remove the duplicate "Cape Town" and "LISTEN" pills from the main column.
+- Remove Featured Link placeholder (its future is the Peerify-hosted main track/video player; check nothing else references it before removing).
+- Move "Open To" (Shows/Festivals/Fans) into the sidebar (inside Listen & Follow card or its own small card beneath it — TBD).
+- New "Support / Get Involved" card below Listen & Follow: fan-participation invite (help make a show happen, join tour team, volunteer). This is the on-profile expression of the fan-hosted touring USP + pledge-to-bring mechanic; needs design thought on actions offered and who-sees-what.
