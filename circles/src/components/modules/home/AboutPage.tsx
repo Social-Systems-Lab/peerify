@@ -4,7 +4,7 @@ import React from "react";
 import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MapPin, ExternalLink, CalendarRange, Music2, HandCoins, CheckCircle2 } from "lucide-react";
+import { MapPin, ExternalLink, CalendarRange, HandCoins, CheckCircle2 } from "lucide-react";
 import { SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getSkillDefinitionByHandle, skillCategoryLabels } from "@/lib/data/skills";
@@ -859,41 +859,12 @@ export default function AboutPage({
                                                     ))}
                                                 </div>
                                             )}
-                                            {peerifyArtistProfile.baseCity && (
-                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                    <MapPin className="h-4 w-4" />
-                                                    <span>{peerifyArtistProfile.baseCity}</span>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                     {!peerifyArtistProfile.bookingEnabled && (
                                         <p className="text-xs text-muted-foreground">
                                             Booking enquiries are not enabled on this profile yet.
                                         </p>
-                                    )}
-
-                                    {peerifyMusicLinks.length > 0 && (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                                                <Music2 className="h-4 w-4" />
-                                                <span>Listen</span>
-                                            </div>
-                                            <div className="flex flex-wrap gap-3">
-                                                {peerifyMusicLinks.map(([key, url]) => (
-                                                    <a
-                                                        key={key}
-                                                        href={url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm hover:bg-muted"
-                                                    >
-                                                        {PEERIFY_MUSIC_LINK_LABELS[key]}
-                                                        <ExternalLink className="h-4 w-4" />
-                                                    </a>
-                                                ))}
-                                            </div>
-                                        </div>
                                     )}
 
                                     {peerifyArtistProfile.lookingFor.length > 0 && (
@@ -916,35 +887,15 @@ export default function AboutPage({
                                         </div>
                                     )}
 
-                                    {(peerifyArtistProfile.availability || peerifyArtistProfile.featuredLink) && (
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            {peerifyArtistProfile.availability && (
-                                                <div className="rounded-xl border bg-muted/30 p-4">
-                                                    <div className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                                                        <CalendarRange className="h-4 w-4" />
-                                                        <span>Availability</span>
-                                                    </div>
-                                                    <p className="text-sm text-foreground">
-                                                        {peerifyArtistProfile.availability}
-                                                    </p>
-                                                </div>
-                                            )}
-                                            {peerifyArtistProfile.featuredLink && (
-                                                <div className="rounded-xl border bg-muted/30 p-4">
-                                                    <div className="mb-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                                                        Featured Link
-                                                    </div>
-                                                    <a
-                                                        href={peerifyArtistProfile.featuredLink}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-2 break-all text-sm underline"
-                                                    >
-                                                        {peerifyArtistProfile.featuredLink}
-                                                        <ExternalLink className="h-4 w-4" />
-                                                    </a>
-                                                </div>
-                                            )}
+                                    {peerifyArtistProfile.availability && (
+                                        <div className="rounded-xl border bg-muted/30 p-4">
+                                            <div className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                                                <CalendarRange className="h-4 w-4" />
+                                                <span>Availability</span>
+                                            </div>
+                                            <p className="text-sm text-foreground">
+                                                {peerifyArtistProfile.availability}
+                                            </p>
                                         </div>
                                     )}
 
