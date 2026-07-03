@@ -1134,114 +1134,112 @@ export default function AboutPage({
                 {hasSidebarContent && (
                     <div className="md:col-span-1">
                         <div className="flex flex-col gap-6">
-                            {(hasBandInfoContent || peerifyArtistProfile.lookingFor.length > 0) && (
+                            {hasBandInfoContent && (
                                 <div
                                     className={`flex flex-col bg-white p-6 md:order-[10] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
-                                    {hasBandInfoContent && (
-                                        <div className="mb-6">
-                                            <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                                Band Info
+                                    <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Band Info
+                                    </div>
+
+                                    {peerifyArtistProfile.baseCity && (
+                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Location
                                             </div>
-
-                                            {peerifyArtistProfile.baseCity && (
-                                                <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
-                                                    <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
-                                                        Location
-                                                    </div>
-                                                    <div className="flex flex-row items-center text-foreground">
-                                                        <MapPin className="mr-1.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
-                                                        <span className="text-[15px]">
-                                                            {peerifyArtistProfile.baseCity}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {peerifyBandInfoWebsite && (
-                                                <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
-                                                    <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
-                                                        Website
-                                                    </div>
-                                                    <a
-                                                        href={peerifyBandInfoWebsite}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="flex items-center gap-2 break-all text-[15px] text-foreground underline"
-                                                    >
-                                                        <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                                                        <span>Visit website</span>
-                                                    </a>
-                                                </div>
-                                            )}
-
-                                            {peerifyBandInfoSocialLinks.length > 0 && (
-                                                <div className="flex w-full flex-col text-sm text-muted-foreground">
-                                                    <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">
-                                                        Listen & Follow
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {peerifyBandInfoSocialLinks.map(([key, url]) => {
-                                                            const Icon = PEERIFY_SOCIAL_LINK_ICONS[key];
-                                                            return (
-                                                                <a
-                                                                    key={key}
-                                                                    href={url}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    aria-label={PEERIFY_MUSIC_LINK_LABELS[key]}
-                                                                    title={PEERIFY_MUSIC_LINK_LABELS[key]}
-                                                                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border text-foreground hover:bg-muted"
-                                                                >
-                                                                    {Icon && <Icon className="h-4 w-4" />}
-                                                                </a>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            )}
+                                            <div className="flex flex-row items-center text-foreground">
+                                                <MapPin className="mr-1.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
+                                                <span className="text-[15px]">{peerifyArtistProfile.baseCity}</span>
+                                            </div>
                                         </div>
                                     )}
 
-                                    {peerifyArtistProfile.lookingFor.length > 0 && (
-                                        <div className="mb-6">
-                                            <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                                Open To
+                                    {peerifyBandInfoWebsite && (
+                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Website
+                                            </div>
+                                            <a
+                                                href={peerifyBandInfoWebsite}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-2 break-all text-[15px] text-foreground underline"
+                                            >
+                                                <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                                <span>Visit website</span>
+                                            </a>
+                                        </div>
+                                    )}
+
+                                    {peerifyBandInfoSocialLinks.length > 0 && (
+                                        <div className="flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-2 text-xs font-medium uppercase text-muted-foreground">
+                                                Listen & Follow
                                             </div>
                                             <div className="flex flex-wrap gap-2">
-                                                {peerifyArtistProfile.lookingFor.map((item) => (
-                                                    <Badge
-                                                        key={item}
-                                                        variant="secondary"
-                                                        className="rounded-full px-3 py-1"
-                                                    >
-                                                        {item}
-                                                    </Badge>
-                                                ))}
+                                                {peerifyBandInfoSocialLinks.map(([key, url]) => {
+                                                    const Icon = PEERIFY_SOCIAL_LINK_ICONS[key];
+                                                    return (
+                                                        <a
+                                                            key={key}
+                                                            href={url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            aria-label={PEERIFY_MUSIC_LINK_LABELS[key]}
+                                                            title={PEERIFY_MUSIC_LINK_LABELS[key]}
+                                                            className="inline-flex h-10 w-10 items-center justify-center rounded-full border text-foreground hover:bg-muted"
+                                                        >
+                                                            {Icon && <Icon className="h-4 w-4" />}
+                                                        </a>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            )}
 
-                                    {isPeerifyArtistProfile && (
-                                        <div>
-                                            <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                                Support
-                                            </div>
-                                            <div className="mb-3 text-sm font-semibold text-foreground">
-                                                Ways to get involved
-                                            </div>
-                                            <ul className="mb-4 list-disc space-y-1 pl-5 text-[15px] text-foreground">
-                                                <li>Help make a show happen</li>
-                                                <li>Join a tour crew</li>
-                                                <li>Volunteer</li>
-                                            </ul>
-                                            <div className="text-xs text-muted-foreground">
-                                                More ways to get involved are coming soon.
-                                            </div>
-                                        </div>
-                                    )}
+                            {peerifyArtistProfile.lookingFor.length > 0 && (
+                                <div
+                                    className={`flex flex-col bg-white p-6 md:order-[20] ${
+                                        isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
+                                    }`}
+                                >
+                                    <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Open To
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {peerifyArtistProfile.lookingFor.map((item) => (
+                                            <Badge key={item} variant="secondary" className="rounded-full px-3 py-1">
+                                                {item}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {isPeerifyArtistProfile && (
+                                <div
+                                    className={`flex flex-col bg-white p-6 md:order-[25] ${
+                                        isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
+                                    }`}
+                                >
+                                    <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Support
+                                    </div>
+                                    <div className="mb-3 text-sm font-semibold text-foreground">
+                                        Ways to get involved
+                                    </div>
+                                    <ul className="mb-4 list-disc space-y-1 pl-5 text-[15px] text-foreground">
+                                        <li>Help make a show happen</li>
+                                        <li>Join a tour crew</li>
+                                        <li>Volunteer</li>
+                                    </ul>
+                                    <div className="text-xs text-muted-foreground">
+                                        More ways to get involved are coming soon.
+                                    </div>
                                 </div>
                             )}
 
