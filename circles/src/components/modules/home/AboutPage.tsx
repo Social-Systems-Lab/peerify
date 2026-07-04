@@ -34,7 +34,6 @@ import { isAuthorized } from "@/lib/auth/client-auth";
 import { features } from "@/lib/data/constants";
 import OffersCard from "./offers-card";
 import EngagementCard from "./engagement-card";
-import NeedsCard from "./needs-card";
 import VerifiedContributionsPanel, { type VerifiedContributionItem } from "./VerifiedContributionsPanel";
 import { FundingPanel } from "@/components/modules/funding/funding-panel";
 import { UpcomingShiftsPanel } from "./upcoming-shifts-panel";
@@ -841,26 +840,6 @@ export default function AboutPage({
                                                     Listen, follow along, or help make a local show happen.
                                                 </p>
                                             </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {peerifyArtistTypeBadges.map((item) => (
-                                                    <Badge
-                                                        key={item}
-                                                        variant="outline"
-                                                        className="rounded-full px-3 py-1"
-                                                    >
-                                                        {item}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                            {peerifyArtistProfile.genres.length > 0 && (
-                                                <div className="flex flex-wrap gap-2">
-                                                    {peerifyArtistProfile.genres.map((genre) => (
-                                                        <Badge key={genre} className="rounded-full px-3 py-1">
-                                                            {genre}
-                                                        </Badge>
-                                                    ))}
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                     {!peerifyArtistProfile.bookingEnabled && (
@@ -1127,7 +1106,6 @@ export default function AboutPage({
                         {shouldShowPeerifyArtistSupportCards && isUserProfile && (
                             <EngagementCard circle={circle} isOwner={isOwner} />
                         )}
-                        {!isUserProfile && !isPeerifyVenueProfile && <NeedsCard circle={circle} isOwner={isOwner} />}
                     </div>
                 </div>
                 {/* --- Sidebar Column (Conditionally Rendered) --- */}
@@ -1227,11 +1205,15 @@ export default function AboutPage({
                                     }`}
                                 >
                                     <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                        Support
+                                        Get Involved
                                     </div>
                                     <div className="mb-3 text-sm font-semibold text-foreground">
                                         Ways to get involved
                                     </div>
+                                    <p className="mb-3 text-sm text-muted-foreground">
+                                        Fans who pitch in are helping build a fairer, more sustainable ecosystem for
+                                        artists — not donating to a cause.
+                                    </p>
                                     <ul className="mb-4 list-disc space-y-1 pl-5 text-[15px] text-foreground">
                                         <li>Help make a show happen</li>
                                         <li>Join a tour crew</li>
