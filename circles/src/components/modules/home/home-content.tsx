@@ -423,16 +423,6 @@ export default function HomeContent({
                                         >
                                             Pledge Interest
                                         </Button>
-                                        {peerifyArtistProfile.bookingEnabled ? (
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => openPeerifyArtistEnquiry("booking")}
-                                            >
-                                                Book Enquiry
-                                            </Button>
-                                        ) : null}
                                         {showPledgesDashboardButton ? (
                                             <Button asChild size="sm" variant="outline">
                                                 <Link href={`/circles/${circle.handle}/settings/pledges`}>

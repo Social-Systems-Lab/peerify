@@ -34,6 +34,7 @@ import { isAuthorized } from "@/lib/auth/client-auth";
 import { features } from "@/lib/data/constants";
 import OffersCard from "./offers-card";
 import EngagementCard from "./engagement-card";
+import AudioPlayer from "@/components/modules/music/audio-player";
 import VerifiedContributionsPanel, { type VerifiedContributionItem } from "./VerifiedContributionsPanel";
 import { FundingPanel } from "@/components/modules/funding/funding-panel";
 import { UpcomingShiftsPanel } from "./upcoming-shifts-panel";
@@ -78,7 +79,15 @@ interface AboutPageProps {
     adminLeaders?: MemberDisplay[];
     proofOfHumanitySummary?: HumanityVerificationSummary | null;
     membershipCredential?: CircleMembershipCredentialCardData | null;
+    featuredTracks?: FeaturedTrack[];
 }
+
+type FeaturedTrack = {
+    id: string;
+    title: string;
+    durationSec?: number;
+    streamUrl: string;
+};
 
 type PledgeFormState = {
     fanLocation: string;
@@ -146,6 +155,7 @@ export default function AboutPage({
     adminLeaders = [],
     proofOfHumanitySummary = null,
     membershipCredential = null,
+    featuredTracks = [],
 }: AboutPageProps) {
     const isCompact = useIsCompact();
     const isMobile = useIsMobile();
@@ -157,6 +167,7 @@ export default function AboutPage({
     const [isSkillsExpanded, setIsSkillsExpanded] = React.useState(false);
     const [isInterestsExpanded, setIsInterestsExpanded] = React.useState(false);
     const [isNeedsExpanded, setIsNeedsExpanded] = React.useState(false);
+    const [isBookingDetailsExpanded, setIsBookingDetailsExpanded] = React.useState(false);
     const [isContactDialogOpen, setIsContactDialogOpen] = React.useState(false);
     const [contactType, setContactType] = React.useState<"offer_help" | "ask_question">("offer_help");
     const [contactMessage, setContactMessage] = React.useState("");
@@ -194,21 +205,11 @@ export default function AboutPage({
         isPeerifyArtistProfile &&
         Boolean(peerifyArtistProfile.baseCity || peerifyBandInfoWebsite || peerifyBandInfoSocialLinks.length > 0);
     const bookingDetails = [
-        bookingSettings.localBookingsOnly ? "Local bookings only" : null,
-        typeof bookingSettings.travelRadiusKm === "number"
-            ? `Travel radius: ${bookingSettings.travelRadiusKm} km`
-            : null,
         typeof bookingSettings.minimumAudienceSize === "number"
             ? `Minimum audience: ${bookingSettings.minimumAudienceSize}`
             : null,
         typeof bookingSettings.preferredAudienceSize === "number"
             ? `Preferred audience: ${bookingSettings.preferredAudienceSize}`
-            : null,
-        typeof bookingSettings.baseFee === "number"
-            ? `Base fee: ${bookingSettings.currency || ""} ${bookingSettings.baseFee}`.trim()
-            : null,
-        bookingSettings.preferredEventTypes?.length
-            ? `Preferred events: ${bookingSettings.preferredEventTypes.join(", ")}`
             : null,
         bookingSettings.technicalNeeds ? `Technical needs: ${bookingSettings.technicalNeeds}` : null,
         bookingSettings.notes ? `Notes: ${bookingSettings.notes}` : null,
@@ -497,7 +498,6 @@ export default function AboutPage({
     const hasSidebarContent =
         isPeerifyArtistProfile ||
         hasBandInfoContent ||
-        peerifyArtistProfile.lookingFor.length > 0 ||
         shouldShowProfileStatus ||
         hasOverviewDetails ||
         hasAdminDetails ||
@@ -1100,6 +1100,26 @@ export default function AboutPage({
                                         <p className="mb-6 text-base text-muted-foreground">{emptyAboutText}</p>
                                     </>
                                 )}
+                                {isPeerifyArtistProfile && featuredTracks.length > 0 && (
+                                    <ul className="mt-2 flex flex-col">
+                                        {featuredTracks.map((track) => (
+                                            <li
+                                                key={track.id}
+                                                className="flex flex-col gap-2 border-t border-border/60 py-4 first:border-t-0 first:pt-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                                            >
+                                                <span className="truncate text-[15px] font-medium text-foreground">
+                                                    {track.title}
+                                                </span>
+                                                <div className="sm:w-64 sm:shrink-0">
+                                                    <AudioPlayer
+                                                        src={track.streamUrl}
+                                                        durationSec={track.durationSec}
+                                                    />
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
                             </div>
                         )}
                         {shouldShowPeerifyArtistSupportCards && <OffersCard circle={circle} isOwner={isOwner} />}
@@ -1179,22 +1199,77 @@ export default function AboutPage({
                                 </div>
                             )}
 
-                            {peerifyArtistProfile.lookingFor.length > 0 && (
+                            {isPeerifyArtistProfile && peerifyArtistProfile.bookingEnabled && (
                                 <div
                                     className={`flex flex-col bg-white p-6 md:order-[20] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
-                                    <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                        Open To
+                                    <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Booking
                                     </div>
-                                    <div className="flex flex-wrap gap-2">
-                                        {peerifyArtistProfile.lookingFor.map((item) => (
-                                            <Badge key={item} variant="secondary" className="rounded-full px-3 py-1">
-                                                {item}
-                                            </Badge>
-                                        ))}
+
+                                    <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
+                                        <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                            Base fee
+                                        </div>
+                                        <div className="text-[15px] text-foreground">
+                                            {typeof bookingSettings.baseFee === "number" &&
+                                            bookingSettings.baseFee > 0
+                                                ? `${bookingSettings.currency ? `${bookingSettings.currency} ` : ""}${bookingSettings.baseFee}`
+                                                : "Contact for rate"}
+                                        </div>
                                     </div>
+
+                                    {typeof bookingSettings.travelRadiusKm === "number" && (
+                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Travel radius
+                                            </div>
+                                            <div className="text-[15px] text-foreground">
+                                                {bookingSettings.travelRadiusKm} km
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={openBookDialog}
+                                        className="mb-3 self-start"
+                                    >
+                                        Book Enquiry
+                                    </Button>
+
+                                    <button
+                                        type="button"
+                                        className="self-start text-sm font-medium text-foreground underline-offset-2 hover:underline"
+                                        aria-expanded={isBookingDetailsExpanded}
+                                        onClick={() => setIsBookingDetailsExpanded((prev) => !prev)}
+                                    >
+                                        {isBookingDetailsExpanded ? "See less" : "See more"}
+                                    </button>
+
+                                    {isBookingDetailsExpanded && (
+                                        <div className="mt-4 flex flex-col gap-4 border-t border-border/60 pt-4">
+                                            {bookingSettings.localBookingsOnly && (
+                                                <div className="text-[15px] text-foreground">
+                                                    Local bookings only
+                                                </div>
+                                            )}
+                                            {bookingSettings.preferredEventTypes?.length ? (
+                                                <div className="flex w-full flex-col text-sm text-muted-foreground">
+                                                    <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                        Preferred events
+                                                    </div>
+                                                    <div className="text-[15px] text-foreground">
+                                                        {bookingSettings.preferredEventTypes.join(", ")}
+                                                    </div>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
