@@ -66,7 +66,6 @@ type AboutSettingsFormValues = {
         genresText: string;
         baseCity: string;
         musicLinks: Record<string, string>;
-        featuredLink: string;
         lookingFor: string[];
         bookingEnabled: boolean;
         bookingSettings: {
@@ -120,7 +119,6 @@ const buildArtistProfileFormDefaults = (circle: Circle): AboutSettingsFormValues
             linktree: artistProfile.musicLinks.linktree || "",
             website: artistProfile.musicLinks.website || "",
         },
-        featuredLink: artistProfile.featuredLink || "",
         lookingFor: artistProfile.lookingFor,
         bookingEnabled: artistProfile.bookingEnabled,
         bookingSettings: {
@@ -432,7 +430,6 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                 musicLinks: Object.fromEntries(
                     Object.entries(data.peerifyArtistProfile.musicLinks).filter(([, value]) => value.trim().length > 0),
                 ),
-                featuredLink: data.peerifyArtistProfile.featuredLink.trim() || undefined,
                 lookingFor: data.peerifyArtistProfile.lookingFor,
                 bookingEnabled: data.peerifyArtistProfile.bookingEnabled,
                 bookingSettings: {
@@ -882,19 +879,6 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                                 />
                                             ))}
                                         </div>
-                                        <Controller
-                                            name="peerifyArtistProfile.featuredLink"
-                                            control={form.control}
-                                            render={({ field }) => (
-                                                <ArtistTextField
-                                                    label="Featured link"
-                                                    placeholder="https://..."
-                                                    description="Optional single call-to-action link for your newest release, press kit, or tour pledge."
-                                                    value={field.value}
-                                                    onChange={field.onChange}
-                                                />
-                                            )}
-                                        />
                                     </div>
 
                                     <Controller

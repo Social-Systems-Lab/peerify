@@ -30,7 +30,6 @@ export type PeerifyArtistProfile = {
     baseCity: string;
     genres: string[];
     musicLinks: Partial<Record<PeerifyMusicLinkKey, string>>;
-    featuredLink?: string;
     lookingFor: string[];
     bookingEnabled: boolean;
     bookingSettings: {
@@ -223,7 +222,6 @@ const DEFAULT_ARTIST_PROFILE: PeerifyArtistProfile = {
     baseCity: "",
     genres: [],
     musicLinks: {},
-    featuredLink: "",
     lookingFor: [],
     bookingEnabled: false,
     bookingSettings: {},
@@ -354,7 +352,6 @@ export const normalizePeerifyArtistProfile = (value: unknown): PeerifyArtistProf
         baseCity: asString(input.baseCity),
         genres: asStringArray(input.genres),
         musicLinks: normalizeMusicLinks(input.musicLinks),
-        featuredLink: normalizeExternalUrl(input.featuredLink),
         lookingFor: asStringArray(input.lookingFor),
         bookingEnabled: input.bookingEnabled === true,
         bookingSettings: {
@@ -517,7 +514,6 @@ export const hasPeerifyArtistProfileContent = (profile: PeerifyArtistProfile): b
     profile.genres.length > 0 ||
     Boolean(profile.baseCity) ||
     Object.keys(profile.musicLinks).length > 0 ||
-    Boolean(profile.featuredLink) ||
     profile.lookingFor.length > 0 ||
     profile.bookingEnabled ||
     Boolean(profile.availability);

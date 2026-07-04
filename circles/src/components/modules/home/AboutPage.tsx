@@ -4,7 +4,7 @@ import React from "react";
 import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MapPin, ExternalLink, CalendarRange, Music2, HandCoins, CheckCircle2 } from "lucide-react";
+import { MapPin, ExternalLink, CalendarRange, CheckCircle2 } from "lucide-react";
 import { SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getSkillDefinitionByHandle, skillCategoryLabels } from "@/lib/data/skills";
@@ -496,7 +496,9 @@ export default function AboutPage({
     const shouldShowProfileStatus =
         isUserProfile && !isPeerifyArtistProfile && (relationshipStatusLabel || followerCount > 0 || memberStatusLabel);
     const hasSidebarContent =
+        isPeerifyArtistProfile ||
         hasBandInfoContent ||
+        peerifyArtistProfile.lookingFor.length > 0 ||
         shouldShowProfileStatus ||
         hasOverviewDetails ||
         hasAdminDetails ||
@@ -859,12 +861,6 @@ export default function AboutPage({
                                                     ))}
                                                 </div>
                                             )}
-                                            {peerifyArtistProfile.baseCity && (
-                                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                    <MapPin className="h-4 w-4" />
-                                                    <span>{peerifyArtistProfile.baseCity}</span>
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                     {!peerifyArtistProfile.bookingEnabled && (
@@ -873,78 +869,15 @@ export default function AboutPage({
                                         </p>
                                     )}
 
-                                    {peerifyMusicLinks.length > 0 && (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                                                <Music2 className="h-4 w-4" />
-                                                <span>Listen</span>
+                                    {peerifyArtistProfile.availability && (
+                                        <div className="rounded-xl border bg-muted/30 p-4">
+                                            <div className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
+                                                <CalendarRange className="h-4 w-4" />
+                                                <span>Availability</span>
                                             </div>
-                                            <div className="flex flex-wrap gap-3">
-                                                {peerifyMusicLinks.map(([key, url]) => (
-                                                    <a
-                                                        key={key}
-                                                        href={url}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm hover:bg-muted"
-                                                    >
-                                                        {PEERIFY_MUSIC_LINK_LABELS[key]}
-                                                        <ExternalLink className="h-4 w-4" />
-                                                    </a>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {peerifyArtistProfile.lookingFor.length > 0 && (
-                                        <div className="space-y-3">
-                                            <div className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                                                <HandCoins className="h-4 w-4" />
-                                                <span>Open To</span>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                {peerifyArtistProfile.lookingFor.map((item) => (
-                                                    <Badge
-                                                        key={item}
-                                                        variant="secondary"
-                                                        className="rounded-full px-3 py-1"
-                                                    >
-                                                        {item}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {(peerifyArtistProfile.availability || peerifyArtistProfile.featuredLink) && (
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            {peerifyArtistProfile.availability && (
-                                                <div className="rounded-xl border bg-muted/30 p-4">
-                                                    <div className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                                                        <CalendarRange className="h-4 w-4" />
-                                                        <span>Availability</span>
-                                                    </div>
-                                                    <p className="text-sm text-foreground">
-                                                        {peerifyArtistProfile.availability}
-                                                    </p>
-                                                </div>
-                                            )}
-                                            {peerifyArtistProfile.featuredLink && (
-                                                <div className="rounded-xl border bg-muted/30 p-4">
-                                                    <div className="mb-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                                                        Featured Link
-                                                    </div>
-                                                    <a
-                                                        href={peerifyArtistProfile.featuredLink}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-2 break-all text-sm underline"
-                                                    >
-                                                        {peerifyArtistProfile.featuredLink}
-                                                        <ExternalLink className="h-4 w-4" />
-                                                    </a>
-                                                </div>
-                                            )}
+                                            <p className="text-sm text-foreground">
+                                                {peerifyArtistProfile.availability}
+                                            </p>
                                         </div>
                                     )}
 
@@ -1203,7 +1136,7 @@ export default function AboutPage({
                         <div className="flex flex-col gap-6">
                             {hasBandInfoContent && (
                                 <div
-                                    className={`flex flex-col bg-white p-6 md:order-1 ${
+                                    className={`flex flex-col bg-white p-6 md:order-[10] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1268,8 +1201,50 @@ export default function AboutPage({
                                 </div>
                             )}
 
+                            {peerifyArtistProfile.lookingFor.length > 0 && (
+                                <div
+                                    className={`flex flex-col bg-white p-6 md:order-[20] ${
+                                        isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
+                                    }`}
+                                >
+                                    <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Open To
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {peerifyArtistProfile.lookingFor.map((item) => (
+                                            <Badge key={item} variant="secondary" className="rounded-full px-3 py-1">
+                                                {item}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {isPeerifyArtistProfile && (
+                                <div
+                                    className={`flex flex-col bg-white p-6 md:order-[25] ${
+                                        isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
+                                    }`}
+                                >
+                                    <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Support
+                                    </div>
+                                    <div className="mb-3 text-sm font-semibold text-foreground">
+                                        Ways to get involved
+                                    </div>
+                                    <ul className="mb-4 list-disc space-y-1 pl-5 text-[15px] text-foreground">
+                                        <li>Help make a show happen</li>
+                                        <li>Join a tour crew</li>
+                                        <li>Volunteer</li>
+                                    </ul>
+                                    <div className="text-xs text-muted-foreground">
+                                        More ways to get involved are coming soon.
+                                    </div>
+                                </div>
+                            )}
+
                             {shouldShowFundingPanel && (
-                                <div className="md:order-2">
+                                <div className="md:order-[30]">
                                     <FundingPanel
                                         circleHandle={circle.handle || ""}
                                         asks={fundingPreviewAsks}
@@ -1280,7 +1255,7 @@ export default function AboutPage({
                             )}
 
                             {shouldShowUpcomingShiftsPanel && (
-                                <div className="md:order-3">
+                                <div className="md:order-[40]">
                                     <UpcomingShiftsPanel
                                         circleHandle={circle.handle || ""}
                                         shifts={upcomingShiftTasks}
@@ -1291,7 +1266,7 @@ export default function AboutPage({
 
                             {hasNeedsMatchingDetails && (
                                 <div
-                                    className={`flex flex-col bg-white p-6 md:order-4 ${
+                                    className={`flex flex-col bg-white p-6 md:order-[50] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1373,7 +1348,7 @@ export default function AboutPage({
 
                             {shouldShowProfileStatus && (
                                 <div
-                                    className={`flex flex-col bg-white p-6 md:order-5 ${
+                                    className={`flex flex-col bg-white p-6 md:order-[60] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1397,7 +1372,7 @@ export default function AboutPage({
 
                             {hasOverviewDetails && (
                                 <div
-                                    className={`flex flex-col bg-white p-6 md:order-6 ${
+                                    className={`flex flex-col bg-white p-6 md:order-[70] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1546,7 +1521,7 @@ export default function AboutPage({
 
                             {shouldShowVerifiedContributions && (
                                 <div
-                                    className={`bg-white p-6 md:order-7 ${
+                                    className={`bg-white p-6 md:order-[80] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1558,14 +1533,14 @@ export default function AboutPage({
                             )}
 
                             {shouldShowProofOfHumanity && proofOfHumanitySummary && (
-                                <div className="md:order-8">
+                                <div className="md:order-[90]">
                                     <ProofOfHumanityCard circle={circle} summary={proofOfHumanitySummary} />
                                 </div>
                             )}
 
                             {hasAdminDetails && (
                                 <div
-                                    className={`flex flex-col bg-white p-6 md:order-9 ${
+                                    className={`flex flex-col bg-white p-6 md:order-[100] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
                                     }`}
                                 >
@@ -1617,7 +1592,7 @@ export default function AboutPage({
                             )}
 
                             {shouldShowMembershipCredential && membershipCredential && (
-                                <div className="md:order-10">
+                                <div className="md:order-[110]">
                                     <MembershipCredentialCard credential={membershipCredential} />
                                 </div>
                             )}
