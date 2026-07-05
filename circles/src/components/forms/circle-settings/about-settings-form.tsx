@@ -744,8 +744,8 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                             )}
                         />
 
-                        {/* Hidden for personal profiles per request: re-enable by removing this condition */}
-                        {!isUserProfile && (
+                        {/* Hidden for personal, Artist, and Venue profiles per request: re-enable by removing this condition */}
+                        {!isUserProfile && !isPeerifyManagedArtistCircle && !isPeerifyManagedVenueCircle && (
                             <Controller
                                 name="mission"
                                 control={form.control as unknown as Control}
