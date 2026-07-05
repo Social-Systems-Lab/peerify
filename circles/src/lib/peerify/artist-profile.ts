@@ -126,7 +126,7 @@ export const PEERIFY_ARTIST_TYPE_OPTIONS = [
     "Solo artist",
     "Band",
     "DJ",
-    "Producer",
+    "Musician",
     "Singer-songwriter",
     "Live electronic",
     "Acoustic act",

@@ -18,7 +18,7 @@ import { userAtom } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import { NotificationSettingsDialog } from "@/components/notifications/NotificationSettingsDialog";
 import { Button } from "@/components/ui/button";
-import { BarChart3, MapPin, Settings } from "lucide-react";
+import { BarChart3, Settings } from "lucide-react";
 import Link from "next/link";
 import { PublishManagedProfileButton } from "@/components/profiles/publish-managed-profile-button";
 import { VerifyAccountButton } from "../auth/verify-account-button";
@@ -440,12 +440,6 @@ export default function HomeContent({
                                         ))}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600">
-                                        {peerifyArtistProfile.baseCity && (
-                                            <span className="inline-flex items-center gap-2">
-                                                <MapPin className="h-4 w-4" />
-                                                <span>{peerifyArtistProfile.baseCity}</span>
-                                            </span>
-                                        )}
                                         <span className="inline-flex items-center gap-2">
                                             <FaUsers />
                                             <span>
