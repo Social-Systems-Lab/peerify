@@ -38,7 +38,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
     getPeerifyArtistProfile,
-    getPeerifyArtistTypeBadges,
     getPeerifyIdentityAvatarUrl,
     isPeerifyArtistIdentity,
     isPeerifyManagedIdentity,
@@ -76,7 +75,6 @@ export default function HomeContent({
     const isPeerifyArtistProfile = isPeerifyArtistIdentity(circle);
     const isPeerifyManagedArtistIdentity = isPeerifyManagedIdentity(circle);
     const peerifyArtistProfile = getPeerifyArtistProfile(circle);
-    const peerifyArtistTypeBadges = getPeerifyArtistTypeBadges(circle);
     const showManagedDraftBanner =
         authorizedToEdit && isPeerifyManagedArtistIdentity && (circle.publishStatus ?? "published") === "draft";
     const showPledgesDashboardButton = authorizedToEdit && isPeerifyManagedArtistIdentity && Boolean(circle.handle);
@@ -425,16 +423,6 @@ export default function HomeContent({
                                         >
                                             Pledge Interest
                                         </Button>
-                                        {peerifyArtistProfile.bookingEnabled ? (
-                                            <Button
-                                                type="button"
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => openPeerifyArtistEnquiry("booking")}
-                                            >
-                                                Book Enquiry
-                                            </Button>
-                                        ) : null}
                                         {showPledgesDashboardButton ? (
                                             <Button asChild size="sm" variant="outline">
                                                 <Link href={`/circles/${circle.handle}/settings/pledges`}>
@@ -445,11 +433,6 @@ export default function HomeContent({
                                         ) : null}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                        {peerifyArtistTypeBadges.map((item) => (
-                                            <Badge key={item} variant="outline" className="rounded-full px-3 py-1">
-                                                {item}
-                                            </Badge>
-                                        ))}
                                         {peerifyArtistProfile.genres.slice(0, 4).map((genre) => (
                                             <Badge key={genre} className="rounded-full px-3 py-1">
                                                 {genre}

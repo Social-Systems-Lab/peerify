@@ -18,8 +18,10 @@ import {
     getLinkedVibeIdDid,
     type CircleMembershipCredentialCardData,
 } from "@/lib/vibe-id/membership-credentials";
-import { hasPeerifyArtistIntent, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyArtistIdentity, isPeerifyManagedIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import { getEventsByCircleId, getPublicEventsByCircleId } from "@/lib/data/event";
+import { getTracksByCircleId } from "@/lib/data/track";
+import { signAudioToken } from "@/lib/audio/audio-token";
 
 // TODO: Add error handling and loading states more robustly
 
@@ -36,7 +38,7 @@ export default async function CircleHomePage(props: PageProps) {
     if (!circle) {
         notFound();
     }
-    const isPeerifyArtistProfile = circle.circleType === "user" && hasPeerifyArtistIntent(circle);
+    const isPeerifyArtistProfile = isPeerifyArtistIdentity(circle);
 
     let verifiedContributions: VerifiedContributionItem[] = [];
     let verifiedContributionPublicCount = 0;
@@ -173,6 +175,30 @@ export default async function CircleHomePage(props: PageProps) {
         }
     }
 
+    let featuredTracks: { id: string; title: string; durationSec?: number; streamUrl: string }[] = [];
+    if (isPeerifyArtistProfile && circle._id) {
+        const isPublicPeerifyManagedMusic = !viewerDid && isPeerifyManagedIdentity(circle);
+        const canViewMusic = isPublicPeerifyManagedMusic
+            ? true
+            : viewerDid
+              ? await isAuthorized(viewerDid, circle._id as string, features.music.view)
+              : false;
+
+        if (canViewMusic) {
+            const tracks = (await getTracksByCircleId(circle._id as string)).slice(0, 3);
+            featuredTracks = await Promise.all(
+                tracks.map(async (track) => ({
+                    id: track._id!.toString(),
+                    title: track.title,
+                    durationSec: track.durationSec,
+                    streamUrl: `/api/peerify/audio?t=${encodeURIComponent(
+                        await signAudioToken({ trackId: track._id!.toString(), previewKey: track.previewKey }),
+                    )}`,
+                })),
+            );
+        }
+    }
+
     if (circle.circleType !== "user" && circle._id && viewerDid) {
         const [viewer, member] = await Promise.all([
             getUserPrivate(viewerDid),
@@ -205,6 +231,7 @@ export default async function CircleHomePage(props: PageProps) {
             adminLeaders={JSON.parse(JSON.stringify(adminLeaders))}
             proofOfHumanitySummary={proofOfHumanitySummary ? JSON.parse(JSON.stringify(proofOfHumanitySummary)) : null}
             membershipCredential={membershipCredential}
+            featuredTracks={featuredTracks}
         />
     );
 }
