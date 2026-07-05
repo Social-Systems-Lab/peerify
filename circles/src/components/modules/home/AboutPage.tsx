@@ -196,8 +196,7 @@ export default function AboutPage({
     const peerifyBandInfoWebsite = peerifyArtistProfile.musicLinks.website;
     const peerifyBandInfoSocialLinks = peerifyMusicLinks.filter(([key]) => key !== "website");
     const hasBandInfoContent =
-        isPeerifyArtistProfile &&
-        Boolean(peerifyArtistProfile.baseCity || peerifyBandInfoWebsite || peerifyBandInfoSocialLinks.length > 0);
+        isPeerifyArtistProfile && Boolean(peerifyBandInfoWebsite || peerifyBandInfoSocialLinks.length > 0);
     const venueLocation =
         peerifyVenueProfile.addressVisibility === "public" && peerifyVenueProfile.address
             ? peerifyVenueProfile.address
@@ -1060,18 +1059,6 @@ export default function AboutPage({
                                     <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                         Band Info
                                     </div>
-
-                                    {peerifyArtistProfile.baseCity && (
-                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
-                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
-                                                Location
-                                            </div>
-                                            <div className="flex flex-row items-center text-foreground">
-                                                <MapPin className="mr-1.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
-                                                <span className="text-[15px]">{peerifyArtistProfile.baseCity}</span>
-                                            </div>
-                                        </div>
-                                    )}
 
                                     {peerifyBandInfoWebsite && (
                                         <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">

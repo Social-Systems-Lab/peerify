@@ -30,7 +30,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
     getPeerifyArtistProfile,
-    getPeerifyArtistIdentityLabel,
     getPeerifyVenueProfile,
     hasPeerifyArtistIntent,
     isPeerifyManagedIdentity,
@@ -792,16 +791,11 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                 {isPeerifyManagedArtistCircle ? (
                     <Card>
                         <CardHeader>
-                            <CardTitle>
-                                {isPeerifyManagedArtistCircle
-                                    ? `${getPeerifyArtistIdentityLabel(circle)} Identity`
-                                    : "Peerify Artist Profile"}
-                            </CardTitle>
+                            <CardTitle>Artist Identity</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-6">
                             <div className="rounded-lg border bg-slate-50 p-4 text-sm text-muted-foreground">
-                                This managed identity is published as a public Peerify{" "}
-                                {getPeerifyArtistIdentityLabel(circle).toLowerCase()}.
+                                This managed identity is published as a public Peerify artist.
                             </div>
 
                             {peerifyArtistIntent || isPeerifyManagedArtistCircle ? (
@@ -820,34 +814,19 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                         )}
                                     />
 
-                                    <div className="grid gap-4 md:grid-cols-2">
-                                        <Controller
-                                            name="peerifyArtistProfile.baseCity"
-                                            control={form.control}
-                                            render={({ field }) => (
-                                                <ArtistTextField
-                                                    label="Base city"
-                                                    placeholder="Berlin"
-                                                    description="Show a city or broad location, not an exact address."
-                                                    value={field.value}
-                                                    onChange={field.onChange}
-                                                />
-                                            )}
-                                        />
-                                        <Controller
-                                            name="peerifyArtistProfile.genresText"
-                                            control={form.control}
-                                            render={({ field }) => (
-                                                <ArtistTextField
-                                                    label="Genres / sound tags"
-                                                    placeholder="Indie folk, dream pop, ambient"
-                                                    description="Comma-separated tags."
-                                                    value={field.value}
-                                                    onChange={field.onChange}
-                                                />
-                                            )}
-                                        />
-                                    </div>
+                                    <Controller
+                                        name="peerifyArtistProfile.genresText"
+                                        control={form.control}
+                                        render={({ field }) => (
+                                            <ArtistTextField
+                                                label="Genres / sound tags"
+                                                placeholder="Indie folk, dream pop, ambient"
+                                                description="Comma-separated tags."
+                                                value={field.value}
+                                                onChange={field.onChange}
+                                            />
+                                        )}
+                                    />
 
                                     <div className="space-y-4">
                                         <div>
