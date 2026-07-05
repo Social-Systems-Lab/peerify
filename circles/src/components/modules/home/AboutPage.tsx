@@ -51,11 +51,9 @@ import { useProfileRelationshipState } from "./message-button";
 import {
     getPeerifyArtistProfile,
     getPeerifyArtistIdentityLabel,
-    getPeerifyArtistTypeBadges,
     getPeerifyVenueProfile,
     PEERIFY_BOOKING_SUPPORT_OPTIONS,
     PEERIFY_PLEDGE_HELP_OPTIONS,
-    hasPeerifyArtistProfileContent,
     isPeerifyArtistIdentity,
     isPeerifyManagedIdentity,
     isPeerifyVenueIdentity,
@@ -191,10 +189,6 @@ export default function AboutPage({
     const peerifyArtistProfile = getPeerifyArtistProfile(circle);
     const peerifyVenueProfile = getPeerifyVenueProfile(circle);
     const peerifyIdentityLabel = getPeerifyArtistIdentityLabel(circle);
-    const peerifyArtistTypeBadges = getPeerifyArtistTypeBadges(circle);
-    const hasPeerifyContent =
-        isPeerifyArtistProfile &&
-        (hasPeerifyArtistProfileContent(peerifyArtistProfile) || peerifyArtistTypeBadges.length > 0);
     const bookingSettings = peerifyArtistProfile.bookingSettings;
     const peerifyMusicLinks = (
         Object.entries(peerifyArtistProfile.musicLinks) as [PeerifyMusicLinkKey, string][]
@@ -204,16 +198,6 @@ export default function AboutPage({
     const hasBandInfoContent =
         isPeerifyArtistProfile &&
         Boolean(peerifyArtistProfile.baseCity || peerifyBandInfoWebsite || peerifyBandInfoSocialLinks.length > 0);
-    const bookingDetails = [
-        typeof bookingSettings.minimumAudienceSize === "number"
-            ? `Minimum audience: ${bookingSettings.minimumAudienceSize}`
-            : null,
-        typeof bookingSettings.preferredAudienceSize === "number"
-            ? `Preferred audience: ${bookingSettings.preferredAudienceSize}`
-            : null,
-        bookingSettings.technicalNeeds ? `Technical needs: ${bookingSettings.technicalNeeds}` : null,
-        bookingSettings.notes ? `Notes: ${bookingSettings.notes}` : null,
-    ].filter((item): item is string => Boolean(item));
     const venueLocation =
         peerifyVenueProfile.addressVisibility === "public" && peerifyVenueProfile.address
             ? peerifyVenueProfile.address
@@ -515,11 +499,12 @@ export default function AboutPage({
           : !!circle.content || !!circle.description;
     const shouldShowAboutCard = !isPeerifyVenueProfile || !!circle.content || canEditAbout;
     const canContactCircle = hasMatchingOfferNeeds && !isOwner;
-    const shouldShowPeerifyArtistCard = hasPeerifyContent;
     const shouldShowPeerifyVenueCard = hasVenueProfileContent;
     const shouldShowPeerifyArtistSupportCards = !isPeerifyArtistProfile && !isPeerifyVenueProfile;
     const aboutHeading = isPeerifyArtistProfile
-        ? `About the ${peerifyIdentityLabel}`
+        ? circle.name
+            ? `About ${circle.name}`
+            : `About the ${peerifyIdentityLabel}`
         : isPeerifyVenueProfile
           ? "About the venue"
           : "About";
@@ -824,73 +809,6 @@ export default function AboutPage({
                 {/* Adjust column span based on sidebar visibility */}
                 <div className={hasSidebarContent ? "md:col-span-2" : "md:col-span-3"}>
                     <div className="space-y-6">
-                        {shouldShowPeerifyArtistCard && (
-                            <div
-                                id="artist-actions"
-                                className={`bg-white p-6 ${isCompact ? "rounded-none" : "rounded-[15px] border-0 shadow-lg"}`}
-                            >
-                                <div className="flex flex-col gap-6">
-                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                        <div className="space-y-3">
-                                            <div className="space-y-1">
-                                                <div className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                                                    {peerifyIdentityLabel}
-                                                </div>
-                                                <p className="max-w-2xl text-sm text-muted-foreground">
-                                                    Listen, follow along, or help make a local show happen.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {!peerifyArtistProfile.bookingEnabled && (
-                                        <p className="text-xs text-muted-foreground">
-                                            Booking enquiries are not enabled on this profile yet.
-                                        </p>
-                                    )}
-
-                                    {peerifyArtistProfile.availability && (
-                                        <div className="rounded-xl border bg-muted/30 p-4">
-                                            <div className="mb-2 flex items-center gap-2 text-sm font-medium uppercase tracking-wide text-muted-foreground">
-                                                <CalendarRange className="h-4 w-4" />
-                                                <span>Availability</span>
-                                            </div>
-                                            <p className="text-sm text-foreground">
-                                                {peerifyArtistProfile.availability}
-                                            </p>
-                                        </div>
-                                    )}
-
-                                    {peerifyArtistProfile.bookingEnabled && (
-                                        <div className="rounded-xl border border-[#e7d8c7] bg-[#f6efe6] p-4">
-                                            <div className="mb-3 text-sm font-medium uppercase tracking-wide text-[#8f5a2a]">
-                                                Booking Information
-                                            </div>
-                                            {bookingDetails.length > 0 ? (
-                                                <div className="grid gap-3 text-sm text-[#6a4728] sm:grid-cols-2">
-                                                    {bookingDetails.map((detail) => (
-                                                        <div
-                                                            key={detail}
-                                                            className={
-                                                                detail.includes(":") && detail.length > 40
-                                                                    ? "sm:col-span-2"
-                                                                    : ""
-                                                            }
-                                                        >
-                                                            {detail}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            ) : (
-                                                <p className="text-sm text-[#6a4728]">
-                                                    Open to booking enquiries. Details can be worked out directly with
-                                                    the artist.
-                                                </p>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
                         {shouldShowPeerifyVenueCard && (
                             <div
                                 id="venue-profile"
@@ -1100,26 +1018,27 @@ export default function AboutPage({
                                         <p className="mb-6 text-base text-muted-foreground">{emptyAboutText}</p>
                                     </>
                                 )}
-                                {isPeerifyArtistProfile && featuredTracks.length > 0 && (
-                                    <ul className="mt-2 flex flex-col">
-                                        {featuredTracks.map((track) => (
-                                            <li
-                                                key={track.id}
-                                                className="flex flex-col gap-2 border-t border-border/60 py-4 first:border-t-0 first:pt-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-                                            >
-                                                <span className="truncate text-[15px] font-medium text-foreground">
-                                                    {track.title}
-                                                </span>
-                                                <div className="sm:w-64 sm:shrink-0">
-                                                    <AudioPlayer
-                                                        src={track.streamUrl}
-                                                        durationSec={track.durationSec}
-                                                    />
-                                                </div>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
+                            </div>
+                        )}
+                        {isPeerifyArtistProfile && featuredTracks.length > 0 && (
+                            <div
+                                className={`bg-white p-6 ${isCompact ? "rounded-none" : "rounded-[15px] border-0 shadow-lg"}`}
+                            >
+                                <ul className="flex flex-col">
+                                    {featuredTracks.map((track) => (
+                                        <li
+                                            key={track.id}
+                                            className="flex flex-col gap-2 border-t border-border/60 py-4 first:border-t-0 first:pt-0 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+                                        >
+                                            <span className="truncate text-[15px] font-medium text-foreground">
+                                                {track.title}
+                                            </span>
+                                            <div className="sm:w-64 sm:shrink-0">
+                                                <AudioPlayer src={track.streamUrl} durationSec={track.durationSec} />
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
                         )}
                         {shouldShowPeerifyArtistSupportCards && <OffersCard circle={circle} isOwner={isOwner} />}
