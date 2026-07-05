@@ -18,7 +18,7 @@ import {
     getLinkedVibeIdDid,
     type CircleMembershipCredentialCardData,
 } from "@/lib/vibe-id/membership-credentials";
-import { hasPeerifyArtistIntent, isPeerifyManagedIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyArtistIdentity, isPeerifyManagedIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import { getEventsByCircleId, getPublicEventsByCircleId } from "@/lib/data/event";
 import { getTracksByCircleId } from "@/lib/data/track";
 import { signAudioToken } from "@/lib/audio/audio-token";
@@ -38,7 +38,7 @@ export default async function CircleHomePage(props: PageProps) {
     if (!circle) {
         notFound();
     }
-    const isPeerifyArtistProfile = circle.circleType === "user" && hasPeerifyArtistIntent(circle);
+    const isPeerifyArtistProfile = isPeerifyArtistIdentity(circle);
 
     let verifiedContributions: VerifiedContributionItem[] = [];
     let verifiedContributionPublicCount = 0;
