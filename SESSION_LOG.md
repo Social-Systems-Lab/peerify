@@ -120,3 +120,34 @@ Not done this session (flagged, deferred):
   This session's log update (replacing the stale Kamooni SESSION_LOG.md on GitHub with this
   document) is a first step toward that cleanup.
 - Contact model, song-display polish, city↔map unification — explicitly deferred at session start
+
+## 2026-07-05
+
+Shipped the artist Home tab redesign to production. Summary:
+- Removed duplicate genre pills, "Band" pill; renamed Support → Get Involved
+- Replaced sidebar "Open To" card with collapsible Booking card 
+  (base fee, travel radius, Book Enquiry CTA)
+- Added Featured Songs (up to 3 tracks) in its own card under About
+- Fixed a bug where Featured Songs didn't render for managed-artist-identity 
+  circles (isPeerifyArtistProfile was checking circleType === "user", wrong 
+  for circles like tim-solo; fixed to use isPeerifyArtistIdentity, matching 
+  how Booking already worked)
+- Simplified main column to just About [Name] + Featured Songs — removed 
+  Booking Information and Availability blocks from main column (data still 
+  intact in the model, just not rendered here for now; will resurface via 
+  a dedicated Booking module later)
+- Built and debugged deploy-staging.sh — a safety-checked staging deploy 
+  script that fails loudly on any step (see script header comment for the 
+  incident that motivated it: a manual deploy silently left static assets 
+  stale, causing a fully unstyled site)
+- Discovered and corrected a major branch/repo confusion: the prod worktree 
+  is main on Social-Systems-Lab/peerify at /home/tim/apps/peerify-app/circles, 
+  NOT product/peerify on the old shared circles repo (see corrected 
+  Repository & Branch Reference in PEERIFY_CONTEXT.md)
+- Merged staging → main, pushed, deployed to prod via deploy-peerify.sh. 
+  Verified live.
+
+Deferred: dedicated Booking/Pledge module, Funding Panel de-Kamooni audit, 
+deploy-peerify.sh could use the same HTTP/asset verification steps as 
+deploy-staging.sh (currently just declares success after pm2 start with 
+no health check).
