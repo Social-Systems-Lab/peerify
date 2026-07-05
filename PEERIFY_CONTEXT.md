@@ -518,3 +518,34 @@ Inherited from Circles, usually with minor tweaks: Accounts/auth, Circles (fan c
 ### Snapshots
 - `~/peerify-snapshots/peerify-onboarding-auth-working-20260608-0916.tar.gz` (+ a later landing snapshot).
 
+## Repository & Branch Reference (corrected 2026-07-05)
+
+**Current, correct setup:**
+- Peerify's live code lives at `Social-Systems-Lab/peerify` on GitHub (moved 
+  out of the shared `circles` repo on 2026-06-24).
+- Prod branch is `main` on the `peerify` repo — NOT `product/peerify`.
+- Prod worktree path: `/home/tim/apps/peerify-app/circles` (un-nested — 
+  no double `circles/circles`).
+- Staging worktree path: `/home/tim/apps/peerify-staging/circles/circles` 
+  (double-nested — different structure from prod, easy to confuse).
+
+**Deprecated / do not use:**
+- `/home/tim/apps/peerify/circles/circles` — this is a leftover worktree 
+  from the OLD shared `circles` repo (`Social-Systems-Lab/circles`), 
+  checked out on branch `product/peerify`. It was frozen at the exact 
+  commit of the June 24 repo move and tagged `archive/product-peerify-final`. 
+  It is NOT the current production code and should not be used for any 
+  future merges or deploys.
+- The `circles-origin` remote (pointing to the old `circles` repo) is 
+  present in the current prod worktree but explicitly disabled for push, 
+  by design.
+
+**Merge workflow for staging → prod:**
+1. From the staging worktree, push staging to origin: `git push origin staging`
+2. Switch to the prod worktree (`/home/tim/apps/peerify-app/circles`), 
+   confirm `git branch --show-current` shows `main`
+3. `git fetch --all`, then `git merge origin/staging`
+4. Review `git log --oneline main..origin/staging` before AND after the 
+   merge to confirm expected commits landed
+5. `git push origin main`
+6. Run `./scripts/deploy-peerify.sh` from the prod worktree
