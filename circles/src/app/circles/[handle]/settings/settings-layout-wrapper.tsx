@@ -27,7 +27,7 @@ const settingsForms: SettingsForm[] = [
         handle: "presence",
     },
     {
-        name: "Pages",
+        name: "Modules",
         handle: "pages",
     },
     {

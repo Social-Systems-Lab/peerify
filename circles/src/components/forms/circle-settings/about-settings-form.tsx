@@ -601,7 +601,7 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                         placeholder: "handle",
                                         description: {
                                             circle: "Choose a unique handle that will identify the circle on the platform.",
-                                            user: "Choose a unique handle that will identify you on the platform.",
+                                            user: "Choose a unique handle for your private profile on Peerify.",
                                         },
                                         required: true,
                                     }}
@@ -624,7 +624,7 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                             placeholder: "https://your-website.org",
                                             description: {
                                                 circle: "Your community or organization website.",
-                                                user: "Your personal website.",
+                                                user: "Your website, if you have one to share.",
                                             },
                                         }}
                                         formField={field}
@@ -745,27 +745,30 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                             )}
                         />
 
-                        <Controller
-                            name="mission"
-                            control={form.control as unknown as Control}
-                            render={({ field }) => (
-                                <DynamicTextareaField
-                                    field={{
-                                        name: "mission",
-                                        type: "textarea",
-                                        label: { user: "Your Mission", circle: "Mission" },
-                                        placeholder: "Description",
-                                        description: {
-                                            circle: "Define the circle's purpose and the change it wants to see in the world.",
-                                            user: "Define your purpose and the change you want to see in the world.",
-                                        },
-                                        maxLength: 500,
-                                    }}
-                                    formField={field}
-                                    control={form.control as unknown as Control}
-                                />
-                            )}
-                        />
+                        {/* Hidden for personal profiles per request: re-enable by removing this condition */}
+                        {!isUserProfile && (
+                            <Controller
+                                name="mission"
+                                control={form.control as unknown as Control}
+                                render={({ field }) => (
+                                    <DynamicTextareaField
+                                        field={{
+                                            name: "mission",
+                                            type: "textarea",
+                                            label: { user: "Your Mission", circle: "Mission" },
+                                            placeholder: "Description",
+                                            description: {
+                                                circle: "Define the circle's purpose and the change it wants to see in the world.",
+                                                user: "Define your purpose and the change you want to see in the world.",
+                                            },
+                                            maxLength: 500,
+                                        }}
+                                        formField={field}
+                                        control={form.control as unknown as Control}
+                                    />
+                                )}
+                            />
+                        )}
 
                         <Controller
                             name="content"
@@ -1635,52 +1638,55 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
 
                 {renderSaveButton()}
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Access & permissions</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <Controller
-                            name="isPublic"
-                            control={form.control as unknown as Control}
-                            render={({ field }) => (
-                                <DynamicSwitchField
-                                    field={{
-                                        name: "isPublic",
-                                        type: "switch",
-                                        label: "Public",
-                                        description: {
-                                            circle: "When set to public, users can follow the circle without requiring approval from admins.",
-                                            user: "When set to public people can follow you without requiring your approval.",
-                                        },
-                                    }}
-                                    formField={field}
-                                    control={form.control as unknown as Control}
-                                />
-                            )}
-                        />
+                {/* Hidden for personal profiles per request: re-enable by removing this condition */}
+                {!isUserProfile && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Access & permissions</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <Controller
+                                name="isPublic"
+                                control={form.control as unknown as Control}
+                                render={({ field }) => (
+                                    <DynamicSwitchField
+                                        field={{
+                                            name: "isPublic",
+                                            type: "switch",
+                                            label: "Public",
+                                            description: {
+                                                circle: "When set to public, users can follow the circle without requiring approval from admins.",
+                                                user: "When set to public people can follow you without requiring your approval.",
+                                            },
+                                        }}
+                                        formField={field}
+                                        control={form.control as unknown as Control}
+                                    />
+                                )}
+                            />
 
-                        <Controller
-                            name="showAdminsPublicly"
-                            control={form.control as unknown as Control}
-                            render={({ field }) => (
-                                <DynamicSwitchField
-                                    field={{
-                                        name: "showAdminsPublicly",
-                                        type: "switch",
-                                        label: "Show admins publicly",
-                                        description: {
-                                            circle: "Show the Admins panel on your circle home page.",
-                                            user: "Show the Admins panel on your circle home page.",
-                                        },
-                                    }}
-                                    formField={field}
-                                    control={form.control as unknown as Control}
-                                />
-                            )}
-                        />
-                    </CardContent>
-                </Card>
+                            <Controller
+                                name="showAdminsPublicly"
+                                control={form.control as unknown as Control}
+                                render={({ field }) => (
+                                    <DynamicSwitchField
+                                        field={{
+                                            name: "showAdminsPublicly",
+                                            type: "switch",
+                                            label: "Show admins publicly",
+                                            description: {
+                                                circle: "Show the Admins panel on your circle home page.",
+                                                user: "Show the Admins panel on your circle home page.",
+                                            },
+                                        }}
+                                        formField={field}
+                                        control={form.control as unknown as Control}
+                                    />
+                                )}
+                            />
+                        </CardContent>
+                    </Card>
+                )}
 
                 <Card>
                     <CardHeader>
