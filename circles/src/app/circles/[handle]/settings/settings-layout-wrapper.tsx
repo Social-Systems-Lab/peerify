@@ -27,7 +27,7 @@ const settingsForms: SettingsForm[] = [
         handle: "presence",
     },
     {
-        name: "Pages",
+        name: "Modules",
         handle: "pages",
     },
     {
@@ -85,6 +85,12 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
             if (item.handle === "subscription") {
                 return user?.handle === circle.handle;
             }
+
+            // Hidden per request: re-enable by removing this block
+            if (item.handle === "presence" || item.handle === "questionnaire") {
+                return false;
+            }
+
             return true;
         })
         .map((item) => ({
