@@ -788,6 +788,8 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                     </CardContent>
                 </Card>
 
+                {renderSaveButton()}
+
                 {isPeerifyManagedArtistCircle ? (
                     <Card>
                         <CardHeader>
@@ -972,6 +974,8 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                         </CardContent>
                     </Card>
                 ) : null}
+
+                {isPeerifyManagedArtistCircle ? renderSaveButton() : null}
 
                 {isPeerifyManagedArtistCircle ? (
                     <Card>
