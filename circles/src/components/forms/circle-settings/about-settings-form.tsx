@@ -828,54 +828,6 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                         )}
                                     />
 
-                                    <div className="space-y-4">
-                                        <div>
-                                            <Label>Music links</Label>
-                                            <p className="mt-1 text-sm text-muted-foreground">
-                                                Add the places where listeners can hear, buy, or follow this project.
-                                            </p>
-                                        </div>
-                                        <div className="grid gap-4 md:grid-cols-2">
-                                            {(
-                                                [
-                                                    ["bandcamp", "Bandcamp"],
-                                                    ["soundcloud", "SoundCloud"],
-                                                    ["appleMusic", "Apple Music"],
-                                                    ["youtube", "YouTube"],
-                                                    ["linktree", "Linktree"],
-                                                    ["website", "Website"],
-                                                ] as const
-                                            ).map(([key, label]) => (
-                                                <Controller
-                                                    key={key}
-                                                    name={`peerifyArtistProfile.musicLinks.${key}` as const}
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <ArtistTextField
-                                                            label={label}
-                                                            placeholder={`https://${label.toLowerCase().replace(/\s+/g, "")}.com/...`}
-                                                            value={field.value}
-                                                            onChange={field.onChange}
-                                                        />
-                                                    )}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <Controller
-                                        name="peerifyArtistProfile.lookingFor"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <CheckboxGroup
-                                                label="Looking for / open to"
-                                                options={PEERIFY_LOOKING_FOR_OPTIONS}
-                                                values={field.value || []}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-
                                     <Controller
                                         name="peerifyArtistProfile.bookingEnabled"
                                         control={form.control}
@@ -947,33 +899,6 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
 
                                             <div className="grid gap-4 md:grid-cols-2">
                                                 <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.minimumAudienceSize"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <ArtistTextField
-                                                            label="Minimum audience size"
-                                                            type="number"
-                                                            value={field.value}
-                                                            onChange={field.onChange}
-                                                        />
-                                                    )}
-                                                />
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.preferredAudienceSize"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <ArtistTextField
-                                                            label="Preferred audience size"
-                                                            type="number"
-                                                            value={field.value}
-                                                            onChange={field.onChange}
-                                                        />
-                                                    )}
-                                                />
-                                            </div>
-
-                                            <div className="grid gap-4 md:grid-cols-2">
-                                                <Controller
                                                     name="peerifyArtistProfile.bookingSettings.baseFee"
                                                     control={form.control}
                                                     render={({ field }) => (
@@ -995,54 +920,6 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                                             value={field.value}
                                                             onChange={field.onChange}
                                                         />
-                                                    )}
-                                                />
-                                            </div>
-
-                                            <div className="grid gap-3 md:grid-cols-3">
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.needsAccommodation"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <label className="flex items-start gap-3 rounded-lg border bg-white p-3 text-sm">
-                                                            <Checkbox
-                                                                checked={field.value}
-                                                                onCheckedChange={(checked) =>
-                                                                    field.onChange(checked === true)
-                                                                }
-                                                            />
-                                                            <span>Needs accommodation</span>
-                                                        </label>
-                                                    )}
-                                                />
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.needsTransport"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <label className="flex items-start gap-3 rounded-lg border bg-white p-3 text-sm">
-                                                            <Checkbox
-                                                                checked={field.value}
-                                                                onCheckedChange={(checked) =>
-                                                                    field.onChange(checked === true)
-                                                                }
-                                                            />
-                                                            <span>Needs transport</span>
-                                                        </label>
-                                                    )}
-                                                />
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.needsMeal"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <label className="flex items-start gap-3 rounded-lg border bg-white p-3 text-sm">
-                                                            <Checkbox
-                                                                checked={field.value}
-                                                                onCheckedChange={(checked) =>
-                                                                    field.onChange(checked === true)
-                                                                }
-                                                            />
-                                                            <span>Needs meal / hospitality</span>
-                                                        </label>
                                                     )}
                                                 />
                                             </div>
@@ -1092,6 +969,70 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                     />
                                 </>
                             ) : null}
+                        </CardContent>
+                    </Card>
+                ) : null}
+
+                {isPeerifyManagedArtistCircle ? (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Music Links</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div>
+                                <Label>Music links</Label>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Add the places where listeners can hear, buy, or follow this project.
+                                </p>
+                            </div>
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {(
+                                    [
+                                        ["bandcamp", "Bandcamp"],
+                                        ["soundcloud", "SoundCloud"],
+                                        ["appleMusic", "Apple Music"],
+                                        ["youtube", "YouTube"],
+                                        ["linktree", "Linktree"],
+                                        ["website", "Website"],
+                                    ] as const
+                                ).map(([key, label]) => (
+                                    <Controller
+                                        key={key}
+                                        name={`peerifyArtistProfile.musicLinks.${key}` as const}
+                                        control={form.control}
+                                        render={({ field }) => (
+                                            <ArtistTextField
+                                                label={label}
+                                                placeholder={`https://${label.toLowerCase().replace(/\s+/g, "")}.com/...`}
+                                                value={field.value}
+                                                onChange={field.onChange}
+                                            />
+                                        )}
+                                    />
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                ) : null}
+
+                {isPeerifyManagedArtistCircle ? (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Looking for / Open to</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <Controller
+                                name="peerifyArtistProfile.lookingFor"
+                                control={form.control}
+                                render={({ field }) => (
+                                    <CheckboxGroup
+                                        label="Looking for / open to"
+                                        options={PEERIFY_LOOKING_FOR_OPTIONS}
+                                        values={field.value || []}
+                                        onChange={field.onChange}
+                                    />
+                                )}
+                            />
                         </CardContent>
                     </Card>
                 ) : null}
