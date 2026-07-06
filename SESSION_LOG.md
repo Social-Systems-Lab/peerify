@@ -151,3 +151,29 @@ Deferred: dedicated Booking/Pledge module, Funding Panel de-Kamooni audit,
 deploy-peerify.sh could use the same HTTP/asset verification steps as 
 deploy-staging.sh (currently just declares success after pm2 start with 
 no health check).
+
+---
+
+## 2026-07-05 (evening) — Settings cleanup: hidden fields, Pages→Modules rename, Artist Identity rename
+
+Headline: Settings cleanup pass across all profile types — hid unfinished/unused
+sections, tightened Personal profile About Settings copy, renamed the Artist
+Identity managed-type card, and dropped the Base city field entirely.
+
+What shipped (each verified on staging before its own prod promotion — 5
+separate staging→prod promotions this session):
+- Hid Skills & Interests and Questionnaire cards from the Settings sidebar for
+  all profile types (not deleted — data/logic left intact, just not surfaced).
+- Personal profile About Settings: copy edits, hid the Mission and Access &
+  Permissions cards, renamed "Pages" to "Modules" sidebar-wide (all profile
+  types, not just Personal).
+- Artist Identity Settings: renamed "Band Identity" → "Artist Identity" across
+  all managed identity types, relabeled "Producer" → "Musician", removed the
+  Base city field from both the Settings form and the public profile display.
+- Hid the Mission field for Artist and Venue profiles too (previously only
+  hidden for Personal).
+
+Bug found (logged separately in PEERIFY_CONTEXT.md, commit 936e58c9): isVerified
+is overloaded — it's meant as the admin account-approval flag, but it's also the
+sole gate for map/search discoverability of personal profiles, independent of
+isPublic.
