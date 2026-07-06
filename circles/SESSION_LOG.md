@@ -12,6 +12,34 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-07-05 (evening) through 2026-07-06 (morning) — Settings cleanup marathon: 5 phases (Skills/Questionnaire hide -> Booking fields removal)
+
+Headline: A long, incremental Settings-page cleanup pass across personal, artist, and venue profiles, done as five separate reviewed-and-shipped phases over one evening-into-morning session. Each phase was its own commit on staging, verified, then promoted. The `isVerified` map/search discoverability issue surfaced mid-session and was investigated and logged separately (see `936e58c9` and §00 item 11 in `PEERIFY_CONTEXT.md`) rather than folded into this entry.
+
+**Phase 1 — Hide Skills & Interests and Questionnaire from Settings sidebar** (commit `558408ce`)
+Both nav items removed from the visible sidebar via a filter (not deleted), so they can be re-enabled later without touching routing.
+
+**Phase 2 — Personal profile About Settings copy + hide Mission/Access & Permissions; rename Pages to Modules** (commit `3b861aeb`)
+For personal (`circleType: "user"`) profiles only: reworded the intro paragraph, handle helper text, and website helper text for an individual/fan context instead of circle/org language; hid the Mission field and the Access & Permissions card (`isPublic`, `showAdminsPublicly`) behind an `isUserProfile` guard (reversible). Sidebar-wide: renamed the "Pages" nav item to "Modules" (label only). Verified on staging (`BUILD_ID -TF7qn1GCC12uHRuHRO55`).
+
+**Phase 3 — Rename Artist Identity card, Producer->Musician, remove Base city field** (commit `10d89bef`)
+Settings form: Artist Identity card title/helper text made generic for all managed identity types instead of per-type; Base city input removed from the form. `PEERIFY_ARTIST_TYPE_OPTIONS`: "Producer" renamed to "Musician" (confirmed via prod query first — no existing circle had "Producer" selected). Public About page and Home tab profile header: Base city display removed to match.
+
+**Phase 3b — Hide Mission field for Artist and Venue profiles** (commit `504afe42`)
+Extended the Phase 2 Mission hide to managed Artist and Venue identity circles too — guard now excludes `isUserProfile`, `isPeerifyManagedArtistCircle`, and `isPeerifyManagedVenueCircle`, leaving Mission visible only for regular (non-Peerify-managed) community/org circles.
+
+**Phase 4 — Split Music Links and Looking for/Open to into their own cards** (commit `24e800c7`)
+Artist Identity Settings previously bundled the music-link fields and the looking-for/open-to checkboxes as sub-sections inside the Artist Identity card. Gave each its own top-level Card/CardHeader/CardTitle, matching the other Settings cards on the page. No fields, labels, or behavior changed — visual reorganization only.
+
+**Phase 5 — Remove Minimum/Preferred audience size and Needs accommodation/transport/meal from Booking settings** (commit `cc8614ce`)
+Per founder direction, these fields were premature for the current product stage and will be redesigned later as a proper tiered structure (see new §00 carry-forward items on booking currency/tiered fees below). Removed from the Settings UI only (JSX inputs deleted, not conditionally hidden) — the underlying type, form defaults, and submit mapping in `AboutSettingsFormValues` were left untouched, matching the Base city precedent from Phase 3, so any existing stored values round-trip unchanged on next save instead of being wiped. Confirmed no other reads/displays of these fields exist (public About page, booking enquiry flow, search/filtering) before removing. Base fee, Currency, Technical needs, Booking notes, and Availability were left untouched.
+
+While reviewing the Booking card during Phase 5, three new gaps were noted and logged to `PEERIFY_CONTEXT.md` §00 carry-forward (items 12–14) rather than fixed in-session: the public Booking card doesn't show the currency unit next to the base fee, currency itself isn't artist-selectable, and there's no support for location/market-based fee tiers — all deferred pending the broader booking-logistics redesign this phase's field removals are anticipating.
+
+Each phase was committed directly to staging, spot-checked, then promoted to main (merge commits `78d80c5d`, `1d9e4fc4`, `154081e6`, `a2c7008a` interleaved between phases). All five phases verified present on `origin/main` at session end.
+
+---
+
 ## 2026-07-01 — Investigation: missing artist music-links form; prod ground-truth verification
 
 Headline: Investigated why the artist music-links form (Bandcamp/Spotify/SoundCloud/Apple Music/YouTube/Linktree on `/settings/about`) was visible on peerify.one a few days ago and isn't today. Root cause found: it wasn't a caching/build issue — the form was **deleted from source** by commit `044f52bd` as an unintended side effect. Read-only investigation, no code/build/restart changes made.
