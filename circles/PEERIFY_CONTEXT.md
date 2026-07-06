@@ -31,6 +31,7 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 - **Repo:** standalone `Social-Systems-Lab/peerify` (migrated off the shared Circles repo). HTTPS via nginx + Certbot. ffmpeg is a host dependency (`/usr/bin/ffmpeg` 6.1.1); prod `.env.local` sets `FFMPEG_PATH` explicitly.
 - **⚠️ Prod PM2 process is long-running across the last rebuild:** `peerify` has been up since 2026-06-30 13:29 with no restart recorded since the 15:25 standalone rebuild that same day. Node caches required route modules in memory for the life of the process, so a route hit before 15:25 could still be serving a stale in-memory module even though the on-disk build is current. The on-disk build only becomes fully authoritative after a clean restart — treat "grep says X is in/out of the build" as necessary but not sufficient; a stale in-memory route is a live possibility until the next restart.
 - **Golden rules:** confirm `hostname`/`pwd`/`git branch` before acting; staging before prod; one step at a time; review every diff; no autonomous git/infra changes; destructive commands as single standalone pastes.
+- **Standalone deploys need asset copy, not just restart.** `bun run build` + `pm2 restart` alone will NOT update logo/hero/favicon — Next.js standalone output doesn't include `public/` or `.next/static`. Must copy both into the standalone folder after every build (see `deploy-peerify.sh` for prod's version). A successful restart is not proof the deploy is correct — verify the rendered page.
 
 ---
 **⚠️ PM2 deploy-safety rule (this has caused prod downtime TWICE):**
@@ -117,6 +118,7 @@ Remaining carry-forward:
 12. **Bug: public Booking card shows base fee with no currency unit** (found 2026-07-05/06 Settings cleanup session). The artist's public Booking card renders the base fee as a bare number (e.g. "250") with no currency symbol or code alongside it, even though a currency value exists in the underlying data. Needs a small display fix on the public About/Booking rendering path to show fee + currency together (e.g. "250 EUR").
 13. **Feature: booking base-fee currency is fixed, not user-selectable.** Artists currently cannot choose their own currency when setting a booking base fee — it's hardcoded/fixed rather than a field they control. Should become a proper currency picker tied to the base fee input, so artists can bill in their own local currency.
 14. **Feature (bigger, roadmap): location-based/tiered booking fees.** An artist may want to charge a different base fee for the same type of gig depending on the market (e.g. more for a house show in Berlin than in Bangkok). This ties into the broader booking-logistics redesign already flagged above — the Minimum/Preferred audience size and Needs accommodation/transport/meal fields were removed from Booking settings (commit `cc8614ce`, 2026-07-06) specifically because they were too broad pending this kind of tiered-fee rethink. Proper design work (tiers by region/market, UI for managing them) is needed before building this.
+15. **Rotate staging `MINIO_ROOT_PASSWORD`** — flagged as exposed in a prior session; rotation status unconfirmed as of 2026-07-06. Verify and rotate if not already done.
 
 ---
 
@@ -538,3 +540,35 @@ Inherited from Circles, usually with minor tweaks: Accounts/auth, Circles (fan c
 
 ### Snapshots
 - `~/peerify-snapshots/peerify-onboarding-auth-working-20260608-0916.tar.gz` (+ a later landing snapshot).
+
+## Repository & Branch Reference (corrected 2026-07-05)
+
+**Current, correct setup:**
+- Peerify's live code lives at `Social-Systems-Lab/peerify` on GitHub (moved 
+  out of the shared `circles` repo on 2026-06-24).
+- Prod branch is `main` on the `peerify` repo — NOT `product/peerify`.
+- Prod worktree path: `/home/tim/apps/peerify-app/circles` (un-nested — 
+  no double `circles/circles`).
+- Staging worktree path: `/home/tim/apps/peerify-staging/circles/circles` 
+  (double-nested — different structure from prod, easy to confuse).
+
+**Deprecated / do not use:**
+- `/home/tim/apps/peerify/circles/circles` — this is a leftover worktree 
+  from the OLD shared `circles` repo (`Social-Systems-Lab/circles`), 
+  checked out on branch `product/peerify`. It was frozen at the exact 
+  commit of the June 24 repo move and tagged `archive/product-peerify-final`. 
+  It is NOT the current production code and should not be used for any 
+  future merges or deploys.
+- The `circles-origin` remote (pointing to the old `circles` repo) is 
+  present in the current prod worktree but explicitly disabled for push, 
+  by design.
+
+**Merge workflow for staging → prod:**
+1. From the staging worktree, push staging to origin: `git push origin staging`
+2. Switch to the prod worktree (`/home/tim/apps/peerify-app/circles`), 
+   confirm `git branch --show-current` shows `main`
+3. `git fetch --all`, then `git merge origin/staging`
+4. Review `git log --oneline main..origin/staging` before AND after the 
+   merge to confirm expected commits landed
+5. `git push origin main`
+6. Run `./scripts/deploy-peerify.sh` from the prod worktree
