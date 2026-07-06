@@ -899,33 +899,6 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
 
                                             <div className="grid gap-4 md:grid-cols-2">
                                                 <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.minimumAudienceSize"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <ArtistTextField
-                                                            label="Minimum audience size"
-                                                            type="number"
-                                                            value={field.value}
-                                                            onChange={field.onChange}
-                                                        />
-                                                    )}
-                                                />
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.preferredAudienceSize"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <ArtistTextField
-                                                            label="Preferred audience size"
-                                                            type="number"
-                                                            value={field.value}
-                                                            onChange={field.onChange}
-                                                        />
-                                                    )}
-                                                />
-                                            </div>
-
-                                            <div className="grid gap-4 md:grid-cols-2">
-                                                <Controller
                                                     name="peerifyArtistProfile.bookingSettings.baseFee"
                                                     control={form.control}
                                                     render={({ field }) => (
@@ -947,54 +920,6 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                                             value={field.value}
                                                             onChange={field.onChange}
                                                         />
-                                                    )}
-                                                />
-                                            </div>
-
-                                            <div className="grid gap-3 md:grid-cols-3">
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.needsAccommodation"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <label className="flex items-start gap-3 rounded-lg border bg-white p-3 text-sm">
-                                                            <Checkbox
-                                                                checked={field.value}
-                                                                onCheckedChange={(checked) =>
-                                                                    field.onChange(checked === true)
-                                                                }
-                                                            />
-                                                            <span>Needs accommodation</span>
-                                                        </label>
-                                                    )}
-                                                />
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.needsTransport"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <label className="flex items-start gap-3 rounded-lg border bg-white p-3 text-sm">
-                                                            <Checkbox
-                                                                checked={field.value}
-                                                                onCheckedChange={(checked) =>
-                                                                    field.onChange(checked === true)
-                                                                }
-                                                            />
-                                                            <span>Needs transport</span>
-                                                        </label>
-                                                    )}
-                                                />
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.needsMeal"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <label className="flex items-start gap-3 rounded-lg border bg-white p-3 text-sm">
-                                                            <Checkbox
-                                                                checked={field.value}
-                                                                onCheckedChange={(checked) =>
-                                                                    field.onChange(checked === true)
-                                                                }
-                                                            />
-                                                            <span>Needs meal / hospitality</span>
-                                                        </label>
                                                     )}
                                                 />
                                             </div>
