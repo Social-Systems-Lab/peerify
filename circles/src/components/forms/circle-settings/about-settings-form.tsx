@@ -1713,47 +1713,50 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                     </Card>
                 ) : null}
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Social Links</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <Controller
-                            name="socialLinks"
-                            control={form.control as unknown as Control}
-                            render={({ field }) => (
-                                <DynamicArrayField
-                                    field={{
-                                        name: "socialLinks",
-                                        type: "array",
-                                        label: "Social Links",
-                                        itemSchema: {
-                                            id: "socialLink",
-                                            title: "Social Link",
-                                            description: "Add a new social media link.",
-                                            button: { text: "Add" },
-                                            fields: [
-                                                {
-                                                    name: "platform",
-                                                    label: "Platform",
-                                                    type: "select",
-                                                    options: socialPlatforms.map((p) => ({
-                                                        value: p.handle,
-                                                        label: p.name,
-                                                    })),
-                                                    required: true,
-                                                },
-                                                { name: "url", label: "URL", type: "text", required: true },
-                                            ],
-                                        },
-                                    }}
-                                    formField={field}
-                                    control={form.control as unknown as Control}
-                                />
-                            )}
-                        />
-                    </CardContent>
-                </Card>
+                {/* Hidden for Artist profiles per request: re-enable by removing this condition */}
+                {!isPeerifyManagedArtistCircle && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Social Links</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Controller
+                                name="socialLinks"
+                                control={form.control as unknown as Control}
+                                render={({ field }) => (
+                                    <DynamicArrayField
+                                        field={{
+                                            name: "socialLinks",
+                                            type: "array",
+                                            label: "Social Links",
+                                            itemSchema: {
+                                                id: "socialLink",
+                                                title: "Social Link",
+                                                description: "Add a new social media link.",
+                                                button: { text: "Add" },
+                                                fields: [
+                                                    {
+                                                        name: "platform",
+                                                        label: "Platform",
+                                                        type: "select",
+                                                        options: socialPlatforms.map((p) => ({
+                                                            value: p.handle,
+                                                            label: p.name,
+                                                        })),
+                                                        required: true,
+                                                    },
+                                                    { name: "url", label: "URL", type: "text", required: true },
+                                                ],
+                                            },
+                                        }}
+                                        formField={field}
+                                        control={form.control as unknown as Control}
+                                    />
+                                )}
+                            />
+                        </CardContent>
+                    </Card>
+                )}
 
                 {renderSaveButton()}
 
