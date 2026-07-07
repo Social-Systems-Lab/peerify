@@ -4,6 +4,7 @@
 // side-panel player is a later session — this is intentionally just <audio controls>.
 
 import React from "react";
+import { useExclusiveAudio } from "@/lib/audio/use-exclusive-audio";
 
 type AudioPlayerProps = {
     src: string;
@@ -19,9 +20,11 @@ const formatDuration = (durationSec?: number): string | null => {
 
 export const AudioPlayer: React.FC<AudioPlayerProps> = ({ src, durationSec }) => {
     const duration = formatDuration(durationSec);
+    const audioRef = useExclusiveAudio();
     return (
         <div className="flex flex-col gap-1">
             <audio
+                ref={audioRef}
                 controls
                 controlsList="nodownload noplaybackrate"
                 onContextMenu={(e) => e.preventDefault()}
