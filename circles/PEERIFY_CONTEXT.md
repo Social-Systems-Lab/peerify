@@ -572,3 +572,47 @@ Inherited from Circles, usually with minor tweaks: Accounts/auth, Circles (fan c
    merge to confirm expected commits landed
 5. `git push origin main`
 6. Run `./scripts/deploy-peerify.sh` from the prod worktree
+
+## 2026-07-07 — Exclusive audio playback + map song preview, promoted to prod
+
+**Global exclusive-audio manager** (commit c8c0d4c0, staging → main):
+- src/lib/audio/audio-manager.ts — module-level singleton registry; 
+  any registered <audio> element firing `play` pauses every other 
+  registered element.
+- src/lib/audio/use-exclusive-audio.ts — hook wrapping registration 
+  via internal useId(), returns a ref.
+- audio-player.tsx wired in (three-line diff). No changes needed to 
+  Music.tsx or AboutPage.tsx.
+- No global "currently playing track id" atom — not needed for 
+  exclusivity; deferred until/unless a cross-component "now playing" 
+  UI is wanted.
+
+**Map song preview in CirclePreview panel/drawer** (commit 4a6c639b, 
+staging → main):
+- getTracksForCirclePreviewAction — lazy-fetches tracks when the panel 
+  opens (not baked into initial map payload).
+- track-preview-row.tsx / track-preview-list.tsx — track list with 
+  play/pause, wired to useExclusiveAudio().
+- Desktop: play button hidden until hover, revealed per-row. Mobile: 
+  always visible (no hover on touch).
+- Decision: audio lives only in the CirclePreview panel/drawer (opens 
+  on marker click), not in the raw hover mini-popup on the pin itself 
+  — that popup (createMarkerPopupHtml) is plain HTML string injection, 
+  not a React component, and wiring real audio into it would've been 
+  disproportionate work for what the click-through panel already 
+  delivers.
+- Manually verified on staging.peerify.one (not localhost — Playwright 
+  browser testing was blocked in this environment by missing system 
+  libs requiring sudo).
+
+Both promoted to prod today. New BUILD_ID a3jYxJAVGxvFVskmA8fsL. PORT 
+check passed, 0 unexpected restarts, peerify.one and /explore both 200 
+post-restart.
+
+**Open for next session:** Pledge + Book buttons on the CirclePreview 
+slider panel (agreed as the next immediate task). Broader backlog 
+discussed: gig-specific event fields, mailing-list capture, fan 
+wall/community space, gallery module, ticketing w/ QR codes (longer 
+horizon). Standing deferred items unchanged: artist location not 
+public on profile, staging MinIO password rotation unconfirmed, 
+isVerified/map-discoverability bug needs its own design session.
