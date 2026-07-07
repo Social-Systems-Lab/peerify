@@ -25,10 +25,13 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 ### Infrastructure reality (important — supersedes older notes)
 - **Server:** Hetzner, `tim@peerify` (65.21.91.96). Kamooni is a *separate* machine (`ubuntu@91.123.202.241`) — never cross commands.
 - **Runtime:** bare-Node via PM2, NOT Docker (the repo Dockerfile exists but prod isn't deployed through it). Earlier context docs that imply Docker or `~/apps/peerify/circles` are STALE.
-- **Prod:** PM2 `peerify` :3000, branch `main`, source `~/apps/peerify-app/circles` (repo root; the app lives one level down with worktree prefix `circles/`).
+- **Prod:** PM2 `peerify` :3000, branch `main`, source `~/apps/peerify-app/circles` (repo root; the app lives one level down with worktree prefix `circles/`). **Confirmed 2026-07-01** via `pm2 jlist` + `ss -ltnp` + `/proc/<pid>/cwd` (independent cross-check, not just PM2's own bookkeeping): tracking `Social-Systems-Lab/peerify.git` (`origin`), branch `main`, HEAD `f7a4ebe6`, working tree clean.
 - **Staging:** PM2 `peerify-staging` :3001, DB `peerify_staging`, bucket `circles-staging`, source `~/apps/peerify-staging/circles/circles`, env one level up.
+- **`~/apps/peerify/circles` is a STALE leftover checkout** tracking the OLD `Social-Systems-Lab/circles.git` repo (pre-split). It is NOT serving anything — no PM2 process points at it. Do not confuse it with prod (`~/apps/peerify-app/circles`). Candidate for eventual removal.
 - **Repo:** standalone `Social-Systems-Lab/peerify` (migrated off the shared Circles repo). HTTPS via nginx + Certbot. ffmpeg is a host dependency (`/usr/bin/ffmpeg` 6.1.1); prod `.env.local` sets `FFMPEG_PATH` explicitly.
+- **⚠️ Prod PM2 process is long-running across the last rebuild:** `peerify` has been up since 2026-06-30 13:29 with no restart recorded since the 15:25 standalone rebuild that same day. Node caches required route modules in memory for the life of the process, so a route hit before 15:25 could still be serving a stale in-memory module even though the on-disk build is current. The on-disk build only becomes fully authoritative after a clean restart — treat "grep says X is in/out of the build" as necessary but not sufficient; a stale in-memory route is a live possibility until the next restart.
 - **Golden rules:** confirm `hostname`/`pwd`/`git branch` before acting; staging before prod; one step at a time; review every diff; no autonomous git/infra changes; destructive commands as single standalone pastes.
+- **Standalone deploys need asset copy, not just restart.** `bun run build` + `pm2 restart` alone will NOT update logo/hero/favicon — Next.js standalone output doesn't include `public/` or `.next/static`. Must copy both into the standalone folder after every build (see `deploy-peerify.sh` for prod's version). A successful restart is not proof the deploy is correct — verify the rendered page.
 
 ---
 **⚠️ PM2 deploy-safety rule (this has caused prod downtime TWICE):**
@@ -86,6 +89,13 @@ Concrete work toward it:
 - **Venue + Host profiles**, venue-owner view, tour-team / group-formation flow, customisation UI, mobile-optimised patterns, alternate discovery views (Calendar/List), advanced search. (All designed or partially designed in §1–§11 below.)
 
 ### Carry-forward ops cleanup (next working session)
+
+**✅ RESOLVED (2026-07-01, commit `6c30ad88`) — artist/band music-links Card restored**, gated on `isPeerifyManagedArtistCircle` only (personal profiles correctly keep the amber banner, no Card), Spotify removed. Verified rendering + data round-trip on staging (:3001). See `SESSION_LOG.md` 2026-07-01 entry.
+
+**✅ RESOLVED (2026-07-01) — staging→main promotion complete.** Merged staging into main (merge commit `1f26690f`), prod rebuilt, PORT-safe restart, `pm2 save`. Verified live on peerify.one. Prod, staging, and main are now in sync. See 2026-07-01 `SESSION_LOG.md` entry.
+
+Remaining carry-forward:
+
 1. **Audit and remove inherited Kamooni/Cleura/Circles docs.** The repo carries
    stale docs from the Circles fork that describe a DIFFERENT platform on a
    DIFFERENT host (e.g. the Kamooni-flavoured `SESSION_LOG.md` lineage,
@@ -98,11 +108,17 @@ Concrete work toward it:
 2. **Songwriter managed-identity type** — add constant `PEERIFY_DEFAULT_SONGWRITER_AVATAR_URL`, wire into `getPeerifyDefaultAvatarUrl()`, identity-type list, and Create flow. Optimized avatar prepared, not yet in repo.
 3. **`default-profile-avatar.png`** (`public/peerify/`) un-optimized at ~1.6 MB — run pngquant.
 4. **Banner flash-on-reload** — localStorage-gated banners (personal-profile + Verify Profile) flash one frame before `useEffect` hides them. Fix consistently: mounted-guard pattern or server-side preference.
-5. **Dead `canEditPeerifyArtistProfile` var** — `about-settings-form.tsx:372`, unused — remove in next cleanup commit.
+5. **`canEditPeerifyArtistProfile` dead-const cleanup (now safe)** — the music-links Card it used to gate has been restored (commit `6c30ad88`, correctly gated on `isPeerifyManagedArtistCircle` alone). The old `canEditPeerifyArtistProfile` const in `about-settings-form.tsx` is now genuinely dead and can be removed in a separate cleanup session, along with general artist-settings polish. (Previously this item warned NOT to remove it, since it was evidence of the missing form — that regression is resolved; see 2026-07-01 `SESSION_LOG.md`.)
 6. **Personal profile still renders circle chrome** ("Manage your circle's profile…", Pages / User Groups / Access Rules / Follow Requests) — de-Kamooni audit, separate task.
 7. **`kam-yellow` / `kam-hero-yellow` color tokens** — Kamooni-named; rename to brand-neutral in palette overhaul.
 8. **Over-broad `circles/` gitignore rule** (`circles/.gitignore` ~line 61) — matches `src/components/modules/circles/`; anchor or scope it.
 9. **`*.bak` avatar backups** on staging + prod — delete now that prod is confirmed stable.
+10. **Socials icon frame on public profile** — never built.
+11. **`isVerified` overloaded for map/search discoverability** (discovered 2026-07-05). `isVerified` is meant to represent "account approved/activated by an admin" (set via `activateUserAccount()`, triggered by the admin "Verify Account" action or approving a verification request). However, this same flag is also the sole gate determining whether a personal/individual (`circleType: "user"`) profile appears in map results and search/discovery (see `isDiscoverableCircle`, `src/lib/data/search.ts:46-47`, and the identical `$or` clause in `getSwipeCircles`, `circle.ts:173`). This means any fan account an admin approves automatically becomes map-visible, regardless of `isPublic`, location precision, or explicit user choice. `isPublic` does not gate discovery at all currently — it only affects follow-approval requirements. Confirmed via prod DB query 2026-07-05: 5 of 9 `circleType: "user"` docs have `isVerified: true` (all pre-launch test/dev accounts, not real users), and all 5 have location coordinates set, so all 5 currently produce map pins. Not urgent pre-launch (no real users onboarded yet), but must be fixed before onboarding real fans, since it silently violates the stated MVP principle that only Artists/Venues/Events should be discoverable on the map for now. Proposed direction for a future session: decouple discovery visibility from `isVerified` into its own explicit field, and design a real visibility/discoverability setting individual users can control themselves (tie-in with the Access & Permissions card work from the 2026-07-05 Settings cleanup session).
+12. **Bug: public Booking card shows base fee with no currency unit** (resolved 2026-07-06). 
+13. **13. (Downgraded, was: "currency not selectable" — incorrect) Currency field has no validation.** Verified 2026-07-06: the Currency field on Booking settings is already free-text and artist-editable (confirmed working end-to-end — value saves and displays correctly on the public Booking card, e.g. "ZAR 5000"). No feature work needed. Remaining minor polish: field has no validation against a known currency list, so typos or malformed entries (lowercase, extra characters, empty) are possible. Low priority — consider constraining to a dropdown/select from a standard currency list in a future polish pass.
+14. **Feature (bigger, roadmap): location-based/tiered booking fees.** An artist may want to charge a different base fee for the same type of gig depending on the market (e.g. more for a house show in Berlin than in Bangkok). This ties into the broader booking-logistics redesign already flagged above — the Minimum/Preferred audience size and Needs accommodation/transport/meal fields were removed from Booking settings (commit `cc8614ce`, 2026-07-06) specifically because they were too broad pending this kind of tiered-fee rethink. Proper design work (tiers by region/market, UI for managing them) is needed before building this.
+15. **Rotate staging `MINIO_ROOT_PASSWORD`** — flagged as exposed in a prior session; rotation status unconfirmed as of 2026-07-06. Verify and rotate if not already done.
 
 ---
 
@@ -524,3 +540,35 @@ Inherited from Circles, usually with minor tweaks: Accounts/auth, Circles (fan c
 
 ### Snapshots
 - `~/peerify-snapshots/peerify-onboarding-auth-working-20260608-0916.tar.gz` (+ a later landing snapshot).
+
+## Repository & Branch Reference (corrected 2026-07-05)
+
+**Current, correct setup:**
+- Peerify's live code lives at `Social-Systems-Lab/peerify` on GitHub (moved 
+  out of the shared `circles` repo on 2026-06-24).
+- Prod branch is `main` on the `peerify` repo — NOT `product/peerify`.
+- Prod worktree path: `/home/tim/apps/peerify-app/circles` (un-nested — 
+  no double `circles/circles`).
+- Staging worktree path: `/home/tim/apps/peerify-staging/circles/circles` 
+  (double-nested — different structure from prod, easy to confuse).
+
+**Deprecated / do not use:**
+- `/home/tim/apps/peerify/circles/circles` — this is a leftover worktree 
+  from the OLD shared `circles` repo (`Social-Systems-Lab/circles`), 
+  checked out on branch `product/peerify`. It was frozen at the exact 
+  commit of the June 24 repo move and tagged `archive/product-peerify-final`. 
+  It is NOT the current production code and should not be used for any 
+  future merges or deploys.
+- The `circles-origin` remote (pointing to the old `circles` repo) is 
+  present in the current prod worktree but explicitly disabled for push, 
+  by design.
+
+**Merge workflow for staging → prod:**
+1. From the staging worktree, push staging to origin: `git push origin staging`
+2. Switch to the prod worktree (`/home/tim/apps/peerify-app/circles`), 
+   confirm `git branch --show-current` shows `main`
+3. `git fetch --all`, then `git merge origin/staging`
+4. Review `git log --oneline main..origin/staging` before AND after the 
+   merge to confirm expected commits landed
+5. `git push origin main`
+6. Run `./scripts/deploy-peerify.sh` from the prod worktree

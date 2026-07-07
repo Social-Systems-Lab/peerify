@@ -12,6 +12,55 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-07-05 (evening) through 2026-07-06 (morning) — Settings cleanup marathon: 5 phases (Skills/Questionnaire hide -> Booking fields removal)
+
+Headline: A long, incremental Settings-page cleanup pass across personal, artist, and venue profiles, done as five separate reviewed-and-shipped phases over one evening-into-morning session. Each phase was its own commit on staging, verified, then promoted. The `isVerified` map/search discoverability issue surfaced mid-session and was investigated and logged separately (see `936e58c9` and §00 item 11 in `PEERIFY_CONTEXT.md`) rather than folded into this entry.
+
+**Phase 1 — Hide Skills & Interests and Questionnaire from Settings sidebar** (commit `558408ce`)
+Both nav items removed from the visible sidebar via a filter (not deleted), so they can be re-enabled later without touching routing.
+
+**Phase 2 — Personal profile About Settings copy + hide Mission/Access & Permissions; rename Pages to Modules** (commit `3b861aeb`)
+For personal (`circleType: "user"`) profiles only: reworded the intro paragraph, handle helper text, and website helper text for an individual/fan context instead of circle/org language; hid the Mission field and the Access & Permissions card (`isPublic`, `showAdminsPublicly`) behind an `isUserProfile` guard (reversible). Sidebar-wide: renamed the "Pages" nav item to "Modules" (label only). Verified on staging (`BUILD_ID -TF7qn1GCC12uHRuHRO55`).
+
+**Phase 3 — Rename Artist Identity card, Producer->Musician, remove Base city field** (commit `10d89bef`)
+Settings form: Artist Identity card title/helper text made generic for all managed identity types instead of per-type; Base city input removed from the form. `PEERIFY_ARTIST_TYPE_OPTIONS`: "Producer" renamed to "Musician" (confirmed via prod query first — no existing circle had "Producer" selected). Public About page and Home tab profile header: Base city display removed to match.
+
+**Phase 3b — Hide Mission field for Artist and Venue profiles** (commit `504afe42`)
+Extended the Phase 2 Mission hide to managed Artist and Venue identity circles too — guard now excludes `isUserProfile`, `isPeerifyManagedArtistCircle`, and `isPeerifyManagedVenueCircle`, leaving Mission visible only for regular (non-Peerify-managed) community/org circles.
+
+**Phase 4 — Split Music Links and Looking for/Open to into their own cards** (commit `24e800c7`)
+Artist Identity Settings previously bundled the music-link fields and the looking-for/open-to checkboxes as sub-sections inside the Artist Identity card. Gave each its own top-level Card/CardHeader/CardTitle, matching the other Settings cards on the page. No fields, labels, or behavior changed — visual reorganization only.
+
+**Phase 5 — Remove Minimum/Preferred audience size and Needs accommodation/transport/meal from Booking settings** (commit `cc8614ce`)
+Per founder direction, these fields were premature for the current product stage and will be redesigned later as a proper tiered structure (see new §00 carry-forward items on booking currency/tiered fees below). Removed from the Settings UI only (JSX inputs deleted, not conditionally hidden) — the underlying type, form defaults, and submit mapping in `AboutSettingsFormValues` were left untouched, matching the Base city precedent from Phase 3, so any existing stored values round-trip unchanged on next save instead of being wiped. Confirmed no other reads/displays of these fields exist (public About page, booking enquiry flow, search/filtering) before removing. Base fee, Currency, Technical needs, Booking notes, and Availability were left untouched.
+
+While reviewing the Booking card during Phase 5, three new gaps were noted and logged to `PEERIFY_CONTEXT.md` §00 carry-forward (items 12–14) rather than fixed in-session: the public Booking card doesn't show the currency unit next to the base fee, currency itself isn't artist-selectable, and there's no support for location/market-based fee tiers — all deferred pending the broader booking-logistics redesign this phase's field removals are anticipating.
+
+Each phase was committed directly to staging, spot-checked, then promoted to main (merge commits `78d80c5d`, `1d9e4fc4`, `154081e6`, `a2c7008a` interleaved between phases). All five phases verified present on `origin/main` at session end.
+
+---
+
+## 2026-07-01 — Investigation: missing artist music-links form; prod ground-truth verification
+
+Headline: Investigated why the artist music-links form (Bandcamp/Spotify/SoundCloud/Apple Music/YouTube/Linktree on `/settings/about`) was visible on peerify.one a few days ago and isn't today. Root cause found: it wasn't a caching/build issue — the form was **deleted from source** by commit `044f52bd` as an unintended side effect. Read-only investigation, no code/build/restart changes made.
+
+Findings:
+- **Prod ground truth confirmed independently** (PM2 + `ss -ltnp` + `/proc/<pid>/cwd`, not just PM2's own records): `peerify` :3000 serves from `~/apps/peerify-app/circles`, tracking `Social-Systems-Lab/peerify.git`, branch `main`, HEAD `f7a4ebe6`, working tree clean.
+- `~/apps/peerify/circles` is a **stale leftover checkout** of the old `Social-Systems-Lab/circles.git` repo — nothing serves from it. Not to be confused with prod.
+- Prod's `peerify` PM2 process has been up since 2026-06-30 13:29 with **no restart since the 15:25 rebuild** that same day — meaning cached in-memory route modules are a possible confound for "what's actually being served" going forward; a clean restart is needed before trusting on-disk build state alone.
+- **Root cause of the missing form:** commit `044f52bd` ("Remove artist-profile section from personal profile settings") added a personal-profile info banner (correct, `isUserProfile`-gated) but ALSO deleted the entire pre-existing Card gated on `canEditPeerifyArtistProfile = isUserProfile || isPeerifyManagedArtistCircle` — an OR condition. Because of the OR, the deletion removed the music-links form not just for personal profiles but for **actual Peerify-managed artist/band circles too**. This is a regression beyond what the commit message describes, confirmed via `git show 044f52bd` on the staging repo (`~/apps/peerify-staging/circles/circles`) and cross-checked against prod's current source (dead `canEditPeerifyArtistProfile` variable at `about-settings-form.tsx:383`, unused — it's evidence, not lint).
+- Compiled build on disk confirmed to match source (no "Music links" form in the current `.next/standalone` build either) — ruled out a stale-build explanation for the *current* absence; the removal is a genuine source-level regression, already present at prod's HEAD.
+
+Action queued: see 🔴 TOP PRIORITY item in `PEERIFY_CONTEXT.md` §00 Roadmap — restore the artist/band music-links form (from `044f52bd`'s parent), gated correctly for artist/band circles only, without Spotify. Blocks staging→main promotion.
+
+- **RESOLVED:** artist/band settings Card restored (commit `6c30ad88`), gated on `isPeerifyManagedArtistCircle`, Spotify removed. Verified rendering on staging (:3001): full artist form on artist/band circles (Band Identity notice, artist types, base city, genres, music links minus Spotify, featured link, looking-for, booking sub-form, save button); personal profiles correctly show amber banner + NO card. Data round-trips (Bandcamp URL populated).
+- Staging now has 4 unpushed commits ahead of prod: `4ca8d0e2`, `db0cd33c`, `af15bc5f`, `6c30ad88` (plus doc commits). All verified.
+- **NEXT SESSION (dedicated, fresh):** promote staging→main. Sequence: from prod worktree `~/apps/peerify-app/circles`, `git fetch && git merge --ff-only origin/staging`; prod build; PORT-safe restart (fresh tab, `echo $PORT` must be empty/3000, `--update-env`); `pm2 save`. This restart also clears prod's stale cached modules (process up since before last rebuild).
+- Deferred cleanup (separate session): remove now-dead `canEditPeerifyArtistProfile` const; general artist-settings polish.
+- **PROMOTION COMPLETE:** merged staging into main (merge commit 1f26690f), built prod, PORT-safe restart (staging undisturbed), pm2 save. Verified live on peerify.one: artist/band settings form restored + rendering, Spotify absent, funding block gone, "Post as:" label, personal profiles show banner. Prod, staging, main now in sync. Prod process refreshed (stale cached modules cleared).
+
+---
+
 ## 2026-06-28 (cont. #2) — Ship audio pipeline to PROD: merge, lockfile fix, ffmpeg ENOENT fix
 
 Headline: Merged `feature/audio-pipeline` into `main` and deployed the full audio feature to production. MP3 upload → ffmpeg derivative → publish → playback now working end-to-end on prod (bare-Node PM2). Two deploy-blocking issues surfaced and were fixed: a pre-existing lockfile inconsistency, and an ffmpeg path-resolution bug that only manifests under Next.js standalone bundling.
@@ -418,3 +467,16 @@ Headline: UI cleanup sprint for the personal-profile settings page — removed t
 6. **`kam-yellow` / `kam-hero-yellow` color tokens** — Kamooni-named brand tokens still in `tailwind.config.ts`; rename to brand-neutral in upcoming palette overhaul.
 7. **Over-broad `circles/` rule in `circles/.gitignore` ~line 61** — matches any directory named `circles`, including `src/components/modules/circles/`. Anchor or scope it (confirm what it was meant to ignore first).
 8. **`*.bak` avatar backups on staging + prod** — delete once prod is confirmed stable. It is; delete next session.
+
+## 2026-07-03 — Band Info sidebar card promoted to prod
+- Shipped: Band Info card on artist/band profiles (AboutPage.tsx, +82 lines, additive). Adds two-column layout via hasBandInfoContent folded into hasSidebarContent OR-chain; card shows Location (metadata.peerify.artistProfile.baseCity), Website, and Listen & Follow brand icons (react-icons/si; bandcamp/soundcloud/appleMusic/youtube/linktree, no Spotify). Personal profiles unaffected (gated on isPeerifyArtistProfile).
+- Commits: ea18803b (staging) -> merge a0df7f86 (main). Verified live on peerify.one/circles/the-band/home; personal-profile regression check clean.
+- INCIDENT 1 — phantom commit: Claude Code reported committing the card but the change was left staged/uncommitted in the staging worktree. It rendered live on :3001 anyway because staging serves the built working tree. Caught by the Checkpoint-2 fetch/divergence gate (staging..main was empty). Fix: committed properly (ea18803b) then pushed. LESSON: always confirm the commit actually landed (git log/status) before treating a Claude Code "committed" as done.
+- INCIDENT 2 — blank Explore mid-deploy: copying fresh .next/static onto the live standalone dir while the OLD process was still running caused a build/manifest mismatch ("Failed to find Server Action") site-wide, in incognito and Brave too. NOT browser cache. Resolved by the pending PORT-safe restart, which realigned the in-memory manifest with on-disk files. LESSON: on prod, run copy + restart back-to-back with NO pause, and do not load the live site in the gap between them.
+- Deploy hygiene held: empty PORT confirmed before restart; staging (id 5) undisturbed; pm2 save after health confirmed; main pushed to origin.
+
+### Artist-page makeover backlog (next design session, mockups as north star)
+- Resolve sidebar/main redundancy: once Band Info card owns Location + Listen & Follow, remove the duplicate "Cape Town" and "LISTEN" pills from the main column.
+- Remove Featured Link placeholder (its future is the Peerify-hosted main track/video player; check nothing else references it before removing).
+- Move "Open To" (Shows/Festivals/Fans) into the sidebar (inside Listen & Follow card or its own small card beneath it — TBD).
+- New "Support / Get Involved" card below Listen & Follow: fan-participation invite (help make a show happen, join tour team, volunteer). This is the on-profile expression of the fan-hosted touring USP + pledge-to-bring mechanic; needs design thought on actions offered and who-sees-what.
