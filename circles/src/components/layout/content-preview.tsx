@@ -44,6 +44,8 @@ import { skills } from "@/lib/data/skills";
 import SdgList from "../modules/sdgs/SdgList";
 import SocialLinks from "../modules/home/social-links";
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
+import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
+import { TrackPreviewList } from "../modules/music/track-preview-list";
 
 const sdgMap = new Map(sdgs.map((s) => [s.handle, s]));
 const skillMap = new Map(skills.map((s) => [s.handle, s]));
@@ -181,6 +183,11 @@ export const CirclePreview = ({ circle, circleType }: CirclePreviewProps) => {
                         )}
 
                         {circle.description && <p className="text-sm text-gray-600">{circle.description}</p>}
+
+                        {/* Song preview (artist/band circles only) */}
+                        {isPeerifyArtistIdentity(circle) && circle._id && (
+                            <TrackPreviewList circleId={circle._id.toString()} />
+                        )}
 
                         {/* SDGs */}
                         {circle.causes && circle.causes.length > 0 && (
