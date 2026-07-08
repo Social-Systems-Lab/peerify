@@ -46,6 +46,7 @@ import SocialLinks from "../modules/home/social-links";
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { TrackPreviewList } from "../modules/music/track-preview-list";
+import PledgeDialog from "../modules/home/pledge-dialog";
 
 const sdgMap = new Map(sdgs.map((s) => [s.handle, s]));
 const skillMap = new Map(skills.map((s) => [s.handle, s]));
@@ -75,7 +76,16 @@ export const CirclePreview = ({ circle, circleType }: CirclePreviewProps) => {
     const [, setImageGallery] = useAtom(imageGalleryAtom); // Keep for profile picture click
     const [, setContentPreview] = useAtom(contentPreviewAtom);
     const [user] = useAtom(userAtom); // Keep user state here for CirclePreview specific logic if needed
+    const [isPledgeDialogOpen, setIsPledgeDialogOpen] = React.useState(false);
     const closeDelayMs = 400;
+
+    const openPledgeDialog = () => {
+        if (!user?.did) {
+            router.push(`/login?redirectTo=${encodeURIComponent(getCircleDefaultPath(circle))}`);
+            return;
+        }
+        setIsPledgeDialogOpen(true);
+    };
 
     // Keep handleImageClick for the profile picture
     const handleProfilePicClick = (name: string, image?: FileInfo) => {
@@ -139,7 +149,8 @@ export const CirclePreview = ({ circle, circleType }: CirclePreviewProps) => {
                         </Button>
                     </div>
                     <div className="absolute bottom-[-45px] right-2 flex flex-row gap-1">
-                        <InviteButton circle={circle as Circle} renderCompact={true} />
+                        {/* Invite hidden in this quick-preview panel — not relevant to discovery; InviteButton still used elsewhere (e.g. full artist page) */}
+                        {/* <InviteButton circle={circle as Circle} renderCompact={true} /> */}
                         {user && <FollowButton circle={circle as Circle} renderCompact={true} />}
                         {user && <BookmarkButton circle={circle as Circle} renderCompact={true} iconOnly={true} />}
                     </div>
@@ -187,6 +198,20 @@ export const CirclePreview = ({ circle, circleType }: CirclePreviewProps) => {
                         {/* Song preview (artist/band circles only) */}
                         {isPeerifyArtistIdentity(circle) && circle._id && (
                             <TrackPreviewList circleId={circle._id.toString()} />
+                        )}
+
+                        {/* Pledge (artist/band circles only) */}
+                        {isPeerifyArtistIdentity(circle) && (
+                            <div className="flex justify-center">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={openPledgeDialog}
+                                    className="bg-[#FE801B] text-white hover:bg-[#e57316]"
+                                >
+                                    Pledge
+                                </Button>
+                            </div>
                         )}
 
                         {/* SDGs */}
@@ -291,6 +316,9 @@ export const CirclePreview = ({ circle, circleType }: CirclePreviewProps) => {
                     {/* End of direct content within scroll container */}
                 </div>{" "}
             </div>
+            {isPeerifyArtistIdentity(circle) && (
+                <PledgeDialog circle={circle} open={isPledgeDialogOpen} onOpenChange={setIsPledgeDialogOpen} />
+            )}
         </>
     );
 };
