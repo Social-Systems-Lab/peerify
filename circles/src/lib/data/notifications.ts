@@ -391,7 +391,10 @@ export async function sendAttachCircleRequestNotification(
 }
 
 // fix
-export async function sendUserVerifiedNotification(user: UserPrivate): Promise<void> {
+export async function sendUserVerifiedNotification(
+    user: UserPrivate,
+    messageBody: string = "Congratulations! Your account has been verified.",
+): Promise<void> {
     try {
         console.log(`🔔 [NOTIFY] Sending user_verified notification to ${user.name}`);
         await sendNotifications(
@@ -399,7 +402,7 @@ export async function sendUserVerifiedNotification(user: UserPrivate): Promise<v
             [user],
             sanitizeObjectForJSON({
                 user,
-                messageBody: "Congratulations! Your account has been verified.",
+                messageBody,
                 url: `/`,
             }),
         );

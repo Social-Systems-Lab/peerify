@@ -71,6 +71,7 @@ import RichText from "./RichText";
 import { truncateText } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AlertCircle, CircleHelp, Info } from "lucide-react";
+import { UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 
 function debounce<F extends (...args: any[]) => any>(
     func: F,
@@ -707,8 +708,7 @@ export function PostForm({
                                         <div className="flex items-center">
                                             <Info className="mr-2 h-5 w-5 flex-shrink-0" />
                                             <p className="mt-0 pt-0" style={{ paddingTop: 0, marginTop: 0 }}>
-                                                Your account is not verified. Noticeboard posts from unverified accounts
-                                                are not shown to other users until the account is verified.
+                                                {UNVERIFIED_PROFILE_EXPLAINER}
                                             </p>
                                         </div>
                                     </div>

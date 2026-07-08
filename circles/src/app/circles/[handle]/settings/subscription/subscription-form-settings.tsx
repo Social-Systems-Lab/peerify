@@ -62,7 +62,12 @@ export default function SubscriptionFormSettings({
         return (
             <div className="space-y-8">
                 <VibeIdSettingsCard user={user} membershipCredential={membershipCredential} />
+                {/* Hidden for personal profiles: verification is now automatic once a profile picture
+                    and About text are both set (see updateCircle in src/lib/data/circle.ts), so the
+                    manual request/thread flow no longer applies here. Not deleted in case manual
+                    verification is reintroduced.
                 <VerificationSettingsCard user={user} />
+                */}
                 <EmailPreferencesSettingsCard initialValues={initialEmailPreferences} />
                 <section className="space-y-4">
                     <div className="space-y-1 px-1">
@@ -85,7 +90,12 @@ export default function SubscriptionFormSettings({
     return (
         <div className="space-y-8">
             <VibeIdSettingsCard user={user} membershipCredential={membershipCredential} />
+            {/* Hidden for personal profiles: verification is now automatic once a profile picture
+                and About text are both set (see updateCircle in src/lib/data/circle.ts), so the
+                manual request/thread flow no longer applies here. Not deleted in case manual
+                verification is reintroduced.
             <VerificationSettingsCard user={user} />
+            */}
             <EmailPreferencesSettingsCard initialValues={initialEmailPreferences} />
             <section className="space-y-4">
                 <div className="space-y-1 px-1">

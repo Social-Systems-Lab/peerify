@@ -23,6 +23,12 @@ export function getRestrictedActionMessage(action: string): string {
     return `You need to verify your account before you can ${action}.`;
 }
 
+// Personal profiles verify automatically (see updateCircle in src/lib/data/circle.ts) once
+// both a profile picture and About text are set — this is the actionable copy shown wherever
+// posting/commenting/messaging is blocked or hidden for a not-yet-verified user.
+export const UNVERIFIED_PROFILE_EXPLAINER =
+    "Add a profile picture and a short bio to start posting, commenting, and messaging on Peerify.";
+
 export function buildVerifiedUserSet(
     verifierDid: string,
     now: Date = new Date(),

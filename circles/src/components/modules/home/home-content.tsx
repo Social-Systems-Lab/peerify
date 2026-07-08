@@ -392,11 +392,15 @@ export default function HomeContent({
                                     )}
                                 </div>
                             )}
+                            {/* Hidden for personal profiles: verification is now automatic once a profile
+                                picture and About text are both set (see updateCircle in src/lib/data/circle.ts),
+                                so the manual request-verification flow no longer applies here. Not deleted in
+                                case manual verification is reintroduced.
                             {isOwnUserProfile && !isPeerifyArtistProfile ? (
                                 <div className="flex items-center gap-2 pt-1">
                                     <VerifyAccountButton />
                                 </div>
-                            ) : null}
+                            ) : null} */}
                             {(circle.description || circle.mission) && (
                                 <div className="line-clamp-1 pb-1 text-gray-600">
                                     {authorizedToEdit ? (

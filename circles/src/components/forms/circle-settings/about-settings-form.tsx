@@ -788,7 +788,11 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                     </CardContent>
                 </Card>
 
-                {renderSaveButton()}
+                {/* Personal profiles only need one Save button (see the final renderSaveButton() call
+                    at the end of the form) — everything between here and there is artist/venue-only
+                    content that doesn't render for a personal profile, so this button would otherwise
+                    appear immediately adjacent to the next one with nothing in between. */}
+                {!isUserProfile && renderSaveButton()}
 
                 {isPeerifyManagedArtistCircle ? (
                     <Card>
@@ -1560,7 +1564,9 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                     </Card>
                 ) : null}
 
-                {renderSaveButton()}
+                {/* See the comment on the first renderSaveButton() call above — personal profiles
+                    only need the single button at the end of the form. */}
+                {!isUserProfile && renderSaveButton()}
 
                 {/* Hidden for personal profiles per request: re-enable by removing this condition */}
                 {!isUserProfile && (
@@ -1682,7 +1688,9 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                     </CardContent>
                 </Card>
 
-                {renderSaveButton()}
+                {/* See the comment on the first renderSaveButton() call above — personal profiles
+                    only need the single button at the end of the form. */}
+                {!isUserProfile && renderSaveButton()}
 
                 {!canEditPeerifyVenueProfile ? (
                     <Card>

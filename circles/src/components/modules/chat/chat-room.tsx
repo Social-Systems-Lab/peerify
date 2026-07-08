@@ -37,6 +37,7 @@ import {
     IoAddCircleOutline,
     IoAttach,
     IoDocumentText,
+    IoInformationCircleOutline,
     IoTimeOutline,
     IoWarningOutline,
 } from "react-icons/io5";
@@ -44,6 +45,7 @@ import { HiLightBulb } from "react-icons/hi";
 import { MdReply } from "react-icons/md";
 import { BsEmojiSmile } from "react-icons/bs";
 import { GrEdit, GrTrash } from "react-icons/gr";
+import { isVerifiedUser, UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { generateColorFromString } from "@/lib/utils/color";
@@ -1335,6 +1337,12 @@ const ChatInput = ({
 
     return (
         <div className="flex w-full flex-col">
+            {user && !isVerifiedUser(user) && (
+                <div className="mb-2 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                    <IoInformationCircleOutline className="h-4 w-4 flex-shrink-0" />
+                    <p>{UNVERIFIED_PROFILE_EXPLAINER}</p>
+                </div>
+            )}
             <div className={`flex w-full items-end gap-2 ${isMobile ? "gap-1.5" : ""}`}>
                 <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileSelect} />
                 <Button

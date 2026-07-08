@@ -20,7 +20,8 @@ import {
     UserPrivate,
 } from "@/models/models";
 import { Button } from "@/components/ui/button";
-import { Edit, Heart, Loader2, MessageCircle, MoreHorizontal, Trash2 } from "lucide-react";
+import { Edit, Heart, Info, Loader2, MessageCircle, MoreHorizontal, Trash2 } from "lucide-react";
+import { UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { getPublishTime } from "@/lib/utils";
 import { contentPreviewAtom, sidePanelContentVisibleAtom, userAtom } from "@/lib/data/atoms";
@@ -745,6 +746,12 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                                     </Button>
                                 )}
                             </div>
+                        </div>
+                    )}
+                    {user && !canComment && (
+                        <div className="mt-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                            <Info className="h-4 w-4 flex-shrink-0" />
+                            <p>{UNVERIFIED_PROFILE_EXPLAINER}</p>
                         </div>
                     )}
                     {!user && <div className="mt-4 text-sm text-gray-500">Log in to comment.</div>}
