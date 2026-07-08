@@ -62,10 +62,12 @@ export const TrackPreviewRow: React.FC<TrackPreviewRowProps> = ({
                 onClick={togglePlay}
                 aria-label={isPlaying ? `Pause ${title}` : `Play ${title}`}
                 className={cn(
-                    "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-orange-500 text-white transition-opacity hover:bg-orange-600",
-                    alwaysShowControl || isPlaying
-                        ? "opacity-100"
-                        : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                    "flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-white transition-colors",
+                    alwaysShowControl
+                        ? "bg-orange-500 hover:bg-orange-600"
+                        : isPlaying
+                          ? "bg-[#FE801B]"
+                          : "bg-gray-400 group-hover:bg-[#FE801B] group-focus-within:bg-[#FE801B]",
                 )}
             >
                 {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 pl-0.5" />}

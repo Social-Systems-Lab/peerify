@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { contactCircleAdminsAction, sendPeerifyArtistEnquiryAction } from "@/components/modules/chat/mongo-actions";
-import { createPeerifyPledgeAction } from "@/components/modules/home/peerify-pledge-actions";
+import PledgeDialog from "@/components/modules/home/pledge-dialog";
 import { isAuthorized } from "@/lib/auth/client-auth";
 import { features } from "@/lib/data/constants";
 import OffersCard from "./offers-card";
@@ -53,9 +53,7 @@ import {
     getPeerifyArtistIdentityLabel,
     getPeerifyVenueProfile,
     PEERIFY_BOOKING_SUPPORT_OPTIONS,
-    PEERIFY_PLEDGE_HELP_OPTIONS,
     isPeerifyArtistIdentity,
-    isPeerifyManagedIdentity,
     isPeerifyVenueIdentity,
     PEERIFY_MUSIC_LINK_LABELS,
     type PeerifyMusicLinkKey,
@@ -87,14 +85,6 @@ type FeaturedTrack = {
     streamUrl: string;
 };
 
-type PledgeFormState = {
-    fanLocation: string;
-    maximumTicketAmount: string;
-    preferredEventType: string;
-    helpOptions: string[];
-    note: string;
-};
-
 type BookingFormState = {
     bookerLocation: string;
     eventType: string;
@@ -106,14 +96,6 @@ type BookingFormState = {
     foodHospitalityAvailable: boolean;
     soundEquipmentAvailable: boolean;
     message: string;
-};
-
-const EMPTY_PLEDGE_FORM: PledgeFormState = {
-    fanLocation: "",
-    maximumTicketAmount: "",
-    preferredEventType: "",
-    helpOptions: [],
-    note: "",
 };
 
 const PEERIFY_SOCIAL_LINK_ICONS: Partial<Record<PeerifyMusicLinkKey, React.ComponentType<{ className?: string }>>> = {
@@ -173,11 +155,8 @@ export default function AboutPage({
     const [isSendingContactMessage, setIsSendingContactMessage] = React.useState(false);
     const [isPledgeDialogOpen, setIsPledgeDialogOpen] = React.useState(false);
     const [isBookDialogOpen, setIsBookDialogOpen] = React.useState(false);
-    const [pledgeForm, setPledgeForm] = React.useState<PledgeFormState>(EMPTY_PLEDGE_FORM);
     const [bookingForm, setBookingForm] = React.useState<BookingFormState>(EMPTY_BOOKING_FORM);
-    const [pledgeError, setPledgeError] = React.useState("");
     const [bookingError, setBookingError] = React.useState("");
-    const [isSubmittingPledge, setIsSubmittingPledge] = React.useState(false);
     const [isSubmittingBooking, setIsSubmittingBooking] = React.useState(false);
     const isOwner = user?.did === circle.did;
     const canEditAbout = isAuthorized(user, circle, features.settings.edit_about);
@@ -185,7 +164,6 @@ export default function AboutPage({
     const [relationshipState] = useProfileRelationshipState(circle, user?.did);
     const isPeerifyArtistProfile = isPeerifyArtistIdentity(circle);
     const isPeerifyVenueProfile = isPeerifyVenueIdentity(circle);
-    const isPeerifyManagedArtistIdentity = isPeerifyManagedIdentity(circle);
     const peerifyArtistProfile = getPeerifyArtistProfile(circle);
     const peerifyVenueProfile = getPeerifyVenueProfile(circle);
     const peerifyIdentityLabel = getPeerifyArtistIdentityLabel(circle);
@@ -624,7 +602,6 @@ export default function AboutPage({
             router.push(`/login?redirectTo=${encodeURIComponent(`/circles/${circle.handle}/home`)}`);
             return;
         }
-        setPledgeError("");
         setIsPledgeDialogOpen(true);
     }, [circle.handle, router, user?.did]);
 
@@ -653,15 +630,6 @@ export default function AboutPage({
             openPledgeDialog();
         }
     }, [openBookDialog, openPledgeDialog]);
-
-    const togglePledgeHelpOption = (option: string, checked: boolean) => {
-        setPledgeForm((current) => ({
-            ...current,
-            helpOptions: checked
-                ? Array.from(new Set([...current.helpOptions, option]))
-                : current.helpOptions.filter((item) => item !== option),
-        }));
-    };
 
     const updateBookingSupport = (
         key: keyof Pick<
@@ -707,63 +675,6 @@ export default function AboutPage({
         );
     };
     const isVenueBookingContact = isPeerifyVenueProfile && contactType === "ask_question";
-
-    const submitPledgeEnquiry = async () => {
-        if (!user?.did) {
-            router.push(`/login?redirectTo=${encodeURIComponent(`/circles/${circle.handle}/home`)}`);
-            return;
-        }
-
-        setIsSubmittingPledge(true);
-        setPledgeError("");
-
-        try {
-            if (isPeerifyManagedArtistIdentity) {
-                const result = await createPeerifyPledgeAction({
-                    artistCircleId: String(circle._id || ""),
-                    pledge: pledgeForm,
-                });
-
-                if (!result.success) {
-                    setPledgeError(result.message || "Could not add your pledge.");
-                    return;
-                }
-
-                setPledgeForm(EMPTY_PLEDGE_FORM);
-                setIsPledgeDialogOpen(false);
-                toast({
-                    title: "Pledge added",
-                    description: result.message || "Thanks — your pledge has been added to this artist's support map.",
-                });
-                router.refresh();
-                return;
-            }
-
-            const result = await sendPeerifyArtistEnquiryAction({
-                artistCircleId: String(circle._id || ""),
-                enquiryType: "pledge",
-                pledge: pledgeForm,
-            });
-
-            if (!result.success || !result.roomId) {
-                setPledgeError(result.message || "Could not send your pledge enquiry.");
-                return;
-            }
-
-            setPledgeForm(EMPTY_PLEDGE_FORM);
-            setIsPledgeDialogOpen(false);
-            toast({
-                title: "Pledge enquiry sent",
-                description: "Your pledge enquiry has been sent to the artist.",
-            });
-            router.push(`/chat/${result.roomId}`);
-        } catch (error) {
-            console.error("Failed to send Peerify pledge enquiry:", error);
-            setPledgeError("Could not submit your pledge. Please try again.");
-        } finally {
-            setIsSubmittingPledge(false);
-        }
-    };
 
     const submitBookingEnquiry = async () => {
         if (!user?.did) {
@@ -1628,105 +1539,7 @@ export default function AboutPage({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            <Dialog
-                open={isPledgeDialogOpen}
-                onOpenChange={(open) => {
-                    setIsPledgeDialogOpen(open);
-                    if (!open) {
-                        setPledgeError("");
-                    }
-                }}
-            >
-                <DialogContent className="sm:max-w-[560px]">
-                    <DialogHeader>
-                        <DialogTitle>Pledge interest for {circle.name}</DialogTitle>
-                        <DialogDescription>
-                            This is non-binding and not a ticket purchase. It helps signal local demand and support.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <form
-                        className="space-y-4"
-                        onSubmit={(event) => {
-                            event.preventDefault();
-                            void submitPledgeEnquiry();
-                        }}
-                    >
-                        <div className="grid gap-4 sm:grid-cols-2">
-                            <Input
-                                placeholder="Your city / location"
-                                value={pledgeForm.fanLocation}
-                                onChange={(event) =>
-                                    setPledgeForm((current) => ({ ...current, fanLocation: event.target.value }))
-                                }
-                            />
-                            <Input
-                                placeholder="Maximum ticket amount"
-                                type="number"
-                                min="0"
-                                value={pledgeForm.maximumTicketAmount}
-                                onChange={(event) =>
-                                    setPledgeForm((current) => ({
-                                        ...current,
-                                        maximumTicketAmount: event.target.value,
-                                    }))
-                                }
-                            />
-                        </div>
-                        <Input
-                            placeholder="Preferred event type"
-                            value={pledgeForm.preferredEventType}
-                            onChange={(event) =>
-                                setPledgeForm((current) => ({ ...current, preferredEventType: event.target.value }))
-                            }
-                        />
-                        <div className="space-y-2">
-                            <Label>Willingness to help</Label>
-                            <div className="grid gap-3 sm:grid-cols-2">
-                                {PEERIFY_PLEDGE_HELP_OPTIONS.map((option) => (
-                                    <label
-                                        key={option}
-                                        className="flex items-start gap-3 rounded-lg border p-3 text-sm"
-                                    >
-                                        <Checkbox
-                                            checked={pledgeForm.helpOptions.includes(option)}
-                                            onCheckedChange={(checked) =>
-                                                togglePledgeHelpOption(option, checked === true)
-                                            }
-                                        />
-                                        <span>{option}</span>
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                        <Textarea
-                            rows={4}
-                            placeholder="Optional note"
-                            value={pledgeForm.note}
-                            onChange={(event) => setPledgeForm((current) => ({ ...current, note: event.target.value }))}
-                        />
-                        {pledgeError && <p className="text-sm text-destructive">{pledgeError}</p>}
-                        <DialogFooter>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setIsPledgeDialogOpen(false)}
-                                disabled={isSubmittingPledge}
-                            >
-                                Cancel
-                            </Button>
-                            <Button type="submit" disabled={isSubmittingPledge}>
-                                {isSubmittingPledge
-                                    ? isPeerifyManagedArtistIdentity
-                                        ? "Adding..."
-                                        : "Sending..."
-                                    : isPeerifyManagedArtistIdentity
-                                      ? "Add Pledge"
-                                      : "Send Pledge Enquiry"}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+            <PledgeDialog circle={circle} open={isPledgeDialogOpen} onOpenChange={setIsPledgeDialogOpen} />
             <Dialog
                 open={isBookDialogOpen}
                 onOpenChange={(open) => {

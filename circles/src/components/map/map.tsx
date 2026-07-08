@@ -292,11 +292,11 @@ const createMarkerPopupHtml = (content: Content): string => {
     const buttonStyle =
         "display:inline-flex;height:40px;min-width:0;flex:1;align-items:center;justify-content:center;gap:7px;border-radius:9999px;border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.13);padding:0 14px;font-size:15px;font-weight:700;color:#fff;text-decoration:none;text-shadow:0 1px 2px rgba(0,0,0,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);backdrop-filter:blur(6px);";
     const openAction = openHref
-        ? `<a href="${escapeHtml(openHref)}" style="${buttonStyle}">${openIcon}<span>Open</span></a>`
+        ? `<a href="${escapeHtml(openHref)}" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></a>`
         : `<button type="button" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></button>`;
 
     return `
-        <div style="position:relative;width:min(380px,calc(100vw - 32px));height:234px;overflow:hidden;border-radius:15px;background:#111827;box-shadow:0 12px 34px rgba(15,23,42,.28);">
+        <div style="position:relative;width:min(380px,calc(100vw - 32px));height:234px;overflow:hidden;border-radius:15px;background:#111827;box-shadow:0 12px 34px rgba(15,23,42,.28);cursor:pointer;">
             <div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl)}');background-size:cover;background-position:center;"></div>
             <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.66),rgba(0,0,0,.32) 44%,rgba(0,0,0,.02));"></div>
             <div style="position:absolute;left:0;right:0;bottom:0;padding:14px;">
@@ -588,6 +588,16 @@ const MapBox = ({
                     event.stopPropagation();
                     zoomToMarkerContent(content);
                 });
+            // Whole-card click opens the preview, same as clicking the pin or "Open" — a bigger,
+            // more forgiving target. Excludes elements with their own data-marker-popup-action
+            // (Open, Zoom in), which handle themselves above and via native anchor navigation.
+            popupRef.current.onclick = (event) => {
+                const target = event.target as HTMLElement | null;
+                if (target?.closest("[data-marker-popup-action]")) {
+                    return;
+                }
+                onMarkerClick(content);
+            };
             popupRef.current.style.display = "";
             const point = map.current.project(content.location.lngLat as any);
             popupRef.current.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, 14px)`;
