@@ -44,6 +44,7 @@ import { HiLightBulb } from "react-icons/hi";
 import { MdReply } from "react-icons/md";
 import { BsEmojiSmile } from "react-icons/bs";
 import { GrEdit, GrTrash } from "react-icons/gr";
+import { isVerifiedUser, UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { generateColorFromString } from "@/lib/utils/color";
@@ -1335,6 +1336,9 @@ const ChatInput = ({
 
     return (
         <div className="flex w-full flex-col">
+            {user && !isVerifiedUser(user) && (
+                <p className="mb-2 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
+            )}
             <div className={`flex w-full items-end gap-2 ${isMobile ? "gap-1.5" : ""}`}>
                 <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileSelect} />
                 <Button

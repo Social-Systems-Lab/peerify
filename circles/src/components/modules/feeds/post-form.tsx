@@ -70,7 +70,8 @@ import SharedPostPreview from "./SharedPostPreview";
 import RichText from "./RichText";
 import { truncateText } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AlertCircle, CircleHelp, Info } from "lucide-react";
+import { AlertCircle, CircleHelp } from "lucide-react";
+import { UNVERIFIED_PROFILE_EXPLAINER, canPerformRestrictedAction } from "@/lib/auth/verification";
 
 function debounce<F extends (...args: any[]) => any>(
     func: F,
@@ -702,16 +703,8 @@ export function PostForm({
                     <>
                         <div className="flex-grow overflow-y-auto pr-2">
                             <div className={isPreviewStep ? "hidden" : ""}>
-                                {!user.isVerified && (
-                                    <div className="formatted mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                                        <div className="flex items-center">
-                                            <Info className="mr-2 h-5 w-5 flex-shrink-0" />
-                                            <p className="mt-0 pt-0" style={{ paddingTop: 0, marginTop: 0 }}>
-                                                Your account is not verified. Noticeboard posts from unverified accounts
-                                                are not shown to other users until the account is verified.
-                                            </p>
-                                        </div>
-                                    </div>
+                                {!canPerformRestrictedAction(user) && (
+                                    <p className="mb-4 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
                                 )}
                                 {!isShareMode && (
                                     <div className="mb-3">

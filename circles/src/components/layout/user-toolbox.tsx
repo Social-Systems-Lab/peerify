@@ -688,7 +688,13 @@ export const UserToolbox = () => {
                                         </span>
                                     </Link>
                                 ) : (
+                                    /* Hidden for personal profiles: verification is now automatic once a profile
+                                       picture and About text are both set (see updateCircle in src/lib/data/circle.ts),
+                                       so the manual request-verification flow no longer applies here. Not deleted in
+                                       case manual verification is reintroduced.
                                     <VerifyAccountButton />
+                                    */
+                                    null
                                 )}
                             </div>
                         </div>

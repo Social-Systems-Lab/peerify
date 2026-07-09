@@ -79,6 +79,7 @@ import { useToast } from "@/components/ui/use-toast";
 // Remove unused PostForm reference and keep only DiscussionForm
 import { DiscussionForm } from "./discussion-form";
 import { isAuthorized } from "@/lib/auth/client-auth";
+import { UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import { features, LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { SuggestionDataItem } from "react-mentions";
 import { over, set } from "lodash";
@@ -1228,6 +1229,9 @@ export const DiscussionItem = ({
                 ))}
 
                 {/* Comment input box */}
+                {user && !canComment && !disableComments && (
+                    <p className="mt-2 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
+                )}
                 {user && canComment && !disableComments && (
                     <div className="mt-2 flex items-start gap-2">
                         {/* TODO: Mentions intentionally disabled for launch. Rebuild later using the working chat mention path as the reference. */}
@@ -1300,6 +1304,7 @@ const CommentItem = ({
 
     const isAuthor = user && comment.createdBy === user?.did;
     const canModerate = isAuthorized(user, circle, features.feed.moderate);
+    const canReply = isAuthorized(user, circle, features.feed.comment);
     const formattedDate = getPublishTime(comment.createdAt);
 
     const replies = useMemo<CommentDisplay[]>(
@@ -1371,7 +1376,7 @@ const CommentItem = ({
     };
 
     const handleAddReply = () => {
-        if (!newReplyContent.trim()) return;
+        if (!canReply || !newReplyContent.trim()) return;
 
         const tempComment: CommentDisplay = {
             _id: "temp-reply", // Temporary ID to distinguish it
@@ -1400,9 +1405,18 @@ const CommentItem = ({
                     setNewReplyContent("");
                     setShowReplyInput(false);
                     setShowReplies(true);
+                } else {
+                    setComments((prevComments: CommentDisplay[]) => prevComments.filter((c) => c._id !== "temp-reply"));
+                    toast({
+                        title: "Reply Failed",
+                        description: result.message || "Failed to post reply.",
+                        variant: "destructive",
+                    });
                 }
             } catch (error) {
+                setComments((prevComments: CommentDisplay[]) => prevComments.filter((c) => c._id !== "temp-reply"));
                 console.error("Failed to add reply", error);
+                toast({ title: "Reply Failed", description: "An error occurred.", variant: "destructive" });
             }
         });
     };
@@ -1608,7 +1622,11 @@ const CommentItem = ({
                         </div>
                     )}
 
-                    {showReplyInput && (
+                    {showReplyInput && !canReply && (
+                        <p className="mt-2 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
+                    )}
+
+                    {showReplyInput && canReply && (
                         <div className="mt-2 flex flex-col">
                             <div className="mb-1 text-xs text-gray-500">Replying to {comment.author.name}</div>
                             <TextareaAutosize

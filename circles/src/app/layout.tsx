@@ -63,7 +63,11 @@ const RootLayout = async ({ children }: RootLayoutProps) => {
                                 {children}
                             </div>
                         </div>
-                        <div className="fixed right-6 top-4 z-40">
+                        {/* z-[10000]: must stay above the Peerify landing page's fixed z-9999 overlay
+                            (peerify-landing-page.css .peerify-home) so the account menu still floats
+                            over the marketing homepage for a logged-in user — the landing page's own
+                            overlay is left untouched so it still covers GlobalNav/SidePanel as intended. */}
+                        <div className="fixed right-6 top-4 z-[10000]">
                             <ProfileMenu />
                         </div>
                         <Toaster />

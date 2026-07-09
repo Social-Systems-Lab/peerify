@@ -129,8 +129,11 @@ const ProfileMenuBar = () => {
     };
 
     const onSignUpClick = () => {
-        let redirectTo = searchParams.get("redirectTo") ?? "/";
-        router.push("/signup/pilot?redirectTo=" + redirectTo);
+        // Unlike login, a brand-new signup should land the user on their own new profile
+        // (see check-email/page.tsx's continueUrl) — only carry a redirectTo through if the
+        // current page actually has one, don't invent "/" as a fallback destination.
+        const redirectTo = searchParams.get("redirectTo");
+        router.push(redirectTo ? "/signup/pilot?redirectTo=" + redirectTo : "/signup/pilot");
     };
 
     // hide when in the welcome screen

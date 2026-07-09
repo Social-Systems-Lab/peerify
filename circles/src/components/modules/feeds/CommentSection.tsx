@@ -21,6 +21,7 @@ import {
 } from "@/models/models";
 import { Button } from "@/components/ui/button";
 import { Edit, Heart, Loader2, MessageCircle, MoreHorizontal, Trash2 } from "lucide-react";
+import { UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { getPublishTime } from "@/lib/utils";
 import { contentPreviewAtom, sidePanelContentVisibleAtom, userAtom } from "@/lib/data/atoms";
@@ -111,6 +112,7 @@ const CommentItem = ({
 
     const isAuthor = user && comment.createdBy === user?.did;
     const canModerate = isAuthorized(user ?? undefined, circle, features.feed.moderate); // Assuming feed moderation applies here
+    const canReply = isAuthorized(user ?? undefined, circle, features.feed.comment);
     const formattedDate = getPublishTime(comment.createdAt);
 
     // Find replies specific to this comment
@@ -445,7 +447,10 @@ const CommentItem = ({
                         </div>
                     )}
                     {/* Reply Input Area */}
-                    {showReplyInput && (
+                    {showReplyInput && !canReply && (
+                        <p className="mt-2 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
+                    )}
+                    {showReplyInput && canReply && (
                         <div className="mt-2 flex flex-col">
                             {/* Optional: Add "Replying to..." */}
                             <MentionsInput
@@ -746,6 +751,9 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                                 )}
                             </div>
                         </div>
+                    )}
+                    {user && !canComment && (
+                        <p className="mt-4 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
                     )}
                     {!user && <div className="mt-4 text-sm text-gray-500">Log in to comment.</div>}
                 </>

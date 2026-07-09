@@ -22,6 +22,8 @@ import path from "path";
 import fs from "fs";
 import { USERS_DIR } from "../auth/auth";
 import { getDefaultHeroImage, hasCircleImages } from "@/lib/default-heroes";
+import { getVerificationReadiness } from "@/lib/verification-readiness";
+import { buildVerifiedUserSet } from "@/lib/auth/verification";
 
 export const SAFE_CIRCLE_PROJECTION = {
     _id: 1,
@@ -465,6 +467,28 @@ export const updateCircle = async (circle: Partial<Circle>, authenticatedUserDid
 
     // update circle embedding
     let c = await getCircleById(_id);
+
+    // Personal profiles auto-verify (no admin action) once picture + about text are both filled in.
+    // Forward-only: never revokes isVerified if those fields are later cleared.
+    if (c.circleType === "user" && !c.isVerified && getVerificationReadiness(c).isReady) {
+        await Circles.updateOne(
+            { _id: new ObjectId(_id) },
+            { $set: { ...buildVerifiedUserSet("system:auto-verified"), accountStatus: "active" } },
+        );
+        c = await getCircleById(_id);
+
+        // Dynamic import avoids a circular dependency: notifications.ts imports from circle.ts.
+        try {
+            const { sendUserVerifiedNotification } = await import("./notifications");
+            await sendUserVerifiedNotification(
+                c as any,
+                "Your profile is complete! You can now post, comment, and message on Peerify.",
+            );
+        } catch (e) {
+            console.error("Failed to send auto-verification notification", e);
+        }
+    }
+
     try {
         await upsertVbdCircles([c]);
     } catch (e) {
