@@ -30,7 +30,7 @@ import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { WELCOME_MESSAGE, isSystemMessageSource } from "@/config/welcome-message";
 import { normalizeSystemMessageMetadata } from "@/lib/chat/system-messages";
 import { getSkillLabelByHandle } from "@/lib/data/skills";
-import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
+import { canPerformRestrictedAction, getRestrictedActionMessage, UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import { getDmEligibility } from "@/lib/data/relationships";
 import {
     formatPeerifyBookingEnquiryMessage,
@@ -1331,9 +1331,16 @@ export const contactCircleAdminsAction = async (
     if (!userDid) {
         return { success: false, message: "You need to be logged in to contact this circle" };
     }
-    const verificationMessage = await ensureVerifiedMessagingUser(userDid, "contact circle admins");
-    if (verificationMessage) {
-        return { success: false, message: verificationMessage };
+    // Uses the shared UNVERIFIED_PROFILE_EXPLAINER copy directly (not ensureVerifiedMessagingUser's
+    // getRestrictedActionMessage) so this matches the wording shown on the post/comment/chat banners —
+    // scoped to this one action so the other 5 ensureVerifiedMessagingUser call sites keep their
+    // own action-specific wording.
+    const contactAdminsUser = await Circles.findOne(
+        { did: userDid },
+        { projection: { isAdmin: 1, isVerified: 1, verificationStatus: 1 } },
+    );
+    if (!canPerformRestrictedAction(contactAdminsUser)) {
+        return { success: false, message: UNVERIFIED_PROFILE_EXPLAINER };
     }
 
     const trimmedMessage = message?.trim();

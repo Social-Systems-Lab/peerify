@@ -448,9 +448,12 @@ const CommentItem = ({
                     )}
                     {/* Reply Input Area */}
                     {showReplyInput && !canReply && (
-                        <div className="mt-2 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                            <Info className="h-4 w-4 flex-shrink-0" />
-                            <p>{UNVERIFIED_PROFILE_EXPLAINER}</p>
+                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                            <div className="flex items-center gap-2">
+                                <Info className="h-4 w-4 flex-shrink-0 text-amber-600" />
+                                <p className="font-semibold">Complete your profile</p>
+                            </div>
+                            <p className="mt-1 text-amber-900">{UNVERIFIED_PROFILE_EXPLAINER}</p>
                         </div>
                     )}
                     {showReplyInput && canReply && (
@@ -756,9 +759,12 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                         </div>
                     )}
                     {user && !canComment && (
-                        <div className="mt-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                            <Info className="h-4 w-4 flex-shrink-0" />
-                            <p>{UNVERIFIED_PROFILE_EXPLAINER}</p>
+                        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                            <div className="flex items-center gap-2">
+                                <Info className="h-4 w-4 flex-shrink-0 text-amber-600" />
+                                <p className="font-semibold">Complete your profile</p>
+                            </div>
+                            <p className="mt-1 text-amber-900">{UNVERIFIED_PROFILE_EXPLAINER}</p>
                         </div>
                     )}
                     {!user && <div className="mt-4 text-sm text-gray-500">Log in to comment.</div>}

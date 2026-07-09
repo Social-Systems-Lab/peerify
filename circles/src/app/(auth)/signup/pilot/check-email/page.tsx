@@ -20,7 +20,11 @@ export default async function PilotCheckEmailPage(props: PageProps) {
     const handle = searchParams.handle?.trim();
     const redirectTo = searchParams.redirectTo?.trim();
     const peerifyIntent = normalizePeerifyIntent(searchParams.intent);
-    const continueUrl = redirectTo
+    // A bare "/" redirectTo carries no real destination preference (e.g. it's the fallback the
+    // header's Sign Up button used to attach) — prefer sending a brand-new signup to their own
+    // profile over the marketing homepage whenever a handle is available.
+    const hasMeaningfulRedirect = redirectTo && redirectTo !== "/";
+    const continueUrl = hasMeaningfulRedirect
         ? redirectTo
         : handle
           ? `/circles/${handle}/home`

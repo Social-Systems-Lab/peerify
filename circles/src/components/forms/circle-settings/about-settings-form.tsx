@@ -788,11 +788,11 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                     </CardContent>
                 </Card>
 
-                {/* Personal profiles only need one Save button (see the final renderSaveButton() call
-                    at the end of the form) — everything between here and there is artist/venue-only
-                    content that doesn't render for a personal profile, so this button would otherwise
-                    appear immediately adjacent to the next one with nothing in between. */}
-                {!isUserProfile && renderSaveButton()}
+                {/* Section-level checkpoint after Basic Information. Renders for every circle type —
+                    for personal profiles specifically, the next visible content is the Images card
+                    further down (everything in between is artist/venue-only and hidden), so this
+                    never lands adjacent to another checkpoint with nothing between them. */}
+                {renderSaveButton()}
 
                 {isPeerifyManagedArtistCircle ? (
                     <Card>
@@ -1564,8 +1564,10 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                     </Card>
                 ) : null}
 
-                {/* See the comment on the first renderSaveButton() call above — personal profiles
-                    only need the single button at the end of the form. */}
+                {/* Kept personal-profile-scoped: everything between the Basic Information checkpoint
+                    above and here is artist/venue-only content that's hidden for personal profiles,
+                    so an unconditional button here would land immediately adjacent to that one with
+                    nothing in between — recreating the duplicate-button bug this form had before. */}
                 {!isUserProfile && renderSaveButton()}
 
                 {/* Hidden for personal profiles per request: re-enable by removing this condition */}
@@ -1688,9 +1690,8 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                     </CardContent>
                 </Card>
 
-                {/* See the comment on the first renderSaveButton() call above — personal profiles
-                    only need the single button at the end of the form. */}
-                {!isUserProfile && renderSaveButton()}
+                {/* Section-level checkpoint after Images. Renders for every circle type. */}
+                {renderSaveButton()}
 
                 {!canEditPeerifyVenueProfile ? (
                     <Card>
@@ -1720,6 +1721,11 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                         </CardContent>
                     </Card>
                 ) : null}
+
+                {/* Section-level checkpoint after Location, personal profiles only — for other circle
+                    types the existing checkpoints above/below this point are already sufficient and
+                    unchanged. */}
+                {isUserProfile && renderSaveButton()}
 
                 {/* Hidden for Artist profiles per request: re-enable by removing this condition */}
                 {!isPeerifyManagedArtistCircle && (

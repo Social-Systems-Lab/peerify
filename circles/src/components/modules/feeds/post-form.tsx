@@ -704,13 +704,16 @@ export function PostForm({
                         <div className="flex-grow overflow-y-auto pr-2">
                             <div className={isPreviewStep ? "hidden" : ""}>
                                 {!canPerformRestrictedAction(user) && (
-                                    <div className="formatted mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                                        <div className="flex items-center">
-                                            <Info className="mr-2 h-5 w-5 flex-shrink-0" />
-                                            <p className="mt-0 pt-0" style={{ paddingTop: 0, marginTop: 0 }}>
-                                                {UNVERIFIED_PROFILE_EXPLAINER}
+                                    <div className="formatted mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+                                        <div className="flex items-center gap-2">
+                                            <Info className="h-4 w-4 flex-shrink-0 text-amber-600" />
+                                            <p className="mt-0 pt-0 font-semibold" style={{ paddingTop: 0, marginTop: 0 }}>
+                                                Complete your profile
                                             </p>
                                         </div>
+                                        <p className="mt-1 pt-0 text-amber-900" style={{ paddingTop: 0 }}>
+                                            {UNVERIFIED_PROFILE_EXPLAINER}
+                                        </p>
                                     </div>
                                 )}
                                 {!isShareMode && (
