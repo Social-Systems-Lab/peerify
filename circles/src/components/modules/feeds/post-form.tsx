@@ -70,7 +70,7 @@ import SharedPostPreview from "./SharedPostPreview";
 import RichText from "./RichText";
 import { truncateText } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AlertCircle, CircleHelp, Info } from "lucide-react";
+import { AlertCircle, CircleHelp } from "lucide-react";
 import { UNVERIFIED_PROFILE_EXPLAINER, canPerformRestrictedAction } from "@/lib/auth/verification";
 
 function debounce<F extends (...args: any[]) => any>(
@@ -704,17 +704,7 @@ export function PostForm({
                         <div className="flex-grow overflow-y-auto pr-2">
                             <div className={isPreviewStep ? "hidden" : ""}>
                                 {!canPerformRestrictedAction(user) && (
-                                    <div className="formatted mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-                                        <div className="flex items-center gap-2">
-                                            <Info className="h-4 w-4 flex-shrink-0 text-amber-600" />
-                                            <p className="mt-0 pt-0 font-semibold" style={{ paddingTop: 0, marginTop: 0 }}>
-                                                Complete your profile
-                                            </p>
-                                        </div>
-                                        <p className="mt-1 pt-0 text-amber-900" style={{ paddingTop: 0 }}>
-                                            {UNVERIFIED_PROFILE_EXPLAINER}
-                                        </p>
-                                    </div>
+                                    <p className="mb-4 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
                                 )}
                                 {!isShareMode && (
                                     <div className="mb-3">

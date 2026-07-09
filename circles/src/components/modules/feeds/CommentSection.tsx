@@ -20,7 +20,7 @@ import {
     UserPrivate,
 } from "@/models/models";
 import { Button } from "@/components/ui/button";
-import { Edit, Heart, Info, Loader2, MessageCircle, MoreHorizontal, Trash2 } from "lucide-react";
+import { Edit, Heart, Loader2, MessageCircle, MoreHorizontal, Trash2 } from "lucide-react";
 import { UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { getPublishTime } from "@/lib/utils";
@@ -448,13 +448,7 @@ const CommentItem = ({
                     )}
                     {/* Reply Input Area */}
                     {showReplyInput && !canReply && (
-                        <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-                            <div className="flex items-center gap-2">
-                                <Info className="h-4 w-4 flex-shrink-0 text-amber-600" />
-                                <p className="font-semibold">Complete your profile</p>
-                            </div>
-                            <p className="mt-1 text-amber-900">{UNVERIFIED_PROFILE_EXPLAINER}</p>
-                        </div>
+                        <p className="mt-2 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
                     )}
                     {showReplyInput && canReply && (
                         <div className="mt-2 flex flex-col">
@@ -759,13 +753,7 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                         </div>
                     )}
                     {user && !canComment && (
-                        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-                            <div className="flex items-center gap-2">
-                                <Info className="h-4 w-4 flex-shrink-0 text-amber-600" />
-                                <p className="font-semibold">Complete your profile</p>
-                            </div>
-                            <p className="mt-1 text-amber-900">{UNVERIFIED_PROFILE_EXPLAINER}</p>
-                        </div>
+                        <p className="mt-4 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
                     )}
                     {!user && <div className="mt-4 text-sm text-gray-500">Log in to comment.</div>}
                 </>

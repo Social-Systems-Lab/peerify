@@ -37,7 +37,6 @@ import {
     IoAddCircleOutline,
     IoAttach,
     IoDocumentText,
-    IoInformationCircleOutline,
     IoTimeOutline,
     IoWarningOutline,
 } from "react-icons/io5";
@@ -1338,10 +1337,7 @@ const ChatInput = ({
     return (
         <div className="flex w-full flex-col">
             {user && !isVerifiedUser(user) && (
-                <div className="mb-2 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                    <IoInformationCircleOutline className="h-4 w-4 flex-shrink-0" />
-                    <p>{UNVERIFIED_PROFILE_EXPLAINER}</p>
-                </div>
+                <p className="mb-2 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
             )}
             <div className={`flex w-full items-end gap-2 ${isMobile ? "gap-1.5" : ""}`}>
                 <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileSelect} />
