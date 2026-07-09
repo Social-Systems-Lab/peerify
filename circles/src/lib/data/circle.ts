@@ -40,6 +40,7 @@ export const SAFE_CIRCLE_PROJECTION = {
     mission: 1,
     isPublic: 1,
     showAdminsPublicly: 1,
+    mapVisible: 1,
     isVerified: 1,
     verificationStatus: 1,
     isMember: 1,
@@ -90,6 +91,7 @@ const DISCOVERY_CIRCLE_PROJECTION = {
     description: 1,
     mission: 1,
     isPublic: 1,
+    mapVisible: 1,
     isVerified: 1,
     verificationStatus: 1,
     isMember: 1,
@@ -172,7 +174,7 @@ export const getSwipeCircles = async (): Promise<Circle[]> => {
                 {
                     $or: [
                         { circleType: { $ne: "user" } },
-                        { $and: [{ circleType: "user" }, { $or: [{ isVerified: true }, { isMember: true }] }] },
+                        { $and: [{ circleType: "user" }, { mapVisible: true }] },
                     ],
                 },
             ],
@@ -362,6 +364,9 @@ export const createCircle = async (circle: Circle, authenticatedUserDid: string)
     circle.circleLevel = circle.circleLevel || (circle.parentCircleId ? "profile_child" : "top_level");
     circle.publishStatus = circle.publishStatus || (circle.circleType === "user" ? "published" : "draft");
     circle.showAdminsPublicly = circle.showAdminsPublicly ?? false;
+    if (circle.circleType === "user") {
+        circle.mapVisible = circle.mapVisible ?? false;
+    }
     if (!hasCircleImages(circle.images)) {
         circle.images = [getDefaultHeroImage(circle.handle || circle.did || circle.name)];
     }

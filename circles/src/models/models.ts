@@ -515,6 +515,7 @@ export const circleSchema = z.object({
     mission: z.string().optional(),
     isPublic: z.boolean().optional(),
     showAdminsPublicly: z.boolean().optional(),
+    mapVisible: z.boolean().optional(),
     userGroups: z.array(userGroupSchema).default([]).optional(),
     enabledModules: z.array(z.string()).default([]).optional(),
     accessRules: accessRulesSchema.optional(),
