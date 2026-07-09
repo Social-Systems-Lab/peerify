@@ -71,7 +71,7 @@ import RichText from "./RichText";
 import { truncateText } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AlertCircle, CircleHelp, Info } from "lucide-react";
-import { UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
+import { UNVERIFIED_PROFILE_EXPLAINER, canPerformRestrictedAction } from "@/lib/auth/verification";
 
 function debounce<F extends (...args: any[]) => any>(
     func: F,
@@ -703,7 +703,7 @@ export function PostForm({
                     <>
                         <div className="flex-grow overflow-y-auto pr-2">
                             <div className={isPreviewStep ? "hidden" : ""}>
-                                {!user.isVerified && (
+                                {!canPerformRestrictedAction(user) && (
                                     <div className="formatted mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
                                         <div className="flex items-center">
                                             <Info className="mr-2 h-5 w-5 flex-shrink-0" />

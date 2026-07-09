@@ -112,6 +112,7 @@ const CommentItem = ({
 
     const isAuthor = user && comment.createdBy === user?.did;
     const canModerate = isAuthorized(user ?? undefined, circle, features.feed.moderate); // Assuming feed moderation applies here
+    const canReply = isAuthorized(user ?? undefined, circle, features.feed.comment);
     const formattedDate = getPublishTime(comment.createdAt);
 
     // Find replies specific to this comment
@@ -446,7 +447,13 @@ const CommentItem = ({
                         </div>
                     )}
                     {/* Reply Input Area */}
-                    {showReplyInput && (
+                    {showReplyInput && !canReply && (
+                        <div className="mt-2 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                            <Info className="h-4 w-4 flex-shrink-0" />
+                            <p>{UNVERIFIED_PROFILE_EXPLAINER}</p>
+                        </div>
+                    )}
+                    {showReplyInput && canReply && (
                         <div className="mt-2 flex flex-col">
                             {/* Optional: Add "Replying to..." */}
                             <MentionsInput

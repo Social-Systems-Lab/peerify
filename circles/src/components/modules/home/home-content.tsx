@@ -144,14 +144,15 @@ export default function HomeContent({
                     <DialogHeader>
                         <DialogTitle>Welcome to Peerify!</DialogTitle>
                         <DialogDescription className="space-y-3">
-                            <p>You are now a test pilot!</p>
                             <p>
-                                Click <strong>Request Verification</strong> when you&apos;re ready to become a verified
-                                member.
+                                Add a profile picture and a short bio to unlock posting, connecting, and messaging.
                             </p>
                             <p>
-                                You may later connect with others who can verify that you&apos;re human and not a bot.
+                                Your profile stays private by default, but you can grant full access to trusted
+                                contacts whenever you&apos;re ready. Just be mindful about sharing personal details
+                                like your location publicly.
                             </p>
+                            <p>Enjoy the world of music, safely and responsibly!</p>
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -405,7 +406,7 @@ export default function HomeContent({
                                 <div className="line-clamp-1 pb-1 text-gray-600">
                                     {authorizedToEdit ? (
                                         <EditableField
-                                            id={circle.description ? "description" : "mission"}
+                                            id={isUser || circle.description ? "description" : "mission"}
                                             value={(circle.description || circle.mission)!}
                                             circleId={circle._id!}
                                             multiline
