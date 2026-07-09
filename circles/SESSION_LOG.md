@@ -12,6 +12,25 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-07-09 (cont. #2) — Promoted isVerified auto-verify overhaul + banner/reply-bug fixes from staging to main/prod
+
+Headline: Promoted the full day's-plus-yesterday's staging work (6 commits: `08dc5fd7`, `7e27e380`, `b072270a`, `83eafc69`, `2f4f32c9`, `3a1acc75` — the `isVerified` auto-verify overhaul and today's four follow-up fixes) into `main` and deployed to prod. Merge and build were verified before touching the live process; the actual deploy then ran clean.
+
+**Pre-promotion verification (no changes to prod yet):**
+- Confirmed local `main` matched `origin/main` after a fresh fetch, then diffed `main..origin/staging` and confirmed the commit list was exactly the expected 6 — nothing unexpected.
+- Merged `origin/staging` into local `main` (`--no-ff`, merge commit `1cd9f105`) — clean, only an auto-merge on `PEERIFY_CONTEXT.md`, no conflicts. Not pushed yet at this point.
+- **Build-only safety check, done without touching the running prod process:** inspected the live `peerify` PM2 process directly via `/proc/<pid>/cwd` and confirmed its working directory is `.next/standalone/apps/peerify-app/circles` — nested *inside* the exact `.next/` directory the prod deploy script (`scripts/deploy-peerify.sh`) deletes and rebuilds in place. Rather than build in the real prod worktree (which would have overwritten live-serving static files mid-build), built the merged `main` in an isolated detached worktree (`/tmp/peerify-prod-build-check`, same precedent as the 2026-06-28 audio-pipeline merge session) instead. Confirmed: build succeeded, all routes compiled, `.next/static`/`public` populated, the new check-email copy present in the built output, and the old amber banner markup absent — all with zero risk to the live process. Also confirmed neither existing deploy script fit a true "build-only, don't touch prod" ask: `deploy-genesis2.sh` is the stale Kamooni/Docker script (flagged separately in the carry-forward list below, not used), and `scripts/deploy-peerify.sh` has no dry-run mode (it always ends in a PM2 restart).
+
+**Promotion:**
+- Pushed local `main` to `origin/main` (`e754880a..1cd9f105`).
+- Ran `scripts/deploy-peerify.sh` for the real deploy (build, copy `.next/static`+`public`+`VERSION` into the live standalone dir, `pm2 delete`/`pm2 start`, `pm2 save`).
+- Verified after restart: `peerify` PM2 process online with a fresh pid and 0 restarts; `peerify-staging` completely unaffected (same pid, uptime unchanged); `http://localhost:3000/` and `https://peerify.one/` both 200; `peerify.one/signup/pilot/check-email` renders the new simplified copy live; the old amber "Complete your profile" banner markup confirmed absent from prod's static chunks; BUILD_ID matches between the top-level build and the standalone copy PM2 is serving from. Checked prod's error log for anything deploy-related — only pre-existing, unrelated noise (transient "Failed to find Server Action" errors from browser tabs that had the previous bundle open, which self-resolve, and a bot probing `/storage/.env`, which correctly 404s).
+- `main`, `staging`, and prod are now all in sync at `1cd9f105`.
+
+**Docs:** updated `PEERIFY_CONTEXT.md` §00 — items 16/17 and the staging→main promotion note marked resolved/promoted (previously said "staging only, not yet promoted to main").
+
+---
+
 ## 2026-07-09 (cont.) — Simplified check-email popup; unified unverified-profile banners to plain red text; fixed Forum nested-reply phantom-success bug; kept the Unverified pill (confirmed functional)
 
 Headline: Four items in one pass — two straightforward copy/style changes, one investigate-then-fix bug, one investigate-then-decide-to-keep. All four verified on staging via `deploy-staging.sh` (prod confirmed untouched throughout).
@@ -26,7 +45,7 @@ Headline: Four items in one pass — two straightforward copy/style changes, one
 
 **Verification:** `bun run lint` (no new errors, only pre-existing warnings) and `bun run build` both clean. Deployed via `deploy-staging.sh` (all 8 steps passed — build, BUILD_ID match, static-asset copy verified, staging restarted, prod pid/uptime confirmed unaffected, HTTP root + static-asset checks 200). Confirmed live via `curl` against `staging.peerify.one`: check-email page renders the new copy and the handle-based redirect link (`/circles/{handle}/home`); the old amber "Complete your profile" box markup no longer exists anywhere in the built JS bundle. **Caveat:** the reply-composer fix is a client-side rendering/state fix, and headless-browser click-through verification was not available in this environment (Playwright's Chromium still missing system shared libraries — `libnspr4.so` etc. — same blocker as 2026-07-08/07-09 sessions; `sudo apt install` declined again without explicit go-ahead). Verified instead via clean build + exact mirroring of the already-proven `CommentSection.tsx` gating pattern, not live click-through — flag for a future session if/when headless-browser tooling becomes available.
 
-**Carry-forward:** none of this touches `main`/prod — still staged only, consistent with the existing item-16/17 promotion note in `PEERIFY_CONTEXT.md` §00.
+**Carry-forward:** at the time this entry was written, none of this touched `main`/prod — staged only. **Since promoted 2026-07-09** (see the "(cont. #2)" entry above) — this work is now live on prod.
 
 ---
 
