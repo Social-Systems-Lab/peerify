@@ -264,6 +264,9 @@ const getMarkerDescription = (content: Content): string => {
     if ((content as any)?.circleType === "post") {
         return (content as any)?.content ?? "";
     }
+    if (isSuppressedUserProfile(content)) {
+        return "";
+    }
     return (content as any)?.mission ?? (content as any)?.description ?? "";
 };
 
