@@ -38,6 +38,12 @@ const isPostDisplay = (c: any): c is PostDisplay => {
 
 const isEventDisplay = (content: any): content is EventDisplay => !!(content && content.startAt && content.title);
 
+// Defense-in-depth only: mapVisible is already enforced at the query level
+// (getSwipeCircles/searchDiscoverableCircles). This guard exists in case a
+// personal profile ever reaches this component via some other path.
+const isSuppressedUserProfile = (content: any): boolean =>
+    content?.circleType === "user" && content?.mapVisible !== true;
+
 const getLngLatParts = (lngLat: any): { lng: number; lat: number } | undefined => {
     const lng = Array.isArray(lngLat) ? lngLat[0] : lngLat?.lng;
     const lat = Array.isArray(lngLat) ? lngLat[1] : lngLat?.lat;
@@ -61,6 +67,9 @@ const getMarkerTitle = (content: Content): string => {
     }
     if ((content as any)?.circleType === "post") {
         return (content as any)?.content?.slice(0, 80) ?? "Noticeboard post";
+    }
+    if (isSuppressedUserProfile(content)) {
+        return "Unavailable";
     }
     return (content as any)?.name ?? "Map item";
 };
@@ -113,6 +122,9 @@ const getMarkerImageUrl = (content: Content): string | undefined => {
     }
     if (item.circleType === "post") {
         return item.media?.[0]?.fileInfo?.url ?? "/images/default-post-picture.png";
+    }
+    if (isSuppressedUserProfile(content)) {
+        return undefined;
     }
     return item.picture?.url ?? item.images?.[0]?.fileInfo?.url;
 };
@@ -251,6 +263,9 @@ const getMarkerDescription = (content: Content): string => {
     }
     if ((content as any)?.circleType === "post") {
         return (content as any)?.content ?? "";
+    }
+    if (isSuppressedUserProfile(content)) {
+        return "";
     }
     return (content as any)?.mission ?? (content as any)?.description ?? "";
 };
