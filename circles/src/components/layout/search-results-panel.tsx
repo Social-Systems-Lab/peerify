@@ -15,6 +15,13 @@ const SEARCH_CATEGORY_LABELS: Record<string, string> = {
     events: "events",
 };
 
+// Defense-in-depth only: searchable is already enforced at the query level
+// (searchDiscoverableCircles). This guard exists in case a personal profile
+// ever reaches this component via some other path. Mirrors map.tsx's
+// isSuppressedUserProfile, but keyed to `searchable` instead of `mapVisible`.
+const isSuppressedSearchProfile = (item: any): boolean =>
+    item?.circleType === "user" && item?.searchable !== true;
+
 export default function SearchResultsPanel() {
     const [searchState] = useAtom(sidePanelSearchStateAtom);
     const [, setContentPreview] = useAtom(contentPreviewAtom);
@@ -103,7 +110,8 @@ export default function SearchResultsPanel() {
                 // circleType can be "user" | "circle" | "project". Default to "circle".
                 type: (item.circleType || "circle") as any,
                 content: item as any,
-            };
+                props: { source: "search" },
+            } as any;
             setContentPreview(preview);
         }
     };
@@ -132,56 +140,65 @@ export default function SearchResultsPanel() {
                 )}
                 {!searchState.isSearching && items.length > 0 && (
                     <ul className="space-y-1">
-                        {items.map((item: any) => (
-                            <li
-                                key={item._id}
-                                className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 hover:bg-gray-100"
-                                onClick={() => handleItemClick(item)}
-                                title={
-                                    item.location?.lngLat
-                                        ? "Click to focus map and view details"
-                                        : "Click to view details"
-                                }
-                            >
-                                <div className="relative">
-                                    <CirclePicture circle={item} size="40px" showTypeIndicator={true} />
-                                </div>
-                                <div className="relative flex-1 overflow-hidden pl-2">
-                                    <div className="truncate p-0 text-sm font-medium">
-                                        {"startAt" in item && (item as any).title ? (
-                                            <span className="inline-flex items-center gap-1">
-                                                <CalendarIcon className="h-3.5 w-3.5 text-gray-600" />
-                                                {(item as any).title}
-                                            </span>
-                                        ) : (
-                                            ("name" in item && item.name ? item.name : "Post")
+                        {items.map((item: any) => {
+                            const suppressed = isSuppressedSearchProfile(item);
+                            const pictureItem = suppressed ? { ...item, name: "Unavailable", picture: undefined, images: undefined } : item;
+
+                            return (
+                                <li
+                                    key={item._id}
+                                    className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 hover:bg-gray-100"
+                                    onClick={() => handleItemClick(item)}
+                                    title={
+                                        item.location?.lngLat
+                                            ? "Click to focus map and view details"
+                                            : "Click to view details"
+                                    }
+                                >
+                                    <div className="relative">
+                                        <CirclePicture circle={pictureItem} size="40px" showTypeIndicator={true} />
+                                    </div>
+                                    <div className="relative flex-1 overflow-hidden pl-2">
+                                        <div className="truncate p-0 text-sm font-medium">
+                                            {"startAt" in item && (item as any).title ? (
+                                                <span className="inline-flex items-center gap-1">
+                                                    <CalendarIcon className="h-3.5 w-3.5 text-gray-600" />
+                                                    {(item as any).title}
+                                                </span>
+                                            ) : suppressed ? (
+                                                "Unavailable"
+                                            ) : (
+                                                ("name" in item && item.name ? item.name : "Post")
+                                            )}
+                                        </div>
+                                        <div className="mt-1 line-clamp-2 p-0 text-xs text-gray-500">
+                                            {"startAt" in item && (item as any).startAt
+                                                ? `${format(new Date((item as any).startAt), "PPpp")}${
+                                                      "endAt" in item && (item as any).endAt
+                                                          ? " — " + format(new Date((item as any).endAt), "PPpp")
+                                                          : ""
+                                                  }`
+                                                : suppressed
+                                                  ? ""
+                                                  : ("description" in item
+                                                        ? (item.description ??
+                                                              ("mission" in item ? (item as any).mission : "") ??
+                                                              "")
+                                                        : ("content" in item && typeof (item as any).content === "string"
+                                                              ? (item as any).content.substring(0, 70) +
+                                                                ((item as any).content.length > 70 ? "..." : "")
+                                                              : ""))}
+                                        </div>
+                                        {"metrics" in item && item.metrics && (
+                                            <div className="flex flex-row pt-1">
+                                                <Indicators className="pointer-events-none" metrics={item.metrics} />
+                                                <div className="flex-1" />
+                                            </div>
                                         )}
                                     </div>
-                                    <div className="mt-1 line-clamp-2 p-0 text-xs text-gray-500">
-                                        {"startAt" in item && (item as any).startAt
-                                            ? `${format(new Date((item as any).startAt), "PPpp")}${
-                                                  "endAt" in item && (item as any).endAt
-                                                      ? " — " + format(new Date((item as any).endAt), "PPpp")
-                                                      : ""
-                                              }`
-                                            : ("description" in item
-                                                  ? (item.description ??
-                                                        ("mission" in item ? (item as any).mission : "") ??
-                                                        "")
-                                                  : ("content" in item && typeof (item as any).content === "string"
-                                                        ? (item as any).content.substring(0, 70) +
-                                                          ((item as any).content.length > 70 ? "..." : "")
-                                                        : ""))}
-                                    </div>
-                                    {"metrics" in item && item.metrics && (
-                                        <div className="flex flex-row pt-1">
-                                            <Indicators className="pointer-events-none" metrics={item.metrics} />
-                                            <div className="flex-1" />
-                                        </div>
-                                    )}
-                                </div>
-                            </li>
-                        ))}
+                                </li>
+                            );
+                        })}
                     </ul>
                 )}
             </div>

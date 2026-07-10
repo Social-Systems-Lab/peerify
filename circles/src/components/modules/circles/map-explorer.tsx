@@ -1407,10 +1407,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                                 key={item._id}
                                                 className="flex cursor-pointer items-center gap-2 rounded pb-2 pt-1 hover:bg-gray-100"
                                                 onClick={() => {
+                                                    // drawerListData is hasSearched ? filteredSearchResults (searchable-gated)
+                                                    // : allDiscoverableCircles (mapVisible-gated) — tag source accordingly.
                                                     const previewData: ContentPreviewData = {
                                                         type: (item.circleType || "circle") as any,
                                                         content: item as any,
-                                                    };
+                                                        props: { source: hasSearched ? "search" : "map" },
+                                                    } as any;
                                                     setContentPreview(previewData);
                                                     if (item.location?.lngLat) {
                                                         handleSetZoomContent(item);

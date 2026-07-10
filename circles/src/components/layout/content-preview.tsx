@@ -69,9 +69,33 @@ export const PostPreview = ({ post, circle, feed, initialComments, initialShowAl
 type CirclePreviewProps = {
     circle: WithMetric<Circle>;
     circleType: string;
+    source?: "map" | "search";
 };
-export const CirclePreview = ({ circle, circleType }: CirclePreviewProps) => {
+// Defense-in-depth only: mapVisible/searchable are already enforced at the
+// query level (getSwipeCircles / searchDiscoverableCircles). This guard
+// exists in case a personal profile ever reaches this preview via some
+// other path. CirclePreview is shared between map-pin clicks and
+// search-result clicks, so it checks the field matching whichever surface
+// opened it — mapVisible for "map", searchable for "search" (and for any
+// caller that doesn't specify a source, e.g. the members-list preview,
+// which defaults to the stricter searchable check).
+const isSuppressedPersonalProfile = (
+    circle: WithMetric<Circle>,
+    circleType: string,
+    source?: "map" | "search",
+): boolean => {
+    if (circleType !== "user") {
+        return false;
+    }
+    if (source === "map") {
+        return (circle as any)?.mapVisible !== true;
+    }
+    return (circle as any)?.searchable !== true;
+};
+
+export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps) => {
     const router = useRouter();
+    const suppressed = isSuppressedPersonalProfile(circle, circleType, source);
     const memberCount = circle?.members ? (circleType === "user" ? circle.members - 1 : circle.members) : 0;
     const [, setImageGallery] = useAtom(imageGalleryAtom); // Keep for profile picture click
     const [, setContentPreview] = useAtom(contentPreviewAtom);
@@ -100,7 +124,7 @@ export const CirclePreview = ({ circle, circleType }: CirclePreviewProps) => {
 
     // Prepare images for the carousel, providing a default if none exist
     const carouselImages: Media[] =
-        circle.images && circle.images.length > 0
+        !suppressed && circle.images && circle.images.length > 0
             ? circle.images
             : [
                   {
@@ -159,16 +183,20 @@ export const CirclePreview = ({ circle, circleType }: CirclePreviewProps) => {
                         <div className="h-[124px] w-[124px]">
                             <Image
                                 className="rounded-full border-2 border-white bg-white object-cover shadow-lg"
-                                src={circle?.picture?.url ?? "/images/default-picture.png"}
+                                src={suppressed ? "/images/default-picture.png" : (circle?.picture?.url ?? "/images/default-picture.png")}
                                 alt="Picture"
                                 fill
-                                onClick={() => handleProfilePicClick("Profile Picture", circle?.picture)} // Use updated handler name
+                                onClick={
+                                    suppressed
+                                        ? undefined
+                                        : () => handleProfilePicClick("Profile Picture", circle?.picture) // Use updated handler name
+                                }
                             />
                         </div>
                     </div>
                 </div>
                 <div className="mt-[44px] flex flex-col items-center justify-center overflow-y-auto">
-                    <div className="header pt-[30px] text-2xl">{circle.name}</div>
+                    <div className="header pt-[30px] text-2xl">{suppressed ? "Unavailable" : circle.name}</div>
                     {memberCount > 0 && (
                         <div className="flex flex-row items-center justify-center pt-2">
                             <FaUsers />
@@ -186,14 +214,14 @@ export const CirclePreview = ({ circle, circleType }: CirclePreviewProps) => {
                     {/* Description and Mission are prioritized */}
                     <div className="space-y-3 px-1 pb-2">
                         {/* Mission Box with Quote Icon */}
-                        {circle.mission && (
+                        {!suppressed && circle.mission && (
                             <div className="relative mt-3 rounded-md border bg-gray-50/80 p-3 pl-8 shadow-sm">
                                 <Quote className="absolute left-2 top-2 h-4 w-4 text-gray-400" />
                                 <p className="text-sm text-gray-700">{circle.mission}</p>
                             </div>
                         )}
 
-                        {circle.description && <p className="text-sm text-gray-600">{circle.description}</p>}
+                        {!suppressed && circle.description && <p className="text-sm text-gray-600">{circle.description}</p>}
 
                         {/* Song preview (artist/band circles only) */}
                         {isPeerifyArtistIdentity(circle) && circle._id && (
@@ -374,7 +402,7 @@ export const ContentPreview: React.FC = () => {
                 }
                 return (
                     <div className="custom-scrollbar h-full overflow-y-auto">
-                        <CirclePreview circle={circleData} circleType={contentPreview.type} />
+                        <CirclePreview circle={circleData} circleType={contentPreview.type} source={contentPreview.props?.source} />
                     </div>
                 );
             }

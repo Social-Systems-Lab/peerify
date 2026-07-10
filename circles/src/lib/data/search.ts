@@ -47,7 +47,7 @@ const tokenizeQuery = (query: string) =>
 const toStringArray = (values?: string[]) => (values || []).map((value) => normalizeValue(value)).filter(Boolean);
 
 const isDiscoverableCircle = (circle: Circle) =>
-    circle.circleType !== "user" || Boolean(circle.mapVisible);
+    circle.circleType !== "user" || Boolean(circle.searchable);
 
 const matchesCircleTypes = (circle: Circle, circleTypes: CircleType[]) =>
     !!circle.circleType && circleTypes.includes(circle.circleType);
@@ -143,7 +143,7 @@ const buildCandidateQuery = (query: string, circleTypes: CircleType[], sdgHandle
 
     if (circleTypes.includes("user")) {
         discoverableTypeClauses.push({
-            $and: [{ circleType: "user" }, { mapVisible: true }],
+            $and: [{ circleType: "user" }, { searchable: true }],
         });
     }
 
