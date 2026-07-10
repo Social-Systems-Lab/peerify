@@ -110,7 +110,8 @@ export default function SearchResultsPanel() {
                 // circleType can be "user" | "circle" | "project". Default to "circle".
                 type: (item.circleType || "circle") as any,
                 content: item as any,
-            };
+                props: { source: "search" },
+            } as any;
             setContentPreview(preview);
         }
     };

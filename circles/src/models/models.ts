@@ -809,8 +809,8 @@ export type PostItemProps = {
 export type ContentPreviewData =
     | { type: "post"; content: PostDisplay; props: PostItemProps }
     | { type: "member"; content: MemberDisplay; props?: never }
-    | { type: "user"; content: Circle; props?: never }
-    | { type: "circle"; content: Circle; props?: never }
+    | { type: "user"; content: Circle; props?: { source?: "map" | "search" } }
+    | { type: "circle"; content: Circle; props?: { source?: "map" | "search" } }
     | { type: "proposal"; content: ProposalDisplay; props: { circle: Circle } }
     | { type: "issue"; content: IssueDisplay; props: { circle: Circle; permissions: IssuePermissions } }
     | { type: "task"; content: TaskDisplay; props: { circle: Circle; permissions: TaskPermissions } }

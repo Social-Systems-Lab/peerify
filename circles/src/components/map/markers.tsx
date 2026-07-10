@@ -187,7 +187,8 @@ const MapMarker: React.FC<MapMarkerProps> = ({ content, onClick, onMapPinClick }
                                         setContentPreview({
                                             type: (content as any)?.circleType || "circle",
                                             content: content as any,
-                                        });
+                                            props: { source: "map" },
+                                        } as any);
                                     }}
                                 >
                                     <Search className="mr-1 h-4 w-4" />

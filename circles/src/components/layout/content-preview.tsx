@@ -69,17 +69,33 @@ export const PostPreview = ({ post, circle, feed, initialComments, initialShowAl
 type CirclePreviewProps = {
     circle: WithMetric<Circle>;
     circleType: string;
+    source?: "map" | "search";
 };
-// Defense-in-depth only: searchable is already enforced at the query level
-// (searchDiscoverableCircles). This guard exists in case a personal profile
-// ever reaches this preview via some other path (e.g. search click-through).
-// Mirrors map.tsx's isSuppressedUserProfile, but keyed to `searchable`.
-const isSuppressedSearchProfile = (circle: WithMetric<Circle>, circleType: string): boolean =>
-    circleType === "user" && (circle as any)?.searchable !== true;
+// Defense-in-depth only: mapVisible/searchable are already enforced at the
+// query level (getSwipeCircles / searchDiscoverableCircles). This guard
+// exists in case a personal profile ever reaches this preview via some
+// other path. CirclePreview is shared between map-pin clicks and
+// search-result clicks, so it checks the field matching whichever surface
+// opened it — mapVisible for "map", searchable for "search" (and for any
+// caller that doesn't specify a source, e.g. the members-list preview,
+// which defaults to the stricter searchable check).
+const isSuppressedPersonalProfile = (
+    circle: WithMetric<Circle>,
+    circleType: string,
+    source?: "map" | "search",
+): boolean => {
+    if (circleType !== "user") {
+        return false;
+    }
+    if (source === "map") {
+        return (circle as any)?.mapVisible !== true;
+    }
+    return (circle as any)?.searchable !== true;
+};
 
-export const CirclePreview = ({ circle, circleType }: CirclePreviewProps) => {
+export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps) => {
     const router = useRouter();
-    const suppressed = isSuppressedSearchProfile(circle, circleType);
+    const suppressed = isSuppressedPersonalProfile(circle, circleType, source);
     const memberCount = circle?.members ? (circleType === "user" ? circle.members - 1 : circle.members) : 0;
     const [, setImageGallery] = useAtom(imageGalleryAtom); // Keep for profile picture click
     const [, setContentPreview] = useAtom(contentPreviewAtom);
@@ -386,7 +402,7 @@ export const ContentPreview: React.FC = () => {
                 }
                 return (
                     <div className="custom-scrollbar h-full overflow-y-auto">
-                        <CirclePreview circle={circleData} circleType={contentPreview.type} />
+                        <CirclePreview circle={circleData} circleType={contentPreview.type} source={contentPreview.props?.source} />
                     </div>
                 );
             }

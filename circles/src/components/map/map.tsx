@@ -524,6 +524,7 @@ const MapBox = ({
                 nextPreview = {
                     type: previewType as any,
                     content: content,
+                    props: { source: "map" },
                 } as any;
             }
 
