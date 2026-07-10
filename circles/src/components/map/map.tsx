@@ -39,8 +39,9 @@ const isPostDisplay = (c: any): c is PostDisplay => {
 const isEventDisplay = (content: any): content is EventDisplay => !!(content && content.startAt && content.title);
 
 // Defense-in-depth only: mapVisible is already enforced at the query level
-// (getSwipeCircles/searchDiscoverableCircles). This guard exists in case a
-// personal profile ever reaches this component via some other path.
+// (getSwipeCircles). This guard exists in case a personal profile ever
+// reaches this component via some other path. Search results are gated
+// on the separate `searchable` field — see search-results-panel.tsx.
 const isSuppressedUserProfile = (content: any): boolean =>
     content?.circleType === "user" && content?.mapVisible !== true;
 

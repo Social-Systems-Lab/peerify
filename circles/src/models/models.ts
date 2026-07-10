@@ -516,6 +516,7 @@ export const circleSchema = z.object({
     isPublic: z.boolean().optional(),
     showAdminsPublicly: z.boolean().optional(),
     mapVisible: z.boolean().optional(),
+    searchable: z.boolean().optional(),
     userGroups: z.array(userGroupSchema).default([]).optional(),
     enabledModules: z.array(z.string()).default([]).optional(),
     accessRules: accessRulesSchema.optional(),
