@@ -566,6 +566,8 @@ export async function saveAbout(values: {
     images?: ImageItem[]; // Added images
     isPublic?: boolean;
     showAdminsPublicly?: boolean;
+    mapVisible?: boolean;
+    searchable?: boolean;
     location?: any;
     socialLinks?: any;
     websiteUrl?: string;
@@ -587,6 +589,8 @@ export async function saveAbout(values: {
         mission: values.mission,
         isPublic: values.isPublic,
         showAdminsPublicly: values.showAdminsPublicly,
+        mapVisible: values.mapVisible === true,
+        searchable: values.searchable === true,
         location: values.location,
         socialLinks: sanitizeSocialLinks(values.socialLinks),
     };

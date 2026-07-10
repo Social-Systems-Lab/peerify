@@ -53,6 +53,8 @@ type AboutSettingsFormValues = {
     images?: ImageItem[];
     isPublic?: boolean;
     showAdminsPublicly?: boolean;
+    mapVisible?: boolean;
+    searchable?: boolean;
     location?: any;
     socialLinks?: any;
     websiteUrl?: string;
@@ -401,6 +403,9 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                 ) || [], // Initialize images state
             isPublic: circle.isPublic !== false, // Default to true if not set
             showAdminsPublicly: circle.showAdminsPublicly !== false, // Keep existing circles visible unless explicitly turned off
+            // Opposite polarity from isPublic/showAdminsPublicly above: default OFF unless explicitly true.
+            mapVisible: circle.mapVisible === true,
+            searchable: circle.searchable === true,
             location: circle.location || {},
             socialLinks: circle.socialLinks || [],
             websiteUrl: circle.websiteUrl || "",
@@ -789,9 +794,10 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                 </Card>
 
                 {/* Section-level checkpoint after Basic Information. Renders for every circle type —
-                    for personal profiles specifically, the next visible content is the Images card
-                    further down (everything in between is artist/venue-only and hidden), so this
-                    never lands adjacent to another checkpoint with nothing between them. */}
+                    for personal profiles specifically, the next visible content is the Discoverability
+                    card and then the Images card further down (everything else in between is
+                    artist/venue-only and hidden), so this never lands adjacent to another checkpoint
+                    with nothing between them. */}
                 {renderSaveButton()}
 
                 {isPeerifyManagedArtistCircle ? (
@@ -1610,6 +1616,60 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                                 circle: "Show the Admins panel on your circle home page.",
                                                 user: "Show the Admins panel on your circle home page.",
                                             },
+                                        }}
+                                        formField={field}
+                                        control={form.control as unknown as Control}
+                                    />
+                                )}
+                            />
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Personal-profile-only: independent map/search visibility toggles. Opposite gate
+                    from Access & permissions above. mapVisible/searchable default OFF (see
+                    defaultValues) — do not copy the isPublic/showAdminsPublicly !== false pattern
+                    here, it would default these ON instead.
+                    No checkpoint of its own: for personal profiles this card sits in the same
+                    unbroken stretch as the Images card below, already bracketed by the checkpoint
+                    after Basic Information (above) and the checkpoint after Images (below). Adding
+                    one here would land adjacent to the Basic Information checkpoint with nothing
+                    in between for personal profiles — the exact duplicate-button bug this file's
+                    checkpoints are designed to avoid. */}
+                {isUserProfile && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Discoverability</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <Controller
+                                name="mapVisible"
+                                control={form.control as unknown as Control}
+                                render={({ field }) => (
+                                    <DynamicSwitchField
+                                        field={{
+                                            name: "mapVisible",
+                                            type: "switch",
+                                            label: "Show me on the map",
+                                            description: "Let your profile appear as a pin on the public map.",
+                                        }}
+                                        formField={field}
+                                        control={form.control as unknown as Control}
+                                    />
+                                )}
+                            />
+
+                            <Controller
+                                name="searchable"
+                                control={form.control as unknown as Control}
+                                render={({ field }) => (
+                                    <DynamicSwitchField
+                                        field={{
+                                            name: "searchable",
+                                            type: "switch",
+                                            label: "Show me in search",
+                                            description:
+                                                "Let people find your profile by name, handle, or email in search.",
                                         }}
                                         formField={field}
                                         control={form.control as unknown as Control}
