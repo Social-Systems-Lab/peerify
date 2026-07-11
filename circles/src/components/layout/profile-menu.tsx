@@ -288,7 +288,7 @@ const ProfileMenuBar = () => {
                                                                 {identity.name}
                                                             </div>
                                                             <div className="truncate text-xs text-muted-foreground">
-                                                                Peerify identity
+                                                                Public profile
                                                             </div>
                                                         </div>
                                                         {renderCurrentMarker(identity)}
@@ -303,7 +303,7 @@ const ProfileMenuBar = () => {
                                             className="mt-1 justify-between border-t pt-3 text-sm"
                                             onClick={() => router.push("/profiles")}
                                         >
-                                            See all profiles / identities
+                                            Go to profiles
                                             <ChevronRight className="h-4 w-4" />
                                         </Button>
                                     </div>

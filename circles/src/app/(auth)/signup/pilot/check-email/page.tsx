@@ -41,16 +41,16 @@ export default async function PilotCheckEmailPage(props: PageProps) {
                         We&apos;ve sent a verification link to{" "}
                         {searchParams.email ? <span className="font-medium text-[#181512]">{searchParams.email}</span> : "your email address"}.
                     </p>
-                    <p className="text-sm text-[#6b5f52]">
+                    <p className="text-base text-[#6b5f52]">
                         Email verification lets you recover your account if you forget your password. Some account and
                         trust features may ask for it later.
                     </p>
-                    <p className="text-sm text-[#6b5f52]">
+                    <p className="text-xs text-[#6b5f52]">
                         Didn&apos;t get the email? Check your spam folder, or{" "}
                         <Link href={continueUrl} className="underline text-[#e8720c] hover:text-[#ff8c2a]">
-                            click here to go directly to your profile
-                        </Link>
-                        .
+                            click here
+                        </Link>{" "}
+                        to go directly to your profile.
                     </p>
                 </CardContent>
             </Card>
