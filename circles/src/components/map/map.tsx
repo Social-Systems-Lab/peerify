@@ -290,6 +290,9 @@ const escapeHtml = (value: string): string =>
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 
+const POPUP_CARD_HEIGHT = 234;
+const POPUP_MARKER_GAP = 14;
+
 const createMarkerPopupHtml = (content: Content): string => {
     const title = escapeHtml(getMarkerTitle(content));
     const description = escapeHtml(getMarkerDescription(content)).slice(0, 180);
@@ -312,7 +315,7 @@ const createMarkerPopupHtml = (content: Content): string => {
         : `<button type="button" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></button>`;
 
     return `
-        <div style="position:relative;width:min(380px,calc(100vw - 32px));height:234px;overflow:hidden;border-radius:15px;background:#111827;box-shadow:0 12px 34px rgba(15,23,42,.28);cursor:pointer;">
+        <div style="position:relative;width:min(380px,calc(100vw - 32px));height:${POPUP_CARD_HEIGHT}px;overflow:hidden;border-radius:15px;background:#111827;box-shadow:0 12px 34px rgba(15,23,42,.28);cursor:pointer;">
             <div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl)}');background-size:cover;background-position:center;"></div>
             <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.66),rgba(0,0,0,.32) 44%,rgba(0,0,0,.02));"></div>
             <div style="position:absolute;left:0;right:0;bottom:0;padding:14px;">
@@ -341,6 +344,19 @@ const getMarkerTheme = (content: Content): { background: string; color: string; 
         return { background: "#dbeafe", color: "#1e3a8a", size: 40 };
     }
     return { background: "#ffffff", color: "#253247", size: 40 };
+};
+
+// Anchors the preview popup above its marker, clearing the marker's own on-screen height (which
+// varies by content type — see getMarkerTheme) plus a fixed gap. Falls back to anchoring below the
+// marker (the pre-fix behavior) when there isn't enough room above within the map container's
+// visible bounds, since this is a custom overlay and doesn't get Mapbox's native Popup flip-to-fit.
+const getMarkerPopupTransform = (point: { x: number; y: number }, content: Content): string => {
+    const markerHeight = getMarkerTheme(content).size + 8;
+    const fitsAbove = point.y >= markerHeight + POPUP_MARKER_GAP + POPUP_CARD_HEIGHT;
+    const verticalOffset = fitsAbove
+        ? `calc(-100% - ${markerHeight + POPUP_MARKER_GAP}px)`
+        : `${POPUP_MARKER_GAP}px`;
+    return `translate(${point.x}px, ${point.y}px) translate(-50%, ${verticalOffset})`;
 };
 
 const setMarkerSelected = (element: HTMLElement, selected: boolean) => {
@@ -617,7 +633,7 @@ const MapBox = ({
             };
             popupRef.current.style.display = "";
             const point = map.current.project(content.location.lngLat as any);
-            popupRef.current.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, 14px)`;
+            popupRef.current.style.transform = getMarkerPopupTransform(point, content);
         },
         [closeMarkerPopup, onMarkerClick, zoomToMarkerContent],
     );
@@ -677,7 +693,7 @@ const MapBox = ({
                 point.x < -160 || point.x > width + 160 || point.y < -160 || point.y > height + 160;
             const isBehindGlobe = isGlobe && getAngularDistance(centerLngLat, lngLat) > Math.PI / 2;
             popupRef.current.style.display = isOutsideViewport || isBehindGlobe ? "none" : "";
-            popupRef.current.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, 14px)`;
+            popupRef.current.style.transform = getMarkerPopupTransform(point, content);
         }
     }, []);
 
