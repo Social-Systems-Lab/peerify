@@ -322,6 +322,11 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const [isMounted, setIsMounted] = useState(false);
     const [showSwipeInstructions, setShowSwipeInstructions] = useState(false);
     const [triggerSnapIndex, setTriggerSnapIndex] = useState<number>(-1);
+    // Tracks the drawer's last known snap index so onSnapChange can detect a downward swipe
+    // regardless of which index it lands on (a single swipe only moves one snap level, but the
+    // preview opens two levels above the bottom, so requiring an exact landing on the bottom index
+    // meant one swipe-down only shrank the sheet without dismissing the preview underneath).
+    const prevSnapIndexRef = useRef<number>(SNAP_INDEX_PEEK);
     const [sidePanelContentVisible] = useAtom(sidePanelContentVisibleAtom);
     const [panelMode, setSidePanelMode] = useAtom(sidePanelModeAtom);
     const [, setSearchPanelState] = useAtom(sidePanelSearchStateAtom);
@@ -1353,8 +1358,17 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                     triggerSnapIndex={triggerSnapIndex}
                     onTriggerConsumed={handleTriggerConsumed}
                     moveThreshold={60} // Adjust as needed
-                    // Optional: Get notified when drawer snaps internally
-                    // onSnapChange={(index) => setDrawerSnapIndex(index)}
+                    onSnapChange={(index) => {
+                        // Any downward swipe while previewing dismisses it, same as the close
+                        // button — not just one that happens to land exactly on the lowest snap
+                        // index, since a single swipe only moves one snap level at a time.
+                        const previousIndex = prevSnapIndexRef.current;
+                        prevSnapIndexRef.current = index;
+                        if (index < previousIndex && drawerContent === "preview") {
+                            setContentPreview(undefined);
+                            setDrawerContent("explore");
+                        }
+                    }}
                 >
                     {drawerContent === "preview" ? (
                         // --- Content Preview View ---
