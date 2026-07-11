@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { generateSlug } from "@/lib/utils";
+import LocationPicker from "@/components/forms/location-picker";
+import { Location } from "@/models/models";
 import { createPeerifyManagedVenueIdentityAction } from "@/components/circle-wizard/actions";
 import { getUserPrivateAction } from "@/components/modules/home/actions";
 import { useAtom } from "jotai";
@@ -24,6 +26,7 @@ type FormState = {
     handle: string;
     description: string;
     baseCity: string;
+    location?: Location;
 };
 
 const EMPTY_FORM: FormState = {
@@ -31,6 +34,7 @@ const EMPTY_FORM: FormState = {
     handle: "",
     description: "",
     baseCity: "",
+    location: undefined,
 };
 
 export function CreatePeerifyVenueDialog({
@@ -70,10 +74,6 @@ export function CreatePeerifyVenueDialog({
             nextErrors.description = "Short description is required";
         }
 
-        if (!form.baseCity.trim()) {
-            nextErrors.baseCity = "Venue location is required";
-        }
-
         setErrors(nextErrors);
         return Object.keys(nextErrors).length === 0;
     };
@@ -87,6 +87,10 @@ export function CreatePeerifyVenueDialog({
             }
             return next;
         });
+    };
+
+    const handleLocationChange = (location: Location | undefined) => {
+        setForm((current) => ({ ...current, location }));
     };
 
     const handleSubmit = () => {
@@ -124,11 +128,6 @@ export function CreatePeerifyVenueDialog({
                     return;
                 }
 
-                if (result.message === "Venue location is required") {
-                    setErrors((current) => ({ ...current, baseCity: result.message }));
-                    return;
-                }
-
                 toast({
                     title: "Could not create venue identity",
                     description: result.message || "Please try again.",
@@ -162,7 +161,7 @@ export function CreatePeerifyVenueDialog({
                 onOpenChange(open);
             }}
         >
-            <DialogContent className="sm:max-w-[680px]">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[680px]">
                 <DialogHeader>
                     <DialogTitle>Create Venue Identity</DialogTitle>
                     <DialogDescription>
@@ -198,14 +197,24 @@ export function CreatePeerifyVenueDialog({
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="peerify-venue-location">City / location</Label>
+                            <Label htmlFor="peerify-venue-location">City / location (optional)</Label>
                             <Input
                                 id="peerify-venue-location"
                                 value={form.baseCity}
                                 onChange={(event) => updateField("baseCity", event.target.value)}
-                                placeholder="Copenhagen"
+                                placeholder="Derived from map location below if left blank"
                             />
                             {errors.baseCity ? <p className="text-sm text-red-500">{errors.baseCity}</p> : null}
+                        </div>
+
+                        <div className="space-y-2 sm:col-span-2">
+                            <Label>Map location</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Optional. Sets a real map pin for this venue. If you leave the city/location text
+                                above blank, it will be derived from the location you pick here. You can also set
+                                this later in Settings.
+                            </p>
+                            <LocationPicker value={form.location} onChange={handleLocationChange} compact={true} />
                         </div>
 
                         <div className="space-y-2 sm:col-span-2">

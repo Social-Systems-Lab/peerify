@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { generateSlug } from "@/lib/utils";
+import LocationPicker from "@/components/forms/location-picker";
+import { Location } from "@/models/models";
 import {
     PEERIFY_MANAGED_IDENTITY_TYPE_OPTIONS,
     type PeerifyArtistIdentityType,
@@ -29,6 +31,7 @@ type FormState = {
     identityType: PeerifyArtistIdentityType;
     description: string;
     baseCity: string;
+    location?: Location;
 };
 
 const EMPTY_FORM: FormState = {
@@ -37,6 +40,7 @@ const EMPTY_FORM: FormState = {
     identityType: "artist",
     description: "",
     baseCity: "",
+    location: undefined,
 };
 
 export function CreatePeerifyArtistDialog({
@@ -81,10 +85,6 @@ export function CreatePeerifyArtistDialog({
             nextErrors.description = "Short bio is required";
         }
 
-        if (!form.baseCity.trim()) {
-            nextErrors.baseCity = "Base city is required";
-        }
-
         setErrors(nextErrors);
         return Object.keys(nextErrors).length === 0;
     };
@@ -98,6 +98,10 @@ export function CreatePeerifyArtistDialog({
             }
             return next;
         });
+    };
+
+    const handleLocationChange = (location: Location | undefined) => {
+        setForm((current) => ({ ...current, location }));
     };
 
     const handleSubmit = () => {
@@ -132,11 +136,6 @@ export function CreatePeerifyArtistDialog({
 
                 if (result.message === "Short bio is required") {
                     setErrors((current) => ({ ...current, description: result.message }));
-                    return;
-                }
-
-                if (result.message === "Base city is required") {
-                    setErrors((current) => ({ ...current, baseCity: result.message }));
                     return;
                 }
 
@@ -175,7 +174,7 @@ export function CreatePeerifyArtistDialog({
                 onOpenChange(open);
             }}
         >
-            <DialogContent className="sm:max-w-[680px]">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[680px]">
                 <DialogHeader>
                     <DialogTitle>Create Artist Identity</DialogTitle>
                     <DialogDescription>
@@ -245,14 +244,24 @@ export function CreatePeerifyArtistDialog({
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="peerify-base-city">Base city / location</Label>
+                            <Label htmlFor="peerify-base-city">Base city / location (optional)</Label>
                             <Input
                                 id="peerify-base-city"
                                 value={form.baseCity}
                                 onChange={(event) => updateField("baseCity", event.target.value)}
-                                placeholder="Berlin"
+                                placeholder="Derived from map location below if left blank"
                             />
                             {errors.baseCity ? <p className="text-sm text-red-500">{errors.baseCity}</p> : null}
+                        </div>
+
+                        <div className="space-y-2 sm:col-span-2">
+                            <Label>Map location</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Optional. Sets a real map pin for this identity. If you leave the base city text
+                                above blank, it will be derived from the location you pick here. You can also set
+                                this later in Settings.
+                            </p>
+                            <LocationPicker value={form.location} onChange={handleLocationChange} compact={true} />
                         </div>
 
                         <div className="space-y-2 sm:col-span-2">
