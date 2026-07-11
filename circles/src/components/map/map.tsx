@@ -500,6 +500,16 @@ const MapBox = ({
     const isMobile = useIsMobile();
     const pathname = usePathname();
 
+    // Marker DOM elements attach their mouseenter/click listeners once, at creation time, and are
+    // reused (not recreated) on subsequent renders — so openMarkerPopup/closeMarkerPopup must read
+    // the current mobile state from a ref rather than close over the `isMobile` value from whichever
+    // render created the listener, or markers created before hydration settles isMobile get stuck
+    // without the guard.
+    const isMobileRef = useRef(isMobile);
+    useEffect(() => {
+        isMobileRef.current = isMobile;
+    }, [isMobile]);
+
     const markersRef = useRef<Map<string, HTMLElement>>(new globalThis.Map());
     const focusedMarkerIdsRef = useRef<Set<string>>(new Set());
     const lastFocusedMarkerIdRef = useRef<string | null>(null);
@@ -552,6 +562,9 @@ const MapBox = ({
     );
 
     const closeMarkerPopup = useCallback(() => {
+        if (isMobileRef.current) {
+            return;
+        }
         if (popupCloseTimeoutRef.current) {
             clearTimeout(popupCloseTimeoutRef.current);
         }
@@ -576,6 +589,9 @@ const MapBox = ({
 
     const openMarkerPopup = useCallback(
         (content: Content, element: HTMLElement) => {
+            if (isMobileRef.current) {
+                return;
+            }
             if (!map.current || !markerOverlay.current || !content.location?.lngLat) {
                 return;
             }
