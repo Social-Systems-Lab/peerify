@@ -15,6 +15,11 @@ interface ResizingDrawerProps {
 
     triggerSnapIndex?: number; // New: Index to trigger animation to (-1 or undefined means no trigger)
     onTriggerConsumed?: () => void;
+
+    // When true, the drag handle floats as a small overlay on top of the content
+    // (e.g. a hero image) instead of occupying its own bar above it. The invisible
+    // touch target keeps the same size/position — only the visual chrome moves.
+    overlayHandle?: boolean;
 }
 
 const ResizingDrawer = ({
@@ -28,6 +33,7 @@ const ResizingDrawer = ({
     onSnapChange,
     triggerSnapIndex, // New
     onTriggerConsumed, // New
+    overlayHandle = false,
 }: ResizingDrawerProps) => {
     const AnimatedComponent = animated.div as React.ElementType;
     const drawerRef = useRef<HTMLDivElement>(null);
@@ -340,10 +346,12 @@ const ResizingDrawer = ({
             }}
         >
             {/* Wrapper div to ensure animated.div has a single child */}
-            <div className="flex h-full flex-col">
+            <div className="relative flex h-full flex-col">
                 {/* Handle Area */}
-                {/* Add relative positioning context for the absolute touch target */}
-                <div className="relative flex-shrink-0">
+                {/* Add relative positioning context for the absolute touch target. When
+                    overlayHandle is set, this floats on top of the content area instead of
+                    occupying its own space (e.g. so it can sit over a hero image). */}
+                <div className={overlayHandle ? "absolute inset-x-0 top-0 z-30 flex-shrink-0" : "relative flex-shrink-0"}>
                     {/* Larger Invisible Touch Target */}
                     <div
                         ref={touchTargetRef}
@@ -361,14 +369,20 @@ const ResizingDrawer = ({
                     {/* Visual Handle (No interaction needed here) */}
                     {/* Removed ref={handleRef} unless needed elsewhere */}
                     <div className="pointer-events-none flex justify-center py-3">
-                        <div className="h-1.5 w-10 rounded-full bg-gray-300" />
+                        <div
+                            className={
+                                overlayHandle
+                                    ? "h-1.5 w-10 rounded-full bg-white/80 shadow-sm"
+                                    : "h-1.5 w-10 rounded-full bg-gray-300"
+                            }
+                        />
                     </div>
                 </div>
 
                 {/* Content Area */}
                 <div
                     ref={contentRef}
-                    className="mb-[72px] mt-[10px] flex-1 overflow-y-auto"
+                    className={`mb-[72px] flex-1 overflow-y-auto ${overlayHandle ? "mt-0" : "mt-[10px]"}`}
                     style={{
                         // Allow vertical scrolling within the content area itself
                         touchAction: "pan-y",

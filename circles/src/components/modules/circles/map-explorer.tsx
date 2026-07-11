@@ -13,16 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import {
-    Hand,
-    Home,
-    Search,
-    SlidersHorizontal,
-    X,
-    ArrowLeft,
-    ChevronRight,
-    ChevronLeft,
-} from "lucide-react"; // Added ArrowLeft
+import { Hand, Home, Search, SlidersHorizontal, X, ChevronRight, ChevronLeft } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { MdOutlineTravelExplore } from "react-icons/md";
@@ -1358,6 +1349,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                     triggerSnapIndex={triggerSnapIndex}
                     onTriggerConsumed={handleTriggerConsumed}
                     moveThreshold={60} // Adjust as needed
+                    overlayHandle={drawerContent === "preview"} // Float the drag handle over the preview's hero image instead of a separate bar
                     onSnapChange={(index) => {
                         // Any downward swipe while previewing dismisses it, same as the close
                         // button — not just one that happens to land exactly on the lowest snap
@@ -1372,17 +1364,22 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 >
                     {drawerContent === "preview" ? (
                         // --- Content Preview View ---
-                        <div className="flex h-full flex-col">
-                            <div className="flex items-center border-b px-0 py-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => setDrawerContent("explore")}
-                                    className="mr-2"
-                                >
-                                    <ArrowLeft className="mr-1 h-4 w-4" /> Back to List
-                                </Button>
-                            </div>
+                        // No separate header bar: the close button floats over the hero
+                        // image (same treatment as the drag handle) so the image starts
+                        // immediately below the map.
+                        <div className="relative flex h-full flex-col">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => {
+                                    setContentPreview(undefined);
+                                    setDrawerContent("explore");
+                                }}
+                                aria-label="Close preview"
+                                className="absolute right-3 top-3 z-40 h-8 w-8 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white"
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
                             <div className="flex-1 overflow-y-auto">
                                 <ContentPreview />
                             </div>
