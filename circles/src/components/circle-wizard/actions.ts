@@ -8,7 +8,7 @@ import {
     getCircleByHandle,
     getCirclePath,
 } from "@/lib/data/circle";
-import { Circle, CircleLevel, CircleType, Media, FileInfo, UserPrivate } from "@/models/models";
+import { Circle, CircleLevel, CircleType, Location, Media, FileInfo, UserPrivate } from "@/models/models";
 import { ImageItem } from "@/components/forms/controls/multi-image-uploader";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUser, getUserPrivate } from "@/lib/data/user"; // Corrected import for getUserPrivate
@@ -27,6 +27,9 @@ import {
     type PeerifyArtistIdentityType,
 } from "@/lib/peerify/artist-profile";
 import { generateSlug } from "@/lib/utils";
+
+const deriveCityFromLocation = (location?: Location): string =>
+    [location?.city, location?.country].filter(Boolean).join(", ");
 
 const canCreateIndependentCircle = (user: UserPrivate | undefined) => hasContributorPerks(user);
 
@@ -231,6 +234,7 @@ export async function createPeerifyManagedArtistIdentityAction(input: {
     description: string;
     baseCity: string;
     identityType: PeerifyArtistIdentityType;
+    location?: Location;
 }) {
     try {
         const userDid = await getAuthenticatedUserDid();
@@ -257,10 +261,7 @@ export async function createPeerifyManagedArtistIdentityAction(input: {
             return { success: false, message: "Short bio is required" };
         }
 
-        const baseCity = input.baseCity.trim();
-        if (!baseCity) {
-            return { success: false, message: "Base city is required" };
-        }
+        const baseCity = input.baseCity.trim() || deriveCityFromLocation(input.location);
 
         if (!PEERIFY_ARTIST_IDENTITY_TYPES.includes(input.identityType)) {
             return { success: false, message: "Unsupported Peerify identity type" };
@@ -312,6 +313,7 @@ export async function createPeerifyManagedArtistIdentityAction(input: {
                 picture: { url: getPeerifyDefaultAvatarUrl(identityType) },
                 causes: [],
                 skills: [],
+                location: input.location,
                 metadata: {
                     peerify: {
                         managedIdentity: true,
@@ -355,6 +357,7 @@ export async function createPeerifyManagedVenueIdentityAction(input: {
     handle: string;
     description: string;
     baseCity: string;
+    location?: Location;
 }) {
     try {
         const userDid = await getAuthenticatedUserDid();
@@ -381,10 +384,7 @@ export async function createPeerifyManagedVenueIdentityAction(input: {
             return { success: false, message: "Short description is required" };
         }
 
-        const baseCity = input.baseCity.trim();
-        if (!baseCity) {
-            return { success: false, message: "Venue location is required" };
-        }
+        const baseCity = input.baseCity.trim() || deriveCityFromLocation(input.location);
 
         const parentCircleId = currentUser._id?.toString();
         if (!parentCircleId) {
@@ -431,6 +431,7 @@ export async function createPeerifyManagedVenueIdentityAction(input: {
                 picture: { url: getPeerifyDefaultAvatarUrl("venue") },
                 causes: [],
                 skills: [],
+                location: input.location,
                 metadata: {
                     peerify: {
                         managedIdentity: true,

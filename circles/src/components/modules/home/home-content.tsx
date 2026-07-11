@@ -142,17 +142,22 @@ export default function HomeContent({
             <Dialog open={showWelcomeDialog} onOpenChange={handleWelcomeDialogChange}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Welcome to Peerify!</DialogTitle>
+                        <DialogTitle>Welcome to Peerify</DialogTitle>
                         <DialogDescription className="space-y-3">
                             <p>
-                                Add a profile picture and a short bio to unlock posting, connecting, and messaging.
+                                <strong>Complete your profile</strong> with a picture and a short bio to start
+                                posting, commenting, and messaging.
                             </p>
                             <p>
-                                Your profile stays private by default, but you can grant full access to trusted
-                                contacts whenever you&apos;re ready. Just be mindful about sharing personal details
-                                like your location publicly.
+                                Your profile is <strong>private by default</strong>, but you can share it through
+                                Settings &rarr; Discoverability. Just <strong>be mindful</strong> about sharing
+                                personal details like your location publicly.
                             </p>
-                            <p>Enjoy the world of music, safely and responsibly!</p>
+                            <p>
+                                Are you <strong>an artist</strong> or represent <strong>a venue</strong>? Use{" "}
+                                <strong>the Create button</strong> in the left navigation bar to set up a separate
+                                profile. You can easily switch between your private and public profiles.
+                            </p>
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
