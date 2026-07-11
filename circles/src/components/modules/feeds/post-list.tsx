@@ -9,9 +9,7 @@ import {
     PostItemProps,
     ContentPreviewData,
     MentionDisplay,
-    Cause as SDG,
 } from "@/models/models";
-import { sdgs } from "@/lib/data/sdgs";
 import { UserPicture } from "../members/user-picture";
 import { CirclePicture } from "../circles/circle-picture";
 import { Button } from "@/components/ui/button";
@@ -425,15 +423,6 @@ export const PostItem = ({
         }
         return undefined;
     }, [post.userGroups, circle?.userGroups]);
-
-    const populatedSdgs = useMemo(() => {
-        if (!post.sdgs || post.sdgs.length === 0) return [];
-        if (typeof post.sdgs[0] === "object" && post.sdgs[0] !== null && "handle" in post.sdgs[0]) {
-            return post.sdgs as SDG[];
-        }
-        const sdgIds = post.sdgs;
-        return sdgs.filter((sdg) => sdgIds.includes(sdg._id!));
-    }, [post.sdgs]);
 
     // State for likes
     const initialLikes = post.reactions.like || 0;
@@ -1340,21 +1329,6 @@ export const PostItem = ({
                             </HoverCard>
                         )}
                     </div>
-                    {/* SDGs */}
-                    {populatedSdgs.length > 0 && (
-                        <div className="flex -space-x-2 pl-2">
-                            {populatedSdgs.slice(0, 3).map((sdg) => (
-                                <Image
-                                    key={sdg.handle}
-                                    src={sdg.picture?.url ?? "/images/default-picture.png"}
-                                    alt={sdg.name}
-                                    width={20}
-                                    height={20}
-                                    className="h-5 w-5 rounded-full border-2 border-white object-cover"
-                                />
-                            ))}
-                        </div>
-                    )}
                     {user && (
                         <Button
                             variant="ghost"

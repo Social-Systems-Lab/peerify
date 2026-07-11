@@ -34,10 +34,6 @@ export default function ActivityPanel({ mode = "panel" }: ActivityPanelProps) {
     }, [searchParams, userDid]);
 
     const sorting = useMemo(() => (searchParams.get("sort") as SortingOptions) || "new", [searchParams]);
-    const selectedSdgs = useMemo(() => {
-        const sdgsParam = searchParams.get("sdgs");
-        return sdgsParam ? sdgsParam.split(",") : [];
-    }, [searchParams]);
 
     useEffect(() => {
         // Fetch user's public feed (for posting) if logged in
@@ -57,16 +53,16 @@ export default function ActivityPanel({ mode = "panel" }: ActivityPanelProps) {
             try {
                 let newPosts: PostDisplay[] = [];
                 if (activeTab === "following" || !activeTab) {
-                    newPosts = await getAggregatePostsAction(userDid, 20, 0, sorting, selectedSdgs);
+                    newPosts = await getAggregatePostsAction(userDid, 20, 0, sorting);
                 } else {
-                    newPosts = await getGlobalPostsAction(userDid, 20, 0, sorting, selectedSdgs);
+                    newPosts = await getGlobalPostsAction(userDid, 20, 0, sorting);
                 }
                 setPosts(newPosts);
             } finally {
                 setIsLoading(false);
             }
         });
-    }, [activeTab, sorting, selectedSdgs.join(","), userDid]);
+    }, [activeTab, sorting, userDid]);
 
     const isFullScreen = mode === "full";
 

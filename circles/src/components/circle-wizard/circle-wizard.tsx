@@ -9,7 +9,7 @@ import BasicInfoStep from "./basic-info-step";
 import MissionStep from "./mission-step";
 import ProfileStep from "./profile-step";
 import LocationStep from "./location-step";
-import SdgsStep from "./sdgs-step";
+// import SdgsStep from "./sdgs-step";
 import SkillsStep from "./skills-step";
 import FinalStep from "./final-step";
 import { Location, Media } from "@/models/models";
@@ -117,7 +117,7 @@ export default function CircleWizard({ onComplete, initialParentCircleId, initia
             MissionStep,
             ProfileStep,
             LocationStep,
-            SdgsStep,
+            // SdgsStep,
             // SkillsStep,
             FinalStep,
         ];
@@ -143,10 +143,6 @@ export default function CircleWizard({ onComplete, initialParentCircleId, initia
             case 3:
                 return `${entityType} Location`;
             case 4:
-                return "Choose SDGs";
-            case 5:
-                return "Choose Needs";
-            case 6:
                 return `Create ${entityType}`;
             default:
                 return `${entityType} Creation`;

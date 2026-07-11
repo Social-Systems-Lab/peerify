@@ -35,16 +35,12 @@ export default function SearchResultsPanel() {
             parts.push(SEARCH_CATEGORY_LABELS[searchState.selectedCategory] ?? searchState.selectedCategory);
         }
 
-        if ((searchState.selectedSdgHandles || []).length > 0) {
-            parts.push(`${(searchState.selectedSdgHandles || []).length} SDG`);
-        }
-
         if (searchState.selectedDateLabel) {
             parts.push(searchState.selectedDateLabel);
         }
 
         return parts.join(" · ");
-    }, [searchState.selectedCategory, searchState.selectedSdgHandles, searchState.selectedDateLabel]);
+    }, [searchState.selectedCategory, searchState.selectedDateLabel]);
 
     const emptyState = useMemo(() => {
         const trimmedQuery = searchState.query.trim();
@@ -57,14 +53,6 @@ export default function SearchResultsPanel() {
         if (searchState.selectedCategory) {
             context.push(
                 `in ${SEARCH_CATEGORY_LABELS[searchState.selectedCategory] ?? searchState.selectedCategory}`,
-            );
-        }
-
-        if ((searchState.selectedSdgHandles || []).length > 0) {
-            context.push(
-                `with ${(searchState.selectedSdgHandles || []).length} SDG filter${
-                    (searchState.selectedSdgHandles || []).length === 1 ? "" : "s"
-                }`,
             );
         }
 
@@ -83,12 +71,7 @@ export default function SearchResultsPanel() {
                     ? `Nothing matched ${context.join(" ")}. Try broadening the query or removing a filter.`
                     : "Try a broader query or switch result types.",
         };
-    }, [
-        searchState.query,
-        searchState.selectedCategory,
-        searchState.selectedSdgHandles,
-        searchState.selectedDateLabel,
-    ]);
+    }, [searchState.query, searchState.selectedCategory, searchState.selectedDateLabel]);
 
     // No header in side panel per design; keep internal state if needed later
 

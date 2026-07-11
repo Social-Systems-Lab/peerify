@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Circle, WithMetric, Content, ContentPreviewData, MemberDisplay, Cause as SDG } from "@/models/models";
+import { Circle, WithMetric, Content, ContentPreviewData, MemberDisplay } from "@/models/models";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import useWindowDimensions from "@/components/utils/use-window-dimensions";
 import { motion } from "framer-motion";
@@ -37,8 +37,6 @@ import { completeSwipeOnboardingAction } from "./swipe-actions";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { searchContentAction } from "../search/actions";
 import CategoryFilter, { CategoryFilterProps } from "../search/category-filter";
-import SdgFilter from "../search/sdg-filter";
-import { SdgPanel } from "../search/SdgPanel";
 import Indicators from "@/components/utils/indicators";
 import ResizingDrawer from "@/components/ui/resizing-drawer"; // Correct import name
 import ContentPreview from "@/components/layout/content-preview";
@@ -46,7 +44,6 @@ import { getOpenEventsForMapAction } from "./map-explorer-actions";
 import { EventDisplay } from "@/models/models";
 import ActivityPanel from "@/components/layout/activity-panel";
 import MobileEventsPanel from "@/components/modules/events/mobile-events-panel";
-import { sdgs } from "@/lib/data/sdgs";
 import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 
 // mapItemToContent helper remains the same
@@ -193,14 +190,12 @@ const buildSearchEmptyState = ({
     hasSearched,
     query,
     selectedCategory,
-    selectedSdgs,
     dateLabel,
     hasDateFilter,
 }: {
     hasSearched: boolean;
     query: string;
     selectedCategory: string | null;
-    selectedSdgs: SDG[];
     dateLabel: string;
     hasDateFilter: boolean;
 }) => {
@@ -220,12 +215,6 @@ const buildSearchEmptyState = ({
 
     if (selectedCategory) {
         context.push(`in ${getSearchCategoryLabel(selectedCategory)}`);
-    }
-
-    if (selectedSdgs.length > 0) {
-        context.push(
-            `with ${selectedSdgs.length} SDG filter${selectedSdgs.length === 1 ? "" : "s"}`,
-        );
     }
 
     if (hasDateFilter) {
@@ -256,7 +245,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const [viewMode, setViewMode] = useState<ViewMode>("explore");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-    const [selectedSdgs, setSelectedSdgs] = useState<SDG[]>([]);
     const [allSearchResults, setAllSearchResults] = useState<WithMetric<Circle>[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
@@ -270,10 +258,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const [hasAppliedFocusEvent, setHasAppliedFocusEvent] = useState(false);
     const filteredEventsForMap = useMemo(() => {
         let list = eventsForMap;
-        if (selectedSdgs.length > 0) {
-            const sdgHandles = selectedSdgs.map((s) => s.handle);
-            list = list.filter((e) => e.causes?.some((cause) => sdgHandles.includes(cause)));
-        }
         if (hasSearched && searchQuery.trim()) {
             const q = searchQuery.trim().toLowerCase();
             list = list.filter(
@@ -283,7 +267,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             );
         }
         return list;
-    }, [eventsForMap, selectedSdgs, hasSearched, searchQuery]);
+    }, [eventsForMap, hasSearched, searchQuery]);
     // Date range filter
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const dateLabel = useMemo(() => {
@@ -351,15 +335,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     }, [allDiscoverableCircles, user]);
 
     const filteredSearchResults = useMemo(() => {
-        let results = filterCirclesByCategory(allSearchResults, selectedCategory);
-
-        if (selectedSdgs.length > 0) {
-            const sdgHandles = selectedSdgs.map((s) => s.handle);
-            results = results.filter((c) => c.causes?.some((cause) => sdgHandles.includes(cause)));
-        }
-
-        return results;
-    }, [allSearchResults, selectedCategory, selectedSdgs, filterCirclesByCategory]);
+        return filterCirclesByCategory(allSearchResults, selectedCategory);
+    }, [allSearchResults, selectedCategory, filterCirclesByCategory]);
 
     const searchEmptyState = useMemo(
         () =>
@@ -367,22 +344,15 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 hasSearched,
                 query: searchQuery,
                 selectedCategory,
-                selectedSdgs,
                 dateLabel,
                 hasDateFilter,
             }),
-        [hasSearched, searchQuery, selectedCategory, selectedSdgs, dateLabel, hasDateFilter],
+        [hasSearched, searchQuery, selectedCategory, dateLabel, hasDateFilter],
     );
 
     const countsDatasetCircles = useMemo(() => {
-        // Use all results (no category filter); apply SDG filter to reflect current SDG context
-        let list: WithMetric<Circle>[] = hasSearched ? allSearchResults : allDiscoverableCircles;
-        if (selectedSdgs.length > 0) {
-            const sdgHandles = selectedSdgs.map((s) => s.handle);
-            list = list.filter((c) => c.causes?.some((cause) => sdgHandles.includes(cause)));
-        }
-        return list;
-    }, [hasSearched, allSearchResults, allDiscoverableCircles, selectedSdgs]);
+        return hasSearched ? allSearchResults : allDiscoverableCircles;
+    }, [hasSearched, allSearchResults, allDiscoverableCircles]);
 
     const categoryCounts = useMemo(() => {
         // Include events count from filteredEventsForMap
@@ -399,39 +369,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         return counts;
     }, [countsDatasetCircles, filteredEventsForMap.length]);
 
-    const sdgCounts = useMemo(() => {
-        // Compute per-SDG counts ignoring current SDG selections (default proposal)
-        const dataset: WithMetric<Circle>[] = hasSearched ? allSearchResults : allDiscoverableCircles;
-        const map: Record<string, number> = {};
-        dataset.forEach((c) => {
-            (c.causes || []).forEach((h) => {
-                map[h] = (map[h] || 0) + 1;
-            });
-        });
-        return map;
-    }, [hasSearched, allSearchResults, allDiscoverableCircles]);
-
     const activeAdvancedFilterCount = useMemo(() => {
         let count = 0;
-        if (selectedSdgs.length > 0) count += 1;
         if (hasDateFilter) count += 1;
         return count;
-    }, [selectedSdgs.length, hasDateFilter]);
-
-    const handleAdvancedSdgToggle = useCallback(
-        (sdg: SDG) => {
-            const isSelected = selectedSdgs.some((selected) => selected.handle === sdg.handle);
-            if (isSelected) {
-                setSelectedSdgs(selectedSdgs.filter((selected) => selected.handle !== sdg.handle));
-                return;
-            }
-            setSelectedSdgs([...selectedSdgs, sdg]);
-        },
-        [selectedSdgs],
-    );
+    }, [hasDateFilter]);
 
     const handleClearAdvancedFilters = useCallback(() => {
-        setSelectedSdgs([]);
         setDateRange(undefined);
     }, []);
 
@@ -445,7 +389,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             isSearching,
             hasSearched,
             selectedCategory: selectedCategory ?? null,
-            selectedSdgHandles: selectedSdgs.map((sdg) => sdg.handle),
             selectedDateLabel: hasDateFilter ? dateLabel : null,
             items: (selectedCategory === "events" ? filteredEventsForMap : filteredSearchResults) as any,
             counts: {
@@ -460,7 +403,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         searchQuery,
         isSearching,
         selectedCategory,
-        selectedSdgs,
         hasDateFilter,
         dateLabel,
         filteredSearchResults,
@@ -475,23 +417,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         if (hasSearched) {
             return filteredSearchResults;
         } else {
-            let circlesToDisplay = allDiscoverableCircles;
-            if (selectedSdgs.length > 0) {
-                const sdgHandles = selectedSdgs.map((s) => s.handle);
-                circlesToDisplay = circlesToDisplay.filter((c) =>
-                    c.causes?.some((cause) => sdgHandles.includes(cause)),
-                );
-            }
-            return filterCirclesByCategory(circlesToDisplay, selectedCategory);
+            return filterCirclesByCategory(allDiscoverableCircles, selectedCategory);
         }
-    }, [
-        hasSearched,
-        filteredSearchResults,
-        allDiscoverableCircles,
-        selectedSdgs,
-        selectedCategory,
-        filterCirclesByCategory,
-    ]);
+    }, [hasSearched, filteredSearchResults, allDiscoverableCircles, selectedCategory, filterCirclesByCategory]);
 
     const drawerListData = useMemo(() => {
         let list = baseCircles;
@@ -526,8 +454,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
 
     const handleSearchTrigger = useCallback(async () => {
         const searchCategoriesForBackend = ["circles", "users", "projects"];
-        const sdgHandles = selectedSdgs.map((sdg) => sdg.handle);
-        if (!searchQuery.trim() && sdgHandles.length === 0) {
+        if (!searchQuery.trim()) {
             // If clearing search via empty query, reset state
             setAllSearchResults([]);
             setDisplayedContent(
@@ -546,7 +473,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 isSearching: false,
                 hasSearched: false,
                 selectedCategory: null,
-                selectedSdgHandles: [],
                 selectedDateLabel: null,
                 items: [],
                 counts: { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length },
@@ -561,7 +487,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             isSearching: true,
             hasSearched: false,
             selectedCategory: selectedCategory ?? null,
-            selectedSdgHandles: sdgHandles,
             selectedDateLabel: hasDateFilter ? dateLabel : null,
             items: [],
             counts: { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length },
@@ -577,17 +502,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setContentPreview(undefined); // Clear preview on new search
 
         try {
-            const results = await searchContentAction(searchQuery, searchCategoriesForBackend, sdgHandles);
+            const results = await searchContentAction(searchQuery, searchCategoriesForBackend);
             setAllSearchResults(results);
 
             // Compute filtered list and counts for left panel now
-            const filteredForCounts =
-                selectedSdgs.length > 0
-                    ? results.filter((c) => c.causes?.some((cause) => sdgHandles.includes(cause)))
-                    : results;
-            const filtered = filterCirclesByCategory(filteredForCounts, selectedCategory);
+            const filtered = filterCirclesByCategory(results, selectedCategory);
             const counts = { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length };
-            filteredForCounts.forEach((r: any) => {
+            results.forEach((r: any) => {
                 if (isPeerifyVenueIdentity(r)) counts.communities++;
                 else if (isPeerifyArtistIdentity(r)) counts.users++;
             });
@@ -597,7 +518,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 isSearching: false,
                 hasSearched: true,
                 selectedCategory: selectedCategory ?? null,
-                selectedSdgHandles: sdgHandles,
                 selectedDateLabel: hasDateFilter ? dateLabel : null,
                 items: (selectedCategory === "events" ? filteredEventsForMap : filtered) as any,
                 counts,
@@ -616,7 +536,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 isSearching: false,
                 hasSearched: true,
                 selectedCategory: selectedCategory ?? null,
-                selectedSdgHandles: sdgHandles,
                 selectedDateLabel: hasDateFilter ? dateLabel : null,
                 items: [],
                 counts: { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length },
@@ -628,7 +547,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         }
     }, [
         searchQuery,
-        selectedSdgs,
         setDisplayedContent,
         allDiscoverableCircles,
         selectedCategory,
@@ -648,7 +566,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setAllSearchResults([]);
         setHasSearched(false);
         setSelectedCategory(null);
-        setSelectedSdgs([]);
         setDateRange(undefined);
         setShowAdvancedFilters(false);
         setOpenAdvancedSection("calendar");
@@ -666,7 +583,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             isSearching: false,
             hasSearched: false,
             selectedCategory: null,
-            selectedSdgHandles: [],
             selectedDateLabel: null,
             items: [],
             counts: { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length },
@@ -986,31 +902,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                         </div>
                     </AccordionContent>
                 </AccordionItem>
-
-                <AccordionItem className="overflow-hidden rounded-[24px] border border-gray-200 bg-white px-0 shadow-sm" value="sdgs">
-                    <AccordionTrigger className="px-4 py-4 text-left hover:no-underline">
-                        <div className="space-y-1">
-                            <div className="text-sm font-semibold text-gray-900">SDGs</div>
-                            <div className="text-xs text-gray-500">
-                                {selectedSdgs.length > 0 ? `${selectedSdgs.length} selected` : "Any SDG"}
-                            </div>
-                        </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4">
-                        <div className="space-y-3">
-                            <div className="max-h-[19rem] overflow-y-auto overscroll-contain pr-1">
-                                <SdgPanel
-                                    visibleSdgs={sdgs}
-                                    selectedSdgs={selectedSdgs}
-                                    onToggle={handleAdvancedSdgToggle}
-                                    gridCols={isMobile ? "grid-cols-2" : "grid-cols-4"}
-                                    onClear={() => setSelectedSdgs([])}
-                                    showSearch={false}
-                                />
-                            </div>
-                        </div>
-                    </AccordionContent>
-                </AccordionItem>
             </Accordion>
         </div>
     );
@@ -1104,7 +995,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     size="sm"
                                     variant="ghost"
                                     className="ml-1 h-9 w-9 rounded-full p-0"
-                                    disabled={isSearching || (!searchQuery.trim() && selectedSdgs.length === 0)}
+                                    disabled={isSearching || !searchQuery.trim()}
                                     aria-label="Search"
                                 >
                                     {isSearching ? "..." : <Search className="h-4 w-4" />}
@@ -1488,32 +1379,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                 transition={{ repeat: Infinity, duration: 4, times: [0, 0.25, 0.5, 0.75, 1] }}
                             >
                                 <Hand className="h-16 w-16 text-gray-600" />
-                                {isMobile && (
-                                    <div className="mt-4">
-                                        <SdgFilter
-                                            selectedSdgs={selectedSdgs}
-                                            onSelectionChange={setSelectedSdgs}
-                                            displayAs="popover"
-                                            gridCols="grid-cols-2"
-                                            sdgCounts={sdgCounts}
-                                            trigger={
-                                                <Button
-                                                    variant="outline"
-                                                    className="flex w-full items-center justify-center gap-2"
-                                                >
-                                                    <Image
-                                                        src="/images/sdgs/SDG_Wheel_WEB.png"
-                                                        alt="SDG Wheel"
-                                                        width={20}
-                                                        height={20}
-                                                    />
-                                                    <span>Filter by SDGs</span>
-                                                    {selectedSdgs.length > 0 && `(${selectedSdgs.length})`}
-                                                </Button>
-                                            }
-                                        />
-                                    </div>
-                                )}
                             </motion.div>
                             <div className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-red-500">
                                 Ignore
