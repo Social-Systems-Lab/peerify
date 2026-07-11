@@ -10,7 +10,7 @@ import WelcomeStep from "./welcome-step";
 import TermsStep from "./terms-step";
 import MemberStep from "./member-step";
 import MissionStep from "./mission-step";
-import SdgsStep from "./sdgs-step";
+// import SdgsStep from "./sdgs-step";
 import ProfileStep from "./profile-step";
 import ProfileLocationStep from "./profile-location-step";
 import FinalStep from "./final-step";
@@ -69,7 +69,7 @@ export default function Onboarding() {
             mission: MissionStep,
             profile: ProfileStep,
             location: ProfileLocationStep,
-            sdgs: SdgsStep,
+            // sdgs: SdgsStep,
             // skills: SkillsStep,
             final: FinalStep,
         };

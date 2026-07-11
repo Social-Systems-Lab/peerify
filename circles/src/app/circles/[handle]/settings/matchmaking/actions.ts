@@ -8,7 +8,6 @@ import { features } from "@/lib/data/constants";
 
 export async function saveMatchmaking(values: {
     _id: any;
-    causes?: string[];
     skills?: string[];
 }): Promise<FormSubmitResponse> {
     console.log("Saving circle matchmaking with values", values);
@@ -33,7 +32,6 @@ export async function saveMatchmaking(values: {
 
         let circle: Partial<Circle> = {
             _id: values._id,
-            causes: values.causes,
             skills: values.skills,
         };
 

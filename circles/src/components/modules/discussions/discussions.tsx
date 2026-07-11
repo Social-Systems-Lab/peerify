@@ -4,7 +4,7 @@
 
 import { DiscussionComponent } from "./discussion";
 import { getPostsAction, getAggregatePostsAction, getFeedByHandleAction } from "../feeds/actions";
-import { Circle, SortingOptions, Cause as SDG, PostDisplay } from "@/models/models";
+import { Circle, SortingOptions, PostDisplay } from "@/models/models";
 import { useState, useEffect, useTransition, useCallback } from "react";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
@@ -20,7 +20,6 @@ export default function DiscussionsModule(props: PageProps) {
     const [posts, setPosts] = useState<PostDisplay[]>([]);
     const [sorting, setSorting] = useState<SortingOptions>("activity");
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedSdgs, setSelectedSdgs] = useState<SDG[]>([]);
     const [isPending, startTransition] = useTransition();
     const [user] = useAtom(userAtom);
 
@@ -28,19 +27,18 @@ export default function DiscussionsModule(props: PageProps) {
         if (!feed) return;
 
         startTransition(async () => {
-            const sdgHandles = selectedSdgs.map((s) => s.handle);
             const newPosts = await getAggregatePostsAction(
                 user?.did,
                 20,
                 0,
                 sorting,
-                sdgHandles,
+                undefined,
                 circle.handle,
                 "discussion",
             );
             setPosts(newPosts);
         });
-    }, [feed, sorting, selectedSdgs, user, circle.handle]);
+    }, [feed, sorting, user, circle.handle]);
 
     useEffect(() => {
         async function fetchInitialData() {
@@ -63,10 +61,6 @@ export default function DiscussionsModule(props: PageProps) {
         setSorting(filter as SortingOptions);
     };
 
-    const handleSdgChange = (sdgs: SDG[]) => {
-        setSelectedSdgs(sdgs);
-    };
-
     if (!feed) {
         return <div></div>; // Or a loading spinner
     }
@@ -79,8 +73,6 @@ export default function DiscussionsModule(props: PageProps) {
                     feed={feed}
                     circle={circle}
                     onFilterChange={handleFilterChange}
-                    onSdgChange={handleSdgChange}
-                    selectedSdgsExternal={selectedSdgs}
                     searchQuery={searchQuery}
                     setSearchQuery={setSearchQuery}
                 />

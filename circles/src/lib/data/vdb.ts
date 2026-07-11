@@ -898,9 +898,8 @@ export const semanticSearchContent = async (options: {
     query: string;
     categories: string[]; // e.g., ['circles', 'posts']
     limit?: number;
-    sdgHandles?: string[];
 }): Promise<SearchResultItem[]> => {
-    const { query, categories, limit = 20, sdgHandles } = options;
+    const { query, categories, limit = 20 } = options;
 
     if (!isVdbEnabled()) {
         logVdbDisabled("semantic search");
@@ -911,7 +910,7 @@ export const semanticSearchContent = async (options: {
         return [];
     }
 
-    if ((!query || query.trim() === "") && (!sdgHandles || sdgHandles.length === 0)) {
+    if (!query || query.trim() === "") {
         return [];
     }
 
@@ -943,16 +942,6 @@ export const semanticSearchContent = async (options: {
             }
 
             const filter: any = {};
-            if (sdgHandles && sdgHandles.length > 0) {
-                filter.must = [
-                    {
-                        key: "causes",
-                        match: {
-                            any: sdgHandles,
-                        },
-                    },
-                ];
-            }
 
             if (queryVector) {
                 return client.search(collectionName, {

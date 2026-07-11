@@ -4,7 +4,7 @@
 
 import { FeedComponent } from "./feed";
 import { getPostsAction, getFeedByHandleAction } from "./actions";
-import { Circle, SortingOptions, Cause as SDG, PostDisplay } from "@/models/models";
+import { Circle, SortingOptions, PostDisplay } from "@/models/models";
 import { useState, useEffect, useTransition, useCallback } from "react";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
@@ -19,7 +19,6 @@ export default function FeedsModule(props: PageProps) {
     const [feed, setFeed] = useState<any>(null);
     const [posts, setPosts] = useState<PostDisplay[]>([]);
     const [sorting, setSorting] = useState<SortingOptions>("new");
-    const [selectedSdgs, setSelectedSdgs] = useState<SDG[]>([]);
     const [isPending, startTransition] = useTransition();
     const [isLoading, setIsLoading] = useState(true);
     const [user] = useAtom(userAtom);
@@ -30,14 +29,13 @@ export default function FeedsModule(props: PageProps) {
         setIsLoading(true);
         startTransition(async () => {
             try {
-                const sdgHandles = selectedSdgs.map((s) => s.handle);
-                const newPosts = await getPostsAction(feed._id, circle._id, 20, 0, sorting, sdgHandles);
+                const newPosts = await getPostsAction(feed._id, circle._id, 20, 0, sorting);
                 setPosts(newPosts);
             } finally {
                 setIsLoading(false);
             }
         });
-    }, [feed, sorting, selectedSdgs, circle._id]);
+    }, [feed, sorting, circle._id]);
 
     useEffect(() => {
         async function fetchInitialData() {
@@ -61,10 +59,6 @@ export default function FeedsModule(props: PageProps) {
         setSorting(filter as SortingOptions);
     };
 
-    const handleSdgChange = (sdgs: SDG[]) => {
-        setSelectedSdgs(sdgs);
-    };
-
     if (!feed) {
         return (
             <div className="flex flex-1 items-center justify-center">
@@ -82,8 +76,6 @@ export default function FeedsModule(props: PageProps) {
                     circle={circle}
                     defaultSort={sorting}
                     onFilterChange={handleFilterChange}
-                    onSdgChange={handleSdgChange}
-                    selectedSdgsExternal={selectedSdgs}
                     isLoading={isLoading}
                     viewMode="grid"
                 />

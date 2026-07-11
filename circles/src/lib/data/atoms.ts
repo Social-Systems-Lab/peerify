@@ -36,7 +36,6 @@ export type SidePanelSearchState = {
     isSearching: boolean;
     hasSearched: boolean;
     selectedCategory?: string | null;
-    selectedSdgHandles?: string[];
     selectedDateLabel?: string | null;
     items: (Circle | MemberDisplay)[];
     counts?: { communities: number; projects: number; users: number; events: number };
@@ -49,7 +48,6 @@ export const sidePanelSearchStateAtom = atom<SidePanelSearchState>({
     isSearching: false,
     hasSearched: false,
     selectedCategory: null,
-    selectedSdgHandles: [],
     selectedDateLabel: null,
     items: [],
 });

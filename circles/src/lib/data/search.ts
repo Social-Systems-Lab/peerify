@@ -27,7 +27,6 @@ type SearchCirclesOptions = {
     query?: string;
     limit?: number;
     circleTypes?: CircleType[];
-    sdgHandles?: string[];
 };
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -133,7 +132,7 @@ const scoreCircleSearchMatch = (circle: Circle, query: string, tokens: string[])
     return score;
 };
 
-const buildCandidateQuery = (query: string, circleTypes: CircleType[], sdgHandles: string[]) => {
+const buildCandidateQuery = (query: string, circleTypes: CircleType[]) => {
     const discoverableTypeClauses: Record<string, unknown>[] = [];
     const nonUserTypes = circleTypes.filter((type) => type !== "user");
 
@@ -153,10 +152,6 @@ const buildCandidateQuery = (query: string, circleTypes: CircleType[], sdgHandle
         },
     ];
 
-    if (sdgHandles.length > 0) {
-        clauses.push({ causes: { $in: sdgHandles } });
-    }
-
     if (query) {
         const tokens = [query, ...tokenizeQuery(query)].filter(Boolean);
         const regexes = tokens.map((token) => new RegExp(escapeRegex(token), "i"));
@@ -172,13 +167,11 @@ export const searchDiscoverableCircles = async ({
     query = "",
     limit = 20,
     circleTypes = SEARCHABLE_TYPES,
-    sdgHandles = [],
 }: SearchCirclesOptions): Promise<WithMetric<Circle>[]> => {
     const normalizedQuery = normalizeValue(query);
     const normalizedTypes = circleTypes.length > 0 ? circleTypes : SEARCHABLE_TYPES;
-    const normalizedSdgs = sdgHandles.map((handle) => normalizeValue(handle)).filter(Boolean);
     const candidateLimit = Math.max(limit * 6, 120);
-    const candidateQuery = buildCandidateQuery(normalizedQuery, normalizedTypes, normalizedSdgs);
+    const candidateQuery = buildCandidateQuery(normalizedQuery, normalizedTypes);
 
     const circles = (await Circles.find(candidateQuery, { projection: SAFE_CIRCLE_PROJECTION }).limit(candidateLimit).toArray()) as Circle[];
     const tokens = tokenizeQuery(normalizedQuery);
@@ -194,10 +187,6 @@ export const searchDiscoverableCircles = async ({
         })
         .filter(({ circle, score }) => {
             if (!circle._id || !isCirclePublished(circle) || !isDiscoverableCircle(circle) || !matchesCircleTypes(circle, normalizedTypes)) {
-                return false;
-            }
-
-            if (normalizedSdgs.length > 0 && !circle.causes?.some((cause) => normalizedSdgs.includes(normalizeValue(cause)))) {
                 return false;
             }
 

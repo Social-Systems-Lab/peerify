@@ -24,12 +24,11 @@ export function MatchmakingSettingsForm({ circle }: MatchmakingSettingsFormProps
     const form = useForm({
         defaultValues: {
             _id: circle._id,
-            causes: circle.causes || [],
             skills: circle.skills || [],
         },
     });
 
-    const onSubmit = async (data: { _id: any; causes?: string[]; skills?: string[] }) => {
+    const onSubmit = async (data: { _id: any; skills?: string[] }) => {
         setIsSubmitting(true);
         try {
             const result = await saveMatchmaking(data);
@@ -80,35 +79,6 @@ export function MatchmakingSettingsForm({ circle }: MatchmakingSettingsFormProps
                                         label: "Skills",
                                         placeholder: "Search skills...",
                                         description: "Select the skills you want listed on this profile.",
-                                    }}
-                                    formField={field}
-                                    control={form.control as unknown as Control}
-                                />
-                            )}
-                        />
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>SDGs</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="mb-4 text-sm text-muted-foreground">
-                            Select the SDGs that your circle is focused on. This helps connect your circle with others
-                            who share similar interests.
-                        </p>
-                        <Controller
-                            name="causes"
-                            control={form.control}
-                            render={({ field }) => (
-                                <DynamicField
-                                    field={{
-                                        name: "causes",
-                                        type: "sdgs",
-                                        label: "SDGs",
-                                        placeholder: "Search SDGs...",
-                                        description: "Select the SDGs that your circle is focused on.",
                                     }}
                                     formField={field}
                                     control={form.control as unknown as Control}

@@ -27,7 +27,6 @@ import {
     IssueDisplay,
     FundingAskDisplay,
     TaskDisplay,
-    Cause as SDG,
 } from "@/models/models";
 import {
     CreatableItemKey,
@@ -47,7 +46,6 @@ import {
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import LocationPicker from "@/components/forms/location-picker";
-import SdgFilter from "@/components/modules/search/sdg-filter";
 import { useAtom } from "jotai";
 import { imageGalleryAtom } from "@/lib/data/atoms";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -219,7 +217,6 @@ export function PostForm({
     const [linkSelection, setLinkSelection] = useState<{ start: number; end: number } | null>(null);
     const [userGroups, setUserGroups] = useState<string[]>(initialPost?.userGroups || ["everyone"]);
     const [isUserGroupsDialogOpen, setIsUserGroupsDialogOpen] = useState(false);
-    const [selectedSdgs, setSelectedSdgs] = useState<SDG[]>(initialPost?.sdgs || []);
     const [isPreviewStep, setIsPreviewStep] = useState(false);
     const { toast } = useToast();
     const sharePreviewPost = sharedPost ?? initialPost?.sharedPostData ?? null;
@@ -621,12 +618,6 @@ export function PostForm({
                 formData.append("internalPreviewType", internalPreview.type);
                 formData.append("internalPreviewId", internalPreview.id);
                 formData.append("internalPreviewUrl", internalPreview.url);
-            }
-            if (selectedSdgs.length > 0) {
-                const validSdgs = selectedSdgs.filter((s) => s._id).map((s) => s._id);
-                if (validSdgs.length > 0) {
-                    formData.append("sdgs", JSON.stringify(validSdgs));
-                }
             }
             await onSubmit(formData, selectedCircleId, selectedCircle?.handle);
         });
@@ -1030,21 +1021,11 @@ export function PostForm({
                                                 ) : null}
                                             </div>
 
-                                            {(location || selectedSdgs.length > 0) && (
+                                            {location && (
                                                 <div className="flex flex-wrap gap-2 text-xs text-gray-600">
-                                                    {location && (
-                                                        <span className="rounded-full bg-gray-100 px-3 py-1">
-                                                            {getFullLocationName(location)}
-                                                        </span>
-                                                    )}
-                                                    {selectedSdgs.map((sdg) => (
-                                                        <span
-                                                            key={sdg._id || sdg.handle}
-                                                            className="rounded-full bg-gray-100 px-3 py-1"
-                                                        >
-                                                            {sdg.name}
-                                                        </span>
-                                                    ))}
+                                                    <span className="rounded-full bg-gray-100 px-3 py-1">
+                                                        {getFullLocationName(location)}
+                                                    </span>
                                                 </div>
                                             )}
 
@@ -1107,41 +1088,6 @@ export function PostForm({
                                         >
                                             <MapPinIcon className="h-5 w-5 text-gray-500" />
                                         </Button>
-                                        <SdgFilter
-                                            displayAs="popover"
-                                            selectedSdgs={selectedSdgs}
-                                            onSelectionChange={setSelectedSdgs}
-                                            popoverContentClassName="z-[11000]"
-                                            gridCols="grid-cols-4"
-                                            trigger={
-                                                <Button variant="ghost" size="icon" className="rounded-full">
-                                                    {selectedSdgs.length === 0 ? (
-                                                        <Image
-                                                            src="/images/sdgs/SDG_Wheel_WEB.png"
-                                                            alt="SDG Wheel"
-                                                            width={20}
-                                                            height={20}
-                                                        />
-                                                    ) : (
-                                                        <div className="flex -space-x-2">
-                                                            {selectedSdgs.slice(0, 3).map((sdg) => (
-                                                                <Image
-                                                                    key={sdg.handle}
-                                                                    src={
-                                                                        sdg.picture?.url ??
-                                                                        "/images/default-picture.png"
-                                                                    }
-                                                                    alt={sdg.name}
-                                                                    width={20}
-                                                                    height={20}
-                                                                    className="h-5 w-5 rounded-full border-2 border-white object-cover"
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </Button>
-                                            }
-                                        />
                                     </div>
                                     <div className="space-x-2">
                                         <Button variant="ghost" className="text-gray-500" onClick={onCancel}>
