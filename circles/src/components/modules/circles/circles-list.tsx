@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
-import { Circle, ContentPreviewData, WithMetric, Cause as SDG } from "@/models/models"; // Removed Page import
+import { Circle, ContentPreviewData, WithMetric } from "@/models/models"; // Removed Page import
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -21,8 +21,6 @@ import { useIsMobile } from "@/components/utils/use-is-mobile";
 import CircleTags from "./circle-tags";
 import Indicators from "@/components/utils/indicators";
 import { ListFilter } from "@/components/utils/list-filter";
-import { SdgPanel } from "../search/SdgPanel";
-import { sdgs } from "@/lib/data/sdgs";
 import emptyFeed from "@images/empty-feed.png";
 import { updateQueryParam } from "@/lib/utils/helpers-client";
 import Link from "next/link";
@@ -55,10 +53,7 @@ const CirclesList = ({ circle, circles, activeTab, inUser, isProjectsList }: Cir
     const router = useRouter();
     const [contentPreview, setContentPreview] = useAtom(contentPreviewAtom);
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedSdgs, setSelectedSdgs] = useState<SDG[]>([]);
-    const [sdgFilterOpen, setSdgFilterOpen] = useState(false);
     const [sidePanelContentVisible] = useAtom(sidePanelContentVisibleAtom);
-    const [sdgSearch, setSdgSearch] = useState("");
     const [includeCreated, setIncludeCreated] = useState(true);
     const [includeMember, setIncludeMember] = useState(true);
 
@@ -67,43 +62,13 @@ const CirclesList = ({ circle, circles, activeTab, inUser, isProjectsList }: Cir
         updateQueryParam(router, "includeMember", includeMember.toString());
     }, [includeCreated, includeMember, router]);
 
-    const visibleSdgs = useMemo(() => {
-        if (sdgSearch) {
-            return sdgs.filter(
-                (sdg) =>
-                    sdg.name.toLowerCase().includes(sdgSearch.toLowerCase()) ||
-                    sdg.description.toLowerCase().includes(sdgSearch.toLowerCase()),
-            );
-        }
-        return sdgs;
-    }, [sdgSearch]);
-
-    const handleSdgSelectionChange = (sdgs: SDG[]) => {
-        setSelectedSdgs(sdgs);
-        const sdgHandles = sdgs.map((s) => s.handle);
-        updateQueryParam(router, "sdgs", sdgHandles.join(","));
-    };
-
-    const handleSdgToggle = (sdg: SDG) => {
-        const isSelected = selectedSdgs.some((s) => s.handle === sdg.handle);
-        if (isSelected) {
-            handleSdgSelectionChange(selectedSdgs.filter((s) => s.handle !== sdg.handle));
-        } else {
-            handleSdgSelectionChange([...selectedSdgs, sdg]);
-        }
-    };
-
     const filteredCircles = useMemo(() => {
         let results = circles;
         if (searchQuery) {
             results = results.filter((circle) => circle?.name?.toLowerCase().includes(searchQuery.toLowerCase()));
         }
-        if (selectedSdgs.length > 0) {
-            const sdgHandles = selectedSdgs.map((s) => s.handle);
-            results = results.filter((c) => c.causes?.some((cause) => sdgHandles.includes(cause)));
-        }
         return results;
-    }, [circles, searchQuery, selectedSdgs]);
+    }, [circles, searchQuery]);
 
     useEffect(() => {
         if (logLevel >= LOG_LEVEL_TRACE) {
@@ -179,11 +144,7 @@ const CirclesList = ({ circle, circles, activeTab, inUser, isProjectsList }: Cir
 
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                        <ListFilter
-                            onFilterChange={handleFilterChange}
-                            onSdgChange={handleSdgSelectionChange}
-                            selectedSdgs={selectedSdgs}
-                        />
+                        <ListFilter onFilterChange={handleFilterChange} showSdgFilter={false} />
                     </div>
                     {circle.circleType === "user" && user?.did === circle.did && (
                         <div className="flex items-center gap-4 py-2">

@@ -355,7 +355,7 @@ const MemberTable: React.FC<MemberTableProps> = ({ circle, members }) => {
                         </SelectContent>
                     </Select>
                 </div>
-                <ListFilter onFilterChange={handleFilterChange} />
+                <ListFilter onFilterChange={handleFilterChange} showSdgFilter={false} />
 
                 <div className="mt-3 overflow-hidden rounded-[15px] shadow-lg">
                     <Table className="overflow-hidden">
