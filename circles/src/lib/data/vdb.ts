@@ -250,6 +250,7 @@ export const formatCircleForEmbedding = (circle: Circle) => {
       Location: ${circle.location ? getFullLocationName(circle.location) : "N/A"}
       SDGs: ${sdgNames.length <= 0 ? "N/A" : sdgNames.join(", ")}
       Skills: ${skillNames.length <= 0 ? "N/A" : skillNames.join(", ")}
+      Genres: ${circle.primaryGenres && circle.primaryGenres.length > 0 ? circle.primaryGenres.join(", ") : "N/A"}
       Content: ${circle.content ?? "N/A"}
       Offers: ${circle.offers?.text ?? "N/A"}
       Offer Skills: ${circle.offers?.skills?.join(", ") ?? "N/A"}
@@ -411,6 +412,7 @@ export const upsertVbdCircles = async (circles: Circle[]) => {
                     : null,
                 causes: circle.causes,
                 skills: circle.skills,
+                primaryGenres: circle.primaryGenres,
             },
         };
     });

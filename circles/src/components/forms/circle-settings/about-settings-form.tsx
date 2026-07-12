@@ -37,6 +37,8 @@ import {
     PEERIFY_ARTIST_TYPE_OPTIONS,
     PEERIFY_EVENT_TYPE_OPTIONS,
     PEERIFY_LOOKING_FOR_OPTIONS,
+    PRIMARY_GENRE_OPTIONS,
+    PRIMARY_GENRE_MAX_SELECTIONS,
     type PeerifyArtistProfile,
     type PeerifyVenueProfile,
 } from "@/lib/peerify/artist-profile";
@@ -62,6 +64,8 @@ type AboutSettingsFormValues = {
     organizationName?: string;
     officialEmail?: string;
     peerifyArtistIntent?: boolean;
+    primaryGenres?: string[];
+    primaryGenreOther?: string;
     peerifyArtistProfile: {
         artistTypes: string[];
         genresText: string;
@@ -185,44 +189,59 @@ const buildVenueProfileFormDefaults = (circle: Circle): PeerifyVenueProfile => {
 
 const CheckboxGroup = ({
     label,
+    labelClassName,
     description,
     options,
     values,
     onChange,
+    maxSelections,
 }: {
     label: string;
-    description?: string;
+    labelClassName?: string;
+    description?: React.ReactNode;
     options: readonly string[];
     values: string[];
     onChange: (values: string[]) => void;
-}) => (
-    <div className="space-y-3">
-        <div>
-            <Label>{label}</Label>
-            {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+    maxSelections?: number;
+}) => {
+    const limitReached = typeof maxSelections === "number" && values.length >= maxSelections;
+
+    return (
+        <div className="space-y-3">
+            <div>
+                <Label className={labelClassName}>{label}</Label>
+                {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+                {options.map((option) => {
+                    const checked = values.includes(option);
+                    const disabled = !checked && limitReached;
+                    return (
+                        <label
+                            key={option}
+                            className={`flex items-start gap-3 rounded-lg border p-3 text-sm ${
+                                disabled ? "opacity-50" : ""
+                            }`}
+                        >
+                            <Checkbox
+                                checked={checked}
+                                disabled={disabled}
+                                onCheckedChange={(nextChecked) => {
+                                    if (nextChecked) {
+                                        onChange([...values, option]);
+                                        return;
+                                    }
+                                    onChange(values.filter((value) => value !== option));
+                                }}
+                            />
+                            <span>{option}</span>
+                        </label>
+                    );
+                })}
+            </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-            {options.map((option) => {
-                const checked = values.includes(option);
-                return (
-                    <label key={option} className="flex items-start gap-3 rounded-lg border p-3 text-sm">
-                        <Checkbox
-                            checked={checked}
-                            onCheckedChange={(nextChecked) => {
-                                if (nextChecked) {
-                                    onChange([...values, option]);
-                                    return;
-                                }
-                                onChange(values.filter((value) => value !== option));
-                            }}
-                        />
-                        <span>{option}</span>
-                    </label>
-                );
-            })}
-        </div>
-    </div>
-);
+    );
+};
 
 const ArtistTextField = ({
     label,
@@ -413,6 +432,8 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
             organizationName: circle.organizationName || "",
             officialEmail: circle.officialEmail || "",
             peerifyArtistIntent: hasPeerifyArtistIntent(circle),
+            primaryGenres: getPeerifyArtistProfile(circle).primaryGenres || [],
+            primaryGenreOther: getPeerifyArtistProfile(circle).primaryGenreOther || "",
             peerifyArtistProfile: artistProfileDefaults,
             peerifyVenueProfile: venueProfileDefaults,
         },
@@ -420,6 +441,7 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
 
     const representsOrganization = form.watch("representsOrganization");
     const peerifyArtistIntent = form.watch("peerifyArtistIntent");
+    const primaryGenres = form.watch("primaryGenres");
     const bookingEnabled = form.watch("peerifyArtistProfile.bookingEnabled");
     const venueBookingEnabled = form.watch("peerifyVenueProfile.bookingEnquiriesEnabled");
     const venueAddressVisibility = form.watch("peerifyVenueProfile.addressVisibility");
@@ -431,6 +453,10 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                 artistTypes: data.peerifyArtistProfile.artistTypes,
                 baseCity: data.peerifyArtistProfile.baseCity.trim(),
                 genres: parseDelimitedList(data.peerifyArtistProfile.genresText),
+                primaryGenres: (data.primaryGenres || []).slice(0, PRIMARY_GENRE_MAX_SELECTIONS),
+                primaryGenreOther: (data.primaryGenres || []).includes("Other")
+                    ? data.primaryGenreOther?.trim() || undefined
+                    : undefined,
                 musicLinks: Object.fromEntries(
                     Object.entries(data.peerifyArtistProfile.musicLinks).filter(([, value]) => value.trim().length > 0),
                 ),
@@ -825,6 +851,46 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                             />
                                         )}
                                     />
+
+                                    <Controller
+                                        name="primaryGenres"
+                                        control={form.control}
+                                        render={({ field }) => (
+                                            <CheckboxGroup
+                                                label="Primary genre"
+                                                labelClassName="text-base font-semibold"
+                                                description={
+                                                    <>
+                                                        Pick up to{" "}
+                                                        <strong>
+                                                            {PRIMARY_GENRE_MAX_SELECTIONS} genres
+                                                        </strong>{" "}
+                                                        that best identify this act. Used to match
+                                                        and filter this artist in search.
+                                                    </>
+                                                }
+                                                options={PRIMARY_GENRE_OPTIONS}
+                                                values={field.value || []}
+                                                onChange={field.onChange}
+                                                maxSelections={PRIMARY_GENRE_MAX_SELECTIONS}
+                                            />
+                                        )}
+                                    />
+
+                                    {(primaryGenres || []).includes("Other") ? (
+                                        <Controller
+                                            name="primaryGenreOther"
+                                            control={form.control}
+                                            render={({ field }) => (
+                                                <ArtistTextField
+                                                    label="Primary genre (other)"
+                                                    placeholder="e.g. fluffmetal"
+                                                    value={field.value}
+                                                    onChange={field.onChange}
+                                                />
+                                            )}
+                                        />
+                                    ) : null}
 
                                     <Controller
                                         name="peerifyArtistProfile.genresText"

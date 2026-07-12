@@ -533,6 +533,8 @@ export const circleSchema = z.object({
     location: locationSchema.optional(),
     causes: z.array(z.string()).optional(),
     skills: z.array(z.string()).optional(),
+    primaryGenres: z.array(z.string()).max(3).optional(),
+    primaryGenreOther: z.string().optional(),
     offers: offersSchema.optional(),
     engagements: engagementSchema.optional(),
     needs: needsSchema.optional(),

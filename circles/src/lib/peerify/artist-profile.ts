@@ -29,6 +29,8 @@ export type PeerifyArtistProfile = {
     artistTypes: string[];
     baseCity: string;
     genres: string[];
+    primaryGenres: string[];
+    primaryGenreOther?: string;
     musicLinks: Partial<Record<PeerifyMusicLinkKey, string>>;
     lookingFor: string[];
     bookingEnabled: boolean;
@@ -133,6 +135,45 @@ export const PEERIFY_ARTIST_TYPE_OPTIONS = [
     "Collective",
 ] as const;
 
+export const PRIMARY_GENRE_OPTIONS = [
+    "Alternative",
+    "Ambient",
+    "Blues",
+    "Classical",
+    "Country",
+    "Dance",
+    "Electronic",
+    "Experimental",
+    "Folk",
+    "Funk",
+    "Gospel & Spiritual",
+    "Hip-Hop & Rap",
+    "Indie",
+    "Jazz",
+    "Latin",
+    "Metal",
+    "Pop",
+    "Punk",
+    "R&B & Soul",
+    "Reggae",
+    "Rock",
+    "Singer-Songwriter",
+    "Ska",
+    "Soundtrack & Score",
+    "Traditional & Regional",
+    "African & African Diaspora",
+    "Global & Cross-Cultural",
+    "Spoken Word",
+    "Children's Music",
+    "Comedy & Musical Performance",
+    "Other",
+] as const;
+
+export const PRIMARY_GENRE_MAX_SELECTIONS = 3;
+
+export const formatPrimaryGenreLabel = (genre: string, other?: string): string =>
+    genre === "Other" && other ? `Other (${other})` : genre;
+
 export const PEERIFY_MANAGED_IDENTITY_TYPE_OPTIONS: ReadonlyArray<{
     value: PeerifyArtistIdentityType;
     label: string;
@@ -221,6 +262,8 @@ const DEFAULT_ARTIST_PROFILE: PeerifyArtistProfile = {
     artistTypes: [],
     baseCity: "",
     genres: [],
+    primaryGenres: [],
+    primaryGenreOther: "",
     musicLinks: {},
     lookingFor: [],
     bookingEnabled: false,
@@ -310,6 +353,12 @@ const asOptionalNumber = (value: unknown): number | undefined => {
 const asOptionalBoolean = (value: unknown): boolean | undefined =>
     typeof value === "boolean" ? value : undefined;
 
+const normalizePrimaryGenres = (value: unknown): string[] => {
+    const validOptions = PRIMARY_GENRE_OPTIONS as readonly string[];
+    const nextValues = asStringArray(value).filter((genre) => validOptions.includes(genre));
+    return Array.from(new Set(nextValues)).slice(0, PRIMARY_GENRE_MAX_SELECTIONS);
+};
+
 const normalizeVenueAddressVisibility = (value: unknown): PeerifyVenueAddressVisibility => {
     const nextValue = asString(value);
     return nextValue === "city_area" || nextValue === "public" || nextValue === "private" ? nextValue : "private";
@@ -351,6 +400,8 @@ export const normalizePeerifyArtistProfile = (value: unknown): PeerifyArtistProf
         artistTypes: asStringArray(input.artistTypes),
         baseCity: asString(input.baseCity),
         genres: asStringArray(input.genres),
+        primaryGenres: normalizePrimaryGenres(input.primaryGenres),
+        primaryGenreOther: asString(input.primaryGenreOther),
         musicLinks: normalizeMusicLinks(input.musicLinks),
         lookingFor: asStringArray(input.lookingFor),
         bookingEnabled: input.bookingEnabled === true,
@@ -512,6 +563,7 @@ export const getPeerifyArtistTypeBadges = (circle?: Partial<Circle> | null): str
 export const hasPeerifyArtistProfileContent = (profile: PeerifyArtistProfile): boolean =>
     profile.artistTypes.length > 0 ||
     profile.genres.length > 0 ||
+    profile.primaryGenres.length > 0 ||
     Boolean(profile.baseCity) ||
     Object.keys(profile.musicLinks).length > 0 ||
     profile.lookingFor.length > 0 ||

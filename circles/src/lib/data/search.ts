@@ -12,6 +12,7 @@ const SEARCHABLE_FIELDS = [
     "skills",
     "interests",
     "causes",
+    "primaryGenres",
     "offers.text",
     "offers.skills",
     "engagements.text",
@@ -27,6 +28,7 @@ type SearchCirclesOptions = {
     query?: string;
     limit?: number;
     circleTypes?: CircleType[];
+    primaryGenres?: string[];
 };
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -64,6 +66,7 @@ const getStructuredTerms = (circle: Circle) =>
         ...toStringArray(circle.skills),
         ...toStringArray(circle.interests),
         ...toStringArray(circle.causes),
+        ...toStringArray(circle.primaryGenres),
         ...toStringArray(circle.offers?.skills),
         ...toStringArray(circle.engagements?.interests),
         ...toStringArray(circle.needs?.tags),
@@ -132,7 +135,7 @@ const scoreCircleSearchMatch = (circle: Circle, query: string, tokens: string[])
     return score;
 };
 
-const buildCandidateQuery = (query: string, circleTypes: CircleType[]) => {
+const buildCandidateQuery = (query: string, circleTypes: CircleType[], primaryGenres: string[]) => {
     const discoverableTypeClauses: Record<string, unknown>[] = [];
     const nonUserTypes = circleTypes.filter((type) => type !== "user");
 
@@ -152,6 +155,13 @@ const buildCandidateQuery = (query: string, circleTypes: CircleType[]) => {
         },
     ];
 
+    // Mongo's $in against an array field (primaryGenres) matches on any overlap, giving natural
+    // OR-matching across however many genres a host selects. A future getGenreCounts() aggregation
+    // (grouping circles by primaryGenres for pill result-counts) can reuse this same query shape.
+    if (primaryGenres.length > 0) {
+        clauses.push({ primaryGenres: { $in: primaryGenres } });
+    }
+
     if (query) {
         const tokens = [query, ...tokenizeQuery(query)].filter(Boolean);
         const regexes = tokens.map((token) => new RegExp(escapeRegex(token), "i"));
@@ -167,11 +177,13 @@ export const searchDiscoverableCircles = async ({
     query = "",
     limit = 20,
     circleTypes = SEARCHABLE_TYPES,
+    primaryGenres = [],
 }: SearchCirclesOptions): Promise<WithMetric<Circle>[]> => {
     const normalizedQuery = normalizeValue(query);
     const normalizedTypes = circleTypes.length > 0 ? circleTypes : SEARCHABLE_TYPES;
+    const normalizedGenres = primaryGenres.filter(Boolean);
     const candidateLimit = Math.max(limit * 6, 120);
-    const candidateQuery = buildCandidateQuery(normalizedQuery, normalizedTypes);
+    const candidateQuery = buildCandidateQuery(normalizedQuery, normalizedTypes, normalizedGenres);
 
     const circles = (await Circles.find(candidateQuery, { projection: SAFE_CIRCLE_PROJECTION }).limit(candidateLimit).toArray()) as Circle[];
     const tokens = tokenizeQuery(normalizedQuery);
