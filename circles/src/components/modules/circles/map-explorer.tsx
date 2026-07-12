@@ -45,7 +45,7 @@ import { EventDisplay } from "@/models/models";
 import ActivityPanel from "@/components/layout/activity-panel";
 import MobileEventsPanel from "@/components/modules/events/mobile-events-panel";
 import { isPeerifyArtistIdentity, isPeerifyVenueIdentity, PRIMARY_GENRE_OPTIONS } from "@/lib/peerify/artist-profile";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, selectTriggerClassName } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 
 // mapItemToContent helper remains the same
@@ -919,15 +919,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 className="space-y-3"
             >
                 <AccordionItem className="overflow-hidden rounded-[24px] border border-gray-200 bg-white px-0 shadow-sm" value="calendar">
-                    <AccordionTrigger className="px-4 py-2 text-left hover:no-underline">
-                        <div>
-                            <div className="text-sm font-semibold leading-tight text-gray-900">Calendar</div>
-                            <div className="text-xs leading-tight text-gray-500">
-                                {hasDateFilter ? dateLabel : "Select dates"}
-                            </div>
-                        </div>
-                    </AccordionTrigger>
-                    <AccordionContent className="px-4 pb-4">
+                    <div className="space-y-2 p-4">
+                        <div className="text-sm font-semibold text-gray-900">Calendar</div>
+                        <AccordionTrigger className={cn(selectTriggerClassName, "hover:no-underline")}>
+                            <span className="truncate text-left">{hasDateFilter ? dateLabel : "Select dates"}</span>
+                        </AccordionTrigger>
+                    </div>
+                    <AccordionContent className="px-4 pb-4 pt-0">
                         <div className="space-y-4">
                             <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
                                 <Calendar
