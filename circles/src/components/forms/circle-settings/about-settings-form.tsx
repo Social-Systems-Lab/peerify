@@ -28,6 +28,7 @@ import { socialPlatforms } from "@/lib/data/social";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
     getPeerifyArtistProfile,
     getPeerifyVenueProfile,
@@ -37,6 +38,7 @@ import {
     PEERIFY_ARTIST_TYPE_OPTIONS,
     PEERIFY_EVENT_TYPE_OPTIONS,
     PEERIFY_LOOKING_FOR_OPTIONS,
+    PRIMARY_GENRE_OPTIONS,
     type PeerifyArtistProfile,
     type PeerifyVenueProfile,
 } from "@/lib/peerify/artist-profile";
@@ -62,6 +64,8 @@ type AboutSettingsFormValues = {
     organizationName?: string;
     officialEmail?: string;
     peerifyArtistIntent?: boolean;
+    primaryGenre?: string;
+    primaryGenreOther?: string;
     peerifyArtistProfile: {
         artistTypes: string[];
         genresText: string;
@@ -413,6 +417,8 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
             organizationName: circle.organizationName || "",
             officialEmail: circle.officialEmail || "",
             peerifyArtistIntent: hasPeerifyArtistIntent(circle),
+            primaryGenre: getPeerifyArtistProfile(circle).primaryGenre || "",
+            primaryGenreOther: getPeerifyArtistProfile(circle).primaryGenreOther || "",
             peerifyArtistProfile: artistProfileDefaults,
             peerifyVenueProfile: venueProfileDefaults,
         },
@@ -420,6 +426,7 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
 
     const representsOrganization = form.watch("representsOrganization");
     const peerifyArtistIntent = form.watch("peerifyArtistIntent");
+    const primaryGenre = form.watch("primaryGenre");
     const bookingEnabled = form.watch("peerifyArtistProfile.bookingEnabled");
     const venueBookingEnabled = form.watch("peerifyVenueProfile.bookingEnquiriesEnabled");
     const venueAddressVisibility = form.watch("peerifyVenueProfile.addressVisibility");
@@ -431,6 +438,9 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                 artistTypes: data.peerifyArtistProfile.artistTypes,
                 baseCity: data.peerifyArtistProfile.baseCity.trim(),
                 genres: parseDelimitedList(data.peerifyArtistProfile.genresText),
+                primaryGenre: data.primaryGenre?.trim() || "",
+                primaryGenreOther:
+                    data.primaryGenre === "Other" ? data.primaryGenreOther?.trim() || undefined : undefined,
                 musicLinks: Object.fromEntries(
                     Object.entries(data.peerifyArtistProfile.musicLinks).filter(([, value]) => value.trim().length > 0),
                 ),
@@ -839,6 +849,46 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                             />
                                         )}
                                     />
+
+                                    <div className="space-y-2">
+                                        <Label>Primary genre</Label>
+                                        <Controller
+                                            name="primaryGenre"
+                                            control={form.control}
+                                            render={({ field }) => (
+                                                <Select value={field.value || ""} onValueChange={field.onChange}>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Select a primary genre" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {PRIMARY_GENRE_OPTIONS.map((option) => (
+                                                            <SelectItem key={option} value={option}>
+                                                                {option}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            )}
+                                        />
+                                        <p className="text-sm text-muted-foreground">
+                                            The single top-level genre category used to filter and match this artist.
+                                        </p>
+                                    </div>
+
+                                    {primaryGenre === "Other" ? (
+                                        <Controller
+                                            name="primaryGenreOther"
+                                            control={form.control}
+                                            render={({ field }) => (
+                                                <ArtistTextField
+                                                    label="Primary genre (other)"
+                                                    placeholder="Describe the primary genre"
+                                                    value={field.value}
+                                                    onChange={field.onChange}
+                                                />
+                                            )}
+                                        />
+                                    ) : null}
 
                                     <Controller
                                         name="peerifyArtistProfile.bookingEnabled"

@@ -13,8 +13,9 @@ import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 export async function searchContentAction(
     query: string,
     _selectedCategories: string[],
+    primaryGenre?: string,
 ): Promise<WithMetric<Circle>[]> {
-    if (!query) {
+    if (!query && !primaryGenre) {
         return [];
     }
 
@@ -22,6 +23,7 @@ export async function searchContentAction(
         const results = await searchDiscoverableCircles({
             query,
             limit: 24,
+            primaryGenre,
         });
 
         if (results.length === 0) {

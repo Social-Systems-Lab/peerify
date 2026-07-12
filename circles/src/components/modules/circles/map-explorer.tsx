@@ -44,7 +44,8 @@ import { getOpenEventsForMapAction } from "./map-explorer-actions";
 import { EventDisplay } from "@/models/models";
 import ActivityPanel from "@/components/layout/activity-panel";
 import MobileEventsPanel from "@/components/modules/events/mobile-events-panel";
-import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyArtistIdentity, isPeerifyVenueIdentity, PRIMARY_GENRE_OPTIONS } from "@/lib/peerify/artist-profile";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // mapItemToContent helper remains the same
 const mapItemToContent = (item: WithMetric<Content> | Circle | undefined): Content | null => {
@@ -279,6 +280,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         return format(new Date(), "MMM d, yyyy");
     }, [dateRange]);
     const hasDateFilter = Boolean(dateRange?.from || dateRange?.to);
+    // Primary genre filter — a real server-side query param, unlike the client-side date/category filters
+    const [selectedGenre, setSelectedGenre] = useState<string>("");
 
     const withinDateRange = useCallback(
         (d?: Date | string) => {
@@ -372,11 +375,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const activeAdvancedFilterCount = useMemo(() => {
         let count = 0;
         if (hasDateFilter) count += 1;
+        if (selectedGenre) count += 1;
         return count;
-    }, [hasDateFilter]);
+    }, [hasDateFilter, selectedGenre]);
 
     const handleClearAdvancedFilters = useCallback(() => {
         setDateRange(undefined);
+        setSelectedGenre("");
     }, []);
 
     useEffect(() => {
@@ -454,7 +459,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
 
     const handleSearchTrigger = useCallback(async () => {
         const searchCategoriesForBackend = ["circles", "users", "projects"];
-        if (!searchQuery.trim()) {
+        if (!searchQuery.trim() && !selectedGenre) {
             // If clearing search via empty query, reset state
             setAllSearchResults([]);
             setDisplayedContent(
@@ -502,7 +507,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setContentPreview(undefined); // Clear preview on new search
 
         try {
-            const results = await searchContentAction(searchQuery, searchCategoriesForBackend);
+            const results = await searchContentAction(searchQuery, searchCategoriesForBackend, selectedGenre || undefined);
             setAllSearchResults(results);
 
             // Compute filtered list and counts for left panel now
@@ -547,6 +552,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         }
     }, [
         searchQuery,
+        selectedGenre,
         setDisplayedContent,
         allDiscoverableCircles,
         selectedCategory,
@@ -567,6 +573,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setHasSearched(false);
         setSelectedCategory(null);
         setDateRange(undefined);
+        setSelectedGenre("");
         setShowAdvancedFilters(false);
         setOpenAdvancedSection("calendar");
         const resetMapData = filterCirclesByCategory(allDiscoverableCircles, null)
@@ -598,6 +605,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setSearchPanelState,
         setSidePanelMode,
         setDateRange,
+        setSelectedGenre,
     ]);
 
     const handleTriggerConsumed = useCallback(() => {
@@ -903,6 +911,23 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                     </AccordionContent>
                 </AccordionItem>
             </Accordion>
+
+            <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="text-sm font-semibold text-gray-900">Genre</div>
+                <Select value={selectedGenre || "all"} onValueChange={(value) => setSelectedGenre(value === "all" ? "" : value)}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="All genres" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All genres</SelectItem>
+                        {PRIMARY_GENRE_OPTIONS.map((option) => (
+                            <SelectItem key={option} value={option}>
+                                {option}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
         </div>
     );
 
@@ -995,7 +1020,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     size="sm"
                                     variant="ghost"
                                     className="ml-1 h-9 w-9 rounded-full p-0"
-                                    disabled={isSearching || !searchQuery.trim()}
+                                    disabled={isSearching || (!searchQuery.trim() && !selectedGenre)}
                                     aria-label="Search"
                                 >
                                     {isSearching ? "..." : <Search className="h-4 w-4" />}
