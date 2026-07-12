@@ -284,12 +284,21 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // Primary genre filter — a real server-side query param, unlike the client-side date/category filters.
     // Multi-select: matches circles with ANY of the selected genres (Mongo $in overlap), no maximum here.
     const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+    // Snapshot of the genres actually submitted via the last search — lets us tell
+    // a pending genre selection (not yet applied) apart from one already reflected
+    // in the current results, so the "press Enter" hint only shows while stale.
+    const [appliedGenres, setAppliedGenres] = useState<string[]>([]);
     const addSelectedGenre = useCallback((genre: string) => {
         setSelectedGenres((prev) => (prev.includes(genre) ? prev : [...prev, genre]));
     }, []);
     const removeSelectedGenre = useCallback((genre: string) => {
         setSelectedGenres((prev) => prev.filter((value) => value !== genre));
     }, []);
+    const genresPendingApply = useMemo(() => {
+        if (selectedGenres.length === 0) return false;
+        if (selectedGenres.length !== appliedGenres.length) return true;
+        return !selectedGenres.every((genre) => appliedGenres.includes(genre));
+    }, [selectedGenres, appliedGenres]);
 
     const withinDateRange = useCallback(
         (d?: Date | string) => {
@@ -510,6 +519,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
 
         setIsSearching(true);
         setHasSearched(true);
+        setAppliedGenres(selectedGenres);
         setAllSearchResults([]);
         setDisplayedContent([]);
         setContentPreview(undefined); // Clear preview on new search
@@ -586,6 +596,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setSelectedCategory(null);
         setDateRange(undefined);
         setSelectedGenres([]);
+        setAppliedGenres([]);
         setShowAdvancedFilters(false);
         setOpenAdvancedSection("");
         const resetMapData = filterCirclesByCategory(allDiscoverableCircles, null)
@@ -946,24 +957,27 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     );
 
     const genrePillsRow = selectedGenres.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-            {selectedGenres.map((genre) => (
-                <Badge
-                    key={genre}
-                    variant="secondary"
-                    className="flex items-center gap-1 rounded-full bg-white/95 py-1 pl-3 pr-1.5 shadow-sm ring-1 ring-black/5"
-                >
-                    {genre}
-                    <button
-                        type="button"
-                        onClick={() => removeSelectedGenre(genre)}
-                        className="rounded-full p-0.5 hover:bg-black/10"
-                        aria-label={`Remove ${genre} filter`}
+        <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap gap-2">
+                {selectedGenres.map((genre) => (
+                    <Badge
+                        key={genre}
+                        variant="secondary"
+                        className="flex items-center gap-1 rounded-full bg-white/95 py-1 pl-3 pr-1.5 shadow-sm ring-1 ring-black/5"
                     >
-                        <X className="h-3 w-3" />
-                    </button>
-                </Badge>
-            ))}
+                        {genre}
+                        <button
+                            type="button"
+                            onClick={() => removeSelectedGenre(genre)}
+                            className="rounded-full p-0.5 hover:bg-black/10"
+                            aria-label={`Remove ${genre} filter`}
+                        >
+                            <X className="h-3 w-3" />
+                        </button>
+                    </Badge>
+                ))}
+            </div>
+            {genresPendingApply && <div className="pl-1 text-xs text-gray-500">Press Enter to apply</div>}
         </div>
     );
 
