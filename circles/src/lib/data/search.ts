@@ -12,7 +12,7 @@ const SEARCHABLE_FIELDS = [
     "skills",
     "interests",
     "causes",
-    "primaryGenre",
+    "primaryGenres",
     "offers.text",
     "offers.skills",
     "engagements.text",
@@ -28,7 +28,7 @@ type SearchCirclesOptions = {
     query?: string;
     limit?: number;
     circleTypes?: CircleType[];
-    primaryGenre?: string | string[];
+    primaryGenres?: string[];
 };
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -66,7 +66,7 @@ const getStructuredTerms = (circle: Circle) =>
         ...toStringArray(circle.skills),
         ...toStringArray(circle.interests),
         ...toStringArray(circle.causes),
-        normalizeValue(circle.primaryGenre),
+        ...toStringArray(circle.primaryGenres),
         ...toStringArray(circle.offers?.skills),
         ...toStringArray(circle.engagements?.interests),
         ...toStringArray(circle.needs?.tags),
@@ -155,8 +155,11 @@ const buildCandidateQuery = (query: string, circleTypes: CircleType[], primaryGe
         },
     ];
 
+    // Mongo's $in against an array field (primaryGenres) matches on any overlap, giving natural
+    // OR-matching across however many genres a host selects. A future getGenreCounts() aggregation
+    // (grouping circles by primaryGenres for pill result-counts) can reuse this same query shape.
     if (primaryGenres.length > 0) {
-        clauses.push({ primaryGenre: { $in: primaryGenres } });
+        clauses.push({ primaryGenres: { $in: primaryGenres } });
     }
 
     if (query) {
@@ -174,13 +177,11 @@ export const searchDiscoverableCircles = async ({
     query = "",
     limit = 20,
     circleTypes = SEARCHABLE_TYPES,
-    primaryGenre,
+    primaryGenres = [],
 }: SearchCirclesOptions): Promise<WithMetric<Circle>[]> => {
     const normalizedQuery = normalizeValue(query);
     const normalizedTypes = circleTypes.length > 0 ? circleTypes : SEARCHABLE_TYPES;
-    const normalizedGenres = (Array.isArray(primaryGenre) ? primaryGenre : primaryGenre ? [primaryGenre] : []).filter(
-        Boolean,
-    );
+    const normalizedGenres = primaryGenres.filter(Boolean);
     const candidateLimit = Math.max(limit * 6, 120);
     const candidateQuery = buildCandidateQuery(normalizedQuery, normalizedTypes, normalizedGenres);
 

@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import {
+    formatPrimaryGenreLabel,
     getPeerifyArtistProfile,
     getPeerifyIdentityAvatarUrl,
     isPeerifyArtistIdentity,
@@ -443,13 +444,14 @@ export default function HomeContent({
                                         ) : null}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                        {peerifyArtistProfile.primaryGenre && (
-                                            <Badge className="rounded-full bg-primary px-3 py-1 text-primary-foreground">
-                                                {peerifyArtistProfile.primaryGenre === "Other"
-                                                    ? peerifyArtistProfile.primaryGenreOther || "Other"
-                                                    : peerifyArtistProfile.primaryGenre}
+                                        {peerifyArtistProfile.primaryGenres.map((genre) => (
+                                            <Badge
+                                                key={genre}
+                                                className="rounded-full bg-primary px-3 py-1 text-primary-foreground"
+                                            >
+                                                {formatPrimaryGenreLabel(genre, peerifyArtistProfile.primaryGenreOther)}
                                             </Badge>
-                                        )}
+                                        ))}
                                         {peerifyArtistProfile.genres.slice(0, 4).map((genre) => (
                                             <Badge key={genre} className="rounded-full px-3 py-1">
                                                 {genre}

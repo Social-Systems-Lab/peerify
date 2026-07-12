@@ -647,12 +647,13 @@ export async function saveAbout(values: {
                 existingPeerify.intent = "artist";
                 const normalizedArtistProfile = normalizePeerifyArtistProfile(values.peerifyArtistProfile);
                 existingPeerify.artistProfile = normalizedArtistProfile;
-                circleUpdateData.primaryGenre = normalizedArtistProfile.primaryGenre || undefined;
+                circleUpdateData.primaryGenres =
+                    normalizedArtistProfile.primaryGenres.length > 0 ? normalizedArtistProfile.primaryGenres : undefined;
                 circleUpdateData.primaryGenreOther = normalizedArtistProfile.primaryGenreOther || undefined;
             } else if ("peerify" in existingMetadata) {
                 delete existingPeerify.intent;
                 delete existingPeerify.artistProfile;
-                circleUpdateData.primaryGenre = undefined;
+                circleUpdateData.primaryGenres = undefined;
                 circleUpdateData.primaryGenreOther = undefined;
             }
 
@@ -689,7 +690,8 @@ export async function saveAbout(values: {
             } else {
                 const normalizedArtistProfile = normalizePeerifyArtistProfile(values.peerifyArtistProfile);
                 existingPeerify.artistProfile = normalizedArtistProfile;
-                circleUpdateData.primaryGenre = normalizedArtistProfile.primaryGenre || undefined;
+                circleUpdateData.primaryGenres =
+                    normalizedArtistProfile.primaryGenres.length > 0 ? normalizedArtistProfile.primaryGenres : undefined;
                 circleUpdateData.primaryGenreOther = normalizedArtistProfile.primaryGenreOther || undefined;
             }
             existingMetadata.peerify = existingPeerify;
