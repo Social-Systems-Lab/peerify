@@ -89,6 +89,10 @@ const getMarkerInitials = (content: Content): string => {
 
 type MapStylePreference = "natural" | "classic";
 
+// Map style switcher (globe/flat toggle) is disabled for now — the map always
+// renders in "classic" style. Flip this back to true to restore the selector.
+const ENABLE_MAP_STYLE_SWITCHER = false;
+
 const MAP_STYLE_STORAGE_KEY = "kamooni.mapStylePreference";
 
 const parseMapStylePreference = (value: string | null | undefined): MapStylePreference =>
@@ -1054,7 +1058,10 @@ export function MapDisplay({ mapboxKey }: { mapboxKey: string }) {
     }, [windowWidth]);
 
     const widthTransition = isResizing ? "none" : "width 0.35s ease-in-out";
-    const [mapStylePreference, setMapStylePreference] = useState<MapStylePreference>("natural");
+    // Map style switcher (globe/flat) is disabled for now — hardcoded to "classic".
+    // Not deleted: flip the default back to "natural" and uncomment the restore
+    // effect + selector UI below (search "map style switcher") to re-enable.
+    const [mapStylePreference, setMapStylePreference] = useState<MapStylePreference>("classic");
     const [isMapStyleMenuOpen, setIsMapStyleMenuOpen] = useState(false);
     const mapStyleMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -1064,13 +1071,14 @@ export function MapDisplay({ mapboxKey }: { mapboxKey: string }) {
         }
     }, [mapboxKey, setMapboxKey]);
 
-    useEffect(() => {
-        if (typeof window === "undefined") {
-            return;
-        }
-
-        setMapStylePreference(parseMapStylePreference(window.localStorage.getItem(MAP_STYLE_STORAGE_KEY)));
-    }, []);
+    // Map style switcher: restore user preference from localStorage (disabled, see note above)
+    // useEffect(() => {
+    //     if (typeof window === "undefined") {
+    //         return;
+    //     }
+    //
+    //     setMapStylePreference(parseMapStylePreference(window.localStorage.getItem(MAP_STYLE_STORAGE_KEY)));
+    // }, []);
 
     useEffect(() => {
         if (typeof window === "undefined") {
@@ -1120,7 +1128,7 @@ export function MapDisplay({ mapboxKey }: { mapboxKey: string }) {
                         }}
                     ></div>
                     <div
-                        className={"fixed right-0 z-30"}
+                        className={"fixed right-0 z-20"}
                         style={{
                             width: mapWidth,
                             height: windowHeight - (isMobile ? 72 : 0) + "px",
@@ -1135,53 +1143,55 @@ export function MapDisplay({ mapboxKey }: { mapboxKey: string }) {
                             windowHeight={windowHeight}
                             feedPanelDocked={feedPanelDocked}
                         />
-                        <div
-                            ref={mapStyleMenuRef}
-                            className={`absolute z-40 ${isMobile ? "bottom-[46px] left-3" : "left-4 top-20"}`}
-                        >
-                            <button
-                                type="button"
-                                aria-haspopup="menu"
-                                aria-expanded={isMapStyleMenuOpen}
-                                aria-label="Map style"
-                                className="flex items-center gap-2 rounded-full border border-white/30 bg-black/35 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-md transition hover:bg-black/45"
-                                onClick={() => setIsMapStyleMenuOpen((open) => !open)}
+                        {ENABLE_MAP_STYLE_SWITCHER && (
+                            <div
+                                ref={mapStyleMenuRef}
+                                className={`absolute z-40 ${isMobile ? "bottom-[46px] left-3" : "left-4 top-20"}`}
                             >
-                                <LiaGlobeAfricaSolid size="18px" />
-                                <span>{isMobile ? "Map" : MAP_STYLES[mapStylePreference].label}</span>
-                                <HiOutlineChevronDown className="opacity-80" size="16px" />
-                            </button>
-                            {isMapStyleMenuOpen && (
-                                <div
-                                    role="menu"
-                                    className={`absolute min-w-[170px] rounded-2xl border border-white/20 bg-[#101418]/90 p-1.5 text-white shadow-2xl backdrop-blur-md ${
-                                        isMobile ? "bottom-full mb-2 mt-0" : "left-0"
-                                    }`}
+                                <button
+                                    type="button"
+                                    aria-haspopup="menu"
+                                    aria-expanded={isMapStyleMenuOpen}
+                                    aria-label="Map style"
+                                    className="flex items-center gap-2 rounded-full border border-white/30 bg-black/35 px-3 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-md transition hover:bg-black/45"
+                                    onClick={() => setIsMapStyleMenuOpen((open) => !open)}
                                 >
-                                    {(
-                                        Object.entries(MAP_STYLES) as [
-                                            MapStylePreference,
-                                            (typeof MAP_STYLES)[MapStylePreference],
-                                        ][]
-                                    ).map(([value, config]) => (
-                                        <button
-                                            key={value}
-                                            type="button"
-                                            role="menuitemradio"
-                                            aria-checked={mapStylePreference === value}
-                                            className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-white/10"
-                                            onClick={() => {
-                                                setMapStylePreference(value);
-                                                setIsMapStyleMenuOpen(false);
-                                            }}
-                                        >
-                                            <span>{config.label}</span>
-                                            {mapStylePreference === value ? <HiOutlineCheck size="16px" /> : null}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
+                                    <LiaGlobeAfricaSolid size="18px" />
+                                    <span>{isMobile ? "Map" : MAP_STYLES[mapStylePreference].label}</span>
+                                    <HiOutlineChevronDown className="opacity-80" size="16px" />
+                                </button>
+                                {isMapStyleMenuOpen && (
+                                    <div
+                                        role="menu"
+                                        className={`absolute min-w-[170px] rounded-2xl border border-white/20 bg-[#101418]/90 p-1.5 text-white shadow-2xl backdrop-blur-md ${
+                                            isMobile ? "bottom-full mb-2 mt-0" : "left-0"
+                                        }`}
+                                    >
+                                        {(
+                                            Object.entries(MAP_STYLES) as [
+                                                MapStylePreference,
+                                                (typeof MAP_STYLES)[MapStylePreference],
+                                            ][]
+                                        ).map(([value, config]) => (
+                                            <button
+                                                key={value}
+                                                type="button"
+                                                role="menuitemradio"
+                                                aria-checked={mapStylePreference === value}
+                                                className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition hover:bg-white/10"
+                                                onClick={() => {
+                                                    setMapStylePreference(value);
+                                                    setIsMapStyleMenuOpen(false);
+                                                }}
+                                            >
+                                                <span>{config.label}</span>
+                                                {mapStylePreference === value ? <HiOutlineCheck size="16px" /> : null}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </>
             )}

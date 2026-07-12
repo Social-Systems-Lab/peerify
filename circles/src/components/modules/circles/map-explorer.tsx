@@ -919,8 +919,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 className="space-y-3"
             >
                 <AccordionItem className="overflow-hidden rounded-[24px] border border-gray-200 bg-white px-0 shadow-sm" value="calendar">
-                    <AccordionTrigger className="px-4 py-4 text-left hover:no-underline">
-                        <div className="space-y-1">
+                    <AccordionTrigger className="px-4 py-3 text-left hover:no-underline">
+                        <div className="space-y-0.5">
                             <div className="text-sm font-semibold text-gray-900">Calendar</div>
                             <div className="text-xs text-gray-500">{hasDateFilter ? dateLabel : "Select dates"}</div>
                         </div>
