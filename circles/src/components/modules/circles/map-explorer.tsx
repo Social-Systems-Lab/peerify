@@ -251,7 +251,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
     const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-    const [openAdvancedSection, setOpenAdvancedSection] = useState<string>("calendar");
+    const [openAdvancedSection, setOpenAdvancedSection] = useState<string>("");
     const [drawerContent, setDrawerContent] = useAtom(drawerContentAtom);
     // Events dataset for map
     const [eventsForMap, setEventsForMap] = useState<EventDisplay[]>([]);
@@ -587,7 +587,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setDateRange(undefined);
         setSelectedGenres([]);
         setShowAdvancedFilters(false);
-        setOpenAdvancedSection("calendar");
+        setOpenAdvancedSection("");
         const resetMapData = filterCirclesByCategory(allDiscoverableCircles, null)
             .map((circle) => mapItemToContent(circle))
             .filter((c): c is Content => c !== null);
@@ -881,6 +881,25 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 </div>
             )}
 
+            <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="text-sm font-semibold text-gray-900">Genre</div>
+                <Select
+                    value=""
+                    onValueChange={(value) => addSelectedGenre(value)}
+                >
+                    <SelectTrigger>
+                        <SelectValue placeholder={selectedGenres.length > 0 ? "Add another genre" : "All genres"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {PRIMARY_GENRE_OPTIONS.filter((option) => !selectedGenres.includes(option)).map((option) => (
+                            <SelectItem key={option} value={option}>
+                                {option}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+
             <Accordion
                 type="single"
                 collapsible
@@ -923,46 +942,28 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                     </AccordionContent>
                 </AccordionItem>
             </Accordion>
+        </div>
+    );
 
-            <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="text-sm font-semibold text-gray-900">Genre</div>
-                <Select
-                    value=""
-                    onValueChange={(value) => addSelectedGenre(value)}
+    const genrePillsRow = selectedGenres.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+            {selectedGenres.map((genre) => (
+                <Badge
+                    key={genre}
+                    variant="secondary"
+                    className="flex items-center gap-1 rounded-full bg-white/95 py-1 pl-3 pr-1.5 shadow-sm ring-1 ring-black/5"
                 >
-                    <SelectTrigger>
-                        <SelectValue placeholder={selectedGenres.length > 0 ? "Add another genre" : "All genres"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {PRIMARY_GENRE_OPTIONS.filter((option) => !selectedGenres.includes(option)).map((option) => (
-                            <SelectItem key={option} value={option}>
-                                {option}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-                {selectedGenres.length > 0 && (
-                    <div className="flex flex-wrap gap-2 pt-1">
-                        {selectedGenres.map((genre) => (
-                            <Badge
-                                key={genre}
-                                variant="secondary"
-                                className="flex items-center gap-1 rounded-full py-1 pl-3 pr-1.5"
-                            >
-                                {genre}
-                                <button
-                                    type="button"
-                                    onClick={() => removeSelectedGenre(genre)}
-                                    className="rounded-full p-0.5 hover:bg-black/10"
-                                    aria-label={`Remove ${genre} filter`}
-                                >
-                                    <X className="h-3 w-3" />
-                                </button>
-                            </Badge>
-                        ))}
-                    </div>
-                )}
-            </div>
+                    {genre}
+                    <button
+                        type="button"
+                        onClick={() => removeSelectedGenre(genre)}
+                        className="rounded-full p-0.5 hover:bg-black/10"
+                        aria-label={`Remove ${genre} filter`}
+                    >
+                        <X className="h-3 w-3" />
+                    </button>
+                </Badge>
+            ))}
         </div>
     );
 
@@ -1011,7 +1012,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     >
                                         <SlidersHorizontal className="h-4 w-4" />
                                         {activeAdvancedFilterCount > 0 && (
-                                            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
+                                            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium leading-none text-primary-foreground">
+                                                {activeAdvancedFilterCount}
+                                            </span>
                                         )}
                                     </Button>
                                 ) : (
@@ -1026,7 +1029,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                             >
                                                 <SlidersHorizontal className="h-4 w-4" />
                                                 {activeAdvancedFilterCount > 0 && (
-                                                    <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-primary" />
+                                                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-medium leading-none text-primary-foreground">
+                                                        {activeAdvancedFilterCount}
+                                                    </span>
                                                 )}
                                             </Button>
                                         </PopoverTrigger>
@@ -1076,6 +1081,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                 displayLabelMap={{ users: "Artists", communities: "Venues", events: "Events" }}
                             />
                         </div>
+
+                        {genrePillsRow}
                     </div>
                 )}
             </div>

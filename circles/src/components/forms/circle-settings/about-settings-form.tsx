@@ -198,7 +198,7 @@ const CheckboxGroup = ({
 }: {
     label: string;
     labelClassName?: string;
-    description?: string;
+    description?: React.ReactNode;
     options: readonly string[];
     values: string[];
     onChange: (values: string[]) => void;
@@ -859,7 +859,16 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                             <CheckboxGroup
                                                 label="Primary genre"
                                                 labelClassName="text-base font-semibold"
-                                                description={`Pick up to ${PRIMARY_GENRE_MAX_SELECTIONS} genres that best identify this act. Used to match and filter this artist in search.`}
+                                                description={
+                                                    <>
+                                                        Pick up to{" "}
+                                                        <strong>
+                                                            {PRIMARY_GENRE_MAX_SELECTIONS} genres
+                                                        </strong>{" "}
+                                                        that best identify this act. Used to match
+                                                        and filter this artist in search.
+                                                    </>
+                                                }
                                                 options={PRIMARY_GENRE_OPTIONS}
                                                 values={field.value || []}
                                                 onChange={field.onChange}
