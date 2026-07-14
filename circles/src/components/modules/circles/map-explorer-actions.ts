@@ -17,7 +17,10 @@ type RangeInput = { from?: string; to?: string };
  * - If no range provided, defaults to upcoming events (endAt >= now)
  * - If range provided, returns events overlapping the window
  */
-export async function getOpenEventsForMapAction(range?: RangeInput): Promise<EventDisplay[]> {
+export async function getOpenEventsForMapAction(
+    range?: RangeInput,
+    primaryGenres?: string[],
+): Promise<EventDisplay[]> {
     try {
         const userDid = (await getAuthenticatedUserDid()) || "";
         const parsedRange =
@@ -28,7 +31,7 @@ export async function getOpenEventsForMapAction(range?: RangeInput): Promise<Eve
                   }
                 : undefined;
 
-        const events = await getOpenEventsForMap(userDid, parsedRange as any);
+        const events = await getOpenEventsForMap(userDid, parsedRange as any, primaryGenres);
         return events || [];
     } catch (err) {
         console.error("getOpenEventsForMapAction error:", err);
