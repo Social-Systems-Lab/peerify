@@ -12,9 +12,11 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 
 ## §0. Build Status — current reality
 
-*Last updated: 2026-06-30.*
+*Last updated: 2026-07-12.*
 
 ### Live on production right now (peerify.one)
+- **Primary Genre** (2026-07-12): a `primaryGenres: string[]` field on artist profiles (max 3, plus an "Other" option with a free-text `primaryGenreOther`), set via a checkbox group on Artist Identity settings and displayed as badges on the public profile ("Other (custom-genre)" formatting when free-text is used). Synced to the top-level `Circle` document (same pattern as the old `causes`/SDG field it replaces) so search filtering runs server-side via Mongo `$in` queries, not client-side. Surfaced in advanced search as a multi-select filter with removable pills, a filter-count badge, and a "Press Enter to apply" hint. Also wired into Qdrant vector search. **Known gap:** the genre filter only affects Artists/Venues — it does not filter Events, so a genre selection with no artist/venue matches can leave unrelated event pins visible on the map. See §00 carry-forward and §6.7.
+- **SDG/causes feature fully removed** (2026-07-12): the SDG-based "causes" taxonomy that used to appear in search/filtering, the onboarding and circle-creation wizards, post/discussion tagging, and the circles-list/members-table filter buttons has been removed from all of those UI surfaces (superseded by Primary Genre for search). The wizard steps were disabled, not deleted (dead code kept for possible reuse); the underlying `causes`/`sdgs` schema fields and `src/lib/data/sdgs.ts` were left untouched. The **Matchmaking settings tab was deleted outright** as part of this — see §00 carry-forward for the resulting loss of post-creation Skills editing. Any older doc content that still describes SDGs/causes as an active, in-use feature is now stale.
 - **Signup + auth** — personal-account-first signup, email confirmation, login/session. ALTCHA human-verification on signup (self-hosted, open-source).
 - **Artist profiles** with a **Music module**: MP3 upload (mp3-only, 20MB cap), ffmpeg derivative generation, signed streaming, **play-only player**, 3-track-per-artist cap with ownership-checked delete. On-by-default for new artist profiles. **This is live and working end-to-end as of 2026-06-28.**
 - **Founding-member infrastructure** (inherited from Kamooni; counter, badge, cap).
@@ -128,6 +130,8 @@ Remaining carry-forward:
 13. **13. (Downgraded, was: "currency not selectable" — incorrect) Currency field has no validation.** Verified 2026-07-06: the Currency field on Booking settings is already free-text and artist-editable (confirmed working end-to-end — value saves and displays correctly on the public Booking card, e.g. "ZAR 5000"). No feature work needed. Remaining minor polish: field has no validation against a known currency list, so typos or malformed entries (lowercase, extra characters, empty) are possible. Low priority — consider constraining to a dropdown/select from a standard currency list in a future polish pass.
 14. **Feature (bigger, roadmap): location-based/tiered booking fees.** An artist may want to charge a different base fee for the same type of gig depending on the market (e.g. more for a house show in Berlin than in Bangkok). This ties into the broader booking-logistics redesign already flagged above — the Minimum/Preferred audience size and Needs accommodation/transport/meal fields were removed from Booking settings (commit `cc8614ce`, 2026-07-06) specifically because they were too broad pending this kind of tiered-fee rethink. Proper design work (tiers by region/market, UI for managing them) is needed before building this.
 15. **Rotate staging `MINIO_ROOT_PASSWORD`** — flagged as exposed in a prior session; rotation status unconfirmed as of 2026-07-06. Verify and rotate if not already done.
+18. **Genre filter doesn't affect Events (2026-07-12).** The new Primary Genre search filter (see §0) only narrows Artist/Venue results — Events have no genre field of their own, so selecting a genre with no artist/venue matches can remove all artist/venue pins while leaving unrelated event pins on the map, which reads as broken/inconsistent. Needs a product decision before fixing: (a) have events inherit genre from their host circle, (b) give events their own dedicated genre field, or (c) hide events entirely while any genre filter is active. See `SESSION_LOG.md` 2026-07-12 entry.
+19. **Matchmaking settings tab deleted, taking post-creation Skills editing with it (2026-07-12).** Removing the last SDG-era filter buttons meant deleting the Matchmaking tab entirely rather than just its SDG controls. That tab was also the only place a circle's Skills could be edited after creation — Skills can still be set at circle-creation time, but there is currently no way to change them afterward. Accepted tradeoff at the time, not yet resolved; flagging here so it isn't mistaken for an accidental regression if raised later. See `SESSION_LOG.md` 2026-07-12 entry.
 
 ---
 
@@ -446,7 +450,9 @@ Marker click opens a small popup over the map (400px × ~210px). Dark eyebrow ba
 At 10% of goal, Peerify auto-initiates a group (circle-shaped object) and invites pledgers; someone can volunteer as Tour Manager; the group works toward the remaining 90%; once funded, the group becomes the tour team. A **social mechanic** as much as logistical.
 
 ### 6.7 Still to do on the map
-Real Mapbox basemap; marker clustering at zoom-out; featured-pledge pulse logic (viewer-personal); host privacy at zoom (city-zoom-or-wider only, or location-jitter); advanced genre-aware search; **open question: should fans appear as map pins at all?** (deferred).
+Real Mapbox basemap; marker clustering at zoom-out; featured-pledge pulse logic (viewer-personal); host privacy at zoom (city-zoom-or-wider only, or location-jitter); **open question: should fans appear as map pins at all?** (deferred).
+
+**Genre-aware search — built 2026-07-12, but only half-covers the map.** The Primary Genre filter (§0) does real server-side filtering for Artists and Venues via Mongo `$in`, but Events have no genre field, so a genre filter can leave stray event pins visible with no matching artists/venues around them. See §00 carry-forward item 18 for the fix options under discussion.
 
 ---
 

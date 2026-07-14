@@ -12,6 +12,37 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-07-12 — SDG feature removed platform-wide; Primary Genre built end-to-end as its replacement; map-pin race bug fixed; merged to main and deployed to prod
+
+Headline: Retired the SDG/causes feature across every surface it touched and replaced it with a new Primary Genre field + real server-side search filter, mirroring the old causes/SDG architecture (top-level `Circle` sync + Mongo `$in` queries) rather than client-side filtering. Along the way, found and fixed a pre-existing map-pin race condition, did a round of filter-UI polish, and logged one new known bug for a future design decision. All work merged `staging` → `main` (`bc14ad61`, `ebd83122`, `66721b20`, `80f4fc47`) and deployed to prod; verified live.
+
+**SDG feature removal** (commits `c2725c7e`, `60f67d6b`):
+- Removed from: search/filtering, the onboarding wizard step, the circle-creation wizard step, post/discussion composer tagging, the circles-list filter button, and the members-table filter button.
+- Onboarding-wizard and circle-creation-wizard steps were **disabled, not deleted** — dead code preserved in case SDGs (or a similar taxonomy) are wanted again later.
+- The **Matchmaking settings tab was deleted entirely** (not just hidden) — this was the last remaining SDG surface (its filter buttons), but deleting the whole tab also removed the only way to **edit a circle's Skills after creation** via Settings. Known, accepted tradeoff — Skills can still be set at circle-creation time, just not edited afterward. Flagged here in case that's ever raised as "missing" functionality.
+- Underlying schema fields (`causes`/`sdgs`) and `src/lib/data/sdgs.ts` were left **intact and untouched** — only UI and query usage were removed, not the data model or the reference data file.
+
+**Primary Genre feature, built end-to-end** (commits `bfd38004`, `9c537293`, `d37e7388`, `d8c25921`):
+- New `primaryGenres: string[]` field on artist profiles — max 3, with an "Other" option that unlocks a free-text `primaryGenreOther` field. Started as single-select, reworked to multi-select (max 3) once the design was validated.
+- Synced to the top-level `Circle` document, mirroring the pre-existing `causes`/SDG architecture, specifically so search filtering can run **server-side** via Mongo `$in` queries instead of client-side post-filtering.
+- Artist Identity settings: new checkbox group for selecting genres.
+- Advanced search: multi-select genre filter with persistent, individually-removable pills, a numbered filter-count badge, and a "Press Enter to apply" hint under pending pills.
+- Qdrant vector-search integration wired up for genre.
+- Public profile display: genre badges, including "Other (custom-genre)" formatting when the artist used the free-text option.
+
+**Bug found and fixed — stale map pins after client-side search** (part of `d37e7388`): a pre-existing race condition where map pins could silently keep showing stale/unfiltered data after *any* client-side search (this affected both the new genre filter and the existing date-range filter) — caused by a navigation-triggered RSC re-render overwriting already-filtered client state. Fixed with a guard in `ContentDisplayWrapper`.
+
+**UI polish** (commits `0a822717`, `a84236c7`, `4e9c18c7`):
+- Hid the map style switcher (globe/flat toggle) — code preserved, not deleted, in case it's wanted back later.
+- Reordered Genre before Calendar in the advanced filters panel.
+- Brought the Genre and Calendar filter cards to visual parity (hint contrast, z-index overlap fix, card tightening, matching "Select" trigger framing on Calendar's "Select dates").
+
+**Known bug logged, not yet fixed:** the genre filter only affects Artists/Venues, not Events. Selecting a genre with no matches removes artist/venue pins from the map but leaves unrelated event pins visible, which reads as inconsistent/broken. Needs a design decision before fixing — options noted: have events inherit genre from their host circle, give events their own dedicated genre field, or simply hide all events while any genre filter is active. Not fixed this session; needs product input first.
+
+**Deploy:** all of the above merged from `staging` to `main` and deployed to prod. Verified working live.
+
+---
+
 ## 2026-07-09 (cont. #2) — Promoted isVerified auto-verify overhaul + banner/reply-bug fixes from staging to main/prod
 
 Headline: Promoted the full day's-plus-yesterday's staging work (6 commits: `08dc5fd7`, `7e27e380`, `b072270a`, `83eafc69`, `2f4f32c9`, `3a1acc75` — the `isVerified` auto-verify overhaul and today's four follow-up fixes) into `main` and deployed to prod. Merge and build were verified before touching the live process; the actual deploy then ran clean.
