@@ -10,11 +10,22 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { sendPeerifyArtistEnquiryAction } from "@/components/modules/chat/mongo-actions";
 import { createPeerifyPledgeAction } from "@/components/modules/home/peerify-pledge-actions";
-import { isPeerifyManagedIdentity, PEERIFY_PLEDGE_HELP_OPTIONS } from "@/lib/peerify/artist-profile";
+import {
+    getPeerifyArtistProfile,
+    isPeerifyManagedIdentity,
+    PEERIFY_PLEDGE_HELP_OPTIONS,
+} from "@/lib/peerify/artist-profile";
 
 export type PledgeFormState = {
     fanLocation: string;
@@ -49,12 +60,19 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
     const userLocationText = user?.location
         ? [user.location.city, user.location.region, user.location.country].filter(Boolean).join(", ")
         : "";
+    const artistCurrency = getPeerifyArtistProfile(circle).bookingSettings.currency;
 
     React.useEffect(() => {
         if (open) {
             setPledgeError("");
         }
     }, [open]);
+
+    React.useEffect(() => {
+        if (open && userLocationText) {
+            setPledgeForm((current) => (current.fanLocation ? current : { ...current, fanLocation: userLocationText }));
+        }
+    }, [open, userLocationText]);
 
     const togglePledgeHelpOption = (option: string, checked: boolean) => {
         setPledgeForm((current) => ({
@@ -160,26 +178,31 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                                     type="button"
                                     variant="link"
                                     className="h-auto p-0 text-xs"
-                                    onClick={() =>
-                                        setPledgeForm((current) => ({ ...current, fanLocation: userLocationText }))
-                                    }
+                                    onClick={() => setPledgeForm((current) => ({ ...current, fanLocation: "" }))}
                                 >
-                                    Prefill this?
+                                    Select different location?
                                 </Button>
                             )}
                         </div>
-                        <Input
-                            placeholder="Maximum ticket amount"
-                            type="number"
-                            min="0"
-                            value={pledgeForm.maximumTicketAmount}
-                            onChange={(event) =>
-                                setPledgeForm((current) => ({
-                                    ...current,
-                                    maximumTicketAmount: event.target.value,
-                                }))
-                            }
-                        />
+                        <div className="flex items-center gap-2">
+                            {artistCurrency && (
+                                <span className="flex h-10 shrink-0 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
+                                    {artistCurrency}
+                                </span>
+                            )}
+                            <Input
+                                placeholder="Maximum ticket amount"
+                                type="number"
+                                min="0"
+                                value={pledgeForm.maximumTicketAmount}
+                                onChange={(event) =>
+                                    setPledgeForm((current) => ({
+                                        ...current,
+                                        maximumTicketAmount: event.target.value,
+                                    }))
+                                }
+                            />
+                        </div>
                     </div>
                     <Input
                         placeholder="Preferred event type"
