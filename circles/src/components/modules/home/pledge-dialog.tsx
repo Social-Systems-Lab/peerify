@@ -46,6 +46,9 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
     const [pledgeError, setPledgeError] = React.useState("");
     const [isSubmittingPledge, setIsSubmittingPledge] = React.useState(false);
     const isPeerifyManagedArtistIdentity = isPeerifyManagedIdentity(circle);
+    const userLocationText = user?.location
+        ? [user.location.city, user.location.region, user.location.country].filter(Boolean).join(", ")
+        : "";
 
     React.useEffect(() => {
         if (open) {
@@ -144,13 +147,27 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                     }}
                 >
                     <div className="grid gap-4 sm:grid-cols-2">
-                        <Input
-                            placeholder="Your city / location"
-                            value={pledgeForm.fanLocation}
-                            onChange={(event) =>
-                                setPledgeForm((current) => ({ ...current, fanLocation: event.target.value }))
-                            }
-                        />
+                        <div className="space-y-1">
+                            <Input
+                                placeholder="Your city / location"
+                                value={pledgeForm.fanLocation}
+                                onChange={(event) =>
+                                    setPledgeForm((current) => ({ ...current, fanLocation: event.target.value }))
+                                }
+                            />
+                            {userLocationText && (
+                                <Button
+                                    type="button"
+                                    variant="link"
+                                    className="h-auto p-0 text-xs"
+                                    onClick={() =>
+                                        setPledgeForm((current) => ({ ...current, fanLocation: userLocationText }))
+                                    }
+                                >
+                                    Prefill this?
+                                </Button>
+                            )}
+                        </div>
                         <Input
                             placeholder="Maximum ticket amount"
                             type="number"
