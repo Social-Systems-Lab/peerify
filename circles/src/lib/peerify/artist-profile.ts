@@ -133,6 +133,7 @@ export const PEERIFY_ARTIST_TYPE_OPTIONS = [
     "Live electronic",
     "Acoustic act",
     "Collective",
+    "Cover artist",
 ] as const;
 
 export const PRIMARY_GENRE_OPTIONS = [

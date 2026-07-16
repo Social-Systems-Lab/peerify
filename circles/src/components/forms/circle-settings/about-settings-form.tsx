@@ -397,7 +397,6 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
     const isUserProfile = circle.circleType === "user";
     const isPeerifyManagedVenueCircle = isPeerifyVenueIdentity(circle);
     const isPeerifyManagedArtistCircle = isPeerifyManagedIdentity(circle) && !isPeerifyManagedVenueCircle;
-    const canEditPeerifyArtistProfile = isUserProfile || isPeerifyManagedArtistCircle;
     const canEditPeerifyVenueProfile = isPeerifyManagedVenueCircle;
     const artistProfileDefaults = buildArtistProfileFormDefaults(circle);
     const venueProfileDefaults = buildVenueProfileFormDefaults(circle);
