@@ -81,6 +81,18 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
                 return false;
             }
 
+            // De-Kamooni: personal profiles aren't communities — hide circle-management
+            // chrome that doesn't apply to an individual (Peerify has no "your circle" for fans).
+            if (
+                isUser &&
+                (item.handle === "pages" ||
+                    item.handle === "user-groups" ||
+                    item.handle === "access-rules" ||
+                    item.handle === "membership-requests")
+            ) {
+                return false;
+            }
+
             return true;
         })
         .map((item) => ({
