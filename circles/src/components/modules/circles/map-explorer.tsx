@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Circle, WithMetric, Content, ContentPreviewData, MemberDisplay } from "@/models/models";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
+import { useDebounce } from "@/components/utils/use-debounce";
 import useWindowDimensions from "@/components/utils/use-window-dimensions";
 import { motion } from "framer-motion";
 import CircleSwipeCard from "./circle-swipe-card";
@@ -284,21 +285,18 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // Primary genre filter — a real server-side query param, unlike the client-side date/category filters.
     // Multi-select: matches circles with ANY of the selected genres (Mongo $in overlap), no maximum here.
     const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-    // Snapshot of the genres actually submitted via the last search — lets us tell
-    // a pending genre selection (not yet applied) apart from one already reflected
-    // in the current results, so the "press Enter" hint only shows while stale.
-    const [appliedGenres, setAppliedGenres] = useState<string[]>([]);
+    // Distinguishes a pill click from the other code paths that reset selectedGenres
+    // (handleClearSearch, handleClearAdvancedFilters), which already perform their own
+    // synchronous reset and shouldn't also fire the debounced live-search effect below.
+    const genrePillChangedRef = useRef(false);
     const addSelectedGenre = useCallback((genre: string) => {
+        genrePillChangedRef.current = true;
         setSelectedGenres((prev) => (prev.includes(genre) ? prev : [...prev, genre]));
     }, []);
     const removeSelectedGenre = useCallback((genre: string) => {
+        genrePillChangedRef.current = true;
         setSelectedGenres((prev) => prev.filter((value) => value !== genre));
     }, []);
-    const genresPendingApply = useMemo(() => {
-        if (selectedGenres.length === 0) return false;
-        if (selectedGenres.length !== appliedGenres.length) return true;
-        return !selectedGenres.every((genre) => appliedGenres.includes(genre));
-    }, [selectedGenres, appliedGenres]);
 
     const withinDateRange = useCallback(
         (d?: Date | string) => {
@@ -519,7 +517,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
 
         setIsSearching(true);
         setHasSearched(true);
-        setAppliedGenres(selectedGenres);
         setAllSearchResults([]);
         setDisplayedContent([]);
         setContentPreview(undefined); // Clear preview on new search
@@ -589,6 +586,15 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setSidePanelMode,
     ]);
 
+    // Genre pills apply live (debounced) instead of waiting for Enter — the free-text
+    // box below stays Enter-gated.
+    const debouncedGenreSearch = useDebounce(handleSearchTrigger, 300);
+    useEffect(() => {
+        if (!genrePillChangedRef.current) return;
+        genrePillChangedRef.current = false;
+        debouncedGenreSearch();
+    }, [selectedGenres, debouncedGenreSearch]);
+
     const handleClearSearch = useCallback(() => {
         setSearchQuery("");
         setAllSearchResults([]);
@@ -596,7 +602,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setSelectedCategory(null);
         setDateRange(undefined);
         setSelectedGenres([]);
-        setAppliedGenres([]);
         setShowAdvancedFilters(false);
         setOpenAdvancedSection("");
         const resetMapData = filterCirclesByCategory(allDiscoverableCircles, null)
@@ -711,7 +716,10 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                               to: dateRange.to ? dateRange.to.toISOString() : undefined,
                           }
                         : undefined;
-                const data = await getOpenEventsForMapAction(range as any);
+                const data = await getOpenEventsForMapAction(
+                    range as any,
+                    selectedGenres.length > 0 ? selectedGenres : undefined,
+                );
                 if (!canceled) {
                     setEventsForMap((data || []).filter((e: any) => e?.location?.lngLat));
                 }
@@ -726,7 +734,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         return () => {
             canceled = true;
         };
-    }, [dateRange?.from, dateRange?.to]);
+    }, [dateRange?.from, dateRange?.to, selectedGenres]);
 
     useEffect(() => {
         if (!pendingFocusEventId || hasAppliedFocusEvent) return;
@@ -957,31 +965,24 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     );
 
     const genrePillsRow = selectedGenres.length > 0 && (
-        <div className="flex flex-col gap-1">
-            <div className="flex flex-wrap gap-2">
-                {selectedGenres.map((genre) => (
-                    <Badge
-                        key={genre}
-                        variant="secondary"
-                        className="flex items-center gap-1 rounded-full bg-white/95 py-1 pl-3 pr-1.5 shadow-sm ring-1 ring-black/5"
+        <div className="flex flex-wrap gap-2">
+            {selectedGenres.map((genre) => (
+                <Badge
+                    key={genre}
+                    variant="secondary"
+                    className="flex items-center gap-1 rounded-full bg-white/95 py-1 pl-3 pr-1.5 shadow-sm ring-1 ring-black/5"
+                >
+                    {genre}
+                    <button
+                        type="button"
+                        onClick={() => removeSelectedGenre(genre)}
+                        className="rounded-full p-0.5 hover:bg-black/10"
+                        aria-label={`Remove ${genre} filter`}
                     >
-                        {genre}
-                        <button
-                            type="button"
-                            onClick={() => removeSelectedGenre(genre)}
-                            className="rounded-full p-0.5 hover:bg-black/10"
-                            aria-label={`Remove ${genre} filter`}
-                        >
-                            <X className="h-3 w-3" />
-                        </button>
-                    </Badge>
-                ))}
-            </div>
-            {genresPendingApply && (
-                <div className="inline-flex w-fit items-center rounded-full bg-white/95 px-2.5 py-1 text-xs text-gray-500 shadow-sm ring-1 ring-black/5">
-                    Press Enter to apply
-                </div>
-            )}
+                        <X className="h-3 w-3" />
+                    </button>
+                </Badge>
+            ))}
         </div>
     );
 

@@ -1222,7 +1222,11 @@ export const changeEventStage = async (eventId: string, newStage: EventStage): P
  * Filters by optional date range overlap or, if no range provided, to upcoming (endAt >= now).
  * Ensures events have either an exact location or a Peerify public-safe map location with lngLat.
  */
-export const getOpenEventsForMap = async (userDid: string, range?: Range): Promise<EventDisplay[]> => {
+export const getOpenEventsForMap = async (
+    userDid: string,
+    range?: Range,
+    primaryGenres?: string[],
+): Promise<EventDisplay[]> => {
     try {
         const dateMatch = buildRangeMatch(range);
         const now = new Date();
@@ -1241,6 +1245,19 @@ export const getOpenEventsForMap = async (userDid: string, range?: Range): Promi
             Object.assign(baseMatch, dateMatch);
         } else {
             baseMatch.endAt = { $gte: now };
+        }
+
+        // Events have no genre field of their own — they inherit genre from their host circle
+        // (the artist/venue hosting the event), the same $in overlap match used for circle search
+        // (see buildCandidateQuery in ./search.ts). Pre-resolve matching host circle ids rather than
+        // matching inside the existing circleDetails $lookup below, so an event with no resolvable
+        // circle still behaves the same as it does today when no genre filter is active.
+        if (primaryGenres && primaryGenres.length > 0) {
+            const matchingCircles = await Circles.find(
+                { primaryGenres: { $in: primaryGenres } },
+                { projection: { _id: 1 } },
+            ).toArray();
+            baseMatch.circleId = { $in: matchingCircles.map((c) => c._id.toString()) };
         }
 
         const events = (await Events.aggregate([
