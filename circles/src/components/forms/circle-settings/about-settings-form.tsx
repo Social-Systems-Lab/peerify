@@ -373,6 +373,31 @@ const PEERIFY_FEE_COVERED_BY_OPTIONS = [
     { value: "shared", label: "Shared" },
 ];
 
+// Curated shortlist, not the full ISO 4217 list (~180 currencies) — covers the
+// currencies realistically expected from artists' likely locations without
+// scroll-hunting. If a circle already has a saved value outside this list
+// (e.g. from the old free-text field), it's appended as an extra option at
+// render time — see the `currency` Controller below — so it's never dropped.
+const CURRENCY_OPTIONS = [
+    { value: "", label: "Select currency" },
+    { value: "USD", label: "USD — US Dollar" },
+    { value: "EUR", label: "EUR — Euro" },
+    { value: "GBP", label: "GBP — British Pound" },
+    { value: "ZAR", label: "ZAR — South African Rand" },
+    { value: "SEK", label: "SEK — Swedish Krona" },
+    { value: "NOK", label: "NOK — Norwegian Krone" },
+    { value: "DKK", label: "DKK — Danish Krone" },
+    { value: "CHF", label: "CHF — Swiss Franc" },
+    { value: "CAD", label: "CAD — Canadian Dollar" },
+    { value: "AUD", label: "AUD — Australian Dollar" },
+    { value: "NGN", label: "NGN — Nigerian Naira" },
+    { value: "KES", label: "KES — Kenyan Shilling" },
+    { value: "BRL", label: "BRL — Brazilian Real" },
+    { value: "JPY", label: "JPY — Japanese Yen" },
+    { value: "INR", label: "INR — Indian Rupee" },
+    { value: "MXN", label: "MXN — Mexican Peso" },
+];
+
 interface AboutSettingsFormProps {
     circle: Circle;
 }
@@ -990,14 +1015,29 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                                 <Controller
                                                     name="peerifyArtistProfile.bookingSettings.currency"
                                                     control={form.control}
-                                                    render={({ field }) => (
-                                                        <ArtistTextField
-                                                            label="Currency"
-                                                            placeholder="EUR"
-                                                            value={field.value}
-                                                            onChange={field.onChange}
-                                                        />
-                                                    )}
+                                                    render={({ field }) => {
+                                                        const currencyOptions = field.value
+                                                            ? CURRENCY_OPTIONS.some(
+                                                                  (option) => option.value === field.value,
+                                                              )
+                                                                ? CURRENCY_OPTIONS
+                                                                : [
+                                                                      ...CURRENCY_OPTIONS,
+                                                                      {
+                                                                          value: field.value,
+                                                                          label: `${field.value} (currently saved)`,
+                                                                      },
+                                                                  ]
+                                                            : CURRENCY_OPTIONS;
+                                                        return (
+                                                            <PeerifySelectField
+                                                                label="Currency"
+                                                                options={currencyOptions}
+                                                                value={field.value}
+                                                                onChange={field.onChange}
+                                                            />
+                                                        );
+                                                    }}
                                                 />
                                             </div>
 
