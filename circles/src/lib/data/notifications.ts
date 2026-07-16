@@ -92,7 +92,7 @@ const buildNotificationBody = (type: string, payload: any): string => {
         case "follow_accepted":
         case "new_following":
         case "new_member":
-            return `Your access to ${circleName} was approved`;
+            return `You are now following ${circleName}`;
         case "post_comment":
             return `${actorName} commented on your post`;
         case "comment_reply":
