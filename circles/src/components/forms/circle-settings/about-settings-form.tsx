@@ -655,12 +655,13 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                         placeholder: "handle",
                                         description: {
                                             circle: "Choose a unique handle that will identify the circle on the platform.",
-                                            user: "Choose a unique handle for your private profile on Peerify.",
+                                            user: "Choose a unique handle to identify yourself on Peerify.",
                                         },
                                         required: true,
                                     }}
                                     formField={field}
                                     control={form.control as unknown as Control}
+                                    isUser={isUserProfile}
                                 />
                             )}
                         />
@@ -678,11 +679,12 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                             placeholder: "https://your-website.org",
                                             description: {
                                                 circle: "Your community or organization website.",
-                                                user: "Your website, if you have one to share.",
+                                                user: "Add your personal website, if you have one.",
                                             },
                                         }}
                                         formField={field}
                                         control={form.control as unknown as Control}
+                                        isUser={isUserProfile}
                                     />
                                 )}
                             />
@@ -789,12 +791,13 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                         placeholder: "Description",
                                         description: {
                                             circle: "Describe the circle in a few words.",
-                                            user: "Describe yourself in a few words.",
+                                            user: "This is the text that will show up under your name on your profile page.",
                                         },
                                         maxLength: 200,
                                     }}
                                     formField={field}
                                     control={form.control as unknown as Control}
+                                    isUser={isUserProfile}
                                 />
                             )}
                         />
@@ -834,6 +837,7 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                         type: "textarea",
                                         label: "Content",
                                         placeholder: "Detailed information about your circle",
+                                        description: isUserProfile ? "This is your longer presentation text." : undefined,
                                     }}
                                     formField={field}
                                     control={form.control as unknown as Control}
@@ -1821,7 +1825,9 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                 <div>
                                     <Label>Images</Label>
                                     <p className="pb-2 text-[0.8rem] text-muted-foreground">
-                                        Add images to showcase and represent your circle. Drag to reorder.
+                                        {isUserProfile
+                                            ? "Add a banner image here. You can add up to ten images. Drag to reorder."
+                                            : "Add images to showcase and represent your circle. Drag to reorder."}
                                     </p>
                                     <MultiImageUploader
                                         initialImages={circle.images || []} // Pass original images
@@ -1875,11 +1881,12 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                             label: "Location",
                                             description: {
                                                 circle: "Specify the location of the circle.",
-                                                user: "Specify your location. Your location will be shared with other users.",
+                                                user: "If you choose a location, this will help with location-based information. Your location is not publicly visible unless you choose. However, for your private profile, a general location is recommended.",
                                             },
                                         }}
                                         formField={field}
                                         control={form.control as unknown as Control}
+                                        isUser={isUserProfile}
                                     />
                                 )}
                             />
