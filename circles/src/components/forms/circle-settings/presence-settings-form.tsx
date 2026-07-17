@@ -4,7 +4,7 @@ import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { useToast } from "@/components/ui/use-toast";
-import { Circle } from "@/models/models";
+import { Circle, tourTeamOfferingTypes, TourTeamOffering } from "@/models/models";
 import { useRouter } from "next/navigation";
 import { useForm, Controller, Control } from "react-hook-form";
 import { savePresence } from "@/app/circles/[handle]/settings/presence/actions";
@@ -14,8 +14,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Check, Search, X } from "lucide-react";
-import { getInterestLabel, interestOptions } from "@/lib/data/interests";
 import { skillsV2, skillCategoryLabels, SkillCategory } from "@/lib/data/skills-v2";
+import { tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
 import { cn } from "@/lib/utils";
 
 interface PresenceSettingsFormProps {
@@ -28,11 +28,6 @@ const skillCategoryOrder = Object.keys(skillCategoryLabels) as SkillCategory[];
 interface StructuredSkillSelectorProps {
     value: string[] | undefined;
     onChange: (handles: string[]) => void;
-}
-
-interface InterestSelectorProps {
-    value: string[] | undefined;
-    onChange: (interests: string[]) => void;
 }
 
 function StructuredSkillSelector({ value, onChange }: StructuredSkillSelectorProps): React.ReactElement {
@@ -177,84 +172,120 @@ function StructuredSkillSelector({ value, onChange }: StructuredSkillSelectorPro
     );
 }
 
-function InterestSelector({ value, onChange }: InterestSelectorProps): React.ReactElement {
-    const selectedInterests = useMemo<string[]>(() => {
-        if (!Array.isArray(value)) return [];
+interface TourTeamOfferingsEditorProps {
+    value: TourTeamOffering[] | undefined;
+    onChange: (offerings: TourTeamOffering[]) => void;
+}
 
-        const selectedSet = new Set<string>(
-            value
-                .filter((interest): interest is string => typeof interest === "string")
-                .map((interest) => interest.trim())
-                .filter(Boolean),
-        );
+function TourTeamOfferingsEditor({ value, onChange }: TourTeamOfferingsEditorProps): React.ReactElement {
+    const offerings = useMemo(() => (Array.isArray(value) ? value : []), [value]);
 
-        return interestOptions
-            .map((option) => option.value)
-            .filter((interest) => selectedSet.has(interest));
-    }, [value]);
+    const predefinedByType = useMemo(() => {
+        const map = new Map<string, TourTeamOffering>();
+        for (const offering of offerings) {
+            if (offering.type !== "custom") {
+                map.set(offering.type, offering);
+            }
+        }
+        return map;
+    }, [offerings]);
 
-    const toggleInterest = (interest: string) => {
-        if (selectedInterests.includes(interest)) {
-            onChange(selectedInterests.filter((existingInterest) => existingInterest !== interest));
+    const customOfferings = useMemo(() => offerings.filter((offering) => offering.type === "custom"), [offerings]);
+
+    const togglePredefined = (type: (typeof tourTeamOfferingTypes)[number]) => {
+        if (predefinedByType.has(type)) {
+            onChange(offerings.filter((offering) => offering.type !== type));
             return;
         }
+        onChange([...offerings, { id: type, type, detail: "" }]);
+    };
 
-        onChange([...selectedInterests, interest]);
+    const updatePredefinedDetail = (type: (typeof tourTeamOfferingTypes)[number], detail: string) => {
+        onChange(offerings.map((offering) => (offering.type === type ? { ...offering, detail } : offering)));
+    };
+
+    const addCustomOffering = () => {
+        onChange([...offerings, { id: crypto.randomUUID(), type: "custom", label: "", detail: "" }]);
+    };
+
+    const updateCustomOffering = (id: string, patch: Partial<TourTeamOffering>) => {
+        onChange(offerings.map((offering) => (offering.id === id ? { ...offering, ...patch } : offering)));
+    };
+
+    const removeOffering = (id: string) => {
+        onChange(offerings.filter((offering) => offering.id !== id));
     };
 
     return (
-        <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-medium">Topics / interests</p>
-                <p className="text-sm text-muted-foreground">{selectedInterests.length} selected</p>
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {interestOptions.map((interest) => {
-                    const isSelected = selectedInterests.includes(interest.value);
-
+        <div className="space-y-4">
+            <div className="grid gap-2 sm:grid-cols-2">
+                {tourTeamOfferingTypes.map((type) => {
+                    const selected = predefinedByType.get(type);
+                    const isSelected = Boolean(selected);
                     return (
-                        <button
-                            key={interest.value}
-                            type="button"
-                            onClick={() => toggleInterest(interest.value)}
+                        <div
+                            key={type}
                             className={cn(
-                                "rounded-md border px-3 py-2 text-left text-sm transition-colors",
-                                isSelected
-                                    ? "border-[#6f7a34] bg-[#6f7a34] text-white"
-                                    : "hover:bg-muted/40",
+                                "space-y-2 rounded-md border px-3 py-2",
+                                isSelected ? "border-primary bg-primary/5" : "hover:bg-muted/40",
                             )}
                         >
-                            <span className="flex items-center justify-between gap-2">
-                                <span>{interest.label}</span>
-                                {isSelected && <Check className="h-4 w-4" />}
-                            </span>
-                        </button>
+                            <button
+                                type="button"
+                                onClick={() => togglePredefined(type)}
+                                className="flex w-full items-center justify-between text-left text-sm"
+                            >
+                                <span>{tourTeamOfferingTypeLabels[type]}</span>
+                                {isSelected && <Check className="h-4 w-4 text-primary" />}
+                            </button>
+                            {isSelected && (
+                                <Input
+                                    type="text"
+                                    value={selected?.detail || ""}
+                                    onChange={(event) => updatePredefinedDetail(type, event.target.value)}
+                                    placeholder="Anything else? (optional)"
+                                    maxLength={300}
+                                />
+                            )}
+                        </div>
                     );
                 })}
             </div>
 
-            <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Selected interests</p>
-                <div className="flex flex-wrap gap-2">
-                    {selectedInterests.length > 0 ? (
-                        selectedInterests.map((interest) => (
-                            <Badge key={interest} variant="secondary" className="flex items-center gap-1">
-                                <span>{getInterestLabel(interest)}</span>
-                                <button
-                                    type="button"
-                                    aria-label={`Remove ${getInterestLabel(interest)}`}
-                                    onClick={() => toggleInterest(interest)}
-                                    className="inline-flex h-4 w-4 items-center justify-center rounded-full hover:bg-black/10"
-                                >
-                                    <X className="h-3 w-3" />
-                                </button>
-                            </Badge>
-                        ))
-                    ) : (
-                        <p className="text-sm text-muted-foreground">No interests selected yet.</p>
-                    )}
-                </div>
+            <div className="space-y-3">
+                <p className="text-sm font-medium">Custom offerings</p>
+                {customOfferings.map((offering) => (
+                    <div key={offering.id} className="space-y-2 rounded-md border px-3 py-2">
+                        <div className="flex items-center gap-2">
+                            <Input
+                                type="text"
+                                value={offering.label || ""}
+                                onChange={(event) => updateCustomOffering(offering.id, { label: event.target.value })}
+                                placeholder="e.g. Instrument loan"
+                                maxLength={60}
+                            />
+                            <button
+                                type="button"
+                                aria-label="Remove offering"
+                                onClick={() => removeOffering(offering.id)}
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-black/10"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+                        <Input
+                            type="text"
+                            value={offering.detail || ""}
+                            onChange={(event) => updateCustomOffering(offering.id, { detail: event.target.value })}
+                            placeholder="Anything else? (optional)"
+                            maxLength={300}
+                        />
+                    </div>
+                ))}
+
+                <Button type="button" variant="outline" onClick={addCustomOffering}>
+                    + Add an offering
+                </Button>
             </div>
         </div>
     );
@@ -277,18 +308,26 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                 interests: circle.interests?.length ? circle.interests : circle.engagements?.interests || [],
             },
             needs: circle.needs || {},
+            tourTeamOfferings: circle.tourTeamOfferings || [],
         },
     });
 
     const onSubmit = async (data: any) => {
         setIsSubmitting(true);
         try {
-            const result = await savePresence(data);
+            const tourTeamOfferings = Array.isArray(data.tourTeamOfferings)
+                ? data.tourTeamOfferings.filter(
+                      (offering: TourTeamOffering) =>
+                          offering.type !== "custom" || (offering.label || "").trim().length > 0,
+                  )
+                : data.tourTeamOfferings;
+
+            const result = await savePresence({ ...data, tourTeamOfferings });
             if (result.success) {
                 toast({
                     title: "Success",
                     description: isUser
-                        ? "Skills & interests updated successfully"
+                        ? "Tour-team offerings updated successfully"
                         : "Offers and needs updated successfully",
                 });
                 router.refresh();
@@ -313,60 +352,21 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="formatted space-y-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>{isUser ? "My offers & skills" : "Opportunities"}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <Controller
-                            name="offers.text"
-                            control={form.control as unknown as Control}
-                            render={({ field }) => (
-                                <DynamicTextareaField
-                                    field={{
-                                        name: "offers.text",
-                                        type: "textarea",
-                                        label: isUser ? "What I can offer right now" : "Why get involved",
-                                        maxLength: 600,
-                                    }}
-                                    formField={field}
-                                    control={form.control as unknown as Control}
-                                />
-                            )}
-                        />
-                        {isUser && (
-                            <Controller
-                                name="offers.skills"
-                                control={form.control as unknown as Control}
-                                render={({ field }) => (
-                                    <div className="space-y-2">
-                                        <p className="text-sm font-medium">Skills</p>
-                                        <StructuredSkillSelector
-                                            value={field.value as string[] | undefined}
-                                            onChange={field.onChange}
-                                        />
-                                    </div>
-                                )}
-                            />
-                        )}
-                    </CardContent>
-                </Card>
-
-                {isUser && (
+                {!isUser && (
                     <Card>
                         <CardHeader>
-                            <CardTitle>What I want to engage in</CardTitle>
+                            <CardTitle>Opportunities</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <Controller
-                                name="engagements.text"
+                                name="offers.text"
                                 control={form.control as unknown as Control}
                                 render={({ field }) => (
                                     <DynamicTextareaField
                                         field={{
-                                            name: "engagements.text",
+                                            name: "offers.text",
                                             type: "textarea",
-                                            label: "Types of projects or roles I'm seeking",
+                                            label: "Why get involved",
                                             maxLength: 600,
                                         }}
                                         formField={field}
@@ -374,12 +374,25 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                     />
                                 )}
                             />
+                        </CardContent>
+                    </Card>
+                )}
+
+                {isUser && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Tour-Team Offerings</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <p className="text-sm text-muted-foreground">
+                                Let touring artists know what you can offer when they come through your city.
+                            </p>
                             <Controller
-                                name="engagements.interests"
+                                name="tourTeamOfferings"
                                 control={form.control as unknown as Control}
                                 render={({ field }) => (
-                                    <InterestSelector
-                                        value={field.value as string[] | undefined}
+                                    <TourTeamOfferingsEditor
+                                        value={field.value as TourTeamOffering[] | undefined}
                                         onChange={field.onChange}
                                     />
                                 )}

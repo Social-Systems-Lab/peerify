@@ -28,6 +28,7 @@ export async function savePresence(data: Circle): Promise<FormSubmitResponse> {
                 offers: data.offers,
                 engagements: engagementSettings,
                 needs: data.needs,
+                tourTeamOfferings: data.tourTeamOfferings,
             },
             userDid,
         );

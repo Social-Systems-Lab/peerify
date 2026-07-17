@@ -478,6 +478,17 @@ export const needsSchema = z.object({
     offerHelpEnabled: z.boolean().default(true),
 });
 
+export const tourTeamOfferingTypes = ["spare_room", "local_transport", "city_guide", "home_cooked_meal"] as const;
+
+export const tourTeamOfferingSchema = z.object({
+    id: z.string(),
+    type: z.enum([...tourTeamOfferingTypes, "custom"]),
+    label: z.string().max(60).optional(), // required (enforced in UI) when type === "custom"
+    detail: z.string().max(300).optional(),
+});
+
+export type TourTeamOffering = z.infer<typeof tourTeamOfferingSchema>;
+
 export const socialLinkSchema = z.object({
     platform: z.string(),
     url: z.string().url(),
@@ -538,6 +549,7 @@ export const circleSchema = z.object({
     offers: offersSchema.optional(),
     engagements: engagementSchema.optional(),
     needs: needsSchema.optional(),
+    tourTeamOfferings: z.array(tourTeamOfferingSchema).optional(),
     socialLinks: z.array(socialLinkSchema).optional(),
     websiteUrl: z.string().url().optional(),
     representsOrganization: z.boolean().optional(),
