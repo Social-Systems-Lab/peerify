@@ -1805,7 +1805,7 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                         label: "Picture",
                                         description: {
                                             circle: "Add a picture to represent the circle.",
-                                            user: "Add a profile picture.",
+                                            user: "Add a picture to represent yourself.",
                                         },
                                         imagePreviewWidth: 120,
                                         imagePreviewHeight: 120,
@@ -1813,6 +1813,7 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                     }}
                                     formField={field}
                                     control={form.control as unknown as Control}
+                                    isUser={isUserProfile}
                                 />
                             )}
                         />
