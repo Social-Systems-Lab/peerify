@@ -319,14 +319,12 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             </div>
                         )}
 
-                        {/* Tour-Team Offerings */}
+                        {/* Offers */}
                         {circle.circleType === "user" &&
                             circle.tourTeamOfferings &&
                             circle.tourTeamOfferings.length > 0 && (
                                 <div className="mt-4">
-                                    <h3 className="mb-1.5 text-xs font-medium uppercase text-gray-500">
-                                        Tour-Team Offerings
-                                    </h3>
+                                    <h3 className="mb-1.5 text-xs font-medium uppercase text-gray-500">Offers</h3>
                                     <div className="mt-2 flex flex-wrap items-center gap-2">
                                         {circle.tourTeamOfferings.map((offering) => (
                                             <Badge key={offering.id} variant="outline">

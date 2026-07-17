@@ -480,11 +480,15 @@ export const needsSchema = z.object({
 
 export const tourTeamOfferingTypes = ["spare_room", "local_transport", "city_guide", "home_cooked_meal"] as const;
 
+// Sub-types for the "spare_room" (displayed as "Accommodation") offering type.
+export const accommodationSubTypes = ["room", "couch", "other"] as const;
+
 export const tourTeamOfferingSchema = z.object({
     id: z.string(),
     type: z.enum([...tourTeamOfferingTypes, "custom"]),
     label: z.string().max(60).optional(), // required (enforced in UI) when type === "custom"
     detail: z.string().max(300).optional(),
+    accommodationType: z.enum(accommodationSubTypes).optional(), // only meaningful when type === "spare_room"
 });
 
 export type TourTeamOffering = z.infer<typeof tourTeamOfferingSchema>;

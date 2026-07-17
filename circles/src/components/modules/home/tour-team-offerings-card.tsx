@@ -5,7 +5,7 @@ import PresenceCard from "./presence-card";
 import { Circle } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
-import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
+import { accommodationSubTypeLabels, getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 
 interface TourTeamOfferingsCardProps {
     circle: Circle;
@@ -25,13 +25,20 @@ export default function TourTeamOfferingsCard({ circle, isOwner }: TourTeamOffer
     }
 
     return (
-        <PresenceCard title="Tour-Team Offerings" isOwner={isOwner} onEdit={onEdit}>
+        <PresenceCard title="Offers" isOwner={isOwner} onEdit={onEdit}>
+            {isOwner && (
+                <p className="mb-3 text-xs font-medium text-muted-foreground">
+                    You decide what to share and with whom. Nothing is shared without your choice.
+                </p>
+            )}
             {offerings.length > 0 ? (
                 <div className="flex flex-col gap-2">
                     {offerings.map((offering) => (
                         <div key={offering.id} className="flex flex-col">
                             <Badge variant="secondary" className="w-fit">
                                 {getTourTeamOfferingLabel(offering)}
+                                {offering.accommodationType &&
+                                    ` · ${accommodationSubTypeLabels[offering.accommodationType]}`}
                             </Badge>
                             {offering.detail && <p className="mt-1 text-sm text-muted-foreground">{offering.detail}</p>}
                         </div>
@@ -39,7 +46,7 @@ export default function TourTeamOfferingsCard({ circle, isOwner }: TourTeamOffer
                 </div>
             ) : (
                 <div className="text-center text-muted-foreground">
-                    <p>Let touring artists know what you can offer when they come through your city.</p>
+                    <p>Ways I can contribute to visiting artists.</p>
                 </div>
             )}
         </PresenceCard>

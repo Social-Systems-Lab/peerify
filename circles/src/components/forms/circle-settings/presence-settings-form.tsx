@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { useToast } from "@/components/ui/use-toast";
-import { Circle, tourTeamOfferingTypes, TourTeamOffering } from "@/models/models";
+import { accommodationSubTypes, Circle, tourTeamOfferingTypes, TourTeamOffering } from "@/models/models";
 import { useRouter } from "next/navigation";
 import { useForm, Controller, Control } from "react-hook-form";
 import { savePresence } from "@/app/circles/[handle]/settings/presence/actions";
@@ -13,9 +13,18 @@ import { DynamicTextareaField, DynamicTagsField } from "@/components/forms/dynam
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, Search, X } from "lucide-react";
 import { skillsV2, skillCategoryLabels, SkillCategory } from "@/lib/data/skills-v2";
-import { tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
+import { accommodationSubTypeLabels, tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
 import { cn } from "@/lib/utils";
 
 interface PresenceSettingsFormProps {
@@ -204,6 +213,16 @@ function TourTeamOfferingsEditor({ value, onChange }: TourTeamOfferingsEditorPro
         onChange(offerings.map((offering) => (offering.type === type ? { ...offering, detail } : offering)));
     };
 
+    const updateAccommodationType = (accommodationType: string) => {
+        onChange(
+            offerings.map((offering) =>
+                offering.type === "spare_room"
+                    ? { ...offering, accommodationType: accommodationType as TourTeamOffering["accommodationType"] }
+                    : offering,
+            ),
+        );
+    };
+
     const addCustomOffering = () => {
         onChange([...offerings, { id: crypto.randomUUID(), type: "custom", label: "", detail: "" }]);
     };
@@ -239,13 +258,32 @@ function TourTeamOfferingsEditor({ value, onChange }: TourTeamOfferingsEditorPro
                                 {isSelected && <Check className="h-4 w-4 text-primary" />}
                             </button>
                             {isSelected && (
-                                <Input
-                                    type="text"
-                                    value={selected?.detail || ""}
-                                    onChange={(event) => updatePredefinedDetail(type, event.target.value)}
-                                    placeholder="Anything else? (optional)"
-                                    maxLength={300}
-                                />
+                                <>
+                                    {type === "spare_room" && (
+                                        <Select
+                                            value={selected?.accommodationType || ""}
+                                            onValueChange={updateAccommodationType}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="What kind? (optional)" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {accommodationSubTypes.map((subType) => (
+                                                    <SelectItem key={subType} value={subType}>
+                                                        {accommodationSubTypeLabels[subType]}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    )}
+                                    <Input
+                                        type="text"
+                                        value={selected?.detail || ""}
+                                        onChange={(event) => updatePredefinedDetail(type, event.target.value)}
+                                        placeholder="Anything else? (optional)"
+                                        maxLength={300}
+                                    />
+                                </>
                             )}
                         </div>
                     );
@@ -295,8 +333,33 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
     const { toast } = useToast();
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showOfferingsIntro, setShowOfferingsIntro] = useState(false);
     const isUser = circle.circleType === "user";
     const useStructuredNeedsSelector = circle.circleType !== "user";
+
+    useEffect(() => {
+        if (!isUser || !circle.handle) return;
+
+        try {
+            const storageKey = `peerify_tour_team_offerings_intro_dismissed:${circle.handle}`;
+            if (localStorage.getItem(storageKey) !== "true") {
+                setShowOfferingsIntro(true);
+            }
+        } catch {
+            // localStorage unavailable (private mode etc.) — skip showing the explainer
+        }
+    }, [isUser, circle.handle]);
+
+    const dismissOfferingsIntro = () => {
+        setShowOfferingsIntro(false);
+
+        if (!circle.handle) return;
+        try {
+            localStorage.setItem(`peerify_tour_team_offerings_intro_dismissed:${circle.handle}`, "true");
+        } catch {
+            // localStorage unavailable — nothing to persist
+        }
+    };
 
     const form = useForm({
         defaultValues: {
@@ -326,9 +389,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
             if (result.success) {
                 toast({
                     title: "Success",
-                    description: isUser
-                        ? "Tour-team offerings updated successfully"
-                        : "Offers and needs updated successfully",
+                    description: isUser ? "Offers updated successfully" : "Offers and needs updated successfully",
                 });
                 router.refresh();
             } else {
@@ -350,112 +411,144 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
     };
 
     return (
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="formatted space-y-6">
-                {!isUser && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Opportunities</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <Controller
-                                name="offers.text"
-                                control={form.control as unknown as Control}
-                                render={({ field }) => (
-                                    <DynamicTextareaField
-                                        field={{
-                                            name: "offers.text",
-                                            type: "textarea",
-                                            label: "Why get involved",
-                                            maxLength: 600,
-                                        }}
-                                        formField={field}
-                                        control={form.control as unknown as Control}
-                                    />
-                                )}
-                            />
-                        </CardContent>
-                    </Card>
-                )}
+        <>
+            {isUser && (
+                <Dialog
+                    open={showOfferingsIntro}
+                    onOpenChange={(open) => (open ? setShowOfferingsIntro(true) : dismissOfferingsIntro())}
+                >
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Before you add your Offers</DialogTitle>
+                            <DialogDescription className="space-y-3">
+                                <p>
+                                    You&apos;re not committing to provide anything — this is a potential offer, not a
+                                    promise.
+                                </p>
+                                <p>You choose who to share your offer details with.</p>
+                                <p>
+                                    Your offer stays private even if the offering type itself is visible elsewhere (e.g.
+                                    on a map or aggregate count) — nothing identifying is shared unless you actively
+                                    choose to share it.
+                                </p>
+                            </DialogDescription>
+                        </DialogHeader>
+                        <DialogFooter>
+                            <Button type="button" onClick={dismissOfferingsIntro}>
+                                OK, I understand.
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+            )}
 
-                {isUser && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Tour-Team Offerings</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <p className="text-sm text-muted-foreground">
-                                Let touring artists know what you can offer when they come through your city.
-                            </p>
-                            <Controller
-                                name="tourTeamOfferings"
-                                control={form.control as unknown as Control}
-                                render={({ field }) => (
-                                    <TourTeamOfferingsEditor
-                                        value={field.value as TourTeamOffering[] | undefined}
-                                        onChange={field.onChange}
-                                    />
-                                )}
-                            />
-                        </CardContent>
-                    </Card>
-                )}
-
-                {!isUser && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>What we need help with</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <Controller
-                                name="needs.text"
-                                control={form.control as unknown as Control}
-                                render={({ field }) => (
-                                    <DynamicTextareaField
-                                        field={{
-                                            name: "needs.text",
-                                            type: "textarea",
-                                            label: "Current needs",
-                                            maxLength: 600,
-                                        }}
-                                        formField={field}
-                                        control={form.control as unknown as Control}
-                                    />
-                                )}
-                            />
-                            <Controller
-                                name="needs.tags"
-                                control={form.control as unknown as Control}
-                                render={({ field }) => (
-                                    useStructuredNeedsSelector ? (
-                                        <div className="space-y-2">
-                                            <p className="text-sm font-medium">Needs</p>
-                                            <StructuredSkillSelector
-                                                value={field.value as string[] | undefined}
-                                                onChange={field.onChange}
-                                            />
-                                        </div>
-                                    ) : (
-                                        <DynamicTagsField
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="formatted space-y-6">
+                    {!isUser && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Opportunities</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <Controller
+                                    name="offers.text"
+                                    control={form.control as unknown as Control}
+                                    render={({ field }) => (
+                                        <DynamicTextareaField
                                             field={{
-                                                name: "needs.tags",
-                                                type: "tags",
-                                                label: "Needs",
+                                                name: "offers.text",
+                                                type: "textarea",
+                                                label: "Why get involved",
+                                                maxLength: 600,
                                             }}
                                             formField={field}
                                             control={form.control as unknown as Control}
                                         />
-                                    )
-                                )}
-                            />
-                        </CardContent>
-                    </Card>
-                )}
+                                    )}
+                                />
+                            </CardContent>
+                        </Card>
+                    )}
 
-                <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? "Saving..." : "Save Changes"}
-                </Button>
-            </form>
-        </Form>
+                    {isUser && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Offers</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <p className="text-xs font-medium text-muted-foreground">
+                                    You decide what to share and with whom. Nothing is shared without your choice.
+                                </p>
+                                <Controller
+                                    name="tourTeamOfferings"
+                                    control={form.control as unknown as Control}
+                                    render={({ field }) => (
+                                        <TourTeamOfferingsEditor
+                                            value={field.value as TourTeamOffering[] | undefined}
+                                            onChange={field.onChange}
+                                        />
+                                    )}
+                                />
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {!isUser && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>What we need help with</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <Controller
+                                    name="needs.text"
+                                    control={form.control as unknown as Control}
+                                    render={({ field }) => (
+                                        <DynamicTextareaField
+                                            field={{
+                                                name: "needs.text",
+                                                type: "textarea",
+                                                label: "Current needs",
+                                                maxLength: 600,
+                                            }}
+                                            formField={field}
+                                            control={form.control as unknown as Control}
+                                        />
+                                    )}
+                                />
+                                <Controller
+                                    name="needs.tags"
+                                    control={form.control as unknown as Control}
+                                    render={({ field }) =>
+                                        useStructuredNeedsSelector ? (
+                                            <div className="space-y-2">
+                                                <p className="text-sm font-medium">Needs</p>
+                                                <StructuredSkillSelector
+                                                    value={field.value as string[] | undefined}
+                                                    onChange={field.onChange}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <DynamicTagsField
+                                                field={{
+                                                    name: "needs.tags",
+                                                    type: "tags",
+                                                    label: "Needs",
+                                                }}
+                                                formField={field}
+                                                control={form.control as unknown as Control}
+                                            />
+                                        )
+                                    }
+                                />
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? "Saving..." : "Save Changes"}
+                    </Button>
+                </form>
+            </Form>
+        </>
     );
 }

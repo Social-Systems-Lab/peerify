@@ -20,7 +20,7 @@ const settingsForms: SettingsForm[] = [
     },
     {
         name: {
-            user: "Tour-Team Offerings",
+            user: "Offers",
             circle: "Offers and needs",
         },
         handle: "presence",
