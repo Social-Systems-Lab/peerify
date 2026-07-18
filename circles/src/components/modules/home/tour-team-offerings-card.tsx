@@ -31,9 +31,9 @@ export default function TourTeamOfferingsCard({ circle, isOwner }: TourTeamOffer
                     <p className="mb-3 text-xs font-medium text-muted-foreground">
                         Ways I can contribute to visiting artists.
                     </p>
-                    <div className="flex flex-col gap-4">
+                    <div className="flex flex-col divide-y divide-black/5">
                         {offerings.map((offering) => (
-                            <div key={offering.id} className="flex flex-col gap-1">
+                            <div key={offering.id} className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
                                 <Badge variant="secondary" className="w-fit">
                                     {getTourTeamOfferingLabel(offering)}
                                     {offering.accommodationType &&
