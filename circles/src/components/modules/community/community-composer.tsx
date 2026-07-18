@@ -8,6 +8,7 @@ import { Circle, Feed } from "@/models/models";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { MultiImageUploader, ImageItem } from "@/components/forms/controls/multi-image-uploader";
 import { UNVERIFIED_PROFILE_EXPLAINER, canPerformRestrictedAction } from "@/lib/auth/verification";
 import { createPostAction } from "@/components/modules/feeds/actions";
 import { useToast } from "@/components/ui/use-toast";
@@ -20,21 +21,22 @@ type CommunityComposerProps = {
 };
 
 // Deliberately minimal — Community's agreed MVP fields are just text body +
-// images (multi-image wiring lands in the next commit). This does NOT reuse
-// PostForm: PostForm brings all of Noticeboard's fields (title, location,
-// link preview, poll, visibility picker) that aren't part of Community's
-// agreed scope.
+// images (no title, no location, no link preview, no poll, no visibility
+// picker). This does NOT reuse PostForm: PostForm brings all of those
+// Noticeboard-specific fields, and has its own bespoke image dropzone rather
+// than the shared MultiImageUploader this brief asked to reuse.
 export function CommunityComposer({ circle, feed, onPostCreated }: CommunityComposerProps) {
     const [user] = useAtom(userAtom);
     const [content, setContent] = useState("");
+    const [images, setImages] = useState<ImageItem[]>([]);
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
 
     const handleSubmit = () => {
-        if (!content.trim()) {
+        if (!content.trim() && images.length === 0) {
             toast({
                 title: "Error",
-                description: "Write something before posting.",
+                description: "Write something or add an image before posting.",
                 variant: "destructive",
             });
             return;
@@ -46,6 +48,11 @@ export function CommunityComposer({ circle, feed, onPostCreated }: CommunityComp
             formData.append("postType", "community");
             formData.append("content", content);
             formData.append("userGroups", "everyone");
+            images.forEach((image) => {
+                if (image.file) {
+                    formData.append("media", image.file);
+                }
+            });
 
             const response = await createPostAction(formData);
             if (!response.success) {
@@ -58,6 +65,7 @@ export function CommunityComposer({ circle, feed, onPostCreated }: CommunityComp
 
             toast({ title: "Posted to Community", variant: "success" });
             setContent("");
+            setImages([]);
             onPostCreated();
         });
     };
@@ -76,6 +84,9 @@ export function CommunityComposer({ circle, feed, onPostCreated }: CommunityComp
                         placeholder={`Share something with ${circle.name}'s community...`}
                         className="min-h-[100px] resize-none rounded-xl border-gray-200 px-3 py-2 text-base shadow-none focus-visible:ring-0"
                     />
+                    <div className="mt-3">
+                        <MultiImageUploader onChange={setImages} maxImages={5} previewMode="compact" />
+                    </div>
                 </div>
             </div>
             <div className="flex justify-end">
