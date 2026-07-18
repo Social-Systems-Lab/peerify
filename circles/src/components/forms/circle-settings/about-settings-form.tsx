@@ -788,7 +788,9 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                         name: "description",
                                         type: "textarea",
                                         label: "Description",
-                                        placeholder: "Description",
+                                        placeholder: isUserProfile
+                                            ? "A brief introduction to me, one or two sentences long."
+                                            : "Description",
                                         description: {
                                             circle: "Describe the circle in a few words.",
                                             user: "This is the text that will show up under your name on your profile page.",
@@ -836,7 +838,9 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                                         name: "content",
                                         type: "textarea",
                                         label: "Content",
-                                        placeholder: "Detailed information about your circle",
+                                        placeholder: isUserProfile
+                                            ? "A longer description for the About section."
+                                            : "Detailed information about your circle",
                                         description: isUserProfile ? "This is your longer presentation text." : undefined,
                                     }}
                                     formField={field}

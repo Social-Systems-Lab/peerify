@@ -26,24 +26,24 @@ export default function TourTeamOfferingsCard({ circle, isOwner }: TourTeamOffer
 
     return (
         <PresenceCard title="Offers" isOwner={isOwner} onEdit={onEdit}>
-            {isOwner && (
-                <p className="mb-3 text-xs font-medium text-muted-foreground">
-                    You decide what to share and with whom. Nothing is shared without your choice.
-                </p>
-            )}
             {offerings.length > 0 ? (
-                <div className="flex flex-col gap-2">
-                    {offerings.map((offering) => (
-                        <div key={offering.id} className="flex flex-col">
-                            <Badge variant="secondary" className="w-fit">
-                                {getTourTeamOfferingLabel(offering)}
-                                {offering.accommodationType &&
-                                    ` · ${accommodationSubTypeLabels[offering.accommodationType]}`}
-                            </Badge>
-                            {offering.detail && <p className="mt-1 text-sm text-muted-foreground">{offering.detail}</p>}
-                        </div>
-                    ))}
-                </div>
+                <>
+                    <p className="mb-3 text-xs font-medium text-muted-foreground">
+                        Ways I can contribute to visiting artists.
+                    </p>
+                    <div className="flex flex-col gap-4">
+                        {offerings.map((offering) => (
+                            <div key={offering.id} className="flex flex-col gap-1">
+                                <Badge variant="secondary" className="w-fit">
+                                    {getTourTeamOfferingLabel(offering)}
+                                    {offering.accommodationType &&
+                                        ` · ${accommodationSubTypeLabels[offering.accommodationType]}`}
+                                </Badge>
+                                {offering.detail && <p className="text-sm text-muted-foreground">{offering.detail}</p>}
+                            </div>
+                        ))}
+                    </div>
+                </>
             ) : (
                 <div className="text-center text-muted-foreground">
                     <p>Ways I can contribute to visiting artists.</p>

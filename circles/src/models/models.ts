@@ -478,7 +478,14 @@ export const needsSchema = z.object({
     offerHelpEnabled: z.boolean().default(true),
 });
 
-export const tourTeamOfferingTypes = ["spare_room", "local_transport", "city_guide", "home_cooked_meal"] as const;
+export const tourTeamOfferingTypes = [
+    "spare_room",
+    "hosting_show",
+    "local_transport",
+    "city_guide",
+    "home_cooked_meal",
+    "sound_equipment_help",
+] as const;
 
 // Sub-types for the "spare_room" (displayed as "Accommodation") offering type.
 export const accommodationSubTypes = ["room", "couch", "other"] as const;
