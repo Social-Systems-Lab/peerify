@@ -626,8 +626,8 @@ export const UserToolbox = () => {
                             event.stopPropagation();
                             void handleBookmarkPinToggle(item);
                         }}
-                        title={item.pinned ? "Unpin bookmark" : "Pin bookmark"}
-                        aria-label={item.pinned ? "Unpin bookmark" : "Pin bookmark"}
+                        title={item.pinned ? "Unpin favorite" : "Pin favorite"}
+                        aria-label={item.pinned ? "Unpin favorite" : "Pin favorite"}
                         disabled={isUpdatingPin}
                     >
                         {isUpdatingPin ? (
@@ -797,7 +797,7 @@ export const UserToolbox = () => {
                             <div className="pb-2">
                                 <div className="flex items-center justify-between px-3 pb-2 pt-2">
                                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                        Bookmarks
+                                        Favorites
                                     </p>
                                     <Link
                                         href="/bookmarks"
@@ -821,7 +821,7 @@ export const UserToolbox = () => {
                                     <>
                                         <div className="px-3 pb-1 pt-3">
                                             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                                {pinnedBookmarks.length > 0 ? "Other bookmarks" : "All bookmarks"}
+                                                {pinnedBookmarks.length > 0 ? "Other favorites" : "All favorites"}
                                             </p>
                                         </div>
                                         {otherBookmarks.map(renderBookmarkRow)}
@@ -830,7 +830,7 @@ export const UserToolbox = () => {
                             </div>
                         ) : (
                             <div className="flex h-full flex-col items-center justify-center p-8 text-center text-muted-foreground">
-                                <p>No bookmarks yet</p>
+                                <p>No favorites yet</p>
                                 <p className="mt-2 max-w-[220px] text-sm text-muted-foreground">
                                     Saved profiles, circles and projects will appear here.
                                 </p>
@@ -839,7 +839,7 @@ export const UserToolbox = () => {
                                     className="mt-3 text-sm font-medium text-primary underline-offset-4 hover:underline"
                                     onClick={closeToolbox}
                                 >
-                                    View all bookmarks
+                                    View all favorites
                                 </Link>
                             </div>
                         )}

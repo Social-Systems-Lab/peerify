@@ -181,7 +181,7 @@ export default function GlobalNavItems() {
                     </motion.div>
                 </div>
 
-                {/* Mobile: Bookmarks nav item */}
+                {/* Mobile: Favorites nav item */}
                 <Link href={"/bookmarks"}>
                     <motion.div
                         onClick={() => setSidePanelMode("none")}
@@ -201,7 +201,7 @@ export default function GlobalNavItems() {
                             animate={{ opacity: 1 }}
                             transition={{ duration: 0.3, delay: 0.3 }}
                         >
-                            Bookmarks
+                            Favorites
                         </motion.span>
                     </motion.div>
                 </Link>

@@ -11,7 +11,7 @@ export default async function BookmarksPage() {
   if (!userDid) {
     return (
       <div className="mx-auto max-w-5xl p-6">
-        <h1 className="mb-2 text-2xl font-bold">Bookmarks</h1>
+        <h1 className="mb-2 text-2xl font-bold">Favorites</h1>
         <p className="text-gray-600">You need to be logged in to view your saved profiles.</p>
         <div className="mt-4">
           <Link href="/welcome" className="text-blue-600 hover:underline">
@@ -46,12 +46,12 @@ export default async function BookmarksPage() {
 
   return (
     <div className="mx-auto max-w-5xl p-6">
-      <h1 className="mb-1 text-2xl font-bold">Bookmarks</h1>
+      <h1 className="mb-1 text-2xl font-bold">Favorites</h1>
       <p className="mb-4 text-sm text-gray-600">Pinned profiles appear first and also count as saved profiles.</p>
 
       {!hasAny ? (
         <div className="rounded-md border bg-white p-6 text-center text-gray-600">
-          No saved profiles yet. Visit an artist, host, or community profile and click Bookmark to add it here.
+          No saved profiles yet. Visit an artist, host, or community profile and click Favorite to add it here.
           <div className="mt-3">
             <Link href="/explore" className="text-blue-600 hover:underline">
               Explore Peerify

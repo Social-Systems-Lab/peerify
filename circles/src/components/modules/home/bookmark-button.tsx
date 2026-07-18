@@ -32,7 +32,7 @@ export const BookmarkButton: React.FC<BookmarkButtonProps> = ({ circle, renderCo
         if (!user || !circleId) {
             toast({
                 title: "Sign in required",
-                description: "You need to be logged in to bookmark a community.",
+                description: "You need to be logged in to favorite a community.",
                 variant: "destructive",
             });
             return;
@@ -55,17 +55,17 @@ export const BookmarkButton: React.FC<BookmarkButtonProps> = ({ circle, renderCo
                 if (updated) {
                     setUser(updated);
                     toast({
-                        title: isBookmarked ? "Removed bookmark" : "Bookmarked",
+                        title: isBookmarked ? "Removed favorite" : "Favorited",
                         description: isBookmarked
-                            ? `Removed ${circle.name} from your bookmarks.`
-                            : `Added ${circle.name} to your bookmarks.`,
+                            ? `Removed ${circle.name} from your favorites.`
+                            : `Added ${circle.name} to your favorites.`,
                     });
                 } else {
                     // Rollback on failure
                     setUser(prevUser as UserPrivate);
                     toast({
                         title: "Error",
-                        description: "Failed to update bookmark. Please try again.",
+                        description: "Failed to update favorite. Please try again.",
                         variant: "destructive",
                     });
                 }
@@ -83,26 +83,28 @@ export const BookmarkButton: React.FC<BookmarkButtonProps> = ({ circle, renderCo
     };
 
     const size = renderCompact ? "sm" : "default";
-    const bookmarkButtonClassName = isBookmarked
-        ? "border-transparent bg-[hsl(var(--bookmark-active))] text-[hsl(var(--bookmark-active-foreground))] hover:bg-[hsl(var(--bookmark-active-hover))] hover:text-[hsl(var(--bookmark-active-foreground))]"
-        : undefined;
 
     return (
         <Button
-            variant={isBookmarked ? "outline" : "default"}
+            variant="ghost"
             size={size as any}
             onClick={onToggleBookmark}
             disabled={isLoading || isPending}
-            className={[bookmarkButtonClassName, className].filter(Boolean).join(" ")}
+            className={className}
             aria-pressed={isBookmarked}
-            title={isBookmarked ? "Remove bookmark" : "Add bookmark"}
+            title={isBookmarked ? "Remove favorite" : "Add favorite"}
         >
             {isLoading || isPending ? (
                 <Loader2 className={iconOnly ? "h-4 w-4 animate-spin" : "mr-2 h-4 w-4 animate-spin"} />
             ) : (
-                <Star className={[iconOnly ? "h-4 w-4" : "mr-2 h-4 w-4", isBookmarked ? "fill-current" : ""].join(" ")} />
+                <Star
+                    className={[
+                        iconOnly ? "h-4 w-4" : "mr-2 h-4 w-4",
+                        isBookmarked ? "fill-current text-[#EF9F27]" : "",
+                    ].join(" ")}
+                />
             )}
-            {!iconOnly && (isBookmarked ? "Bookmarked" : "Bookmark")}
+            {!iconOnly && (isBookmarked ? "Favorited" : "Favorite")}
         </Button>
     );
 };
