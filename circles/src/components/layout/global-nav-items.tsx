@@ -14,7 +14,7 @@ import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { CgFeed } from "react-icons/cg";
 import { MdRssFeed } from "react-icons/md";
 import GlobalCreateButton from "./global-create-button";
-import { Bookmark, Plus, Calendar as CalendarIcon } from "lucide-react";
+import { Star, Plus, Calendar as CalendarIcon } from "lucide-react";
 import { Circle } from "@/models/models";
 import { CirclePicture } from "../modules/circles/circle-picture";
 import PinPicker from "../modules/home/pin-picker";
@@ -181,7 +181,7 @@ export default function GlobalNavItems() {
                     </motion.div>
                 </div>
 
-                {/* Mobile: Bookmarks nav item */}
+                {/* Mobile: Favorites nav item */}
                 <Link href={"/bookmarks"}>
                     <motion.div
                         onClick={() => setSidePanelMode("none")}
@@ -194,14 +194,14 @@ export default function GlobalNavItems() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0.1 }}
                     >
-                        <Bookmark size={"24px"} />
+                        <Star size={"24px"} />
                         <motion.span
                             className="mt-[2px] text-[11px]"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ duration: 0.3, delay: 0.3 }}
                         >
-                            Bookmarks
+                            Favorites
                         </motion.span>
                     </motion.div>
                 </Link>

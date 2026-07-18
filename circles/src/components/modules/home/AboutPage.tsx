@@ -46,7 +46,6 @@ import { ProofOfHumanityCard } from "./proof-of-humanity-card";
 import type { HumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
 import MembershipCredentialCard from "./MembershipCredentialCard";
 import type { CircleMembershipCredentialCardData } from "@/lib/vibe-id/membership-credentials";
-import { isVerifiedUser } from "@/lib/auth/verification";
 import { useProfileRelationshipState } from "./message-button";
 import {
     getPeerifyArtistProfile,
@@ -377,7 +376,8 @@ export default function AboutPage({
         !isUserProfile && !isPeerifyVenueProfile && (visibleNeeds.length > 0 || hasMatchingOfferNeeds);
     const hasAdminDetails =
         !isUserProfile && !isPeerifyArtistProfile && !isPeerifyVenueProfile && adminLeaders.length > 0;
-    const shouldShowVerifiedContributions = isUserProfile && !isPeerifyArtistProfile;
+    // Hidden per request: re-enable by restoring `isUserProfile && !isPeerifyArtistProfile`
+    const shouldShowVerifiedContributions = false;
     const shouldShowProofOfHumanity = isUserProfile && !!proofOfHumanitySummary && !isPeerifyArtistProfile;
     const shouldShowMembershipCredential =
         !isUserProfile && !isPeerifyArtistProfile && !isPeerifyVenueProfile && !!membershipCredential;
@@ -417,10 +417,6 @@ export default function AboutPage({
             return "Founding Member";
         }
 
-        if (isVerifiedUser(circle)) {
-            return "Test Pilot";
-        }
-
         return "Member";
     })();
     const profileStatusChips = [
@@ -443,9 +439,7 @@ export default function AboutPage({
                   className:
                       memberStatusLabel === "Founding Member"
                           ? "bg-[hsl(var(--founding-member-bg))] text-[hsl(var(--founding-member-foreground))] hover:bg-[hsl(var(--founding-member-bg))] hover:text-[hsl(var(--founding-member-foreground))]"
-                          : memberStatusLabel === "Test Pilot"
-                            ? "bg-[hsl(var(--platform-yellow))] text-[hsl(var(--platform-yellow-foreground))] hover:bg-[hsl(var(--platform-yellow))] hover:text-[hsl(var(--platform-yellow-foreground))]"
-                            : "bg-slate-50 text-slate-700 hover:bg-slate-50 hover:text-slate-700",
+                          : "bg-slate-50 text-slate-700 hover:bg-slate-50 hover:text-slate-700",
               }
             : null,
         {

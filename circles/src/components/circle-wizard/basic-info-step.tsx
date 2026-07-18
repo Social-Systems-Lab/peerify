@@ -431,6 +431,10 @@ export default function BasicInfoStep({
                     </p>
                 </div>
 
+                {/* Hidden pending a redesign of the membership/deferred-payment model:
+                    this CTA linked to the "Supporting" section on the subscription settings
+                    page, which is currently hidden, so it would dead-end. Not deleted so
+                    it's easy to reinstate once the new design lands.
                 {!(user?.isMember || user?.manualMember || user?.isFoundingMember) && (
                     <div className="space-y-2 rounded-lg border border-yellow-300 bg-yellow-50 p-4">
                         <h3 className="font-semibold text-yellow-800">Become a Member!</h3>
@@ -453,6 +457,7 @@ export default function BasicInfoStep({
                         </Button>
                     </div>
                 )}
+                */}
             </div>
 
             <div className="flex justify-end">

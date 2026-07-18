@@ -69,6 +69,8 @@ export default function SubscriptionFormSettings({
                 <VerificationSettingsCard user={user} />
                 */}
                 <EmailPreferencesSettingsCard initialValues={initialEmailPreferences} />
+                {/* Hidden pending a redesign of the membership/deferred-payment model.
+                    Not deleted so it's easy to reinstate once the new design lands.
                 <section className="space-y-4">
                     <div className="space-y-1 px-1">
                         <h2 className="text-lg font-semibold tracking-tight">Supporting</h2>
@@ -83,6 +85,7 @@ export default function SubscriptionFormSettings({
                         </p>
                     </div>
                 </section>
+                */}
             </div>
         );
     }
@@ -97,6 +100,8 @@ export default function SubscriptionFormSettings({
             <VerificationSettingsCard user={user} />
             */}
             <EmailPreferencesSettingsCard initialValues={initialEmailPreferences} />
+            {/* Hidden pending a redesign of the membership/deferred-payment model.
+                Not deleted so it's easy to reinstate once the new design lands.
             <section className="space-y-4">
                 <div className="space-y-1 px-1">
                     <h2 className="text-lg font-semibold tracking-tight">Supporting</h2>
@@ -106,6 +111,7 @@ export default function SubscriptionFormSettings({
                 </div>
                 <SubscriptionForm circle={user} onDialogClose={handleDialogClose} />
             </section>
+            */}
         </div>
     );
 }
