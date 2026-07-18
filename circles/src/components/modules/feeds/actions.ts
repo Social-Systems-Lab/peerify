@@ -32,7 +32,13 @@ import {
 } from "@/lib/data/feed";
 import { saveFile, isFile } from "@/lib/data/storage";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
-import { features, getPostCreateFeature, getPostModerateFeature, getPostViewFeature } from "@/lib/data/constants";
+import {
+    features,
+    getPostCreateFeature,
+    getPostModerateFeature,
+    getPostViewFeature,
+    getFeedViewFeature,
+} from "@/lib/data/constants";
 import { sdgs } from "@/lib/data/sdgs";
 import { getProposalById } from "@/lib/data/proposal";
 import { getIssueById } from "@/lib/data/issue";
@@ -359,7 +365,7 @@ export async function getPostsAction(
         redirect("/not-found");
     }
 
-    const authorized = await isAuthorized(userDid, circleId, features.feed.view);
+    const authorized = await isAuthorized(userDid, circleId, getFeedViewFeature(feed.handle));
     if (!authorized) {
         redirect("/unauthorized");
     }
@@ -1173,7 +1179,7 @@ export async function getFeedByHandleAction(circleId: string, feedHandle: string
         if (!feed) return null;
 
         // Check if user has permission to view the feed
-        const authorized = await isAuthorized(userDid, circleId, features.feed.view);
+        const authorized = await isAuthorized(userDid, circleId, getFeedViewFeature(feed.handle));
         if (!authorized) return null;
 
         return feed;

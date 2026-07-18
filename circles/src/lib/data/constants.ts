@@ -699,6 +699,21 @@ export const getPostCreateFeature = (postType?: Post["postType"]): Feature => {
     }
 };
 
+// Same idea as the postType resolvers above, but keyed by Feed handle instead
+// of a post's postType — for call sites (getPostsAction, getFeedByHandleAction)
+// that check view access to an entire feed rather than one post. Only
+// "community"-handle feeds diverge from features.feed.view; every other feed
+// (including Discussions, which shares the "default" feed with Noticeboard)
+// keeps today's behavior unchanged.
+export const getFeedViewFeature = (feedHandle?: string): Feature => {
+    switch (feedHandle) {
+        case "community":
+            return features.community.view;
+        default:
+            return features.feed.view;
+    }
+};
+
 export const modules: ModuleInfo[] = [
     {
         name: "Home",
@@ -718,6 +733,12 @@ export const modules: ModuleInfo[] = [
         handle: "feed",
         description:
             "A shared space for circle members to publish posts, updates, and discussions. Serves as the central communication hub to foster transparent collaboration and community engagement.",
+    },
+    {
+        name: "Community",
+        handle: "community",
+        description:
+            "A lighter-weight, conversational space for the circle and its followers to post updates, photos, and replies — separate from Noticeboard's artist/venue-authoritative broadcasts.",
     },
     {
         name: "Followers",

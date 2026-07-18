@@ -59,16 +59,27 @@ export function CircleTabs({ circle }: CircleTabsProps) {
         [circle.accessRules, userGroups],
     );
 
+    // Community is force-enabled for every artist/venue circle (circleType "circle"),
+    // the same way isPeerifyVenueIdentity force-injects "events" below — deliberately
+    // NOT gated by the stored enabledModules array, so existing circles (created
+    // before this module existed) get it with no backfill script. Matches the
+    // lazy-create-not-backfill convention already used for the Community feed itself.
+    const isArtistOrVenueCircle = circle.circleType === "circle";
+
     const enabledModules = useMemo(() => {
         // loop through all modules and check if they are enabled for the circle
         let moduleList: string[] = [];
-        if (!circle.enabledModules && !isPeerifyVenueIdentity(circle)) {
+        if (!circle.enabledModules && !isPeerifyVenueIdentity(circle) && !isArtistOrVenueCircle) {
             return moduleList;
         }
 
-        const effectiveEnabledModules = isPeerifyVenueIdentity(circle)
-            ? Array.from(new Set([...(circle.enabledModules ?? []), "events"]))
-            : circle.enabledModules;
+        const effectiveEnabledModules = Array.from(
+            new Set([
+                ...(circle.enabledModules ?? []),
+                ...(isPeerifyVenueIdentity(circle) ? ["events"] : []),
+                ...(isArtistOrVenueCircle ? ["community"] : []),
+            ]),
+        );
 
         for (let moduleHandle of modules.map((m) => m.handle)) {
             let isModuleEnabled = effectiveEnabledModules?.includes(moduleHandle);
