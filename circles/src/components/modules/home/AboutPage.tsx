@@ -33,7 +33,7 @@ import PledgeDialog from "@/components/modules/home/pledge-dialog";
 import { isAuthorized } from "@/lib/auth/client-auth";
 import { features } from "@/lib/data/constants";
 import OffersCard from "./offers-card";
-import EngagementCard from "./engagement-card";
+import TourTeamOfferingsCard from "./tour-team-offerings-card";
 import AudioPlayer from "@/components/modules/music/audio-player";
 import VerifiedContributionsPanel, { type VerifiedContributionItem } from "./VerifiedContributionsPanel";
 import { FundingPanel } from "@/components/modules/funding/funding-panel";
@@ -951,9 +951,11 @@ export default function AboutPage({
                                 </ul>
                             </div>
                         )}
-                        {shouldShowPeerifyArtistSupportCards && <OffersCard circle={circle} isOwner={isOwner} />}
+                        {shouldShowPeerifyArtistSupportCards && !isUserProfile && (
+                            <OffersCard circle={circle} isOwner={isOwner} />
+                        )}
                         {shouldShowPeerifyArtistSupportCards && isUserProfile && (
-                            <EngagementCard circle={circle} isOwner={isOwner} />
+                            <TourTeamOfferingsCard circle={circle} isOwner={isOwner} />
                         )}
                     </div>
                 </div>

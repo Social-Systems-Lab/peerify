@@ -39,6 +39,7 @@ import EventDetail from "../modules/events/event-detail"; // Added EventDetail i
 import { MapPin, Quote } from "lucide-react";
 import { CirclePicture } from "../modules/circles/circle-picture";
 import { getInterestLabel } from "@/lib/data/interests";
+import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 import { sdgs } from "@/lib/data/sdgs";
 import { skills } from "@/lib/data/skills";
 import SdgList from "../modules/sdgs/SdgList";
@@ -282,7 +283,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                         )} */}
 
                         {/* Offers & Skills */}
-                        {circle.offers && (
+                        {circle.circleType !== "user" && circle.offers && (
                             <div className="mt-4">
                                 <h3 className="mb-1.5 text-xs font-medium uppercase text-gray-500">Offers & Skills</h3>
                                 {circle.offers.text && <p className="text-sm text-gray-700">{circle.offers.text}</p>}
@@ -297,7 +298,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                         )}
 
                         {/* Engagement */}
-                        {circle.engagements && (
+                        {circle.circleType !== "user" && circle.engagements && (
                             <div className="mt-4">
                                 <h3 className="mb-1.5 text-xs font-medium uppercase text-gray-500">
                                     What I want to engage in
@@ -317,6 +318,22 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                 </div>
                             </div>
                         )}
+
+                        {/* Offers */}
+                        {circle.circleType === "user" &&
+                            circle.tourTeamOfferings &&
+                            circle.tourTeamOfferings.length > 0 && (
+                                <div className="mt-4">
+                                    <h3 className="mb-1.5 text-xs font-medium uppercase text-gray-500">Offers</h3>
+                                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        {circle.tourTeamOfferings.map((offering) => (
+                                            <Badge key={offering.id} variant="outline">
+                                                {getTourTeamOfferingLabel(offering)}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                         {/* Needs */}
                         {circle.circleType !== "user" && circle.needs && (
