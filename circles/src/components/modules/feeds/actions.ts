@@ -399,8 +399,9 @@ export async function createPostAction(
         // Get user groups from form data
         const userGroups = formData.getAll("userGroups") as string[];
 
-        // Title is required for normal posts, but shares can be comment-only.
-        if (!sharedPostId && (!title || !title.trim())) {
+        // Title is required for normal posts, but shares can be comment-only, and
+        // Community posts are text-body-first per the agreed MVP field set (no title).
+        if (!sharedPostId && postType !== "community" && (!title || !title.trim())) {
             return { success: false, message: "Title is required" };
         }
 
