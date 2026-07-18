@@ -32,7 +32,7 @@ import {
 } from "@/lib/data/feed";
 import { saveFile, isFile } from "@/lib/data/storage";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
-import { features, getPostCreateFeature, getPostModerateFeature } from "@/lib/data/constants";
+import { features, getPostCreateFeature, getPostModerateFeature, getPostViewFeature } from "@/lib/data/constants";
 import { sdgs } from "@/lib/data/sdgs";
 import { getProposalById } from "@/lib/data/proposal";
 import { getIssueById } from "@/lib/data/issue";
@@ -1044,9 +1044,9 @@ export async function likeContentAction(
 
         const feed = await getFeed(post.feedId);
         if (feed) {
-            let canReact = await isAuthorized(userDid, feed.circleId, features.feed.view);
+            let canReact = await isAuthorized(userDid, feed.circleId, getPostViewFeature(post.postType));
             if (!canReact) {
-                return { success: false, message: "You are not authorized to like content on the noticeboard" };
+                return { success: false, message: "You are not authorized to react to this content" };
             }
         }
 
