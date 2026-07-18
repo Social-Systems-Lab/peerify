@@ -28,7 +28,7 @@ export default function CommunityModule(props: PageProps) {
         setIsLoading(true);
         startTransition(async () => {
             try {
-                const newPosts = await getPostsAction(feed._id, circle._id, 20, 0, "new");
+                const newPosts = await getPostsAction(feed._id, circle._id, 20, 0, "new", undefined, "community");
                 setPosts(newPosts);
             } finally {
                 setIsLoading(false);

@@ -1393,6 +1393,7 @@ export const getPosts = async (
                 internalPreviewId: 1,
                 sharedPostId: 1,
                 sdgs: 1,
+                postType: 1,
                 circleType: { $literal: "post" },
                 highlightedCommentId: { $toString: "$highlightedCommentId" },
                 mentions: 1,

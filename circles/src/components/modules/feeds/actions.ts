@@ -358,6 +358,7 @@ export async function getPostsAction(
     skip: number,
     sortingOptions?: SortingOptions,
     sdgHandles?: string[],
+    postType?: string,
 ): Promise<PostDisplay[]> {
     let userDid = await getAuthenticatedUserDid();
     const feed = await getFeed(feedId);
@@ -371,7 +372,12 @@ export async function getPostsAction(
     }
 
     // get posts for feed
-    const posts = await getPostsWithMetrics(feedId, userDid, limit, skip, sortingOptions, sdgHandles);
+    // getPostsWithMetrics defaults to postType "post"/undefined-only when
+    // postType isn't passed (see getPosts' matchStage) — Community posts have
+    // postType: "community", so this call must pass it through explicitly or
+    // Community's feed would silently return zero posts despite the feedId
+    // being correct. Feed callers (Noticeboard) omit this and are unaffected.
+    const posts = await getPostsWithMetrics(feedId, userDid, limit, skip, sortingOptions, sdgHandles, postType);
     return posts;
 }
 
