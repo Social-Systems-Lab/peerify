@@ -1,4 +1,4 @@
-import { UserGroup, Module, Feature, Cause, Skill, ModuleInfo, CircleType } from "@/models/models";
+import { UserGroup, Module, Feature, Cause, Skill, ModuleInfo, CircleType, Post } from "@/models/models";
 
 export const logLevel = 5; // 0: none, 1: error, 2: warn, 3: info, 4: debug, 5: trace
 export const LOG_LEVEL_TRACE = 5;
@@ -588,6 +588,41 @@ export const features = {
             module: "home",
         } as Feature,
     },
+    // Community: a circle-membership-gated conversational space (postType: "community"),
+    // distinct from the unrelated plural "communities" module above (that one governs
+    // circle creation/discovery, not this feature). Deliberately named to mirror
+    // features.feed.* (post/moderate), not features.discussions.* (create/comment),
+    // since Community's posting model — the circle owner AND its members can post —
+    // maps directly onto that shape.
+    community: {
+        // Not explicitly requested by the Community MVP spec, but required so
+        // likeContentAction (see getPostReactFeature below) has a capability to
+        // check reactions against for postType: "community", the same way
+        // features.feed.view already gates reactions on Noticeboard content.
+        view: {
+            name: "View Community",
+            handle: "view",
+            description: "View community posts",
+            defaultUserGroups: ["admins", "moderators", "members", "everyone"],
+            module: "community",
+        } as Feature,
+        post: {
+            name: "Create Community Post",
+            handle: "post",
+            description: "Create a post in the community (circle members and the circle itself)",
+            defaultUserGroups: ["admins", "moderators", "members"],
+            module: "community",
+            needsToBeVerified: true,
+        } as Feature,
+        moderate: {
+            name: "Moderate Community",
+            handle: "moderate",
+            description: "Hide/delete community posts (self-service — the circle's own admins/moderators)",
+            defaultUserGroups: ["admins", "moderators"],
+            module: "community",
+            needsToBeVerified: true,
+        } as Feature,
+    },
     discussions: {
         view: {
             name: "View Forum Posts",
@@ -621,6 +656,47 @@ export const features = {
             needsToBeVerified: true,
         } as Feature,
     },
+};
+
+// Resolve which module's feature gates a given post's content, based on its
+// postType. Used anywhere a check on a Post needs to work across surfaces
+// (Noticeboard, Discussions, Community) without per-postType special-casing
+// at the call site — see likeContentAction, deletePostAction, createPostAction.
+//
+// Deliberate exception: postType "discussion" resolves to features.feed.*,
+// NOT features.discussions.* (even though a discussions.view/.moderate exists
+// above). That's not an oversight here — discussion-list.tsx's own
+// moderate/comment checks already hardcode features.feed.moderate/.comment
+// today (not features.discussions.*), so Discussions' real, shipped behavior
+// is gated by the Noticeboard's permissions, not its own module's. Resolving
+// "discussion" to features.discussions.* here would silently diverge from
+// that existing behavior for any circle with custom accessRules overrides.
+// Flagging this pre-existing inconsistency rather than fixing or deepening it.
+export const getPostViewFeature = (postType?: Post["postType"]): Feature => {
+    switch (postType) {
+        case "community":
+            return features.community.view;
+        default:
+            return features.feed.view;
+    }
+};
+
+export const getPostModerateFeature = (postType?: Post["postType"]): Feature => {
+    switch (postType) {
+        case "community":
+            return features.community.moderate;
+        default:
+            return features.feed.moderate;
+    }
+};
+
+export const getPostCreateFeature = (postType?: Post["postType"]): Feature => {
+    switch (postType) {
+        case "community":
+            return features.community.post;
+        default:
+            return features.feed.post;
+    }
 };
 
 export const modules: ModuleInfo[] = [
