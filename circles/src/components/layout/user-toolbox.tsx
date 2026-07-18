@@ -12,7 +12,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, Bookmark, ChevronDown, Circle as CircleIcon, Loader2, Pin, PinOff, Users } from "lucide-react";
+import { Bell, ChevronDown, Circle as CircleIcon, Loader2, Pin, PinOff, Star, Users } from "lucide-react";
 import { LuClipboardCheck, LuMail } from "react-icons/lu";
 import {
     authInfoAtom,
@@ -599,7 +599,7 @@ export const UserToolbox = () => {
                     onClick={closeToolbox}
                 >
                     <div className={iconWrapClassName}>
-                        <Bookmark className="h-4 w-4" />
+                        <Star className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
@@ -752,7 +752,7 @@ export const UserToolbox = () => {
                             value="bookmarks"
                             className={toolboxActiveTabClassName}
                         >
-                            <Bookmark className="h-5 w-5" />
+                            <Star className="h-5 w-5" />
                         </TabsTrigger>
                         {/* ... other tabs */}
                     </TabsList>

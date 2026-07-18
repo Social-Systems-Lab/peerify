@@ -3,7 +3,7 @@
 import React, { useState, useTransition } from "react";
 import { Circle, UserPrivate } from "@/models/models";
 import { Button } from "@/components/ui/button";
-import { Bookmark, BookmarkCheck, Loader2 } from "lucide-react";
+import { Loader2, Star } from "lucide-react";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
 import { useToast } from "@/components/ui/use-toast";
@@ -99,10 +99,8 @@ export const BookmarkButton: React.FC<BookmarkButtonProps> = ({ circle, renderCo
         >
             {isLoading || isPending ? (
                 <Loader2 className={iconOnly ? "h-4 w-4 animate-spin" : "mr-2 h-4 w-4 animate-spin"} />
-            ) : isBookmarked ? (
-                <BookmarkCheck className={iconOnly ? "h-4 w-4" : "mr-2 h-4 w-4"} />
             ) : (
-                <Bookmark className={iconOnly ? "h-4 w-4" : "mr-2 h-4 w-4"} />
+                <Star className={[iconOnly ? "h-4 w-4" : "mr-2 h-4 w-4", isBookmarked ? "fill-current" : ""].join(" ")} />
             )}
             {!iconOnly && (isBookmarked ? "Bookmarked" : "Bookmark")}
         </Button>

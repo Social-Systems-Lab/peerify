@@ -189,7 +189,7 @@ export function ProofOfHumanityCard({ circle, summary }: ProofOfHumanityCardProp
         <>
             <div id="proof-of-humanity" className="flex flex-col rounded-[15px] border-0 bg-muted/20 p-6 shadow-lg">
                 <div>
-                    <h2 className="text-base font-semibold text-foreground">Peerify verification</h2>
+                    <h2 className="text-base font-semibold text-foreground">Community Verification</h2>
                     <p className="mt-2 text-sm text-muted-foreground">
                         {summaryLine}. Public trust signals for authentic profiles and safer music communities.
                     </p>

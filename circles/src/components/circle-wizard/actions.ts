@@ -309,7 +309,9 @@ export async function createPeerifyManagedArtistIdentityAction(input: {
                 createdBy: userDid,
                 publishStatus: "draft",
                 parentCircleId,
-                enabledModules: Array.from(new Set([...getDefaultModules("circle"), "music"])),
+                enabledModules: Array.from(
+                    new Set([...getDefaultModules("circle").filter((module) => module !== "discussions"), "music"]),
+                ),
                 picture: { url: getPeerifyDefaultAvatarUrl(identityType) },
                 causes: [],
                 skills: [],
