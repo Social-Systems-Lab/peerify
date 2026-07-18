@@ -15,6 +15,7 @@ const badgeVariants = cva(
                 skill: "border-[#6f94bc] bg-[#6f94bc] text-white hover:bg-[#6286ad]",
                 interest: "border-[#7f9158] bg-[#8ea065] text-white hover:bg-[#84975d]",
                 need: "border-[#6b8fb5] bg-[#6b8fb5] text-white hover:bg-[#5d81a6]",
+                offering: "border-transparent bg-[#2C2C2A] text-[#FAC775] hover:bg-[#2C2C2A]/90",
             },
         },
         defaultVariants: {
