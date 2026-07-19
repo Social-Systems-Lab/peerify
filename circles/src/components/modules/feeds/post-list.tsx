@@ -1940,7 +1940,7 @@ const CommentItem = ({
                                 <DropdownMenuPortal
                                     container={typeof document !== "undefined" ? document.body : undefined}
                                 >
-                                    <DropdownMenuContent className="z-[5000]" align="end" sideOffset={6}>
+                                    <DropdownMenuContent className="z-[10005]" align="end" sideOffset={6}>
                                         {isAuthor && (
                                             <DropdownMenuItem onClick={handleEditClick}>
                                                 <Edit className="mr-2 h-4 w-4" />
