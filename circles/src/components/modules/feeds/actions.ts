@@ -37,6 +37,7 @@ import {
     getPostCreateFeature,
     getPostModerateFeature,
     getPostViewFeature,
+    getPostCommentFeature,
     getFeedViewFeature,
 } from "@/lib/data/constants";
 import { sdgs } from "@/lib/data/sdgs";
@@ -783,10 +784,10 @@ export async function createCommentAction(
             return { success: false, message: "Feed not found" };
         }
 
-        const authorized = await isAuthorized(userDid, feed.circleId, features.feed.comment);
+        const authorized = await isAuthorized(userDid, feed.circleId, getPostCommentFeature(post.postType));
         if (!authorized) {
             console.log("🐞 [ACTION] User not authorized:", { userDid });
-            return { success: false, message: "You are not authorized to comment on the noticeboard" };
+            return { success: false, message: "You are not authorized to comment on this post" };
         }
 
         const user = await getUserByDid(userDid);
@@ -913,9 +914,9 @@ export async function getAllCommentsAction(
             return { success: false, message: "Noticeboard not found" };
         }
 
-        const authorized = await isAuthorized(userDid, feed.circleId, features.feed.view);
+        const authorized = await isAuthorized(userDid, feed.circleId, getPostViewFeature(post.postType));
         if (!authorized) {
-            return { success: false, message: "You are not authorized to view comments on the noticeboard" };
+            return { success: false, message: "You are not authorized to view comments on this post" };
         }
 
         const comments = await getAllComments(postId, userDid);
@@ -1015,7 +1016,7 @@ export async function deleteCommentAction(commentId: string): Promise<{ success:
             return { success: false, message: "Noticeboard not found" };
         }
 
-        const canModerate = await isAuthorized(userDid, feed.circleId, features.feed.moderate);
+        const canModerate = await isAuthorized(userDid, feed.circleId, getPostModerateFeature(post.postType));
 
         if (comment.createdBy !== userDid && !canModerate) {
             return { success: false, message: "You are not authorized to delete this comment" };

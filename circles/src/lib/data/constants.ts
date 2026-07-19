@@ -699,6 +699,19 @@ export const getPostCreateFeature = (postType?: Post["postType"]): Feature => {
     }
 };
 
+// Community has no dedicated "comment" feature — participation (posting and
+// commenting/replying) is gated by the same features.community.post
+// membership check, matching the composer's existing gate. Every other
+// postType keeps today's behavior unchanged (features.feed.comment).
+export const getPostCommentFeature = (postType?: Post["postType"]): Feature => {
+    switch (postType) {
+        case "community":
+            return features.community.post;
+        default:
+            return features.feed.comment;
+    }
+};
+
 // Same idea as the postType resolvers above, but keyed by Feed handle instead
 // of a post's postType — for call sites (getPostsAction, getFeedByHandleAction)
 // that check view access to an entire feed rather than one post. Only
