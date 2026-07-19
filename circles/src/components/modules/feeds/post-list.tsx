@@ -82,7 +82,7 @@ import { AiOutlineHeart, AiFillHeart } from "react-icons/ai";
 import { useToast } from "@/components/ui/use-toast";
 import { PostForm } from "./post-form";
 import { isAuthorized } from "@/lib/auth/client-auth";
-import { features, LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
+import { getPostCommentFeature, getPostModerateFeature, LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { SuggestionDataItem } from "react-mentions";
 import { over, set } from "lodash";
 import ReactMarkdown from "react-markdown";
@@ -346,8 +346,8 @@ export const PostItem = ({
     const [, setContentPreview] = useAtom(contentPreviewAtom);
     const [user] = useAtom(userAtom);
     const isAuthor = user && post.createdBy === user?.did;
-    const canModerate = circle && isAuthorized(user, circle, features.feed.moderate);
-    const canComment = circle && isAuthorized(user, circle, features.feed.comment);
+    const canModerate = circle && isAuthorized(user, circle, getPostModerateFeature(post.postType));
+    const canComment = circle && isAuthorized(user, circle, getPostCommentFeature(post.postType));
     const [isPending, startTransition] = useTransition();
     const [isFetchingComments, startCommentsTransition] = useTransition();
     const { toast } = useToast();
@@ -1448,6 +1448,7 @@ export const PostItem = ({
                               setShowAllComments={setShowAllComments}
                               user={user}
                               postId={post._id}
+                              postType={post.postType}
                               feed={feed}
                               circle={circle}
                               onDeleteComment={onDeleteComment}
@@ -1463,6 +1464,7 @@ export const PostItem = ({
                               setShowAllComments={setShowAllComments}
                               user={user}
                               postId={post._id}
+                              postType={post.postType}
                               feed={feed}
                               circle={circle}
                               onDeleteComment={onDeleteComment}
@@ -1526,6 +1528,7 @@ type CommentItemProps = {
     comment: CommentDisplay;
     user: any;
     postId: string;
+    postType?: PostDisplay["postType"];
     depth?: number;
     comments?: CommentDisplay[];
     setComments: Dispatch<SetStateAction<CommentDisplay[]>>;
@@ -1547,6 +1550,7 @@ const CommentItem = ({
     circle,
     user,
     postId,
+    postType,
     onDeleteComment,
     isHighlighted,
     depth = 0,
@@ -1567,8 +1571,8 @@ const CommentItem = ({
     const router = useRouter();
 
     const isAuthor = user && comment.createdBy === user?.did;
-    const canModerate = isAuthorized(user, circle, features.feed.moderate);
-    const canReply = isAuthorized(user, circle, features.feed.comment);
+    const canModerate = isAuthorized(user, circle, getPostModerateFeature(postType));
+    const canReply = isAuthorized(user, circle, getPostCommentFeature(postType));
     const formattedDate = getPublishTime(comment.createdAt);
 
     const replies = useMemo<CommentDisplay[]>(
@@ -1955,6 +1959,7 @@ const CommentItem = ({
                                 comment={reply}
                                 user={user}
                                 postId={postId}
+                                postType={postType}
                                 comments={comments}
                                 setComments={setComments}
                                 setShowAllComments={setShowAllComments}
