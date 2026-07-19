@@ -184,7 +184,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                         <div className="h-[124px] w-[124px]">
                             <Image
                                 className="rounded-full border-2 border-white bg-white object-cover shadow-lg"
-                                src={suppressed ? "/images/default-picture.png" : (circle?.picture?.url ?? "/images/default-picture.png")}
+                                src={suppressed ? "/images/default-user-picture.png" : (circle?.picture?.url ?? "/images/default-user-picture.png")}
                                 alt="Picture"
                                 fill
                                 onClick={
@@ -346,7 +346,8 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                         )}
 
                         {/* Location (moved down, inline icon, no heading) */}
-                        {circle.location &&
+                        {!suppressed &&
+                            circle.location &&
                             (circle.location.city || circle.location.region || circle.location.country) && (
                                 <div className="flex items-center pt-2 text-sm text-gray-600">
                                     <MapPin className="mr-1.5 h-4 w-4 flex-shrink-0 text-gray-500" />
@@ -406,7 +407,10 @@ export const ContentPreview: React.FC = () => {
                 circle._id = (contentPreview!.content as MemberDisplay).circleId;
                 return (
                     <div className="custom-scrollbar h-full overflow-y-auto">
-                        <CirclePreview circle={circle} circleType={"user"} />
+                        <CirclePreview
+                            circle={circle}
+                            circleType={(contentPreview!.content as MemberDisplay).circleType || "user"}
+                        />
                     </div>
                 );
             case "user":
