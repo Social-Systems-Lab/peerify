@@ -247,8 +247,18 @@ export const postSchema = z.object({
     highlightedCommentId: z.string().optional(),
     comments: z.number().default(0),
     mentions: z.array(mentionSchema).optional(),
+    // This post is a share/repost of another post (quote-share mechanic) — the
+    // referencing post carries this, pointing back at the post it reshares.
     sharedPostId: z.string().optional(),
-    postType: z.enum(["post", "goal", "task", "issue", "proposal", "event", "discussion"]).optional(), // Added discussion
+    // Forward pointer set on a Community post once it's promoted to the circle's
+    // Noticeboard: points at the mirror Post created on the Noticeboard feed.
+    // Same "source entity -> spawned noticeboard post" convention as
+    // taskSchema/eventSchema/funding-ask's noticeboardPostId, just applied to Post
+    // itself. Distinct from sharedPostId above: sharedPostId is *this* post
+    // referencing another it reshares; noticeboardPostId is the reverse
+    // direction — the mirror Post this (Community) post spawned, not one it shares.
+    noticeboardPostId: z.string().optional(),
+    postType: z.enum(["post", "goal", "task", "issue", "proposal", "event", "discussion", "community"]).optional(), // Added discussion, community
     userGroups: z.array(z.string()).default([]), // User groups that can see this post
     parentItemId: z.string().optional(), // ID of the parent Goal, Task, Issue, or Proposal for shadow posts
     parentItemType: z.enum(["goal", "task", "issue", "proposal", "event"]).optional(), // Type of the parent item
@@ -266,6 +276,13 @@ export const postSchema = z.object({
     pinned: z.boolean().default(false).optional(),
     closed: z.boolean().default(false).optional(),
     lastActivityAt: z.date().optional(),
+    // Community-specific fields
+    // Soft-hide flag mirroring commentSchema.isDeleted, used for self-service
+    // moderation on postType: "community" (artist/venue hides their own circle's
+    // posts without a hard delete, preserving thread integrity for replies).
+    // Noticeboard/Discussion posts are unaffected and continue to use hard
+    // delete via deletePost().
+    isDeleted: z.boolean().optional(),
 });
 
 export type Post = z.infer<typeof postSchema>;

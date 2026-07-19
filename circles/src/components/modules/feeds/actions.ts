@@ -27,11 +27,19 @@ import {
     getPublicUserFeed, // Added getPublicUserFeed
     createFeed,
     createDefaultFeed,
+    createCommunityFeed,
     getShareablePostPreview,
 } from "@/lib/data/feed";
 import { saveFile, isFile } from "@/lib/data/storage";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
-import { features } from "@/lib/data/constants";
+import {
+    features,
+    getPostCreateFeature,
+    getPostModerateFeature,
+    getPostViewFeature,
+    getPostCommentFeature,
+    getFeedViewFeature,
+} from "@/lib/data/constants";
 import { sdgs } from "@/lib/data/sdgs";
 import { getProposalById } from "@/lib/data/proposal";
 import { getIssueById } from "@/lib/data/issue";
@@ -351,6 +359,7 @@ export async function getPostsAction(
     skip: number,
     sortingOptions?: SortingOptions,
     sdgHandles?: string[],
+    postType?: string,
 ): Promise<PostDisplay[]> {
     let userDid = await getAuthenticatedUserDid();
     const feed = await getFeed(feedId);
@@ -358,13 +367,18 @@ export async function getPostsAction(
         redirect("/not-found");
     }
 
-    const authorized = await isAuthorized(userDid, circleId, features.feed.view);
+    const authorized = await isAuthorized(userDid, circleId, getFeedViewFeature(feed.handle));
     if (!authorized) {
         redirect("/unauthorized");
     }
 
     // get posts for feed
-    const posts = await getPostsWithMetrics(feedId, userDid, limit, skip, sortingOptions, sdgHandles);
+    // getPostsWithMetrics defaults to postType "post"/undefined-only when
+    // postType isn't passed (see getPosts' matchStage) — Community posts have
+    // postType: "community", so this call must pass it through explicitly or
+    // Community's feed would silently return zero posts despite the feedId
+    // being correct. Feed callers (Noticeboard) omit this and are unaffected.
+    const posts = await getPostsWithMetrics(feedId, userDid, limit, skip, sortingOptions, sdgHandles, postType);
     return posts;
 }
 
@@ -392,8 +406,9 @@ export async function createPostAction(
         // Get user groups from form data
         const userGroups = formData.getAll("userGroups") as string[];
 
-        // Title is required for normal posts, but shares can be comment-only.
-        if (!sharedPostId && (!title || !title.trim())) {
+        // Title is required for normal posts, but shares can be comment-only, and
+        // Community posts are text-body-first per the agreed MVP field set (no title).
+        if (!sharedPostId && postType !== "community" && (!title || !title.trim())) {
             return { success: false, message: "Title is required" };
         }
 
@@ -427,24 +442,34 @@ export async function createPostAction(
             return { success: false, message: "You are not authorized to create posts on this profile" };
         }
 
-        // Get the default feed for this circle
-        let feed = await getFeedByHandle(circleId, "default"); // Changed to let
+        // Community posts live in their own lazily-created, handle-scoped feed;
+        // every other postType continues to use the circle's single default feed.
+        const isCommunityPost = postType === "community";
+        const feedHandle = isCommunityPost ? "community" : "default";
+        let feed = await getFeedByHandle(circleId, feedHandle); // Changed to let
 
         if (!feed) {
-            // Create a default feed if it doesn't exist
-            console.log(`Default feed not found for circle ${circleId}, creating one.`);
-            feed = await createDefaultFeed(circleId);
+            // Create the feed lazily if it doesn't exist yet — no backfill script.
+            console.log(`${feedHandle} feed not found for circle ${circleId}, creating one.`);
+            feed = isCommunityPost ? await createCommunityFeed(circleId) : await createDefaultFeed(circleId);
             if (!feed) {
-                return { success: false, message: "Failed to create default feed for this circle" };
+                return { success: false, message: `Failed to create ${feedHandle} feed for this circle` };
             }
         }
 
         console.log("Creating post in feed", feed._id, "for circle", circleId, "by user", userDid);
 
         const feedId = feed._id.toString();
-        const authorized = isOwnProfileFeed ? true : await isAuthorized(userDid, circleId, features.feed.post);
+        const authorized = isOwnProfileFeed
+            ? true
+            : await isAuthorized(userDid, circleId, getPostCreateFeature(postType as Post["postType"]));
         if (!authorized) {
-            return { success: false, message: "You are not authorized to create posts on the noticeboard" };
+            return {
+                success: false,
+                message: isCommunityPost
+                    ? "You are not authorized to create posts in this community"
+                    : "You are not authorized to create posts on the noticeboard",
+            };
         }
 
         if (sharedPostId) {
@@ -712,7 +737,7 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
         const feed = await getFeed(post.feedId);
         let canModerate = false;
         if (feed) {
-            canModerate = await isAuthorized(userDid, feed.circleId, features.feed.moderate);
+            canModerate = await isAuthorized(userDid, feed.circleId, getPostModerateFeature(post.postType));
         }
 
         // check if user can moderate feed or is creator of the post
@@ -759,10 +784,10 @@ export async function createCommentAction(
             return { success: false, message: "Feed not found" };
         }
 
-        const authorized = await isAuthorized(userDid, feed.circleId, features.feed.comment);
+        const authorized = await isAuthorized(userDid, feed.circleId, getPostCommentFeature(post.postType));
         if (!authorized) {
             console.log("🐞 [ACTION] User not authorized:", { userDid });
-            return { success: false, message: "You are not authorized to comment on the noticeboard" };
+            return { success: false, message: "You are not authorized to comment on this post" };
         }
 
         const user = await getUserByDid(userDid);
@@ -889,9 +914,9 @@ export async function getAllCommentsAction(
             return { success: false, message: "Noticeboard not found" };
         }
 
-        const authorized = await isAuthorized(userDid, feed.circleId, features.feed.view);
+        const authorized = await isAuthorized(userDid, feed.circleId, getPostViewFeature(post.postType));
         if (!authorized) {
-            return { success: false, message: "You are not authorized to view comments on the noticeboard" };
+            return { success: false, message: "You are not authorized to view comments on this post" };
         }
 
         const comments = await getAllComments(postId, userDid);
@@ -991,7 +1016,7 @@ export async function deleteCommentAction(commentId: string): Promise<{ success:
             return { success: false, message: "Noticeboard not found" };
         }
 
-        const canModerate = await isAuthorized(userDid, feed.circleId, features.feed.moderate);
+        const canModerate = await isAuthorized(userDid, feed.circleId, getPostModerateFeature(post.postType));
 
         if (comment.createdBy !== userDid && !canModerate) {
             return { success: false, message: "You are not authorized to delete this comment" };
@@ -1033,9 +1058,9 @@ export async function likeContentAction(
 
         const feed = await getFeed(post.feedId);
         if (feed) {
-            let canReact = await isAuthorized(userDid, feed.circleId, features.feed.view);
+            let canReact = await isAuthorized(userDid, feed.circleId, getPostViewFeature(post.postType));
             if (!canReact) {
-                return { success: false, message: "You are not authorized to like content on the noticeboard" };
+                return { success: false, message: "You are not authorized to react to this content" };
             }
         }
 
@@ -1162,7 +1187,7 @@ export async function getFeedByHandleAction(circleId: string, feedHandle: string
         if (!feed) return null;
 
         // Check if user has permission to view the feed
-        const authorized = await isAuthorized(userDid, circleId, features.feed.view);
+        const authorized = await isAuthorized(userDid, circleId, getFeedViewFeature(feed.handle));
         if (!authorized) return null;
 
         return feed;

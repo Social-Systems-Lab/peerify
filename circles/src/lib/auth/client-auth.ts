@@ -130,6 +130,17 @@ function getDefaultAllowedUserGroups(
  * @returns True if the module is enabled, false otherwise
  */
 export const isModuleEnabled = (circle: Circle, moduleHandle: string): boolean => {
+    // Community is force-enabled for every artist/venue circle (circleType
+    // "circle"), regardless of the stored enabledModules array — so existing
+    // circles (created before this module existed) get it with no backfill
+    // script, same convention as the Community feed's own lazy-create. This
+    // function is the single choke point checked by both circle-tabs.tsx's
+    // tab bar and the /api/access middleware route guard, so fixing it here
+    // covers the actual page route, not just the tab's visibility.
+    if (moduleHandle === "community" && circle.circleType === "circle") {
+        return true;
+    }
+
     // First check enabledModules array if it exists
     if (circle.enabledModules && circle.enabledModules.length > 0) {
         return circle.enabledModules.includes(moduleHandle);

@@ -197,6 +197,32 @@ export const createDefaultFeed = async (circleId: string): Promise<Feed | null> 
     return defaultFeed;
 };
 
+// Lazy-create only — there is no backfill script. A circle's Community feed
+// is created the first time it's actually needed (its first postType:
+// "community" post), same convention as other falsy-undefined-until-used
+// circle defaults. Mirrors createDefaultFeed's shape exactly.
+export const createCommunityFeed = async (circleId: string): Promise<Feed | null> => {
+    let circle = await getCircleById(circleId);
+    if (!circle) {
+        return null;
+    }
+
+    // Only create a single community feed per circle
+    let communityFeed = await getFeedByHandle(circleId, "community");
+    if (!communityFeed) {
+        communityFeed = {
+            name: "Community",
+            handle: "community",
+            circleId,
+            userGroups: ["admins", "moderators", "members", "everyone"],
+            createdAt: new Date(),
+        };
+        communityFeed = await createFeed(communityFeed);
+    }
+
+    return communityFeed;
+};
+
 export const createPost = async (post: Post): Promise<Post> => {
     const result = await Posts.insertOne(post);
     let newPost = { ...post, _id: result.insertedId.toString() } as Post;
@@ -1367,6 +1393,7 @@ export const getPosts = async (
                 internalPreviewId: 1,
                 sharedPostId: 1,
                 sdgs: 1,
+                postType: 1,
                 circleType: { $literal: "post" },
                 highlightedCommentId: { $toString: "$highlightedCommentId" },
                 mentions: 1,
