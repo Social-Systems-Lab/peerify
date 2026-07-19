@@ -1565,6 +1565,7 @@ const CommentItem = ({
     const isMobile = useIsMobile();
     const [likedByUsers, setLikedByUsers] = useState<Circle[]>([]);
     const [isLikesPopoverOpen, setIsLikesPopoverOpen] = useState(false);
+    const [openDropdown, setOpenDropdown] = useState(false);
     const [isPending, startTransition] = useTransition();
     const [, setContentPreview] = useAtom(contentPreviewAtom);
     const [sidePanelContentVisible] = useAtom(sidePanelContentVisibleAtom);
@@ -1700,10 +1701,12 @@ const CommentItem = ({
     };
 
     const handleEditClick = () => {
+        setOpenDropdown(false);
         setIsEditing(true);
     };
 
     const handleDeleteClick = () => {
+        setOpenDropdown(false);
         startTransition(async () => {
             const result = await deleteCommentAction(comment._id!);
             if (result.success) {
@@ -1919,10 +1922,18 @@ const CommentItem = ({
 
                 {(isAuthor || canModerate) && !isEditing && (
                     <div className="relative">
-                        <div className="absolute left-[-5px] top-0 opacity-0 group-hover:opacity-100">
-                            <DropdownMenu>
+                        <div
+                            className={`absolute left-[-5px] top-0 transition-opacity ${
+                                openDropdown ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                            }`}
+                        >
+                            <DropdownMenu modal={false} open={openDropdown} onOpenChange={setOpenDropdown}>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="rounded-full">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="rounded-full data-[state=open]:bg-gray-200"
+                                    >
                                         <MoreHorizontal className="h-4 w-4" />
                                     </Button>
                                 </DropdownMenuTrigger>
