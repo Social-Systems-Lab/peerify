@@ -591,6 +591,26 @@ export const deleteCircle = async (circleId: string): Promise<void> => {
     // Delete all members of the circle
     await Members.deleteMany({ circleId: circleId });
 
+    // This circle may itself be a member/follower of other circles (its did is
+    // used as userDid in those circles' Members rows). Clean those up too and
+    // decrement the corresponding stored counters, or those circles' member
+    // counts drift upward forever every time an account is deleted.
+    if (circle.did) {
+        const otherMemberships = await Members.find({ userDid: circle.did }).toArray();
+        if (otherMemberships.length > 0) {
+            const countByCircleId = new Map<string, number>();
+            for (const membership of otherMemberships) {
+                countByCircleId.set(membership.circleId, (countByCircleId.get(membership.circleId) || 0) + 1);
+            }
+
+            await Members.deleteMany({ userDid: circle.did });
+
+            for (const [otherCircleId, count] of countByCircleId) {
+                await Circles.updateOne({ _id: new ObjectId(otherCircleId) }, { $inc: { members: -count } });
+            }
+        }
+    }
+
     // Delete all membership requests for the circle
     await MembershipRequests.deleteMany({ circleId: circleId });
 

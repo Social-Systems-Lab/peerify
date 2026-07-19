@@ -131,6 +131,8 @@ export interface MemberDisplay extends Member {
     circleType?: CircleType;
     handle?: string;
     metrics?: Metrics;
+    searchable?: boolean;
+    mapVisible?: boolean;
 }
 
 export const membershipRequestSchema = z.object({
