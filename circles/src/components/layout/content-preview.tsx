@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import InviteButton from "../modules/home/invite-button";
 import FollowButton from "../modules/home/follow-button";
 import BookmarkButton from "../modules/home/bookmark-button";
+import { getProfilePreviewAccessAction } from "../modules/home/actions";
 import {
     Circle,
     FileInfo,
@@ -96,13 +97,41 @@ const isSuppressedPersonalProfile = (
 
 export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps) => {
     const router = useRouter();
-    const suppressed = isSuppressedPersonalProfile(circle, circleType, source);
+    const ownerRestrictsVisibility = isSuppressedPersonalProfile(circle, circleType, source);
     const memberCount = circle?.members ? (circleType === "user" ? circle.members - 1 : circle.members) : 0;
     const [, setImageGallery] = useAtom(imageGalleryAtom); // Keep for profile picture click
     const [, setContentPreview] = useAtom(contentPreviewAtom);
     const [user] = useAtom(userAtom); // Keep user state here for CirclePreview specific logic if needed
     const [isPledgeDialogOpen, setIsPledgeDialogOpen] = React.useState(false);
     const closeDelayMs = 400;
+
+    // Relationship-aware bypass: a follower or accepted contact still sees the full profile
+    // even when the owner hasn't opted into search/map discoverability. Defaults to "no
+    // access" (safe/closed) until the check resolves, so the private placeholder never
+    // flashes real data while this is loading. Relies on ContentPreview keying CirclePreview
+    // by target id to remount (and reset this) when the previewed profile changes without the
+    // panel closing in between — without that key, this state would leak across profiles.
+    const [hasRelationshipAccess, setHasRelationshipAccess] = React.useState(false);
+    useEffect(() => {
+        if (!ownerRestrictsVisibility) {
+            return;
+        }
+        if (!user?.did || !circle?._id || !circle?.did) {
+            setHasRelationshipAccess(false);
+            return;
+        }
+        let isCurrent = true;
+        getProfilePreviewAccessAction(circle._id, circle.did).then((result) => {
+            if (isCurrent) {
+                setHasRelationshipAccess(result.hasAccess);
+            }
+        });
+        return () => {
+            isCurrent = false;
+        };
+    }, [ownerRestrictsVisibility, user?.did, circle?._id, circle?.did]);
+
+    const suppressed = ownerRestrictsVisibility && !hasRelationshipAccess;
 
     const openPledgeDialog = () => {
         if (!user?.did) {
@@ -157,7 +186,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                     <Indicators metrics={circle.metrics} className="absolute left-2 top-2 z-10" content={circle} /> // Added z-10
                 )}
 
-                {user && circleType === "user" && circle._id !== user?._id && (
+                {!suppressed && user && circleType === "user" && circle._id !== user?._id && (
                     <div className="absolute bottom-[10px] left-2 flex flex-row">
                         <MessageButton circle={circle as Circle} renderCompact={false} />
                     </div>
@@ -165,26 +194,30 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
             </div>
             <div className="flex flex-1 flex-col">
                 <div className="relative flex justify-center">
-                    <div className="absolute left-1 top-1 flex w-[100px]">
-                        <Button
-                            variant="outline"
-                            className="m-2 w-full"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setContentPreview(undefined);
-                                window.setTimeout(() => {
-                                    router.push(getCircleDefaultPath(circle));
-                                }, closeDelayMs);
-                            }}
-                        >
-                            Open
-                        </Button>
-                    </div>
+                    {!suppressed && (
+                        <div className="absolute left-1 top-1 flex w-[100px]">
+                            <Button
+                                variant="outline"
+                                className="m-2 w-full"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setContentPreview(undefined);
+                                    window.setTimeout(() => {
+                                        router.push(getCircleDefaultPath(circle));
+                                    }, closeDelayMs);
+                                }}
+                            >
+                                Open
+                            </Button>
+                        </div>
+                    )}
                     <div className="absolute bottom-[-45px] right-2 flex flex-row gap-1">
                         {/* Invite hidden in this quick-preview panel — not relevant to discovery; InviteButton still used elsewhere (e.g. full artist page) */}
                         {/* <InviteButton circle={circle as Circle} renderCompact={true} /> */}
-                        {user && <FollowButton circle={circle as Circle} renderCompact={true} />}
-                        {user && <BookmarkButton circle={circle as Circle} renderCompact={true} iconOnly={true} />}
+                        {!suppressed && user && <FollowButton circle={circle as Circle} renderCompact={true} />}
+                        {!suppressed && user && (
+                            <BookmarkButton circle={circle as Circle} renderCompact={true} iconOnly={true} />
+                        )}
                     </div>
 
                     <div className="absolute top-[-60px]">
@@ -427,6 +460,7 @@ export const ContentPreview: React.FC = () => {
                 return (
                     <div className="custom-scrollbar h-full overflow-y-auto">
                         <CirclePreview
+                            key={String(circle._id ?? circle.did)}
                             circle={circle}
                             circleType={(contentPreview!.content as MemberDisplay).circleType || "user"}
                         />
@@ -442,7 +476,12 @@ export const ContentPreview: React.FC = () => {
                 }
                 return (
                     <div className="custom-scrollbar h-full overflow-y-auto">
-                        <CirclePreview circle={circleData} circleType={contentPreview.type} source={contentPreview.props?.source} />
+                        <CirclePreview
+                            key={String(circleData._id ?? circleData.did)}
+                            circle={circleData}
+                            circleType={contentPreview.type}
+                            source={contentPreview.props?.source}
+                        />
                     </div>
                 );
             }
