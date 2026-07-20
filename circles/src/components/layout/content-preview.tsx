@@ -36,7 +36,7 @@ import { ProposalItem } from "../modules/proposals/proposal-item";
 import IssueDetail from "../modules/issues/issue-detail";
 import TaskDetail from "../modules/tasks/task-detail"; // Added TaskDetail import
 import EventDetail from "../modules/events/event-detail"; // Added EventDetail import
-import { MapPin, Quote } from "lucide-react";
+import { Lock, MapPin, Quote } from "lucide-react";
 import { CirclePicture } from "../modules/circles/circle-picture";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
@@ -45,7 +45,7 @@ import { skills } from "@/lib/data/skills";
 import SdgList from "../modules/sdgs/SdgList";
 import SocialLinks from "../modules/home/social-links";
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
-import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyArtistIdentity, PEERIFY_DEFAULT_PROFILE_AVATAR_URL } from "@/lib/peerify/artist-profile";
 import { TrackPreviewList } from "../modules/music/track-preview-list";
 import PledgeDialog from "../modules/home/pledge-dialog";
 
@@ -124,16 +124,23 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
     };
 
     // Prepare images for the carousel, providing a default if none exist
-    const carouselImages: Media[] =
-        !suppressed && circle.images && circle.images.length > 0
-            ? circle.images
-            : [
-                  {
-                      name: "Default Cover",
-                      type: "image/png",
-                      fileInfo: { url: "/images/default-cover.png" },
-                  },
-              ];
+    const carouselImages: Media[] = suppressed
+        ? [
+              {
+                  name: "Private Profile Cover",
+                  type: "image/jpeg",
+                  fileInfo: { url: "/peerify/about.jpg" },
+              },
+          ]
+        : circle.images && circle.images.length > 0
+          ? circle.images
+          : [
+                {
+                    name: "Default Cover",
+                    type: "image/png",
+                    fileInfo: { url: "/images/default-cover.png" },
+                },
+            ];
 
     return (
         <>
@@ -181,10 +188,10 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                     </div>
 
                     <div className="absolute top-[-60px]">
-                        <div className="h-[124px] w-[124px]">
+                        <div className="relative h-[124px] w-[124px]">
                             <Image
                                 className="rounded-full border-2 border-white bg-white object-cover shadow-lg"
-                                src={suppressed ? "/images/default-user-picture.png" : (circle?.picture?.url ?? "/images/default-user-picture.png")}
+                                src={suppressed ? PEERIFY_DEFAULT_PROFILE_AVATAR_URL : (circle?.picture?.url ?? "/images/default-user-picture.png")}
                                 alt="Picture"
                                 fill
                                 onClick={
@@ -193,11 +200,23 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                         : () => handleProfilePicClick("Profile Picture", circle?.picture) // Use updated handler name
                                 }
                             />
+                            {suppressed && (
+                                <div className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-[#FE801B] shadow-md">
+                                    <Lock className="h-4 w-4 text-white" />
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
                 <div className="mt-[44px] flex flex-col items-center justify-center overflow-y-auto">
-                    <div className="header pt-[30px] text-2xl">{suppressed ? "Unavailable" : circle.name}</div>
+                    <div className="header pt-[30px] text-2xl">
+                        {suppressed ? "This profile is private" : circle.name}
+                    </div>
+                    {suppressed && (
+                        <p className="max-w-[240px] px-4 pt-1 text-center text-sm text-gray-500">
+                            This person hasn&apos;t made their profile discoverable.
+                        </p>
+                    )}
                     {memberCount > 0 && (
                         <div className="flex flex-row items-center justify-center pt-2">
                             <FaUsers />
