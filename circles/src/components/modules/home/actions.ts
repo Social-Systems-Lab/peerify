@@ -18,6 +18,7 @@ import { findOrCreateDMRoom as findOrCreateDMRoomData } from "@/lib/data/chat";
 import {
     getDmEligibility,
     getProfileRelationshipState,
+    isAcceptedConnectionForUserDid,
     listToolboxConnectionsForUserDid,
     ToolboxConnectionsSummary,
 } from "@/lib/data/relationships";
@@ -38,6 +39,32 @@ export const getUserPrivateAction = async (): Promise<UserPrivate | undefined> =
     }
 
     return await getUserPrivate(userDid);
+};
+
+// Bypasses the suppressed-profile-preview placeholder for viewers who already follow the
+// profile owner's circle or have them as an accepted contact — reuses the same relationship
+// signals as FollowButton (Members collection) and MessageButton's "Add Contact" flow
+// (UserRelationships accepted edges) rather than introducing a new relationship concept.
+// The viewer's identity is derived from the auth cookie, not a client-supplied value, so a
+// caller can't fake "I'm a follower" to unlock a private profile.
+export const getProfilePreviewAccessAction = async (
+    targetCircleId: string,
+    targetDid: string,
+): Promise<{ hasAccess: boolean }> => {
+    const viewerDid = await getAuthenticatedUserDid();
+    if (!viewerDid || !targetCircleId || !targetDid) {
+        return { hasAccess: false };
+    }
+    if (viewerDid === targetDid) {
+        return { hasAccess: true };
+    }
+
+    const [membership, isContact] = await Promise.all([
+        getMember(viewerDid, targetCircleId),
+        isAcceptedConnectionForUserDid(viewerDid, targetDid),
+    ]);
+
+    return { hasAccess: Boolean(membership) || isContact };
 };
 
 export const followCircle = async (circle: Circle, answers?: Record<string, string>): Promise<CircleActionResponse> => {

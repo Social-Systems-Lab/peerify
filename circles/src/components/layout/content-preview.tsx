@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import InviteButton from "../modules/home/invite-button";
 import FollowButton from "../modules/home/follow-button";
 import BookmarkButton from "../modules/home/bookmark-button";
+import { getProfilePreviewAccessAction } from "../modules/home/actions";
 import {
     Circle,
     FileInfo,
@@ -36,7 +37,7 @@ import { ProposalItem } from "../modules/proposals/proposal-item";
 import IssueDetail from "../modules/issues/issue-detail";
 import TaskDetail from "../modules/tasks/task-detail"; // Added TaskDetail import
 import EventDetail from "../modules/events/event-detail"; // Added EventDetail import
-import { MapPin, Quote } from "lucide-react";
+import { Lock, MapPin, Quote } from "lucide-react";
 import { CirclePicture } from "../modules/circles/circle-picture";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
@@ -45,7 +46,7 @@ import { skills } from "@/lib/data/skills";
 import SdgList from "../modules/sdgs/SdgList";
 import SocialLinks from "../modules/home/social-links";
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
-import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyArtistIdentity, PEERIFY_DEFAULT_PROFILE_AVATAR_URL } from "@/lib/peerify/artist-profile";
 import { TrackPreviewList } from "../modules/music/track-preview-list";
 import PledgeDialog from "../modules/home/pledge-dialog";
 
@@ -96,13 +97,41 @@ const isSuppressedPersonalProfile = (
 
 export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps) => {
     const router = useRouter();
-    const suppressed = isSuppressedPersonalProfile(circle, circleType, source);
+    const ownerRestrictsVisibility = isSuppressedPersonalProfile(circle, circleType, source);
     const memberCount = circle?.members ? (circleType === "user" ? circle.members - 1 : circle.members) : 0;
     const [, setImageGallery] = useAtom(imageGalleryAtom); // Keep for profile picture click
     const [, setContentPreview] = useAtom(contentPreviewAtom);
     const [user] = useAtom(userAtom); // Keep user state here for CirclePreview specific logic if needed
     const [isPledgeDialogOpen, setIsPledgeDialogOpen] = React.useState(false);
     const closeDelayMs = 400;
+
+    // Relationship-aware bypass: a follower or accepted contact still sees the full profile
+    // even when the owner hasn't opted into search/map discoverability. Defaults to "no
+    // access" (safe/closed) until the check resolves, so the private placeholder never
+    // flashes real data while this is loading. Relies on ContentPreview keying CirclePreview
+    // by target id to remount (and reset this) when the previewed profile changes without the
+    // panel closing in between — without that key, this state would leak across profiles.
+    const [hasRelationshipAccess, setHasRelationshipAccess] = React.useState(false);
+    useEffect(() => {
+        if (!ownerRestrictsVisibility) {
+            return;
+        }
+        if (!user?.did || !circle?._id || !circle?.did) {
+            setHasRelationshipAccess(false);
+            return;
+        }
+        let isCurrent = true;
+        getProfilePreviewAccessAction(circle._id, circle.did).then((result) => {
+            if (isCurrent) {
+                setHasRelationshipAccess(result.hasAccess);
+            }
+        });
+        return () => {
+            isCurrent = false;
+        };
+    }, [ownerRestrictsVisibility, user?.did, circle?._id, circle?.did]);
+
+    const suppressed = ownerRestrictsVisibility && !hasRelationshipAccess;
 
     const openPledgeDialog = () => {
         if (!user?.did) {
@@ -124,16 +153,23 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
     };
 
     // Prepare images for the carousel, providing a default if none exist
-    const carouselImages: Media[] =
-        !suppressed && circle.images && circle.images.length > 0
-            ? circle.images
-            : [
-                  {
-                      name: "Default Cover",
-                      type: "image/png",
-                      fileInfo: { url: "/images/default-cover.png" },
-                  },
-              ];
+    const carouselImages: Media[] = suppressed
+        ? [
+              {
+                  name: "Private Profile Cover",
+                  type: "image/jpeg",
+                  fileInfo: { url: "/peerify/about.jpg" },
+              },
+          ]
+        : circle.images && circle.images.length > 0
+          ? circle.images
+          : [
+                {
+                    name: "Default Cover",
+                    type: "image/png",
+                    fileInfo: { url: "/images/default-cover.png" },
+                },
+            ];
 
     return (
         <>
@@ -150,7 +186,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                     <Indicators metrics={circle.metrics} className="absolute left-2 top-2 z-10" content={circle} /> // Added z-10
                 )}
 
-                {user && circleType === "user" && circle._id !== user?._id && (
+                {!suppressed && user && circleType === "user" && circle._id !== user?._id && (
                     <div className="absolute bottom-[10px] left-2 flex flex-row">
                         <MessageButton circle={circle as Circle} renderCompact={false} />
                     </div>
@@ -158,33 +194,37 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
             </div>
             <div className="flex flex-1 flex-col">
                 <div className="relative flex justify-center">
-                    <div className="absolute left-1 top-1 flex w-[100px]">
-                        <Button
-                            variant="outline"
-                            className="m-2 w-full"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setContentPreview(undefined);
-                                window.setTimeout(() => {
-                                    router.push(getCircleDefaultPath(circle));
-                                }, closeDelayMs);
-                            }}
-                        >
-                            Open
-                        </Button>
-                    </div>
+                    {!suppressed && (
+                        <div className="absolute left-1 top-1 flex w-[100px]">
+                            <Button
+                                variant="outline"
+                                className="m-2 w-full"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setContentPreview(undefined);
+                                    window.setTimeout(() => {
+                                        router.push(getCircleDefaultPath(circle));
+                                    }, closeDelayMs);
+                                }}
+                            >
+                                Open
+                            </Button>
+                        </div>
+                    )}
                     <div className="absolute bottom-[-45px] right-2 flex flex-row gap-1">
                         {/* Invite hidden in this quick-preview panel — not relevant to discovery; InviteButton still used elsewhere (e.g. full artist page) */}
                         {/* <InviteButton circle={circle as Circle} renderCompact={true} /> */}
-                        {user && <FollowButton circle={circle as Circle} renderCompact={true} />}
-                        {user && <BookmarkButton circle={circle as Circle} renderCompact={true} iconOnly={true} />}
+                        {!suppressed && user && <FollowButton circle={circle as Circle} renderCompact={true} />}
+                        {!suppressed && user && (
+                            <BookmarkButton circle={circle as Circle} renderCompact={true} iconOnly={true} />
+                        )}
                     </div>
 
                     <div className="absolute top-[-60px]">
-                        <div className="h-[124px] w-[124px]">
+                        <div className="relative h-[124px] w-[124px]">
                             <Image
                                 className="rounded-full border-2 border-white bg-white object-cover shadow-lg"
-                                src={suppressed ? "/images/default-user-picture.png" : (circle?.picture?.url ?? "/images/default-user-picture.png")}
+                                src={suppressed ? PEERIFY_DEFAULT_PROFILE_AVATAR_URL : (circle?.picture?.url ?? "/images/default-user-picture.png")}
                                 alt="Picture"
                                 fill
                                 onClick={
@@ -193,11 +233,23 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                         : () => handleProfilePicClick("Profile Picture", circle?.picture) // Use updated handler name
                                 }
                             />
+                            {suppressed && (
+                                <div className="absolute bottom-0 right-0 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-[#FE801B] shadow-md">
+                                    <Lock className="h-4 w-4 text-white" />
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
                 <div className="mt-[44px] flex flex-col items-center justify-center overflow-y-auto">
-                    <div className="header pt-[30px] text-2xl">{suppressed ? "Unavailable" : circle.name}</div>
+                    <div className="header pt-[30px] text-2xl">
+                        {suppressed ? "This profile is private" : circle.name}
+                    </div>
+                    {suppressed && (
+                        <p className="max-w-[240px] px-4 pt-1 text-center text-sm text-gray-500">
+                            This person hasn&apos;t made their profile discoverable.
+                        </p>
+                    )}
                     {memberCount > 0 && (
                         <div className="flex flex-row items-center justify-center pt-2">
                             <FaUsers />
@@ -408,6 +460,7 @@ export const ContentPreview: React.FC = () => {
                 return (
                     <div className="custom-scrollbar h-full overflow-y-auto">
                         <CirclePreview
+                            key={String(circle._id ?? circle.did)}
                             circle={circle}
                             circleType={(contentPreview!.content as MemberDisplay).circleType || "user"}
                         />
@@ -423,7 +476,12 @@ export const ContentPreview: React.FC = () => {
                 }
                 return (
                     <div className="custom-scrollbar h-full overflow-y-auto">
-                        <CirclePreview circle={circleData} circleType={contentPreview.type} source={contentPreview.props?.source} />
+                        <CirclePreview
+                            key={String(circleData._id ?? circleData.did)}
+                            circle={circleData}
+                            circleType={contentPreview.type}
+                            source={contentPreview.props?.source}
+                        />
                     </div>
                 );
             }
