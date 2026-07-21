@@ -82,6 +82,7 @@ import { AiOutlineHeart, AiFillHeart } from "react-icons/ai";
 import { useToast } from "@/components/ui/use-toast";
 import { PostForm } from "./post-form";
 import { isAuthorized } from "@/lib/auth/client-auth";
+import { useActingIdentity, canActAsAuthorDid } from "@/lib/utils/acting-identity";
 import { getPostCommentFeature, getPostModerateFeature, LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { SuggestionDataItem } from "react-mentions";
 import { over, set } from "lodash";
@@ -346,8 +347,15 @@ export const PostItem = ({
     const [, setContentPreview] = useAtom(contentPreviewAtom);
     const [user] = useAtom(userAtom);
     const isAuthor = user && post.createdBy === user?.did;
+    // Broader than isAuthor: also true for an admin who administers the managed-identity
+    // persona that authored this post, so they can edit posts made under that persona.
+    const canEditPost = isAuthor || canActAsAuthorDid(user, post.createdBy);
     const canModerate = circle && isAuthorized(user, circle, getPostModerateFeature(post.postType));
     const canComment = circle && isAuthorized(user, circle, getPostCommentFeature(post.postType));
+    // Attribute comments/reactions to whichever persona the profile switcher persistently
+    // has active (see useActingIdentity) — independent of which circle's feed this happens
+    // to be — re-verified server-side, never trusted blindly.
+    const postingAsCircle = useActingIdentity();
     const [isPending, startTransition] = useTransition();
     const [isFetchingComments, startCommentsTransition] = useTransition();
     const { toast } = useToast();
@@ -563,7 +571,7 @@ export const PostItem = ({
             try {
                 if (isLiked) {
                     // Check the state *before* the optimistic update
-                    const result = await unlikeContentAction(post._id, "post");
+                    const result = await unlikeContentAction(post._id, "post", "like", postingAsCircle?._id);
                     if (!result.success) {
                         // Revert optimistic update on failure
                         setLikes((prev) => prev + 1);
@@ -571,7 +579,7 @@ export const PostItem = ({
                         console.error("Failed to unlike post:", result.message);
                     }
                 } else {
-                    const result = await likeContentAction(post._id, "post");
+                    const result = await likeContentAction(post._id, "post", "like", postingAsCircle?._id);
                     if (!result.success) {
                         // Revert optimistic update on failure
                         setLikes((prev) => prev - 1);
@@ -622,8 +630,8 @@ export const PostItem = ({
             _id: "temp-comment", // Temporary ID to distinguish it
             content: commentContent,
             createdAt: new Date(),
-            author: user as Circle,
-            createdBy: user!.did!,
+            author: postingAsCircle as Circle,
+            createdBy: postingAsCircle?.did ?? user!.did!,
             postId: post._id,
             reactions: {},
             parentCommentId: null,
@@ -635,11 +643,11 @@ export const PostItem = ({
         startTransition(async () => {
             try {
                 console.log("Submitting comment:", commentContent.substring(0, 50));
-                const result = await createCommentAction(post._id, null, commentContent);
+                const result = await createCommentAction(post._id, null, commentContent, postingAsCircle?._id);
 
                 if (result.success && result.comment) {
                     const newComment = result.comment as CommentDisplay;
-                    newComment.author = user as Circle;
+                    newComment.author = postingAsCircle as Circle;
 
                     setComments((prev) => prev.map((c) => (c._id === "temp-comment" ? newComment : c)));
                     setShowAllComments(true);
@@ -743,7 +751,7 @@ export const PostItem = ({
     //     console.log("re-rendering post-list");
     // }, []);
 
-    const showAdminActions = (isAuthor || canModerate) && (!inPreview || isDetailView);
+    const showAdminActions = (canEditPost || canModerate) && (!inPreview || isDetailView);
     const showInlineClose = inPreview && !isDetailView;
     const circleHandle = circle?.handle ?? (post as any)?.circle?.handle ?? (post as any)?.circleHandle;
     const postId = post?._id;
@@ -854,7 +862,7 @@ export const PostItem = ({
                             <DropdownMenuContent className="z-[10005]" align="end" sideOffset={6}>
                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                 <DropdownMenuSeparator />
-                                {isAuthor && (
+                                {canEditPost && (
                                     <DropdownMenuItem
                                         onSelect={(e) => {
                                             e.stopPropagation();
@@ -869,15 +877,17 @@ export const PostItem = ({
                                         <div>Edit</div>
                                     </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem
-                                    onSelect={(e) => {
-                                        e.stopPropagation();
-                                        setIsDeleting(true);
-                                    }}
-                                >
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    <div>Delete</div>
-                                </DropdownMenuItem>
+                                {(isAuthor || canModerate) && (
+                                    <DropdownMenuItem
+                                        onSelect={(e) => {
+                                            e.stopPropagation();
+                                            setIsDeleting(true);
+                                        }}
+                                    >
+                                        <Trash2 className="mr-2 h-4 w-4" />
+                                        <div>Delete</div>
+                                    </DropdownMenuItem>
+                                )}
                             </DropdownMenuContent>
                         </DropdownMenuPortal>
                     </DropdownMenu>
@@ -1071,7 +1081,7 @@ export const PostItem = ({
                     )}
 
                     <div className="flex items-center space-x-2">
-                        {(isAuthor || canModerate) && !inPreview && (
+                        {(canEditPost || canModerate) && !inPreview && (
                     <DropdownMenu
                         modal={false}
                         open={openDropdown}
@@ -1096,7 +1106,7 @@ export const PostItem = ({
                                     <DropdownMenuContent className="z-[5000]" align="end" sideOffset={6}>
                                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                         <DropdownMenuSeparator />
-                                        {isAuthor && !inPreview && (
+                                        {canEditPost && !inPreview && (
                                             <Dialog open={isEditing} onOpenChange={setIsEditing}>
                                                 <DialogTrigger asChild>
                                                     <DropdownMenuItem
@@ -1134,6 +1144,7 @@ export const PostItem = ({
                                                 </DialogContent>
                                             </Dialog>
                                         )}
+                                    {(isAuthor || canModerate) && (
                                     <Dialog onOpenChange={(open) => setOpenDropdown(open)}>
                                         <DialogTrigger asChild>
                                             <DropdownMenuItem
@@ -1180,6 +1191,7 @@ export const PostItem = ({
                                             </DialogFooter>
                                         </DialogContent>
                                     </Dialog>
+                                    )}
                                     </DropdownMenuContent>
                                 </DropdownMenuPortal>
                             </DropdownMenu>
@@ -1555,6 +1567,10 @@ const CommentItem = ({
     isHighlighted,
     depth = 0,
 }: CommentItemProps) => {
+    // Attribute replies/reactions to whichever persona the profile switcher persistently
+    // has active (see useActingIdentity) — independent of which circle's feed this happens
+    // to be — re-verified server-side, never trusted blindly.
+    const postingAsCircle = useActingIdentity();
     const [showReplies, setShowReplies] = useState(false);
     const [likes, setLikes] = useState<number>(comment.reactions.like || 0);
     const [isLiked, setIsLiked] = useState<boolean>(comment.userReaction !== undefined);
@@ -1608,13 +1624,13 @@ const CommentItem = ({
         startTransition(async () => {
             try {
                 if (isLiked) {
-                    const result = await unlikeContentAction(comment._id!, "comment");
+                    const result = await unlikeContentAction(comment._id!, "comment", "like", postingAsCircle?._id);
                     if (result.success) {
                         setLikes((prev) => prev - 1);
                         setIsLiked(false);
                     }
                 } else {
-                    const result = await likeContentAction(comment._id!, "comment");
+                    const result = await likeContentAction(comment._id!, "comment", "like", postingAsCircle?._id);
                     if (result.success) {
                         setLikes((prev) => prev + 1);
                         setIsLiked(true);
@@ -1652,8 +1668,8 @@ const CommentItem = ({
             _id: "temp-reply", // Temporary ID to distinguish it
             content: newReplyContent,
             createdAt: new Date(),
-            author: user as Circle,
-            createdBy: user!.did!,
+            author: postingAsCircle as Circle,
+            createdBy: postingAsCircle?.did ?? user!.did!,
             postId: postId,
             reactions: {},
             parentCommentId: comment._id!,
@@ -1664,7 +1680,7 @@ const CommentItem = ({
         setComments([...comments!, tempComment]);
         startTransition(async () => {
             try {
-                const result = await createCommentAction(postId, comment._id ?? null, newReplyContent);
+                const result = await createCommentAction(postId, comment._id ?? null, newReplyContent, postingAsCircle?._id);
                 if (result.success && result.comment) {
                     const newReply = result.comment as CommentDisplay;
                     newReply.rootParentId = comment.rootParentId || comment._id;
