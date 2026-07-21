@@ -63,6 +63,10 @@ export const CreatePostDialog: React.FC<CreatePostDialogProps> = ({ isOpen, onOp
         // For now, let's add circleId to formData as createPostAction expects.
         // This might need adjustment in createPostAction later if it's to use targetCircleId directly.
         formData.append("circleId", targetCircleId);
+        // Attribute to whichever circle was actually selected as the target — if it's a
+        // managed identity or the account's own profile, resolveActingAuthor (server-side)
+        // attributes the post to it; otherwise it safely falls back to the account itself.
+        formData.append("postAsCircleId", targetCircleId);
 
         // feedId is derived by createPostAction from circleId (default feed)
         // So, no need to explicitly add feedId here if createPostAction handles it.

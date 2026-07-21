@@ -77,6 +77,7 @@ import { useToast } from "@/components/ui/use-toast";
 // Remove unused PostForm reference and keep only DiscussionForm
 import { DiscussionForm } from "./discussion-form";
 import { isAuthorized } from "@/lib/auth/client-auth";
+import { useActingIdentity } from "@/lib/utils/acting-identity";
 import { UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import { features, LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { SuggestionDataItem } from "react-mentions";
@@ -310,6 +311,10 @@ export const DiscussionItem = ({
     const isAuthor = user && post.createdBy === user?.did;
     const canModerate = circle && isAuthorized(user, circle, features.feed.moderate);
     const canComment = circle && isAuthorized(user, circle, features.feed.comment);
+    // Attribute comments/reactions to whichever persona the profile switcher persistently
+    // has active (see useActingIdentity) — independent of which circle's feed this happens
+    // to be — re-verified server-side, never trusted blindly.
+    const postingAsCircle = useActingIdentity();
     const [isPending, startTransition] = useTransition();
     const [isFetchingComments, startCommentsTransition] = useTransition();
     const { toast } = useToast();
@@ -481,7 +486,7 @@ export const DiscussionItem = ({
             try {
                 if (isLiked) {
                     // Check the state *before* the optimistic update
-                    const result = await unlikeContentAction(post._id, "post");
+                    const result = await unlikeContentAction(post._id, "post", "like", postingAsCircle?._id);
                     if (!result.success) {
                         // Revert optimistic update on failure
                         setLikes((prev) => prev + 1);
@@ -489,7 +494,7 @@ export const DiscussionItem = ({
                         console.error("Failed to unlike post:", result.message);
                     }
                 } else {
-                    const result = await likeContentAction(post._id, "post");
+                    const result = await likeContentAction(post._id, "post", "like", postingAsCircle?._id);
                     if (!result.success) {
                         // Revert optimistic update on failure
                         setLikes((prev) => prev - 1);
@@ -540,8 +545,8 @@ export const DiscussionItem = ({
             _id: "temp-comment", // Temporary ID to distinguish it
             content: commentContent,
             createdAt: new Date(),
-            author: user as Circle,
-            createdBy: user!.did!,
+            author: postingAsCircle as Circle,
+            createdBy: postingAsCircle?.did ?? user!.did!,
             postId: post._id,
             reactions: {},
             parentCommentId: null,
@@ -553,11 +558,11 @@ export const DiscussionItem = ({
         startTransition(async () => {
             try {
                 console.log("Submitting comment:", commentContent.substring(0, 50));
-                const result = await createCommentAction(post._id, null, commentContent);
+                const result = await createCommentAction(post._id, null, commentContent, postingAsCircle?._id);
 
                 if (result.success && result.comment) {
                     const newComment = result.comment as CommentDisplay;
-                    newComment.author = user as Circle;
+                    newComment.author = postingAsCircle as Circle;
 
                     setComments((prev) => prev.map((c) => (c._id === "temp-comment" ? newComment : c)));
                     setShowAllComments(true);
@@ -1277,6 +1282,10 @@ const CommentItem = ({
     const router = useRouter();
 
     const isAuthor = user && comment.createdBy === user?.did;
+    // Attribute replies/reactions to whichever persona the profile switcher persistently
+    // has active (see useActingIdentity) — independent of which circle's feed this happens
+    // to be — re-verified server-side, never trusted blindly.
+    const postingAsCircle = useActingIdentity();
     const canModerate = isAuthorized(user, circle, features.feed.moderate);
     const canReply = isAuthorized(user, circle, features.feed.comment);
     const formattedDate = getPublishTime(comment.createdAt);
@@ -1313,13 +1322,13 @@ const CommentItem = ({
         startTransition(async () => {
             try {
                 if (isLiked) {
-                    const result = await unlikeContentAction(comment._id!, "comment");
+                    const result = await unlikeContentAction(comment._id!, "comment", "like", postingAsCircle?._id);
                     if (result.success) {
                         setLikes((prev) => prev - 1);
                         setIsLiked(false);
                     }
                 } else {
-                    const result = await likeContentAction(comment._id!, "comment");
+                    const result = await likeContentAction(comment._id!, "comment", "like", postingAsCircle?._id);
                     if (result.success) {
                         setLikes((prev) => prev + 1);
                         setIsLiked(true);
@@ -1356,8 +1365,8 @@ const CommentItem = ({
             _id: "temp-reply", // Temporary ID to distinguish it
             content: newReplyContent,
             createdAt: new Date(),
-            author: user as Circle,
-            createdBy: user!.did!,
+            author: postingAsCircle as Circle,
+            createdBy: postingAsCircle?.did ?? user!.did!,
             postId: postId,
             reactions: {},
             parentCommentId: comment._id!,
@@ -1368,7 +1377,7 @@ const CommentItem = ({
         setComments([...comments!, tempComment]);
         startTransition(async () => {
             try {
-                const result = await createCommentAction(postId, comment._id ?? null, newReplyContent);
+                const result = await createCommentAction(postId, comment._id ?? null, newReplyContent, postingAsCircle?._id);
                 if (result.success && result.comment) {
                     const newReply = result.comment as CommentDisplay;
                     newReply.rootParentId = comment.rootParentId || comment._id;

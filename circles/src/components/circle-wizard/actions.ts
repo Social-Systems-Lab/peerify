@@ -11,6 +11,7 @@ import {
 import { Circle, CircleLevel, CircleType, Location, Media, FileInfo, UserPrivate } from "@/models/models";
 import { ImageItem } from "@/components/forms/controls/multi-image-uploader";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
+import { generateLocalDidAndPublicKey } from "@/lib/auth/vibe-id";
 import { getUser, getUserPrivate } from "@/lib/data/user"; // Corrected import for getUserPrivate
 import { features, getDefaultModules } from "@/lib/data/constants";
 import { isFile, saveFile, deleteFile } from "@/lib/data/storage";
@@ -296,10 +297,15 @@ export async function createPeerifyManagedArtistIdentityAction(input: {
         }
 
         const identityType = input.identityType;
+        // Managed identities are attributed as post/comment authors via their own did
+        // (see resolveActingAuthor) — needs the same did format "user" circles get,
+        // since createdBy is always looked up by did (see feed.ts's author $lookup).
+        const { did } = generateLocalDidAndPublicKey();
         const newCircle = await createCircle(
             {
                 name,
                 handle,
+                did,
                 isPublic: true,
                 description,
                 content: "",
@@ -416,10 +422,15 @@ export async function createPeerifyManagedVenueIdentityAction(input: {
             return { success: false, message: "handle" };
         }
 
+        // Managed identities are attributed as post/comment authors via their own did
+        // (see resolveActingAuthor) — needs the same did format "user" circles get,
+        // since createdBy is always looked up by did (see feed.ts's author $lookup).
+        const { did } = generateLocalDidAndPublicKey();
         const newCircle = await createCircle(
             {
                 name,
                 handle,
+                did,
                 isPublic: true,
                 description,
                 content: "",

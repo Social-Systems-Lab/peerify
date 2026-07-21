@@ -88,3 +88,13 @@ export const chatSettingsModalAtom = atom<{ chatRoomId: string | null; isOpen: b
     chatRoomId: null,
     isOpen: false,
 });
+
+// Persistent "who am I acting as" — the _id of a managed identity circle the account
+// administers, or null for the account's own personal profile. Deliberately independent
+// of the current route/page: it's only ever changed by an explicit switcher action (see
+// useActingIdentity/useSetActingIdentity in @/lib/utils/acting-identity), and survives
+// navigation and refresh via localStorage. Exported so the one-time route-based seed in
+// profile-menu.tsx can tell "never chosen" (key absent) apart from "explicitly chose
+// personal" (key present, stored as null) via a raw localStorage read.
+export const ACTING_IDENTITY_STORAGE_KEY = "actingIdentityCircleId";
+export const actingIdentityCircleIdAtom = atomWithStorage<string | null>(ACTING_IDENTITY_STORAGE_KEY, null);

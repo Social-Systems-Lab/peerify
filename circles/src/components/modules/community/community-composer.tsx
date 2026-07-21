@@ -13,6 +13,8 @@ import { UNVERIFIED_PROFILE_EXPLAINER, canPerformRestrictedAction } from "@/lib/
 import { createPostAction } from "@/components/modules/feeds/actions";
 import { useToast } from "@/components/ui/use-toast";
 import { UserPicture } from "@/components/modules/members/user-picture";
+import { useActingIdentity } from "@/lib/utils/acting-identity";
+import { getPeerifyIdentityAvatarUrl, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 
 type CommunityComposerProps = {
     circle: Circle;
@@ -27,6 +29,20 @@ type CommunityComposerProps = {
 // than the shared MultiImageUploader this brief asked to reuse.
 export function CommunityComposer({ circle, feed, onPostCreated }: CommunityComposerProps) {
     const [user] = useAtom(userAtom);
+    // Show whichever persona the profile switcher currently has active (see
+    // useActingIdentity), same as Noticeboard/discussions/comments, rather than
+    // whichever circle happens to own the page being viewed.
+    const actingIdentity = useActingIdentity();
+    // Community has no cross-circle picker: createPostAction always attributes the
+    // post to *this page's* circle (see resolveActingAuthor(userDid, circle._id) in
+    // src/components/modules/feeds/actions.ts), never to the acting identity chosen
+    // elsewhere. So the acting identity can only genuinely be who ends up posting when
+    // it either IS this circle (acting as this very persona) or is the account's own
+    // profile (posting as yourself) — anything else (some other persona administered
+    // elsewhere) would post as this circle or the account instead of what's displayed,
+    // so composing is disabled rather than letting the avatar lie about the outcome.
+    const canPostAsActingIdentity = actingIdentity?._id === circle._id || actingIdentity?._id === user?._id;
+    const postingAsCircle = actingIdentity?._id === circle._id ? circle : actingIdentity;
     const [content, setContent] = useState("");
     const [images, setImages] = useState<ImageItem[]>([]);
     const [isPending, startTransition] = useTransition();
@@ -62,6 +78,7 @@ export function CommunityComposer({ circle, feed, onPostCreated }: CommunityComp
         startTransition(async () => {
             const formData = new FormData();
             formData.append("circleId", circle._id);
+            formData.append("postAsCircleId", circle._id);
             formData.append("postType", "community");
             formData.append("content", content);
             formData.append("userGroups", "everyone");
@@ -96,10 +113,23 @@ export function CommunityComposer({ circle, feed, onPostCreated }: CommunityComp
             }`}
         >
             <div className="flex items-start gap-3">
-                <UserPicture name={user?.name} picture={user?.picture?.url} size="40px" />
+                <UserPicture
+                    name={postingAsCircle?.name ?? user?.name}
+                    picture={
+                        postingAsCircle && isPeerifyManagedIdentity(postingAsCircle)
+                            ? getPeerifyIdentityAvatarUrl(postingAsCircle)
+                            : postingAsCircle?.picture?.url ?? user?.picture?.url
+                    }
+                    size="40px"
+                />
                 <div className="flex-1">
                     {isExpanded && !canPerformRestrictedAction(user) && (
                         <p className="mb-2 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
+                    )}
+                    {!canPostAsActingIdentity && (
+                        <p className="mb-2 text-sm text-muted-foreground">
+                            {`You're acting as ${actingIdentity?.name ?? "another persona"}, which can't post in ${circle.name}'s community. Switch back to ${circle.name}${user && user._id !== circle._id ? " or your own profile" : ""} to post here.`}
+                        </p>
                     )}
                     {isExpanded ? (
                         <Textarea
@@ -113,10 +143,11 @@ export function CommunityComposer({ circle, feed, onPostCreated }: CommunityComp
                         <input
                             type="text"
                             readOnly
-                            onFocus={() => setIsExpanded(true)}
-                            onClick={() => setIsExpanded(true)}
+                            disabled={!canPostAsActingIdentity}
+                            onFocus={() => canPostAsActingIdentity && setIsExpanded(true)}
+                            onClick={() => canPostAsActingIdentity && setIsExpanded(true)}
                             placeholder={`Share something with ${circle.name}'s community...`}
-                            className="w-full cursor-pointer rounded-full bg-gray-100 p-2 pl-4 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full cursor-pointer rounded-full bg-gray-100 p-2 pl-4 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
                         />
                     )}
                     {isExpanded && (

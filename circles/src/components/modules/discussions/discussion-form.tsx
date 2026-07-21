@@ -573,6 +573,10 @@ export function DiscussionForm({
             } else {
                 // Creating new forum post
                 formData.append("postType", "discussion");
+                // Attribute to whichever circle was actually selected as the target —
+                // resolveActingAuthor (server-side) only honors this if the account
+                // genuinely administers that circle; otherwise it falls back to the account.
+                formData.append("postAsCircleId", targetCircleId);
                 const response = await createPostAction(formData);
 
                 if (!response.success) {
@@ -620,9 +624,14 @@ export function DiscussionForm({
                 {/* Header section */}
                 <div className="mb-[5px] flex items-center justify-between">
                     <div className="flex items-center space-x-2">
-                        <UserPicture name={user?.name} picture={user?.picture?.url} size="40px" />
+                        <UserPicture
+                            name={(selectedCircle || user)?.name}
+                            picture={(selectedCircle || user)?.picture?.url}
+                            size="40px"
+                            circleType={(selectedCircle || user)?.circleType}
+                        />
                         <div>
-                            <div className="text-sm font-semibold">{user?.name}</div>
+                            <div className="text-sm font-semibold">{(selectedCircle || user)?.name}</div>
                             <div className="mt-1 flex flex-row items-center justify-start gap-2">
                                 {itemDetail && (
                                     <div className="min-w-[150px] flex-shrink">

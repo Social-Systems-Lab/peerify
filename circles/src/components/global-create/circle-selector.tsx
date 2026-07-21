@@ -11,6 +11,7 @@ import { Label } from "../ui/label"; // Re-imported Label
 import { CirclePicture } from "../modules/circles/circle-picture";
 import { ChevronDown } from "lucide-react";
 import { getSelectableCirclesAction } from "./actions";
+import { useActingIdentity } from "@/lib/utils/acting-identity";
 
 interface CircleSelectorProps {
     itemType: CreatableItemDetail;
@@ -30,6 +31,7 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
     label = "Create in:",
 }) => {
     const [user] = useAtom(userAtom);
+    const actingIdentity = useActingIdentity();
     const [selectableCircles, setSelectableCircles] = useState<Circle[]>([]);
     const [selectedCircleId, setSelectedCircleId] = useState<string | undefined>(initialSelectedCircleId);
     const [isLoading, setIsLoading] = useState(true);
@@ -83,8 +85,16 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
             }
 
             if (!initialSelectedCircle && availableCircles.length > 0) {
+                // Default to whichever persona the profile switcher currently has you acting
+                // as (a persistent choice, independent of the page you're on — see
+                // useActingIdentity), when that identity is a valid choice here — falling back
+                // to your personal profile, then the first available circle.
+                const actingMatch =
+                    actingIdentity && availableCircles.find((circle) => circle._id === actingIdentity._id);
                 initialSelectedCircle =
-                    availableCircles.find((circle) => circle._id === currentUserCircle._id) || availableCircles[0];
+                    actingMatch ||
+                    availableCircles.find((circle) => circle._id === currentUserCircle._id) ||
+                    availableCircles[0];
             }
 
             setSelectedCircleId(initialSelectedCircle?._id);
@@ -98,7 +108,7 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
         return () => {
             cancelled = true;
         };
-    }, [user, itemType, onCircleSelected, initialSelectedCircleId]);
+    }, [user, itemType, onCircleSelected, initialSelectedCircleId, actingIdentity]);
 
     const handleSelectionChange = (circleId: string) => {
         const circle = selectableCircles.find((c) => c._id === circleId);
