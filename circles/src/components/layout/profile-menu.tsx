@@ -26,17 +26,13 @@ import {
     PEERIFY_DEFAULT_PROFILE_AVATAR_URL,
     isPeerifyManagedIdentity,
 } from "@/lib/peerify/artist-profile";
-
-const getManagedIdentities = (user?: Circle & { memberships?: Array<{ circle: Circle; userGroups?: string[] }> }) =>
-    user?.memberships
-        ?.filter((membership) => isPeerifyManagedIdentity(membership.circle))
-        .filter((membership) => membership.userGroups?.includes("admins"))
-        .map((membership) => membership.circle) ?? [];
-
-const getCircleHandleFromPath = (pathname?: string | null): string | undefined => {
-    if (!pathname?.startsWith("/circles/")) return undefined;
-    return pathname.split("/").filter(Boolean)[1];
-};
+import {
+    getManagedIdentities,
+    getCircleHandleFromPath,
+    useActingIdentity,
+    useSetActingIdentity,
+} from "@/lib/utils/acting-identity";
+import { ACTING_IDENTITY_STORAGE_KEY } from "@/lib/data/atoms";
 
 const ProfileMenuBar = () => {
     const router = useRouter();
@@ -49,12 +45,29 @@ const ProfileMenuBar = () => {
     const [messageUnreadCount, setMessageUnreadCount] = useState(0);
     const pathname = usePathname();
     const isMobile = useIsMobile();
+    const currentVisibleIdentity = useActingIdentity();
+    const setActingIdentity = useSetActingIdentity();
 
     // Fixes hydration errors
     const [isMounted, setIsMounted] = useState(false);
     useEffect(() => {
         setIsMounted(true);
     }, []);
+
+    // One-time seed: if this browser has never had an acting-identity choice persisted
+    // (the storage key is entirely absent — distinct from an explicit prior choice of
+    // "personal", which persists as an explicit null), default to whichever managed
+    // identity's page the account happens to land on first. After that, acting identity
+    // is only ever changed via the switcher's "Act as" control below — never by
+    // navigation — which is exactly what fixes switching-resets-on-navigate.
+    useEffect(() => {
+        if (typeof window === "undefined" || !user) return;
+        if (window.localStorage.getItem(ACTING_IDENTITY_STORAGE_KEY) !== null) return;
+        const handle = getCircleHandleFromPath(pathname);
+        if (!handle) return;
+        const match = getManagedIdentities(user).find((identity) => identity.handle === handle);
+        if (match) setActingIdentity(match);
+    }, [user, pathname, setActingIdentity]);
 
     useEffect(() => {
         if (!user?.did) {
@@ -147,23 +160,41 @@ const ProfileMenuBar = () => {
 
     const isMobileExplore = isMobile && pathname === "/explore";
     const managedIdentities = getManagedIdentities(user);
-    const currentCircleHandle = getCircleHandleFromPath(pathname);
-    const currentVisibleIdentity = user
-        ? (managedIdentities.find((identity) => identity.handle === currentCircleHandle) ?? user)
-        : undefined;
     const hasIdentityChoices = managedIdentities.length > 0;
 
     const openProfile = (target: Circle) => {
         router.push(getCircleDefaultPath(target));
     };
 
-    const renderCurrentMarker = (target: Circle) =>
-        currentVisibleIdentity && target.handle === currentVisibleIdentity.handle ? (
-            <div className="flex items-center gap-1 text-xs font-medium text-[#1f6b45]">
-                <Check className="h-3.5 w-3.5" />
-                Current
-            </div>
-        ) : null;
+    // Two distinct affordances per row, not one: clicking the name/avatar navigates to
+    // that profile (openProfile), while this control is the only thing that changes who
+    // you're acting as. `actAsTarget` is undefined for the personal-profile row (acting
+    // as yourself isn't "acting as a circle").
+    const renderCurrentOrActAs = (target: Circle, actAsTarget: Circle | undefined) => {
+        const isCurrent = currentVisibleIdentity?._id === target._id;
+        if (isCurrent) {
+            return (
+                <div className="flex shrink-0 items-center gap-1 text-xs font-medium text-[#1f6b45]">
+                    <Check className="h-3.5 w-3.5" />
+                    Current
+                </div>
+            );
+        }
+        return (
+            <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0 px-2 text-xs"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setActingIdentity(actAsTarget);
+                }}
+            >
+                Act as
+            </Button>
+        );
+    };
 
     return (
         <div className="flex items-center justify-center gap-1 overflow-visible">
@@ -248,51 +279,57 @@ const ProfileMenuBar = () => {
                                 </PopoverTrigger>
                                 <PopoverContent align="end" className="w-80 p-2">
                                     <div className="flex flex-col">
-                                        <button
-                                            type="button"
-                                            className="flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted"
-                                            onClick={() => openProfile(user)}
-                                        >
-                                            <UserPicture
-                                                name={user.name}
-                                                picture={user.picture?.url ?? PEERIFY_DEFAULT_PROFILE_AVATAR_URL}
-                                                size="36px"
-                                                circleType="user"
-                                            />
-                                            <div className="min-w-0 flex-1">
-                                                <div className="truncate text-sm font-semibold">{user.name}</div>
-                                                <div className="truncate text-xs text-muted-foreground">
-                                                    Personal profile
+                                        <div className="flex w-full items-center gap-2 rounded-md p-2 hover:bg-muted">
+                                            <button
+                                                type="button"
+                                                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                                                onClick={() => openProfile(user)}
+                                            >
+                                                <UserPicture
+                                                    name={user.name}
+                                                    picture={user.picture?.url ?? PEERIFY_DEFAULT_PROFILE_AVATAR_URL}
+                                                    size="36px"
+                                                    circleType="user"
+                                                />
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="truncate text-sm font-semibold">{user.name}</div>
+                                                    <div className="truncate text-xs text-muted-foreground">
+                                                        Personal profile
+                                                    </div>
                                                 </div>
-                                            </div>
-                                            {renderCurrentMarker(user)}
-                                        </button>
+                                            </button>
+                                            {renderCurrentOrActAs(user, undefined)}
+                                        </div>
 
                                         {managedIdentities.length > 0 && (
                                             <div className="mt-1 border-t pt-1">
                                                 {managedIdentities.map((identity) => (
-                                                    <button
+                                                    <div
                                                         key={identity._id}
-                                                        type="button"
-                                                        className="flex w-full items-center gap-3 rounded-md p-2 text-left hover:bg-muted"
-                                                        onClick={() => openProfile(identity)}
+                                                        className="flex w-full items-center gap-2 rounded-md p-2 hover:bg-muted"
                                                     >
-                                                        <UserPicture
-                                                            name={identity.name}
-                                                            picture={getPeerifyIdentityAvatarUrl(identity)}
-                                                            size="36px"
-                                                            circleType="circle"
-                                                        />
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="truncate text-sm font-semibold">
-                                                                {identity.name}
+                                                        <button
+                                                            type="button"
+                                                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                                                            onClick={() => openProfile(identity)}
+                                                        >
+                                                            <UserPicture
+                                                                name={identity.name}
+                                                                picture={getPeerifyIdentityAvatarUrl(identity)}
+                                                                size="36px"
+                                                                circleType="circle"
+                                                            />
+                                                            <div className="min-w-0 flex-1">
+                                                                <div className="truncate text-sm font-semibold">
+                                                                    {identity.name}
+                                                                </div>
+                                                                <div className="truncate text-xs text-muted-foreground">
+                                                                    Public profile
+                                                                </div>
                                                             </div>
-                                                            <div className="truncate text-xs text-muted-foreground">
-                                                                Public profile
-                                                            </div>
-                                                        </div>
-                                                        {renderCurrentMarker(identity)}
-                                                    </button>
+                                                        </button>
+                                                        {renderCurrentOrActAs(identity, identity)}
+                                                    </div>
                                                 ))}
                                             </div>
                                         )}
