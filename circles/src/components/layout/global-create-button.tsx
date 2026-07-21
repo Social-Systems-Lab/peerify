@@ -11,7 +11,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAtom } from "jotai"; // Added useAtom
 import { userAtom, createPostDialogAtom } from "@/lib/data/atoms"; // Added createPostDialogAtom and userAtom
 import { Circle, Feed, UserPrivate } from "@/models/models"; // Added Circle, Feed, UserPrivate
-import { getPublicUserFeedAction } from "@/components/modules/feeds/actions"; // Changed to server action
+import { getPublicUserFeedAction, getFeedByHandleAction } from "@/components/modules/feeds/actions"; // Changed to server action
+import { useActingIdentity } from "@/lib/utils/acting-identity";
 
 // Import specific dialog components (assuming they are refactored to be full dialogs)
 // TODO: These imports will need to point to the actual refactored dialog components
@@ -31,27 +32,35 @@ export function GlobalCreateButton() {
     const router = useRouter(); // Initialize router
     const [isMainDialogOpen, setIsMainDialogOpen] = useState(false);
     const [user] = useAtom(userAtom); // Get user from atom
+    const actingIdentity = useActingIdentity(); // Whichever persona is persistently set as "acting as" (see profile-menu.tsx)
     const [, setCreatePostDialogState] = useAtom(createPostDialogAtom); // Atom for FeedPostDialog
     const [userFeed, setUserFeed] = useState<Feed | null>(null);
     const { toast } = useToast();
 
+    // Default the quick-post flow to the acting identity's own feed, not always the
+    // account's personal one.
+    const postingCircle = (actingIdentity ?? user) as Circle | undefined;
+
     useEffect(() => {
-        const fetchUserFeed = async () => {
-            if (user?.did) {
-                try {
-                    const feed = await getPublicUserFeedAction(user.did); // Use server action
-                    setUserFeed(feed);
-                } catch (error) {
-                    console.error("Failed to fetch user feed:", error);
-                    setUserFeed(null); // Ensure it's null on error
-                }
-            } else {
+        const fetchPostingFeed = async () => {
+            if (!user?.did) {
                 setUserFeed(null); // Clear feed if no user
+                return;
+            }
+            try {
+                const feed =
+                    postingCircle && postingCircle._id !== user._id
+                        ? await getFeedByHandleAction(postingCircle._id, "default")
+                        : await getPublicUserFeedAction(user.did); // Use server action
+                setUserFeed(feed);
+            } catch (error) {
+                console.error("Failed to fetch posting feed:", error);
+                setUserFeed(null); // Ensure it's null on error
             }
         };
 
-        fetchUserFeed();
-    }, [user]); // Re-run when user changes
+        fetchPostingFeed();
+    }, [user, postingCircle]); // Re-run when user or acting identity changes
 
     // State to manage which specific creation dialog to open
     const [selectedItemTypeForCreation, setSelectedItemTypeForCreation] = useState<CreatableItemKey | null>(null);
@@ -106,11 +115,11 @@ export function GlobalCreateButton() {
 
     const handleSelectItemType = async (itemKey: CreatableItemKey) => {
         if (itemKey === "post") {
-            if (user && userFeed) {
+            if (postingCircle && userFeed) {
                 setCreatePostDialogState({
                     isOpen: true,
-                    circle: user as Circle, // Use user's own circle context
-                    feed: userFeed, // Use user's own feed context
+                    circle: postingCircle, // Whichever persona is currently active
+                    feed: userFeed,
                 });
                 setSelectedItemTypeForCreation(null); // Don't trigger the old CreatePostDialog
             } else {

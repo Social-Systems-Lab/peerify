@@ -50,6 +50,7 @@ import { AiOutlineHeart, AiFillHeart } from "react-icons/ai";
 import { useToast } from "@/components/ui/use-toast";
 import { isAuthorized } from "@/lib/auth/client-auth";
 import { features } from "@/lib/data/constants";
+import { useActingIdentity } from "@/lib/utils/acting-identity";
 import { MentionsInput, Mention, MentionItem, SuggestionDataItem } from "react-mentions";
 import RichText from "./RichText";
 import { UserPicture } from "../members/user-picture";
@@ -113,6 +114,10 @@ const CommentItem = ({
     const isAuthor = user && comment.createdBy === user?.did;
     const canModerate = isAuthorized(user ?? undefined, circle, features.feed.moderate); // Assuming feed moderation applies here
     const canReply = isAuthorized(user ?? undefined, circle, features.feed.comment);
+    // Attribute replies/reactions to whichever persona the profile switcher persistently
+    // has active (see useActingIdentity) — independent of which circle's feed this happens
+    // to be — re-verified server-side, never trusted blindly.
+    const postingAsCircle = useActingIdentity();
     const formattedDate = getPublishTime(comment.createdAt);
 
     // Find replies specific to this comment
@@ -199,8 +204,8 @@ const CommentItem = ({
             _id: `temp-reply-${Date.now()}`, // More unique temp ID
             content: replyContent,
             createdAt: new Date(),
-            author: user as Circle, // Assuming user is Circle type when logged in
-            createdBy: user!.did!,
+            author: postingAsCircle as Circle,
+            createdBy: postingAsCircle?.did ?? user!.did!,
             postId: postId,
             reactions: {},
             parentCommentId: comment._id!,
@@ -214,10 +219,10 @@ const CommentItem = ({
 
         startTransition(async () => {
             try {
-                const result = await createCommentAction(postId, comment._id!, replyContent); // Pass parentCommentId
+                const result = await createCommentAction(postId, comment._id!, replyContent, postingAsCircle?._id); // Pass parentCommentId
                 if (result.success && result.comment) {
                     const newReply = result.comment as CommentDisplay;
-                    newReply.author = user as Circle; // Populate author locally
+                    newReply.author = postingAsCircle as Circle; // Populate author locally
                     newReply.rootParentId = comment.rootParentId || comment._id; // Ensure rootParentId is set
 
                     // Replace temp comment with actual comment
@@ -571,6 +576,10 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
     const isMobile = useIsMobile();
 
     const canComment = isAuthorized(user ?? undefined, circle, features.feed.comment); // Check comment permission
+    // Attribute comments/reactions to whichever persona the profile switcher persistently
+    // has active (see useActingIdentity) — independent of which circle's feed this happens
+    // to be — re-verified server-side, never trusted blindly.
+    const postingAsCircle = useActingIdentity();
 
     // Fetch comments when component mounts or postId changes
     useEffect(() => {
@@ -623,8 +632,8 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
             _id: `temp-comment-${Date.now()}`,
             content: commentContent,
             createdAt: new Date(),
-            author: user as Circle, // Assuming user is Circle type
-            createdBy: user.did!,
+            author: postingAsCircle as Circle,
+            createdBy: postingAsCircle?.did ?? user.did!,
             postId: postId,
             reactions: {},
             parentCommentId: null,
@@ -636,10 +645,10 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
 
         startTransition(async () => {
             try {
-                const result = await createCommentAction(postId, null, commentContent);
+                const result = await createCommentAction(postId, null, commentContent, postingAsCircle?._id);
                 if (result.success && result.comment) {
                     const newComment = result.comment as CommentDisplay;
-                    newComment.author = user as Circle; // Populate author locally
+                    newComment.author = postingAsCircle as Circle; // Populate author locally
 
                     // Replace temp comment with actual comment
                     setComments((prev) => prev.map((c) => (c._id === tempComment._id ? newComment : c)));
@@ -711,9 +720,9 @@ export const CommentSection: React.FC<CommentSectionProps> = ({
                     {user && canComment && (
                         <div className="mt-4 flex items-start gap-2 border-t pt-4">
                             <UserPicture
-                                name={user.name}
-                                picture={user.picture?.url}
-                                circleType={user.circleType}
+                                name={(postingAsCircle || user).name}
+                                picture={(postingAsCircle || user).picture?.url}
+                                circleType={(postingAsCircle || user).circleType}
                                 size="32px"
                             />
                             <div className="flex-grow">

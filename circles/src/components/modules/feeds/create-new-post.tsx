@@ -4,6 +4,7 @@ import { userAtom, createPostDialogAtom } from "@/lib/data/atoms"; // Import cre
 import { UserPicture } from "../members/user-picture";
 import { Circle, Feed } from "@/models/models";
 import { useIsCompact } from "@/components/utils/use-is-compact";
+import { useActingIdentity } from "@/lib/utils/acting-identity";
 
 type CreateNewPostProps = {
     circle: Circle; // This will be the circle context for the post
@@ -12,6 +13,10 @@ type CreateNewPostProps = {
 
 export function CreateNewPost({ circle, feed }: CreateNewPostProps) {
     const [user] = useAtom(userAtom);
+    // Show whichever persona the profile switcher currently has active (see
+    // useActingIdentity) rather than the literal logged-in account — falls back to
+    // `user` itself when acting as your personal profile.
+    const actingIdentity = useActingIdentity();
     const [, setCreatePostDialogState] = useAtom(createPostDialogAtom); // Use the new atom
     const isCompact = useIsCompact();
 
@@ -33,7 +38,7 @@ export function CreateNewPost({ circle, feed }: CreateNewPostProps) {
             }  bg-white p-4`}
             onClick={handleOpenDialog} // Open dialog by setting atom state
         >
-            <UserPicture name={user?.name} picture={user?.picture?.url} size="40px" />
+            <UserPicture name={actingIdentity?.name} picture={actingIdentity?.picture?.url} size="40px" />
             <div className="flex-grow">
                 <input
                     disabled={!user}

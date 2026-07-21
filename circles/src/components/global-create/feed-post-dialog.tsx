@@ -32,6 +32,9 @@ export function FeedPostDialog() {
         // Ensure circleId is on the formData for createPostAction.
         // PostForm's onSubmit provides the most up-to-date circleId.
         formData.append("circleId", finalCircleId);
+        // Attribute to whichever circle was actually selected as the target — resolveActingAuthor
+        // (server-side) only honors this if the account genuinely administers that circle.
+        formData.append("postAsCircleId", finalCircleId);
 
         startTransition(async () => {
             const response = await createPostAction(formData);
