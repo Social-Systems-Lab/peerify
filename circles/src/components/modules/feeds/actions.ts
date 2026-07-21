@@ -31,6 +31,7 @@ import {
     getShareablePostPreview,
 } from "@/lib/data/feed";
 import { saveFile, isFile } from "@/lib/data/storage";
+import { resolveActingAuthor, canActAsAuthor } from "@/lib/data/acting-identity";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import {
     features,
@@ -398,6 +399,7 @@ export async function createPostAction(
         const content = formData.get("content") as string;
         const title = (formData.get("title") as string) || "";
         const circleId = formData.get("circleId") as string;
+        const postAsCircleId = (formData.get("postAsCircleId") as string) || undefined;
         const sharedPostId = (formData.get("sharedPostId") as string) || undefined;
         const locationStr = formData.get("location") as string;
         const postType = (formData.get("postType") as string) || undefined;
@@ -479,11 +481,18 @@ export async function createPostAction(
             }
         }
 
+        // Attribute the post to whichever persona the composer says is currently active
+        // (your own profile, or a managed identity you administer) — re-verified server-side,
+        // never trusted blindly. Authorization to post into circleId above is still evaluated
+        // against the underlying account (userDid): personas have no independent membership
+        // of circles other than their own.
+        const { authorDid } = await resolveActingAuthor(userDid, postAsCircleId);
+
         let post: Post = {
             title: title.trim() || undefined,
             content,
             feedId,
-            createdBy: userDid,
+            createdBy: authorDid,
             createdAt: new Date(),
             reactions: {},
             comments: 0,
@@ -624,7 +633,7 @@ export async function updatePostAction(
         if (!post) {
             return { success: false, message: "Post not found" };
         }
-        if (post.createdBy !== userDid) {
+        if (!(await canActAsAuthor(userDid, post.createdBy))) {
             return { success: false, message: "You are not authorized to edit this post" };
         }
 
@@ -759,6 +768,7 @@ export async function createCommentAction(
     postId: string,
     parentCommentId: string | null,
     content: string,
+    postAsCircleId?: string,
 ): Promise<{ success: boolean; message?: string; comment?: CommentDisplay }> {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -796,23 +806,28 @@ export async function createCommentAction(
             return { success: false, message: "User not found" };
         }
 
+        // Attribute to whichever persona the client says is currently active — re-verified
+        // server-side, never trusted blindly (see resolveActingAuthor).
+        const { authorDid, actingCircle } = await resolveActingAuthor(userDid, postAsCircleId);
+        const author = actingCircle ?? user;
+
         let comment: CommentDisplay = {
             postId: postId,
             parentCommentId: parentCommentId,
             content: content,
-            createdBy: userDid,
+            createdBy: authorDid,
             createdAt: new Date(),
             reactions: {},
             replies: 0,
-            author: user,
+            author,
         };
 
         console.log("🐞 [ACTION] Creating comment:", {
             postId,
             parentCommentId,
             contentPreview: content.substring(0, 50) + (content.length > 50 ? "..." : ""),
-            authorDid: userDid,
-            authorName: user?.name,
+            authorDid,
+            authorName: author?.name,
             feedId: post.feedId,
             feedHandle: feed.handle,
             postAuthorDid: post.createdBy,
@@ -1034,6 +1049,7 @@ export async function likeContentAction(
     contentId: string,
     contentType: "post" | "comment",
     reactionType: string = "like",
+    postAsCircleId?: string,
 ): Promise<{ success: boolean; message?: string }> {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -1064,11 +1080,15 @@ export async function likeContentAction(
             }
         }
 
-        await likeContent(contentId, contentType, userDid, reactionType);
+        // Attribute the reaction to whichever persona the client says is currently active —
+        // re-verified server-side, never trusted blindly (see resolveActingAuthor).
+        const { authorDid, actingCircle } = await resolveActingAuthor(userDid, postAsCircleId);
+
+        await likeContent(contentId, contentType, authorDid, reactionType);
 
         // Send notification
         try {
-            const reactor = await getUserByDid(userDid);
+            const reactor = actingCircle ?? (await getUserByDid(authorDid));
 
             if (contentType === "post") {
                 await notifyPostLike(contentId, reactor, reactionType);
@@ -1089,6 +1109,7 @@ export async function unlikeContentAction(
     contentId: string,
     contentType: "post" | "comment",
     reactionType: string = "like",
+    postAsCircleId?: string,
 ): Promise<{ success: boolean; message?: string }> {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -1096,7 +1117,9 @@ export async function unlikeContentAction(
     }
 
     try {
-        await unlikeContent(contentId, contentType, userDid, reactionType);
+        // Must match whichever identity actually recorded the reaction (see likeContentAction).
+        const { authorDid } = await resolveActingAuthor(userDid, postAsCircleId);
+        await unlikeContent(contentId, contentType, authorDid, reactionType);
         return { success: true, message: "Content unliked successfully" };
     } catch (error) {
         return { success: false, message: error instanceof Error ? error.message : "Failed to unlike content." };
@@ -1119,6 +1142,7 @@ export async function getReactionsAction(
 export async function checkIfLikedAction(
     contentId: string,
     contentType: "post" | "comment",
+    postAsCircleId?: string,
 ): Promise<{ success: boolean; isLiked?: boolean; message?: string }> {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -1126,7 +1150,9 @@ export async function checkIfLikedAction(
     }
 
     try {
-        const isLiked = await checkIfLiked(contentId, contentType, userDid);
+        // Check under whichever identity would actually record the reaction (see likeContentAction).
+        const { authorDid } = await resolveActingAuthor(userDid, postAsCircleId);
+        const isLiked = await checkIfLiked(contentId, contentType, authorDid);
 
         return { success: true, isLiked };
     } catch (error) {
