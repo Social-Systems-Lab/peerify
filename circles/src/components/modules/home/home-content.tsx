@@ -459,12 +459,15 @@ export default function HomeContent({
                                         ))}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600">
-                                        <span className="inline-flex items-center gap-2">
+                                        <Link
+                                            href={`/circles/${circle.handle}/followers`}
+                                            className="inline-flex items-center gap-2 transition-opacity hover:opacity-70 hover:underline"
+                                        >
                                             <FaUsers />
                                             <span>
                                                 {memberCount} {memberCount === 1 ? "Follower" : "Followers"}
                                             </span>
-                                        </span>
+                                        </Link>
                                     </div>
                                     {!peerifyArtistProfile.bookingEnabled && (
                                         <div className="text-xs text-muted-foreground">
@@ -474,12 +477,15 @@ export default function HomeContent({
                                 </div>
                             )}
                             {!isUser && !isPeerifyArtistProfile && memberCount > 0 && (
-                                <div className="flex flex-row items-center justify-center text-gray-600">
+                                <Link
+                                    href={`/circles/${circle.handle}/followers`}
+                                    className="flex flex-row items-center justify-center text-gray-600 transition-opacity hover:opacity-70 hover:underline"
+                                >
                                     <FaUsers />
                                     <p className="m-0 ml-2">
                                         {memberCount} {memberCount !== 1 ? "Followers" : "Follower"}
                                     </p>
-                                </div>
+                                </Link>
                             )}
                             {isCompact && (
                                 <div className="pb-2 pt-2">

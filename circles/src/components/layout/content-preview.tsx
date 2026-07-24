@@ -251,12 +251,22 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                         </p>
                     )}
                     {memberCount > 0 && (
-                        <div className="flex flex-row items-center justify-center pt-2">
+                        <button
+                            type="button"
+                            className="flex flex-row items-center justify-center pt-2 text-black transition-opacity hover:opacity-70"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setContentPreview(undefined);
+                                window.setTimeout(() => {
+                                    router.push(`/circles/${circle.handle}/followers`);
+                                }, closeDelayMs);
+                            }}
+                        >
                             <FaUsers />
-                            <p className="m-0 ml-2 text-sm">
+                            <p className="m-0 ml-2 text-sm underline-offset-2 hover:underline">
                                 {memberCount} {memberCount !== 1 ? "Followers" : "Follower"}
                             </p>
-                        </div>
+                        </button>
                     )}
                     <div className="pt-2">
                         <SocialLinks circle={circle} />
