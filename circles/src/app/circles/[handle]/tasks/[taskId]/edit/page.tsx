@@ -54,6 +54,9 @@ export default async function EditTaskPage(props: PageProps) {
     if (!task) {
         notFound();
     }
+    if (task.circleId !== circle._id?.toString()) {
+        notFound();
+    }
 
     if (isShiftTask(task)) {
         redirect(`/circles/${circleHandle}/shifts/${taskId}/edit`);
@@ -125,6 +128,7 @@ export default async function EditTaskPage(props: PageProps) {
                 circle={circle}
                 task={task}
                 taskId={task._id} // Pass string ID
+                allowCircleMove={canModerate}
             />
         </div>
     );
