@@ -413,6 +413,10 @@ const baseTaskSchema = z.object({
         z.string().max(1000, "Participant notes must be 1000 characters or fewer").optional(),
     ),
     priority: z.preprocess((value) => (value === "" ? undefined : value), taskPrioritySchema.optional()),
+    taskGroup: z.preprocess(
+        (value) => (typeof value === "string" ? value.trim() || undefined : undefined),
+        z.string().max(80, "Group/category must be 80 characters or fewer").optional(),
+    ),
 });
 
 const createTaskSchema = baseTaskSchema.superRefine((data, context) => {
@@ -561,6 +565,7 @@ export async function createTaskAction( // Renamed function
             shiftDurationMinutes: formData.get("shiftDurationMinutes") ?? undefined,
             participantNotes: formData.get("participantNotes") ?? undefined,
             priority: formData.get("priority") ?? undefined,
+            taskGroup: formData.get("taskGroup") ?? undefined,
         });
 
         if (!validatedData.success) {
@@ -672,6 +677,7 @@ export async function createTaskAction( // Renamed function
             participants: data.taskType === "shift" ? [] : undefined,
             participantNotes: data.taskType === "shift" ? data.participantNotes : undefined,
             priority: data.priority,
+            taskGroup: data.taskType === "shift" ? undefined : data.taskGroup,
         };
 
         // Create task in DB (Data function)
@@ -773,6 +779,7 @@ export async function updateTaskAction(
             shiftDurationMinutes: formData.get("shiftDurationMinutes") ?? undefined,
             participantNotes: formData.get("participantNotes") ?? undefined,
             priority: formData.get("priority") || "",
+            taskGroup: formData.get("taskGroup") || "",
         });
 
         if (!validatedData.success) {
@@ -904,10 +911,11 @@ export async function updateTaskAction(
         const finalImages: Media[] = [...parsedExistingMedia, ...newlyUploadedImages];
 
         // Prepare update data
-        const updateData: Omit<Partial<Task>, "goalId" | "eventId" | "priority"> & {
+        const updateData: Omit<Partial<Task>, "goalId" | "eventId" | "priority" | "taskGroup"> & {
             goalId?: string;
             eventId?: string;
             priority?: TaskPriority | "";
+            taskGroup?: string | "";
         } = {
             title: data.title,
             description: data.description,
@@ -926,12 +934,15 @@ export async function updateTaskAction(
             participants: data.taskType === "shift" ? task.participants ?? [] : undefined,
             participantNotes: data.taskType === "shift" ? data.participantNotes : undefined,
             priority: data.priority ?? "",
+            taskGroup: data.taskType === "shift" ? "" : (data.taskGroup ?? ""),
         };
 
         // Update task in DB (Data function handles $set/$unset logic)
         const fieldsToUnset: (keyof Task)[] = [];
         if (data.taskType !== "shift") {
             fieldsToUnset.push("slots", "shiftStartTime", "shiftDurationMinutes", "participants", "participantNotes");
+        } else {
+            fieldsToUnset.push("taskGroup");
         }
 
         const success = await updateTask(taskId, updateData, fieldsToUnset);
