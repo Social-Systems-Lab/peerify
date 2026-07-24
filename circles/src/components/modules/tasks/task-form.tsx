@@ -153,7 +153,31 @@ interface TaskFormProps {
     task?: Task;
     taskId?: string;
     initialSelectedCircleId?: string; // Added initialSelectedCircleId
+    initialTaskType?: TaskType;
+    forcedTaskType?: TaskType;
+    hideTaskTypeSelector?: boolean;
+    circleSelectorPermissionModuleHandle?: string;
+    requireCircleModuleEnabled?: boolean;
+    labels?: {
+        createTitle?: string;
+        editTitle?: string;
+        createdToastTitle?: string;
+        updatedToastTitle?: string;
+        createdToastDescription?: string;
+        updatedToastDescription?: string;
+        submitCreate?: string;
+        submitEdit?: string;
+        titleLabel?: string;
+        titlePlaceholder?: string;
+        titleDescription?: string;
+        descriptionLabel?: string;
+        descriptionPlaceholder?: string;
+        imagesDescription?: string;
+        locationDescription?: string;
+        noCircleSelected?: string;
+    };
     circle?: Circle; // Added for editing context
+    successRedirectCollection?: "tasks" | "shifts";
     // goals and goalsModuleEnabled will be fetched/determined internally
     onFormSubmitSuccess?: (data: { id?: string; circleHandle?: string }) => void; // Updated to include circleHandle
     onCancel?: () => void;
@@ -166,7 +190,14 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     task,
     taskId,
     initialSelectedCircleId, // Added initialSelectedCircleId
+    initialTaskType,
+    forcedTaskType,
+    hideTaskTypeSelector = true,
+    circleSelectorPermissionModuleHandle,
+    requireCircleModuleEnabled = false,
+    labels,
     circle: circleProp, // Added for editing
+    successRedirectCollection,
     onFormSubmitSuccess,
     onCancel,
 }) => {
@@ -194,6 +225,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             prefilledDate = parsedDate;
         }
     }
+    const initialOutcomeTaskType = initialTaskType === "shift" ? "shift" : "outcome";
+    const redirectCollection = successRedirectCollection ?? (forcedTaskType === "shift" ? "shifts" : "tasks");
 
     const form = useForm<TaskFormValues>({
         resolver: zodResolver(taskFormSchema),
@@ -205,7 +238,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             targetDate: prefilledDate ?? (task?.targetDate ? new Date(task.targetDate) : undefined),
             goalId: task?.goalId || preselectedGoalId || null,
             eventId: (task as any)?.eventId || preselectedEventId || null,
-            taskType: task?.taskType ?? "outcome",
+            taskType: forcedTaskType ?? task?.taskType ?? initialOutcomeTaskType,
             slots: task?.slots,
             shiftStartTime: task?.shiftStartTime,
             shiftDurationMinutes: task?.shiftDurationMinutes,
@@ -216,6 +249,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     });
 
     const taskType = form.watch("taskType");
+    const shouldShowTaskTypeSelector = !hideTaskTypeSelector && !forcedTaskType;
 
     // Callback for CircleSelector
     const handleCircleSelected = useCallback(
@@ -431,9 +465,14 @@ export const TaskForm: React.FC<TaskFormProps> = ({
 
             if (result.success) {
                 toast({
-                    title: isEditing ? "Task Updated" : "Task Submitted",
+                    title: isEditing
+                        ? labels?.updatedToastTitle || "Task Updated"
+                        : labels?.createdToastTitle || "Task Submitted",
                     description:
-                        result.message || (isEditing ? "Task successfully updated." : "Task successfully submitted."),
+                        result.message ||
+                        (isEditing
+                            ? labels?.updatedToastDescription || "Task successfully updated."
+                            : labels?.createdToastDescription || "Task successfully submitted."),
                 });
 
                 if (onFormSubmitSuccess) {
@@ -441,9 +480,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                 } else {
                     const navigateToId = isEditing ? taskId : result.taskId;
                     if (navigateToId && selectedCircle.handle) {
-                        router.push(`/circles/${selectedCircle.handle}/tasks/${navigateToId}`);
+                        router.push(`/circles/${selectedCircle.handle}/${redirectCollection}/${navigateToId}`);
                     } else if (selectedCircle.handle) {
-                        router.push(`/circles/${selectedCircle.handle}/tasks`);
+                        router.push(`/circles/${selectedCircle.handle}/${redirectCollection}`);
                     }
                     router.refresh();
                 }
@@ -470,7 +509,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             <Card className="formatted mx-auto w-full">
                 <CardHeader className="p-6 pb-0">
                     <h3 className="mb-2 text-2xl font-semibold leading-none tracking-tight">
-                        {isEditing ? "Edit Task" : "Create New Task"}
+                        {isEditing ? labels?.editTitle || "Edit Task" : labels?.createTitle || "Create New Task"}
                     </h3>
                     {!isEditing && (
                         <div className="pb-4 pt-2">
@@ -479,6 +518,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                 itemType={itemDetail}
                                 onCircleSelected={handleCircleSelected}
                                 initialSelectedCircleId={initialSelectedCircleId}
+                                showModuleEnableMessage={forcedTaskType !== "shift"}
+                                permissionModuleHandle={circleSelectorPermissionModuleHandle}
+                                requireModuleEnabled={requireCircleModuleEnabled}
                             />
                         </div>
                     )}
@@ -496,44 +538,49 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                                 <FormLabel>Title</FormLabel>
                                                 <FormControl>
                                                     <Input
-                                                        placeholder="e.g., Organize team meeting"
+                                                        placeholder={
+                                                            labels?.titlePlaceholder || "e.g., Organize team meeting"
+                                                        }
                                                         {...field}
                                                         disabled={isSubmitting}
                                                     />
                                                 </FormControl>
-                                                <FormDescription>A short, clear title for the task.</FormDescription>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="taskType"
-                                        render={({ field }) => (
-                                            <FormItem className="py-3 md:py-4">
-                                                <FormLabel>Task Format</FormLabel>
-                                                <Select
-                                                    onValueChange={(value) => field.onChange(value as TaskType)}
-                                                    value={field.value}
-                                                    disabled={isSubmitting}
-                                                >
-                                                    <FormControl>
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Select a task type" />
-                                                        </SelectTrigger>
-                                                    </FormControl>
-                                                    <SelectContent>
-                                                        <SelectItem value="outcome">Outcome task</SelectItem>
-                                                        <SelectItem value="shift">Shift sign-up</SelectItem>
-                                                    </SelectContent>
-                                                </Select>
                                                 <FormDescription>
-                                                    Use a shift for a scheduled sign-up opportunity with limited slots.
+                                                    {labels?.titleDescription || "A short, clear title for the task."}
                                                 </FormDescription>
                                                 <FormMessage />
                                             </FormItem>
                                         )}
                                     />
+                                    {shouldShowTaskTypeSelector && (
+                                        <FormField
+                                            control={form.control}
+                                            name="taskType"
+                                            render={({ field }) => (
+                                                <FormItem className="py-3 md:py-4">
+                                                    <FormLabel>Task Format</FormLabel>
+                                                    <Select
+                                                        onValueChange={(value) => field.onChange(value as TaskType)}
+                                                        value={field.value}
+                                                        disabled={isSubmitting}
+                                                    >
+                                                        <FormControl>
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Select a task type" />
+                                                            </SelectTrigger>
+                                                        </FormControl>
+                                                        <SelectContent>
+                                                            <SelectItem value="outcome">Outcome task</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <FormDescription>
+                                                        Shifts are created from the dedicated Shifts page.
+                                                    </FormDescription>
+                                                    <FormMessage />
+                                                </FormItem>
+                                            )}
+                                        />
+                                    )}
                                 </div>
                                 <div className="grid grid-cols-1 gap-0 md:grid-cols-2 md:gap-x-6">
                                     <FormField
@@ -728,7 +775,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                                         <div className="space-y-1">
                                                             <FormLabel>Share this shift on the Noticeboard</FormLabel>
                                                             <FormDescription>
-                                                                Create or update one linked Noticeboard post for this volunteer shift.
+                                                                Create or update one linked Noticeboard post for this
+                                                                volunteer shift.
                                                             </FormDescription>
                                                         </div>
                                                     </div>
@@ -777,10 +825,12 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                     name="description"
                                     render={({ field }) => (
                                         <FormItem className="py-3 md:col-span-2 md:py-4">
-                                            <FormLabel>Description</FormLabel>
+                                            <FormLabel>{labels?.descriptionLabel || "Description"}</FormLabel>
                                             <FormControl>
                                                 <Textarea
-                                                    placeholder="Add details if helpful"
+                                                    placeholder={
+                                                        labels?.descriptionPlaceholder || "Add details if helpful"
+                                                    }
                                                     className="min-h-[150px] md:min-h-[200px]"
                                                     {...field}
                                                     disabled={isSubmitting}
@@ -810,7 +860,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                                 />
                                             </FormControl>
                                             <FormDescription>
-                                                Upload images related to the task (max 5 files, 5MB each).
+                                                {labels?.imagesDescription ||
+                                                    "Upload images related to the task (max 5 files, 5MB each)."}
                                             </FormDescription>
                                             <FormMessage />
                                         </FormItem>
@@ -823,7 +874,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                                 Location (Optional)
                                             </p>
                                             <p className="text-sm text-muted-foreground">
-                                                Add a place if this task needs one.
+                                                {labels?.locationDescription || "Add a place if this task needs one."}
                                             </p>
                                         </div>
                                         <Button
@@ -889,7 +940,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                                         </SelectContent>
                                                     </Select>
                                                     <FormDescription>
-                                                        Link this task to an existing goal in this circle.
+                                                        Link this {taskType === "shift" ? "shift" : "task"} to an
+                                                        existing goal in this circle.
                                                     </FormDescription>
                                                     <FormMessage />
                                                 </FormItem>
@@ -936,7 +988,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                                         </SelectContent>
                                                     </Select>
                                                     <FormDescription>
-                                                        Link this task to an existing event in this circle.
+                                                        Link this {taskType === "shift" ? "shift" : "task"} to an
+                                                        existing event in this circle.
                                                     </FormDescription>
                                                     <FormMessage />
                                                 </FormItem>
@@ -959,7 +1012,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                         )}
                                         <Button type="submit" disabled={isSubmitting || !selectedCircle}>
                                             {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                            {isEditing ? "Update Task" : "Create Task"}
+                                            {isEditing
+                                                ? labels?.submitEdit || "Update Task"
+                                                : labels?.submitCreate || "Create Task"}
                                         </Button>
                                     </div>
                                 </div>
@@ -971,7 +1026,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                     !isEditing && (
                         <CardContent className="p-6 pt-0">
                             <div className="pb-4 pt-4 text-center text-muted-foreground">
-                                Please select a circle above to create the task in.
+                                {labels?.noCircleSelected || "Please select a circle above to create the task in."}
                             </div>
                         </CardContent>
                     )

@@ -320,7 +320,7 @@ const ShiftCard: React.FC<{
     return (
         <Card className="relative h-full max-w-2xl border-sky-200 bg-sky-50/40 transition-shadow duration-200 ease-in-out group-hover:shadow-lg">
             <Link
-                href={`/circles/${taskCircleHandle}/tasks/${task._id}?source=events#circle-tabs`}
+                href={`/circles/${taskCircleHandle}/shifts/${task._id}?source=events#circle-tabs`}
                 className="group block"
                 onClick={() => onNavigate?.()}
             >

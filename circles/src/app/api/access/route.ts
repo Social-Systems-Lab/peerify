@@ -40,11 +40,15 @@ export async function POST(req: Request) {
             return NextResponse.json({ notFound: true, notFoundType: "module" }, { status: 404 });
         }
 
+        // Shifts is a separate module for routing/navigation, but shift records are task-backed
+        // and intentionally reuse Tasks view permissions.
+        const accessModuleHandle = moduleHandle === "shifts" ? "tasks" : moduleHandle;
+
         // Check access rules
         const accessRules = circle.accessRules || {};
 
         // First try module-specific access rule
-        let allowedUserGroups = accessRules[moduleHandle]?.view;
+        let allowedUserGroups = accessRules[accessModuleHandle]?.view;
 
         // If still not found, funding defaults to members-only and all other routes preserve the older everyone fallback.
         if (!allowedUserGroups) {

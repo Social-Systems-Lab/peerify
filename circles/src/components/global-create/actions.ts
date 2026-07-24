@@ -16,6 +16,8 @@ type GetSelectableCirclesActionResult = {
 export async function getSelectableCirclesAction(
     moduleHandle: string,
     createFeatureHandle: string,
+    permissionModuleHandle = moduleHandle,
+    requireModuleEnabled = false,
 ): Promise<GetSelectableCirclesActionResult> {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -28,7 +30,7 @@ export async function getSelectableCirclesAction(
     }
 
     const memberships = await Members.find({ userDid }, { projection: { circleId: 1 } }).toArray();
-    const featureToAuth = (features[moduleHandle as keyof typeof features] as any)?.[createFeatureHandle] as
+    const featureToAuth = (features[permissionModuleHandle as keyof typeof features] as any)?.[createFeatureHandle] as
         | Feature
         | undefined;
 
@@ -44,9 +46,12 @@ export async function getSelectableCirclesAction(
     const candidateCircles = [user as Circle, ...memberCircles].filter(
         (circle, index, circles) => circles.findIndex((candidate) => candidate._id === circle._id) === index,
     );
+    const moduleEligibleCircles = requireModuleEnabled
+        ? candidateCircles.filter((circle) => circle.enabledModules?.includes(moduleHandle))
+        : candidateCircles;
 
     const authorizationChecks = await Promise.all(
-        candidateCircles.map(async (circle) => {
+        moduleEligibleCircles.map(async (circle) => {
             if (!circle?._id || !circle.handle) {
                 return false;
             }
@@ -59,7 +64,7 @@ export async function getSelectableCirclesAction(
         }),
     );
 
-    const circles = candidateCircles
+    const circles = moduleEligibleCircles
         .filter((_, index) => authorizationChecks[index])
         .sort((a, b) => {
             if (a._id === user._id) return -1;
