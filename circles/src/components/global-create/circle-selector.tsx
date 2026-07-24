@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
@@ -22,6 +22,8 @@ interface CircleSelectorProps {
     label?: string;
     permissionModuleHandle?: string;
     requireModuleEnabled?: boolean;
+    requiredEnabledModuleHandle?: string;
+    fallbackCircle?: Circle;
 }
 
 export const CircleSelector: React.FC<CircleSelectorProps> = ({
@@ -33,6 +35,8 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
     label = "Create in:",
     permissionModuleHandle,
     requireModuleEnabled = false,
+    requiredEnabledModuleHandle,
+    fallbackCircle,
 }) => {
     const [user] = useAtom(userAtom);
     const actingIdentity = useActingIdentity();
@@ -41,7 +45,7 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
     const [isLoading, setIsLoading] = useState(true);
     const [showEnableModuleMessage, setShowEnableModuleMessage] = useState(false);
 
-    const updateModuleEnableMessage = (selectedCircle: Circle | null, userCircle: UserPrivate | null) => {
+    const updateModuleEnableMessage = useCallback((selectedCircle: Circle | null, userCircle: UserPrivate | null) => {
         if (
             selectedCircle &&
             userCircle &&
@@ -53,7 +57,7 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
         } else {
             setShowEnableModuleMessage(false);
         }
-    };
+    }, [itemType]);
 
     useEffect(() => {
         let cancelled = false;
@@ -76,12 +80,22 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
                 itemType.createFeatureHandle,
                 permissionModuleHandle,
                 requireModuleEnabled,
+                requiredEnabledModuleHandle,
             );
             if (cancelled) {
                 return;
             }
 
             const availableCircles = result.success ? result.circles : [];
+            if (
+                fallbackCircle?._id &&
+                initialSelectedCircleId === fallbackCircle._id &&
+                (!requireModuleEnabled ||
+                    fallbackCircle.enabledModules?.includes(requiredEnabledModuleHandle ?? itemType.moduleHandle)) &&
+                !availableCircles.some((circle) => circle._id === fallbackCircle._id)
+            ) {
+                availableCircles.push(fallbackCircle);
+            }
             setSelectableCircles(availableCircles);
 
             let initialSelectedCircle: Circle | null = null;
@@ -125,6 +139,9 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
         actingIdentity,
         permissionModuleHandle,
         requireModuleEnabled,
+        requiredEnabledModuleHandle,
+        fallbackCircle,
+        updateModuleEnableMessage,
     ]);
 
     const handleSelectionChange = (circleId: string) => {

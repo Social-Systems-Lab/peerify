@@ -45,6 +45,9 @@ export default async function EditShiftPage(props: PageProps) {
     if (!shift || !isShiftTask(shift)) {
         notFound();
     }
+    if (shift.circleId !== circle._id?.toString()) {
+        notFound();
+    }
 
     const isAuthor = userDid === shift.createdBy;
     const canModerate = await isAuthorized(userDid, circle._id as string, features.tasks.moderate);
@@ -93,6 +96,7 @@ export default async function EditShiftPage(props: PageProps) {
                 forcedTaskType="shift"
                 hideTaskTypeSelector
                 successRedirectCollection="shifts"
+                allowCircleMove={canModerate}
                 labels={{
                     editTitle: "Edit Shift",
                     updatedToastTitle: "Shift Updated",

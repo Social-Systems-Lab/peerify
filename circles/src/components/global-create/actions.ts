@@ -18,6 +18,7 @@ export async function getSelectableCirclesAction(
     createFeatureHandle: string,
     permissionModuleHandle = moduleHandle,
     requireModuleEnabled = false,
+    requiredEnabledModuleHandle = moduleHandle,
 ): Promise<GetSelectableCirclesActionResult> {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -47,7 +48,7 @@ export async function getSelectableCirclesAction(
         (circle, index, circles) => circles.findIndex((candidate) => candidate._id === circle._id) === index,
     );
     const moduleEligibleCircles = requireModuleEnabled
-        ? candidateCircles.filter((circle) => circle.enabledModules?.includes(moduleHandle))
+        ? candidateCircles.filter((circle) => circle.enabledModules?.includes(requiredEnabledModuleHandle))
         : candidateCircles;
 
     const authorizationChecks = await Promise.all(
