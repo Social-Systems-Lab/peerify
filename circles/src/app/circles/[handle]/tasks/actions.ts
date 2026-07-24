@@ -38,6 +38,7 @@ import {
     getTaskById,
     createTask,
     updateTask,
+    completeOutcomeTaskAtomically,
     deleteTask,
     changeTaskStage,
     assignTask,
@@ -67,6 +68,7 @@ import {
 } from "@/lib/data/notifications";
 import { ensureModuleIsEnabledOnCircle } from "@/lib/data/circle"; // Added
 import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
+import { getOutcomeTaskCompletionPlan } from "@/lib/task-completion-policy";
 
 type GetTasksActionResult = {
     tasks: TaskDisplay[];
@@ -1632,46 +1634,64 @@ export async function verifyTaskCompletionAction(
             return { success: false, message: "Task not found" };
         }
 
-        if ((task.taskType ?? "outcome") === "shift") {
-            return { success: false, message: "Shift tasks are verified per participant" };
+        if (String(task.circleId) !== String(circle._id)) {
+            return { success: false, message: "Task not found" };
         }
 
         const isAuthor = task.createdBy === userDid;
+        const isAssignee = task.assignedTo === userDid;
         const canAssign = await isAuthorized(userDid, circle._id as string, features.tasks.assign);
         const canResolve = await isAuthorized(userDid, circle._id as string, features.tasks.resolve);
         const canModerate = await isAuthorized(userDid, circle._id as string, features.tasks.moderate);
-        const canManageReview = isAuthor || canAssign || canResolve || canModerate;
+        const completionPlan = getOutcomeTaskCompletionPlan(task, {
+            isAuthor,
+            isAssignee,
+            canAssign,
+            canResolve,
+            canModerate,
+        });
 
-        if (!canManageReview) {
-            return { success: false, message: "Not authorized to verify this task" };
+        if (!completionPlan.allowed) {
+            return { success: false, message: completionPlan.reason };
         }
 
-        if (task.stage !== "inProgress" || !task.submittedForReviewAt) {
-            return { success: false, message: "Task must be submitted for review before it can be verified" };
-        }
-
-        if (task.assignedTo === userDid) {
-            return { success: false, message: "Assignees cannot verify their own task contributions" };
-        }
-
-        if (task.verifiedAt) {
+        if (completionPlan.mode === "already-completed") {
             return { success: true, message: "Task already verified" };
         }
 
         const now = new Date();
-        const success = await updateTask(
+        const success = await completeOutcomeTaskAtomically({
             taskId,
-            {
-                stage: "resolved",
-                resolvedAt: now,
-                verifiedAt: now,
-                verifiedBy: userDid,
-            },
-            ["reviewRequestedChangesAt", "reviewRequestedChangesBy", "reviewRequestedChangesNote"],
-        );
+            circleId: circle._id!.toString(),
+            verifiedBy: userDid,
+            verifiedAt: now,
+            mode: completionPlan.mode,
+            expectedAssignedTo: task.assignedTo,
+        });
 
         if (!success) {
-            return { success: false, message: "Failed to verify task completion" };
+            const latestTask = await getTaskById(taskId, userDid);
+            if (latestTask && String(latestTask.circleId) === String(circle._id)) {
+                const latestPlan = getOutcomeTaskCompletionPlan(latestTask, {
+                    isAuthor: latestTask.createdBy === userDid,
+                    isAssignee: latestTask.assignedTo === userDid,
+                    canAssign,
+                    canResolve,
+                    canModerate,
+                });
+
+                if (latestPlan.allowed && latestPlan.mode === "already-completed") {
+                    return { success: true, message: "Task already verified" };
+                }
+            }
+
+            return {
+                success: false,
+                message:
+                    completionPlan.mode === "unassigned-operational-completion"
+                        ? "Task could not be marked complete because its assignment or completion state changed"
+                        : "Task could not be verified because its assignment or completion state changed",
+            };
         }
 
         const updatedTask = await getTaskById(taskId, userDid);
@@ -1683,7 +1703,13 @@ export async function verifyTaskCompletionAction(
 
         revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
-        return { success: true, message: "Task verified" };
+        return {
+            success: true,
+            message:
+                completionPlan.mode === "unassigned-operational-completion"
+                    ? "Task marked complete"
+                    : "Task verified",
+        };
     } catch (error) {
         console.error("Error verifying task completion:", error);
         return { success: false, message: "Failed to verify task completion" };

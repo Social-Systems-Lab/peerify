@@ -80,6 +80,7 @@ import {
     taskTitleLinkClassName,
     getTaskWorkflowStatusBadge,
 } from "./task-ui";
+import { getOutcomeTaskCompletionPlan } from "@/lib/task-completion-policy";
 interface TasksListProps {
     tasksData: {
         tasks: TaskDisplay[];
@@ -1004,7 +1005,29 @@ const TasksList: React.FC<TasksListProps> = ({
     const canManageTaskVerification = useCallback(
         (task: TaskDisplay) => {
             const isAuthor = user?.did === task.createdBy;
-            return isAuthor || permissions.canAssign || permissions.canResolve || permissions.canModerate;
+            const isAssignee = user?.did === task.assignedTo;
+            const completionPlan = getOutcomeTaskCompletionPlan(task, {
+                isAuthor,
+                isAssignee,
+                canAssign: permissions.canAssign,
+                canResolve: permissions.canResolve,
+                canModerate: permissions.canModerate,
+            });
+            return completionPlan.allowed && completionPlan.mode === "assigned-verification";
+        },
+        [permissions.canAssign, permissions.canModerate, permissions.canResolve, user?.did],
+    );
+
+    const canCompleteUnassignedOutcomeTask = useCallback(
+        (task: TaskDisplay) => {
+            const completionPlan = getOutcomeTaskCompletionPlan(task, {
+                isAuthor: user?.did === task.createdBy,
+                isAssignee: user?.did === task.assignedTo,
+                canAssign: permissions.canAssign,
+                canResolve: permissions.canResolve,
+                canModerate: permissions.canModerate,
+            });
+            return completionPlan.allowed && completionPlan.mode === "unassigned-operational-completion";
         },
         [permissions.canAssign, permissions.canModerate, permissions.canResolve, user?.did],
     );
@@ -1112,6 +1135,7 @@ const TasksList: React.FC<TasksListProps> = ({
         const canEdit = (isAuthor && task.stage === "review") || permissions.canModerate;
         const canDelete = isAuthor || permissions.canModerate;
         const isShiftTask = isShiftTaskItem(task);
+        const canCompleteUnassigned = canCompleteUnassignedOutcomeTask(task);
         const isPreviewedTask =
             (contentPreview?.content as TaskDisplay)?._id === task._id && sidePanelContentVisible === "content";
 
@@ -1140,7 +1164,7 @@ const TasksList: React.FC<TasksListProps> = ({
                 ))}
                 {!inToolbox && (
                     <TableCell className="w-[40px]">
-                        {(canEdit || canDelete) && (
+                        {(canEdit || canDelete || canCompleteUnassigned) && (
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button
@@ -1164,6 +1188,17 @@ const TasksList: React.FC<TasksListProps> = ({
                                             disabled={task.stage === "resolved"}
                                         >
                                             Edit
+                                        </DropdownMenuItem>
+                                    )}
+                                    {canCompleteUnassigned && (
+                                        <DropdownMenuItem
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                runVerificationQueueAction(task, "verify");
+                                            }}
+                                            disabled={pendingVerificationAction?.taskId === task._id}
+                                        >
+                                            Mark as complete
                                         </DropdownMenuItem>
                                     )}
                                     {canDelete && (

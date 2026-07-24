@@ -9,6 +9,11 @@ import { features } from "./constants"; // RANKING_STALENESS_DAYS is now in rank
 import { createPost } from "./feed"; // Import createPost from feed.ts
 import { upsertVbdTasks } from "./vdb";
 import { getAggregateRanking, RankingContext } from "./ranking"; // Import the new generic function
+import {
+    buildOutcomeTaskCompletionAtomicFilter,
+    buildOutcomeTaskCompletionUpdate,
+    type OutcomeTaskCompletionMode,
+} from "@/lib/task-completion-policy";
 // No longer need getUserByDid if we use $lookup consistently
 
 // Safe projection for task queries, similar to proposals
@@ -971,6 +976,64 @@ export const updateTask = async (
         return result.matchedCount > 0 || result.modifiedCount > 0; // Success if matched or modified
     } catch (error) {
         console.error(`Error updating task (${taskId}):`, error);
+        return false;
+    }
+};
+
+export const completeOutcomeTaskAtomically = async ({
+    taskId,
+    circleId,
+    verifiedBy,
+    verifiedAt,
+    mode,
+    expectedAssignedTo,
+}: {
+    taskId: string;
+    circleId: string;
+    verifiedBy: string;
+    verifiedAt: Date;
+    mode: OutcomeTaskCompletionMode;
+    expectedAssignedTo?: string;
+}): Promise<boolean> => {
+    try {
+        if (!ObjectId.isValid(taskId)) {
+            console.error("Invalid taskId provided for outcome task completion:", taskId);
+            return false;
+        }
+        if (mode === "assigned-verification" && !expectedAssignedTo) {
+            console.error("Assigned outcome task completion requires the expected assignee:", taskId);
+            return false;
+        }
+
+        const fieldsToUnset: Record<string, string> = {
+            reviewRequestedChangesAt: "",
+            reviewRequestedChangesBy: "",
+            reviewRequestedChangesNote: "",
+        };
+        if (mode === "unassigned-operational-completion") {
+            fieldsToUnset.submittedForReviewAt = "";
+            fieldsToUnset.submittedForReviewBy = "";
+        }
+
+        const result = await Tasks.updateOne(
+            buildOutcomeTaskCompletionAtomicFilter({
+                taskObjectId: new ObjectId(taskId),
+                circleId,
+                mode,
+                expectedAssignedTo,
+            }) as any,
+            {
+                $set: {
+                    ...buildOutcomeTaskCompletionUpdate(verifiedBy, verifiedAt),
+                    updatedAt: new Date(),
+                },
+                $unset: fieldsToUnset,
+            },
+        );
+
+        return result.modifiedCount > 0;
+    } catch (error) {
+        console.error(`Error completing outcome task (${taskId}):`, error);
         return false;
     }
 };
