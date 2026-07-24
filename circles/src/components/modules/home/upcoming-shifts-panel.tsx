@@ -51,7 +51,7 @@ export function UpcomingShiftsPanel({ circleHandle, shifts, visibility }: Upcomi
                     <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Upcoming Shifts</div>
                     {visibility === "visible" ? (
                         <Button asChild variant="ghost" size="sm">
-                            <Link href={`/circles/${circleHandle}/events?filter=shifts`}>View all</Link>
+                            <Link href={`/circles/${circleHandle}/shifts`}>View all</Link>
                         </Button>
                     ) : null}
                 </div>
@@ -84,7 +84,7 @@ export function UpcomingShiftsPanel({ circleHandle, shifts, visibility }: Upcomi
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="text-sm font-medium text-emerald-700">{getCapacityLabel(shift)}</div>
                                         <Button asChild size="sm" className="shrink-0">
-                                            <Link href={`/circles/${circleHandle}/tasks/${shift._id}?source=about`}>
+                                            <Link href={`/circles/${circleHandle}/shifts/${shift._id}?source=about`}>
                                                 View shift
                                             </Link>
                                         </Button>

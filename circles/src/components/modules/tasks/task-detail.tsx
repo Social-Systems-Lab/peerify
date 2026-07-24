@@ -400,15 +400,17 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
         }
     }, [assignDialogOpen, pendingClaims.length, circle._id, toast]);
 
+    const taskCollection = isShiftTask ? "shifts" : "tasks";
+
     const handleEdit = () => {
-        router.push(`/circles/${circle.handle}/tasks/${task._id}/edit`); // Updated path
+        router.push(`/circles/${circle.handle}/${taskCollection}/${task._id}/edit`);
     };
 
     const handleOpenTaskPage = () => {
         if (isPreview) {
             setContentPreview(undefined);
         }
-        router.push(`/circles/${circle.handle}/tasks/${task._id}`);
+        router.push(`/circles/${circle.handle}/${taskCollection}/${task._id}`);
     };
 
     const handleDelete = async () => {
@@ -416,7 +418,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
             const result = await deleteTaskAction(circle.handle!, task._id as string); // Renamed action, use task prop
             if (result.success) {
                 toast({ title: "Success", description: result.message });
-                router.push(`/circles/${circle.handle}/tasks`); // Updated path, Redirect after delete
+                router.push(`/circles/${circle.handle}/${taskCollection}`);
                 router.refresh();
             } else {
                 toast({
@@ -1047,7 +1049,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                         <h1 className="min-w-0 break-words [overflow-wrap:anywhere]">{task.title}</h1>
                     ) : (
                         <Link
-                            href={`/circles/${circle.handle}/tasks/${task._id}`} // Updated path
+                            href={`/circles/${circle.handle}/${taskCollection}/${task._id}`}
                             className="min-w-0"
                             onClick={(e: React.MouseEvent) => e.stopPropagation()}
                         >

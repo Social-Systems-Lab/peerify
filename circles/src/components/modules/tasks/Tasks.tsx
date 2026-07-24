@@ -9,12 +9,19 @@ import { redirect } from "next/navigation";
 // TaskPermissions is still needed for passing down to TasksList
 import { Circle, TaskPermissions } from "@/models/models";
 import TasksList from "./tasks-list";
+import ShiftsList from "./shifts-list";
+
+export type TaskKindFilter = "tasks" | "shifts";
 
 type PageProps = {
     circle: Circle;
+    taskKind?: TaskKindFilter;
 };
 
-export default async function TasksModule({ circle }: PageProps) {
+const matchesTaskKind = (task: { taskType?: string }, taskKind: TaskKindFilter) =>
+    taskKind === "shifts" ? (task.taskType ?? "outcome") === "shift" : (task.taskType ?? "outcome") !== "shift";
+
+export default async function TasksModule({ circle, taskKind = "tasks" }: PageProps) {
     // Get the current user DID
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -52,6 +59,10 @@ export default async function TasksModule({ circle }: PageProps) {
     const filteredTasksData = {
         ...tasksData, // Keep other stats like hasUserRanked, totalRankers, unrankedCount
         tasks: tasksData.tasks.filter((task) => {
+            if (!matchesTaskKind(task, taskKind)) {
+                return false;
+            }
+
             // Allow user to always see their own tasks
             if (task.author.did === userDid) return true;
 
@@ -75,13 +86,11 @@ export default async function TasksModule({ circle }: PageProps) {
 
     return (
         <div className="flex w-full flex-col">
-            {/* Pass the potentially filtered tasksData object and permissions */}
-            <TasksList
-                tasksData={filteredTasksData}
-                circle={circle}
-                permissions={permissions}
-                persistViewState
-            />
+            {taskKind === "shifts" ? (
+                <ShiftsList tasksData={filteredTasksData} circle={circle} permissions={permissions} />
+            ) : (
+                <TasksList tasksData={filteredTasksData} circle={circle} permissions={permissions} persistViewState />
+            )}
         </div>
     );
 }

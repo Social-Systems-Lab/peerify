@@ -77,6 +77,16 @@ type GetTasksActionResult = {
     userRankBecameStaleAt: Date | null;
 };
 
+const revalidateTaskAndShiftRoutes = (circleHandle: string, taskId?: string) => {
+    revalidatePath(`/circles/${circleHandle}/tasks`);
+    revalidatePath(`/circles/${circleHandle}/shifts`);
+
+    if (taskId) {
+        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidatePath(`/circles/${circleHandle}/shifts/${taskId}`);
+    }
+};
+
 const getShiftEndAt = (task: Pick<Task, "stage" | "targetDate" | "shiftStartTime" | "shiftDurationMinutes">) => {
     if (task.stage === "resolved") {
         return new Date(0);
@@ -114,7 +124,7 @@ const shouldPublishToNoticeboard = (formData: FormData) => formData.get("publish
 
 const getTaskInternalPreviewUrl = (circleHandle: string, taskId: string) => {
     const baseUrl = (process.env.CIRCLES_URL || "http://localhost:3000").replace(/\/+$/, "");
-    return `${baseUrl}/circles/${circleHandle}/tasks/${taskId}?source=noticeboard`;
+    return `${baseUrl}/circles/${circleHandle}/shifts/${taskId}?source=noticeboard`;
 };
 
 const buildShiftNoticeboardPostContent = (task: Pick<Task, "description" | "participantNotes">) => {
@@ -587,6 +597,10 @@ export async function createTaskAction( // Renamed function
             return { success: false, message: "Not authorized to create tasks" }; // Updated message
         }
 
+        if (data.taskType === "shift" && !circle.enabledModules?.includes("shifts")) {
+            return { success: false, message: "The Shifts module is not enabled for this circle" };
+        }
+
         // --- Parse Location ---
         let locationData: Task["location"] = undefined; // Updated type
         if (data.location) {
@@ -681,11 +695,11 @@ export async function createTaskAction( // Renamed function
         await invalidateUserRankingsIfNeededAction(circle._id!.toString());
 
         // Revalidate the tasks list page
-        revalidatePath(`/circles/${circleHandle}/tasks`); // Updated path
+        revalidateTaskAndShiftRoutes(circleHandle);
 
-        // Ensure 'tasks' module is enabled if creating in user's own circle
+        // Preserve the existing self-circle task module behavior; Shifts must be enabled explicitly.
         try {
-            if (circle.circleType === "user" && circle.did === userDid) {
+            if (data.taskType !== "shift" && circle.circleType === "user" && circle.did === userDid) {
                 await ensureModuleIsEnabledOnCircle(circle._id as string, "tasks", userDid);
             }
         } catch (moduleEnableError) {
@@ -950,8 +964,7 @@ export async function updateTaskAction(
         }
 
         // Revalidate relevant pages
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return { success: true, message: "Task updated successfully" };
     } catch (error) {
@@ -1022,8 +1035,7 @@ export async function updateTaskPriorityAction(
             return { success: false, message: "Failed to update task priority" };
         }
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return {
             success: true,
@@ -1098,7 +1110,7 @@ export async function deleteTaskAction( // Renamed function
         await invalidateUserRankingsIfNeededAction(circle._id!.toString());
 
         // Revalidate the tasks list page
-        revalidatePath(`/circles/${circleHandle}/tasks`); // Updated path
+        revalidateTaskAndShiftRoutes(circleHandle);
 
         return { success: true, message: "Task deleted successfully" }; // Updated message
     } catch (error) {
@@ -1173,8 +1185,7 @@ export async function acceptTaskAction(
             );
         }
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return {
             success: true,
@@ -1250,8 +1261,7 @@ export async function submitTaskForReviewAction(
             await notifyTaskSubmittedForReview(updatedTask, submitter);
         }
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return { success: true, message: "Task submitted for review" };
     } catch (error) {
@@ -1335,8 +1345,7 @@ export async function requestTaskChangesAction(
             await notifyTaskChangesRequested(updatedTask, requester, validated.data.note);
         }
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return { success: true, message: "Changes requested" };
     } catch (error) {
@@ -1404,8 +1413,7 @@ export async function submitTaskClaimAction(
             await notifyTaskClaimSubmitted(updatedTask, claimant);
         }
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return { success: true, message: "Task claim submitted" };
     } catch (error) {
@@ -1489,8 +1497,7 @@ export async function reviewTaskClaimAction(
             }
         }
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return {
             success: true,
@@ -1576,8 +1583,7 @@ export async function verifyTaskCompletionAction(
 
         await invalidateUserRankingsIfNeededAction(circle._id!.toString());
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return { success: true, message: "Task verified" };
     } catch (error) {
@@ -1668,8 +1674,7 @@ export async function joinShiftTaskAction(
             await notifyTaskShiftSignup(task, participantUser);
         }
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return { success: true, message: "Joined shift" };
     } catch (error) {
@@ -1749,8 +1754,7 @@ export async function leaveShiftTaskAction(
             return { success: false, message: "Unable to leave this shift right now" };
         }
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return { success: true, message: "Left shift" };
     } catch (error) {
@@ -1848,8 +1852,7 @@ export async function verifyShiftParticipantAction(
             });
         }
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return { success: true, message: "Participant verified" };
     } catch (error) {
@@ -1967,8 +1970,7 @@ export async function reviewShiftAttendanceAction(
             }
         }
 
-        revalidatePath(`/circles/${circleHandle}/tasks`);
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`);
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return {
             success: true,
@@ -2083,8 +2085,7 @@ export async function changeTaskStageAction( // Renamed function
         }
 
         // Revalidate relevant pages
-        revalidatePath(`/circles/${circleHandle}/tasks`); // Updated path
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`); // Updated path, param
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return { success: true, message: `Task stage changed to ${newStage}` }; // Updated message
     } catch (error) {
@@ -2180,8 +2181,7 @@ export async function assignTaskAction( // Renamed function
         // TODO: Handle notification for unassignment? (Maybe notify previous assignee?)
 
         // Revalidate relevant pages
-        revalidatePath(`/circles/${circleHandle}/tasks`); // Updated path
-        revalidatePath(`/circles/${circleHandle}/tasks/${taskId}`); // Updated path, param
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return {
             success: true,
@@ -2472,7 +2472,7 @@ export async function saveUserRankedListAction(
         // --- End Cache Update ---
 
         // Revalidate the tasks list page where rank sorting might be used
-        revalidatePath(`/circles/${circleHandle}/tasks`);
+        revalidateTaskAndShiftRoutes(circleHandle);
 
         return { success: true, message: "Task ranking saved successfully." };
     } catch (error) {
