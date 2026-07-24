@@ -96,6 +96,8 @@ interface TasksListProps {
     persistViewState?: boolean;
 }
 
+const filterNonShiftTasks = (tasks: TaskDisplay[]) => tasks.filter((task) => !isShiftTaskItem(task));
+
 const SortIcon = ({ sortDir }: { sortDir: string | boolean }) => {
     if (!sortDir) return null;
     return sortDir === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />;
@@ -265,9 +267,10 @@ const TasksList: React.FC<TasksListProps> = ({
     const [user] = useAtom(userAtom);
     const [includeCreated, setIncludeCreated] = useState(true);
     const [includeAssigned, setIncludeAssigned] = useState(true);
-    const [filteredTasks, setFilteredTasks] = useState(tasksData.tasks);
+    const [filteredTasks, setFilteredTasks] = useState(() => filterNonShiftTasks(tasksData.tasks));
     const data = React.useMemo(() => {
-        const baseTasks = circle.circleType === "user" && user?.did === circle.did ? filteredTasks : tasks;
+        const baseTasks =
+            circle.circleType === "user" && user?.did === circle.did ? filteredTasks : filterNonShiftTasks(tasks);
 
         if (inToolbox) {
             return baseTasks.filter(
@@ -317,14 +320,14 @@ const TasksList: React.FC<TasksListProps> = ({
     }, [shouldPersistViewState, user?.did, circle.handle, circle._id]);
 
     useEffect(() => {
-        setFilteredTasks(tasksData.tasks);
+        setFilteredTasks(filterNonShiftTasks(tasksData.tasks));
     }, [tasksData.tasks]);
 
     useEffect(() => {
         const fetchTasks = async () => {
             if (circle.circleType === "user" && user?.did === circle.did) {
                 const data = await getTasksAction(circle.handle!, includeCreated, includeAssigned);
-                setFilteredTasks(data.tasks);
+                setFilteredTasks(filterNonShiftTasks(data.tasks));
             }
         };
 
@@ -493,7 +496,6 @@ const TasksList: React.FC<TasksListProps> = ({
                 ),
                 cell: (info) => {
                     const task = info.row.original; // Renamed variable
-                    const isShiftTask = isShiftTaskItem(task);
                     const taskCircleHandle = task.circle?.handle || circle.handle;
                     return (
                         <div className="flex min-w-0 flex-col gap-1">
@@ -511,15 +513,6 @@ const TasksList: React.FC<TasksListProps> = ({
                                     {info.getValue() as string}
                                 </Link>
                             </div>
-                            {isShiftTask && (
-                                <div className="flex flex-wrap items-center gap-2 text-xs">
-                                    <Badge className="border-transparent bg-sky-100 text-sky-800">Shift</Badge>
-                                    <span className="font-medium text-slate-700">{getShiftConfirmedSummary(task)}</span>
-                                    {permissions.canModerate && getShiftPendingSummary(task) && (
-                                        <span className="text-amber-700">{getShiftPendingSummary(task)}</span>
-                                    )}
-                                </div>
-                            )}
                         </div>
                     );
                 },
@@ -932,15 +925,16 @@ const TasksList: React.FC<TasksListProps> = ({
         // Renamed param, type
         const taskCircleHandle = task.circle?.handle || circle.handle;
         const taskCircle = task.circle || circle;
+        const taskCollection = isShiftTaskItem(task) ? "shifts" : "tasks";
 
         if (inToolbox) {
-            router.push(`/circles/${taskCircleHandle}/tasks/${task._id}#circle-tabs`);
+            router.push(`/circles/${taskCircleHandle}/${taskCollection}/${task._id}#circle-tabs`);
             onTaskNavigate?.();
             return;
         }
 
         if (isCompact) {
-            router.push(`/circles/${taskCircleHandle}/tasks/${task._id}`);
+            router.push(`/circles/${taskCircleHandle}/${taskCollection}/${task._id}`);
             return;
         }
 

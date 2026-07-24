@@ -20,6 +20,8 @@ interface CircleSelectorProps {
     variant?: "standard" | "condensed"; // New variant prop
     showModuleEnableMessage?: boolean;
     label?: string;
+    permissionModuleHandle?: string;
+    requireModuleEnabled?: boolean;
 }
 
 export const CircleSelector: React.FC<CircleSelectorProps> = ({
@@ -29,6 +31,8 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
     variant = "standard", // Default to standard variant
     showModuleEnableMessage = true,
     label = "Create in:",
+    permissionModuleHandle,
+    requireModuleEnabled = false,
 }) => {
     const [user] = useAtom(userAtom);
     const actingIdentity = useActingIdentity();
@@ -67,7 +71,12 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
         const currentUserCircle = user as UserPrivate;
 
         const loadSelectableCircles = async () => {
-            const result = await getSelectableCirclesAction(itemType.moduleHandle, itemType.createFeatureHandle);
+            const result = await getSelectableCirclesAction(
+                itemType.moduleHandle,
+                itemType.createFeatureHandle,
+                permissionModuleHandle,
+                requireModuleEnabled,
+            );
             if (cancelled) {
                 return;
             }
@@ -108,7 +117,15 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
         return () => {
             cancelled = true;
         };
-    }, [user, itemType, onCircleSelected, initialSelectedCircleId, actingIdentity]);
+    }, [
+        user,
+        itemType,
+        onCircleSelected,
+        initialSelectedCircleId,
+        actingIdentity,
+        permissionModuleHandle,
+        requireModuleEnabled,
+    ]);
 
     const handleSelectionChange = (circleId: string) => {
         const circle = selectableCircles.find((c) => c._id === circleId);

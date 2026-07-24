@@ -8,6 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { redirect, notFound } from "next/navigation";
+import { isShiftTask } from "@/components/modules/tasks/shift-task-utils";
 
 type PageProps = {
     params: Promise<{ handle: string; taskId: string }>; // Expect taskId
@@ -68,6 +69,11 @@ export default async function TaskDetailPage(props: PageProps) {
                 </Button>
             </div>
         );
+    }
+
+    if (isShiftTask(task)) {
+        const sourceSuffix = sourceParam ? `?source=${encodeURIComponent(sourceParam)}` : "";
+        redirect(`/circles/${circleHandle}/shifts/${taskId}${sourceSuffix}`);
     }
 
     // Ensure shadow post exists for comments

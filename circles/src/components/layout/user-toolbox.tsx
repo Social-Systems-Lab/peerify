@@ -194,11 +194,8 @@ export const UserToolbox = () => {
                             (task: any) =>
                                 task?.targetDate &&
                                 task?.stage !== "resolved" &&
-                                (task?.assignedTo === user?.did ||
-                                    ((task?.taskType ?? "outcome") === "shift" &&
-                                        (task?.participants || []).some(
-                                            (participant: any) => participant?.userDid === user?.did,
-                                        ))),
+                                (task?.taskType ?? "outcome") !== "shift" &&
+                                task?.assignedTo === user?.did,
                         )
                         .map((task: any) => ({
                             id: (task as any)._id?.toString?.() || task._id,

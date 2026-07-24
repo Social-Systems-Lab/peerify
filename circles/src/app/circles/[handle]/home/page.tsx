@@ -55,7 +55,8 @@ export default async function CircleHomePage(props: PageProps) {
             ? await getHumanityVerificationSummary(circle.did, viewerDid)
             : null;
     const showFundingPanel = isFundingEnabledForCircle(circle);
-    const showUpcomingShiftsPanel = circle.circleType !== "user" && (circle.enabledModules?.includes("tasks") ?? false);
+    const showUpcomingShiftsPanel =
+        circle.circleType !== "user" && (circle.enabledModules?.includes("shifts") ?? false);
     const isPeerifyVenueProfile = isPeerifyVenueIdentity(circle);
     const showAdminsPublicly = circle.showAdminsPublicly !== false;
     const adminLeaders =
@@ -111,10 +112,10 @@ export default async function CircleHomePage(props: PageProps) {
     }
 
     if (showUpcomingShiftsPanel && circle._id && viewerDid) {
-        const canViewTasks = await isAuthorized(viewerDid, circle._id as string, features.tasks.view);
-        upcomingShiftsVisibility = canViewTasks ? "visible" : viewerDid ? "members_only" : "sign_in";
+        const canViewShifts = await isAuthorized(viewerDid, circle._id as string, features.tasks.view);
+        upcomingShiftsVisibility = canViewShifts ? "visible" : viewerDid ? "members_only" : "sign_in";
 
-        if (canViewTasks) {
+        if (canViewShifts) {
             const now = new Date();
             const tasks = await getTasksByCircleId(circle._id as string, viewerDid);
             upcomingShiftTasks = tasks

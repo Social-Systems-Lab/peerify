@@ -8,6 +8,7 @@ import { CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import { contentPreviewAtom, sidePanelContentVisibleAtom } from "@/lib/data/atoms";
 import { useIsCompact } from "@/components/utils/use-is-compact";
 import { Circle, ContentPreviewData, TaskDisplay, TaskPermissions } from "@/models/models";
+import { isShiftTask } from "@/components/modules/tasks/shift-task-utils";
 
 export type VerifiedContributionItem = {
     task: TaskDisplay;
@@ -45,7 +46,8 @@ export default function VerifiedContributionsPanel({
             }
 
             if (isCompact) {
-                router.push(`/circles/${item.circle.handle}/tasks/${item.task._id}`);
+                const collection = isShiftTask(item.task) ? "shifts" : "tasks";
+                router.push(`/circles/${item.circle.handle}/${collection}/${item.task._id}`);
                 return;
             }
 

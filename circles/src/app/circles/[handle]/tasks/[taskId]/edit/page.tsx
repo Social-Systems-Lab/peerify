@@ -16,6 +16,7 @@ import { CreatableItemDetail } from "@/components/global-create/global-create-di
 // Import the goals action
 import { getGoalsAction } from "@/app/circles/[handle]/goals/actions";
 import { GoalDisplay } from "@/models/models"; // Import GoalDisplay type
+import { isShiftTask } from "@/components/modules/tasks/shift-task-utils";
 
 type PageProps = {
     params: Promise<{ handle: string; taskId: string }>;
@@ -52,6 +53,10 @@ export default async function EditTaskPage(props: PageProps) {
     const task = await getTaskById(taskId, userDid); // Pass userDid for potential future checks
     if (!task) {
         notFound();
+    }
+
+    if (isShiftTask(task)) {
+        redirect(`/circles/${circleHandle}/shifts/${taskId}/edit`);
     }
 
     // Check permissions (simplified check, adjust as needed)
