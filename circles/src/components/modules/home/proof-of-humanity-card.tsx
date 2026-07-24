@@ -16,9 +16,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/components/ui/use-toast";
 import { Circle, HumanityVerificationDisplay, HumanityVerificationLevel } from "@/models/models";
 import type { HumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
+import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
     removeProofOfHumanityVerificationAction,
@@ -38,6 +40,8 @@ const primaryActionButtonClassName =
     "rounded-full border-transparent bg-[#1f6b45] text-white hover:bg-[#19573a] hover:text-white";
 const verificationBadgeClassName =
     "border-[#93ab83] bg-[#edf4e7] text-[#42553b] hover:border-[#809771] hover:bg-[#e5efdc] hover:text-[#384831]";
+const proofOfHumanityTooltipCopy =
+    "A member of the community has confirmed this account is operated by a real person.";
 
 const getVerificationSelections = (level?: HumanityVerificationLevel | null) => ({
     confirmsRealPerson: Boolean(level),
@@ -69,15 +73,27 @@ export function ProofOfHumanityHeaderAction({
     circle: Circle;
     summary: HumanityVerificationSummary;
 }) {
-    if (circle.circleType !== "user") {
+    // Proof of humanity is a claim about the individual behind a personal account, not about
+    // a band/venue's authenticity (that's a separate, not-yet-built feature) — so this is
+    // gated on circleType "user" and never shown for managed (band/venue/artist) identities.
+    if (circle.circleType !== "user" || isPeerifyManagedIdentity(circle)) {
         return null;
     }
 
     if (summary.totalActiveCount > 0) {
         return (
-            <Button asChild variant="outline" size="sm" className={headerHumanButtonClassName}>
-                <Link href={`/circles/${circle.handle}/home#proof-of-humanity`}>✓ Verified</Link>
-            </Button>
+            <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button asChild variant="outline" size="sm" className={headerHumanButtonClassName}>
+                            <Link href={`/circles/${circle.handle}/home#proof-of-humanity`}>✓ Human</Link>
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[240px]">
+                        <p>{proofOfHumanityTooltipCopy}</p>
+                    </TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
         );
     }
 
@@ -87,7 +103,7 @@ export function ProofOfHumanityHeaderAction({
 
     return (
         <Button asChild variant="outline" size="sm" className={headerVerifyHumanButtonClassName}>
-            <Link href={`/circles/${circle.handle}/home#proof-of-humanity`}>Verify profile</Link>
+            <Link href={`/circles/${circle.handle}/home#proof-of-humanity`}>Verify Human</Link>
         </Button>
     );
 }

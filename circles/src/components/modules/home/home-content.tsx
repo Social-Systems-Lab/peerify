@@ -296,7 +296,7 @@ export default function HomeContent({
                                             circle.name
                                         )}
                                     </h4>
-                                    {proofOfHumanitySummary && !isPeerifyArtistProfile && (
+                                    {proofOfHumanitySummary && !isPeerifyManagedArtistIdentity && (
                                         <ProofOfHumanityHeaderAction circle={circle} summary={proofOfHumanitySummary} />
                                     )}
                                 </div>
