@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Feeds, Posts, Tasks } from "@/lib/data/db"; // Import DB collections
 import { Post } from "@/models/models"; // Import Post type
-import { createDefaultFeed, createPost, getFeedByHandle, updatePost } from "@/lib/data/feed"; // Import createPost
+import { createDefaultFeed, createPost, deletePost, getFeedByHandle, updatePost } from "@/lib/data/feed"; // Import createPost
 import { ObjectId } from "mongodb"; // Import ObjectId
 import {
     Circle,
@@ -25,7 +25,7 @@ import {
     taskTypeSchema,
     postSchema,
 } from "@/models/models";
-import { getCircleByHandle } from "@/lib/data/circle";
+import { getCircleByHandle, getCircleById } from "@/lib/data/circle";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate } from "@/lib/data/user";
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
@@ -297,6 +297,9 @@ export async function getTaskAction(circleHandle: string, taskId: string): Promi
             // Renamed variable
             return null;
         }
+        if (task.circleId !== circle._id?.toString()) {
+            return null;
+        }
 
         const visibleTasks = await filterTasksForViewer([task], userDid);
         if (visibleTasks.length === 0) {
@@ -472,6 +475,7 @@ const reviewShiftAttendanceSchema = z.object({
 const updateTaskSchema = baseTaskSchema.extend({
     // Renamed schema
     // Updates use the same base fields
+    circleId: z.string().optional(),
     goalId: z.string().optional().nullable(),
     eventId: z.string().optional().nullable(),
     priority: z.preprocess((value) => (value === "" ? undefined : value), taskPrioritySchema.optional()),
@@ -778,6 +782,7 @@ export async function updateTaskAction(
             shiftStartTime: formData.get("shiftStartTime") ?? undefined,
             shiftDurationMinutes: formData.get("shiftDurationMinutes") ?? undefined,
             participantNotes: formData.get("participantNotes") ?? undefined,
+            circleId: formData.get("circleId") ?? undefined,
             priority: formData.get("priority") || "",
             taskGroup: formData.get("taskGroup") || "",
         });
@@ -792,21 +797,41 @@ export async function updateTaskAction(
         }
         const data = validatedData.data;
 
-        // ... (user/circle fetching, permission checks) ...
         const userDid = await getAuthenticatedUserDid();
         if (!userDid) {
             return { success: false, message: "User not authenticated" };
         }
-        const circle = await getCircleByHandle(circleHandle);
-        if (!circle) {
-            return { success: false, message: "Circle not found" };
-        }
+
         const task = await getTaskById(taskId, userDid); // Fetch task
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+
+        const sourceCircleId = task.circleId;
+        if (!sourceCircleId || !ObjectId.isValid(sourceCircleId)) {
+            return { success: false, message: "Task source circle is invalid" };
+        }
+
+        const sourceCircle = await getCircleById(sourceCircleId);
+        if (!sourceCircle?._id || !sourceCircle.handle) {
+            return { success: false, message: "Task source circle not found" };
+        }
+
+        const requestedTargetCircleId = data.circleId?.trim();
+        if (requestedTargetCircleId && !ObjectId.isValid(requestedTargetCircleId)) {
+            return { success: false, message: "Target circle is invalid" };
+        }
+
+        const targetCircle = requestedTargetCircleId ? await getCircleById(requestedTargetCircleId) : sourceCircle;
+        if (!targetCircle?._id || !targetCircle.handle) {
+            return { success: false, message: "Target circle not found" };
+        }
+        if (targetCircle.handle !== circleHandle) {
+            return { success: false, message: "Target circle does not match selected route" };
+        }
+
         const isAuthor = userDid === task.createdBy;
-        const canModerate = await isAuthorized(userDid, circle._id as string, features.tasks?.moderate);
+        const canModerate = await isAuthorized(userDid, sourceCircle._id as string, features.tasks?.moderate);
         const canEdit = (isAuthor && task.stage === "review") || (canModerate && task.stage !== "resolved");
         if (!canEdit) {
             return {
@@ -816,6 +841,43 @@ export async function updateTaskAction(
         }
 
         const existingTaskType = task.taskType ?? "outcome";
+        const didTargetCircleChange = sourceCircle._id.toString() !== targetCircle._id.toString();
+        if (didTargetCircleChange) {
+            if (!canModerate) {
+                return { success: false, message: "Not authorized to move this task from its current circle" };
+            }
+
+            if (data.taskType !== existingTaskType) {
+                return { success: false, message: "Task type cannot be changed while moving circles" };
+            }
+
+            const requiredTargetModuleHandle = data.taskType === "shift" ? "shifts" : "tasks";
+            if (!targetCircle.enabledModules?.includes(requiredTargetModuleHandle)) {
+                return {
+                    success: false,
+                    message:
+                        data.taskType === "shift"
+                            ? "Shifts are not enabled in the selected circle"
+                            : "Tasks are not enabled in the selected circle",
+                };
+            }
+
+            const user = await getUserPrivate(userDid);
+            if (!canPerformRestrictedAction(user)) {
+                return { success: false, message: getRestrictedActionMessage("move tasks") };
+            }
+
+            const targetCircleId = targetCircle._id.toString();
+            const canModerateTarget =
+                targetCircle.circleType === "user"
+                    ? targetCircleId === user?._id?.toString()
+                    : await isAuthorized(userDid, targetCircleId, features.tasks?.moderate);
+
+            if (!canModerateTarget) {
+                return { success: false, message: "Not authorized to move this task to the selected circle" };
+            }
+        }
+
         const participantCount = task.participants?.length ?? 0;
         if (data.taskType !== existingTaskType && task.stage !== "review") {
             return {
@@ -889,7 +951,7 @@ export async function updateTaskAction(
         if (newImageFiles.length > 0) {
             const uploadPromises = newImageFiles.map(async (file) => {
                 const fileNamePrefix = `task_image_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-                return await saveFile(file, fileNamePrefix, circle._id as string, true);
+                return await saveFile(file, fileNamePrefix, targetCircle._id as string, true);
             });
             const uploadResults = await Promise.all(uploadPromises);
             newlyUploadedImages = uploadResults.map(
@@ -922,11 +984,12 @@ export async function updateTaskAction(
             images: finalImages,
             location: locationData,
             targetDate: targetDateForUpdate,
+            circleId: targetCircle._id.toString(),
             userGroups: data.userGroups || task.userGroups,
             updatedAt: new Date(),
             // Pass goalId directly (can be string or empty string for removal)
-            goalId: data.goalId ?? "",
-            eventId: data.eventId ?? "",
+            goalId: didTargetCircleChange ? "" : (data.goalId ?? ""),
+            eventId: didTargetCircleChange ? "" : (data.eventId ?? ""),
             taskType: data.taskType,
             slots: data.taskType === "shift" ? data.slots : undefined,
             shiftStartTime: data.taskType === "shift" ? data.shiftStartTime : undefined,
@@ -951,31 +1014,55 @@ export async function updateTaskAction(
             return { success: false, message: "Failed to update task" };
         }
 
-        if (data.taskType === "shift" && shouldPublishToNoticeboard(formData)) {
+        const publishToNoticeboard = data.taskType === "shift" && shouldPublishToNoticeboard(formData);
+        if (data.taskType === "shift" && didTargetCircleChange && task.noticeboardPostId) {
+            try {
+                await deletePost(task.noticeboardPostId);
+                revalidatePath(`/circles/${sourceCircle.handle}/feed`);
+            } catch (error) {
+                console.error("Failed to remove linked noticeboard post for moved shift:", error);
+                return { success: false, message: "Task updated, but source Noticeboard post could not be removed." };
+            }
+        }
+
+        if (publishToNoticeboard) {
             try {
                 const noticeboardPostId = await upsertShiftNoticeboardPost({
-                    circle,
-                    circleHandle,
+                    circle: targetCircle,
+                    circleHandle: targetCircle.handle,
                     task: {
                         ...task,
                         ...updateData,
                         _id: taskId,
                         createdBy: task.createdBy,
-                        noticeboardPostId: task.noticeboardPostId,
+                        noticeboardPostId: didTargetCircleChange ? undefined : task.noticeboardPostId,
                     },
                 });
                 if (noticeboardPostId && noticeboardPostId !== task.noticeboardPostId) {
                     await Tasks.updateOne({ _id: new ObjectId(taskId) }, { $set: { noticeboardPostId } });
+                } else if (!noticeboardPostId && didTargetCircleChange && task.noticeboardPostId) {
+                    await Tasks.updateOne({ _id: new ObjectId(taskId) }, { $unset: { noticeboardPostId: "" } });
                 }
-                revalidatePath(`/circles/${circleHandle}/feed`);
+                revalidatePath(`/circles/${targetCircle.handle}/feed`);
             } catch (error) {
                 console.error("Failed to create linked noticeboard post for shift:", error);
+                if (didTargetCircleChange) {
+                    return {
+                        success: false,
+                        message: "Task updated, but destination Noticeboard post could not be created.",
+                    };
+                }
                 return { success: true, message: "Task updated, but Noticeboard post could not be created." };
             }
+        } else if (data.taskType === "shift" && didTargetCircleChange && task.noticeboardPostId) {
+            await Tasks.updateOne({ _id: new ObjectId(taskId) }, { $unset: { noticeboardPostId: "" } });
         }
 
         // Revalidate relevant pages
-        revalidateTaskAndShiftRoutes(circleHandle, taskId);
+        revalidateTaskAndShiftRoutes(sourceCircle.handle, taskId);
+        if (didTargetCircleChange) {
+            revalidateTaskAndShiftRoutes(targetCircle.handle, taskId);
+        }
 
         return { success: true, message: "Task updated successfully" };
     } catch (error) {
