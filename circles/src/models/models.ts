@@ -612,6 +612,10 @@ export const circleSchema = z.object({
     isEmailVerified: z.boolean().optional(),
     emailVerificationToken: z.string().nullable().optional(),
     emailVerificationTokenExpiry: z.date().nullable().optional(),
+    // Login Link Fields (passwordless magic-link login, e.g. for pilot-signup accounts
+    // whose password is a random value nobody knows)
+    loginLinkToken: z.string().nullable().optional(),
+    loginLinkTokenExpiry: z.date().nullable().optional(),
     // Platform-level verification
     isVerified: z.boolean().optional(),
     isMember: z.boolean().optional(),

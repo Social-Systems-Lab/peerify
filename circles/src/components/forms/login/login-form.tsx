@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { submitLoginFormAction } from "./actions"; // Import the action object
+import { submitLoginFormAction, requestLoginLinkAction } from "./actions"; // Import the action object
 import { useAtom } from "jotai";
 import { authInfoAtom, userAtom } from "@/lib/data/atoms";
 import { VibeIdAuthButton } from "@/components/auth/vibe-id-auth-button";
@@ -30,6 +30,14 @@ export function LoginForm(): React.ReactElement {
     const [, setUser] = useAtom(userAtom);
     const [, setAuthInfo] = useAtom(authInfoAtom);
     const searchParams = useSearchParams();
+
+    // "Email me a login link": a plain passwordless alternative available to any account
+    // (not just pilot-signup ones — this form has no way to know which method an account
+    // uses). Kept separate from Forgot Password, which implies a password already exists.
+    const [showLoginLinkForm, setShowLoginLinkForm] = useState(false);
+    const [loginLinkEmail, setLoginLinkEmail] = useState("");
+    const [isSendingLoginLink, setIsSendingLoginLink] = useState(false);
+    const [loginLinkSent, setLoginLinkSent] = useState(false);
 
     const form = useForm<LoginFormData>({
         resolver: zodResolver(loginValidationSchema),
@@ -78,6 +86,39 @@ export function LoginForm(): React.ReactElement {
         }
     };
 
+    const handleSendLoginLink = async () => {
+        const emailToUse = (loginLinkEmail || form.getValues("email") || "").trim();
+        if (!emailToUse) {
+            toast({
+                title: "Email required",
+                description: "Enter your email address first.",
+                variant: "destructive",
+            });
+            return;
+        }
+
+        setIsSendingLoginLink(true);
+        try {
+            const result = await requestLoginLinkAction(emailToUse);
+            toast({
+                title: result.success ? "Login link sent" : "Request failed",
+                description: result.message,
+                variant: result.success ? undefined : "destructive",
+            });
+            if (result.success) {
+                setLoginLinkSent(true);
+            }
+        } catch (error) {
+            toast({
+                title: "Error",
+                description: error instanceof Error ? error.message : "An unexpected error occurred.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsSendingLoginLink(false);
+        }
+    };
+
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="formatted mb-4 w-full space-y-6 md:min-w-[400px]">
@@ -123,11 +164,51 @@ export function LoginForm(): React.ReactElement {
                     )}
                 />
 
-                <div className="text-right text-sm">
+                <div className="flex items-center justify-between text-sm">
+                    <button
+                        type="button"
+                        onClick={() => setShowLoginLinkForm((prev) => !prev)}
+                        className="text-muted-foreground underline hover:text-primary"
+                    >
+                        Email me a login link
+                    </button>
                     <Link href="/forgot-password" className="text-muted-foreground underline hover:text-primary">
                         Reset password
                     </Link>
                 </div>
+
+                {showLoginLinkForm && (
+                    <div className="space-y-2 rounded-md border p-3">
+                        {loginLinkSent ? (
+                            <p className="text-sm text-muted-foreground">
+                                If an account with that email exists, a login link has been sent. Check your inbox
+                                (and spam folder).
+                            </p>
+                        ) : (
+                            <>
+                                <p className="text-sm text-muted-foreground">
+                                    We&apos;ll email you a link to log in — no password needed.
+                                </p>
+                                <Input
+                                    type="email"
+                                    placeholder="you@example.com"
+                                    defaultValue={form.getValues("email")}
+                                    onChange={(event) => setLoginLinkEmail(event.target.value)}
+                                    autoComplete="email"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    className="w-full"
+                                    disabled={isSendingLoginLink}
+                                    onClick={handleSendLoginLink}
+                                >
+                                    {isSendingLoginLink ? "Sending..." : "Send login link"}
+                                </Button>
+                            </>
+                        )}
+                    </div>
+                )}
 
                 <Button type="submit" disabled={isSubmitting} className="w-full">
                     {isSubmitting ? "Logging in..." : "Log in"}
