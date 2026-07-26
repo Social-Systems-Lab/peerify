@@ -42,8 +42,8 @@ export default async function PilotCheckEmailPage(props: PageProps) {
                         {searchParams.email ? <span className="font-medium text-[#181512]">{searchParams.email}</span> : "your email address"}.
                     </p>
                     <p className="text-base text-[#6b5f52]">
-                        Email verification lets you recover your account if you forget your password. Some account and
-                        trust features may ask for it later.
+                        Click the link in your email to finish creating your account and log in. No password
+                        needed — we&apos;ll always log you in this way.
                     </p>
                     <p className="text-xs text-[#6b5f52]">
                         Didn&apos;t get the email? Check your spam folder, or{" "}

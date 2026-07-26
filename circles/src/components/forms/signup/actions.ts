@@ -1,5 +1,6 @@
 "use server";
 
+import crypto from "crypto";
 import { FormSubmitResponse, UserPrivate } from "../../../models/models";
 import { AuthenticationError, createUserSession, createUserAccount } from "@/lib/auth/auth";
 import { updateCircle } from "@/lib/data/circle";
@@ -45,13 +46,16 @@ export const submitSignupFormAction = async (values: Record<string, any>): Promi
                 ? values.metadata
                 : undefined;
 
-        let user = await createUserAccount(
-            derivedName,
-            normalizedHandle,
-            signupType,
-            normalizedEmail,
-            values._password,
-        );
+        // The pilot signup form no longer collects a password (magic-link only), but
+        // createUserAccount still needs one to derive the key encrypting the user's
+        // private key on disk. Generate one server-side; it's never surfaced or emailed,
+        // so it can't be used to log in — only the magic link can.
+        const password =
+            typeof values._password === "string" && values._password.length > 0
+                ? values._password
+                : crypto.randomBytes(32).toString("hex");
+
+        let user = await createUserAccount(derivedName, normalizedHandle, signupType, normalizedEmail, password);
         await createUserSession(user as UserPrivate, user.did!);
 
         if (requestedSkills?.length || requestedInterests?.length || requestedMetadata) {
