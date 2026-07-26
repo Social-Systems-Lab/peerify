@@ -7,6 +7,8 @@ import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
 import { getUserOrCircleInfo } from "@/lib/utils/form";
 import { usePathname } from "next/navigation";
+import { isOwnerOrCircleAdmin } from "@/lib/auth/client-auth";
+import { CommunityParticipationBanner } from "@/components/modules/community/community-participation-banner";
 
 type SettingsForm = {
     name: string | UserAndCircleInfo;
@@ -101,27 +103,30 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
         })) as NavItem[];
 
     return (
-        <div
-            className="relative z-10 flex w-full"
-            style={{
-                flexDirection: isCompact ? "column" : "row",
-                paddingTop: isCompact ? "0" : "20px",
-            }}
-        >
-            {!hideSettingsNav && (
-                <div
-                    className="relative z-10 flex flex-col items-center pb-2"
-                    style={{
-                        flex: isCompact ? "0" : "1",
-                        alignItems: isCompact ? "normal" : "flex-end",
-                        minWidth: isCompact ? "0px" : "272px",
-                        paddingLeft: isCompact ? "0px" : "16px",
-                    }}
-                >
-                    <FormNav items={navItems} circle={circle} />
-                </div>
-            )}
-            {children}
+        <div className="flex w-full flex-col">
+            <CommunityParticipationBanner circle={circle} isViewerOwnerOrAdmin={isOwnerOrCircleAdmin(user, circle)} />
+            <div
+                className="relative z-10 flex w-full"
+                style={{
+                    flexDirection: isCompact ? "column" : "row",
+                    paddingTop: isCompact ? "0" : "20px",
+                }}
+            >
+                {!hideSettingsNav && (
+                    <div
+                        className="relative z-10 flex flex-col items-center pb-2"
+                        style={{
+                            flex: isCompact ? "0" : "1",
+                            alignItems: isCompact ? "normal" : "flex-end",
+                            minWidth: isCompact ? "0px" : "272px",
+                            paddingLeft: isCompact ? "0px" : "16px",
+                        }}
+                    >
+                        <FormNav items={navItems} circle={circle} />
+                    </div>
+                )}
+                {children}
+            </div>
         </div>
     );
 };

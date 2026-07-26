@@ -30,8 +30,9 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { contactCircleAdminsAction, sendPeerifyArtistEnquiryAction } from "@/components/modules/chat/mongo-actions";
 import PledgeDialog from "@/components/modules/home/pledge-dialog";
-import { isAuthorized } from "@/lib/auth/client-auth";
+import { isAuthorized, isOwnerOrCircleAdmin } from "@/lib/auth/client-auth";
 import { features } from "@/lib/data/constants";
+import { CommunityParticipationBanner } from "@/components/modules/community/community-participation-banner";
 import OffersCard from "./offers-card";
 import TourTeamOfferingsCard from "./tour-team-offerings-card";
 import AudioPlayer from "@/components/modules/music/audio-player";
@@ -708,6 +709,7 @@ export default function AboutPage({
 
     return (
         <div className="formatted mx-auto max-w-[1100px] px-0 py-0 md:px-4 md:py-6">
+            <CommunityParticipationBanner circle={circle} isViewerOwnerOrAdmin={isOwnerOrCircleAdmin(user, circle)} />
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 {/* --- Main Content Column --- */}
                 {/* Adjust column span based on sidebar visibility */}
