@@ -11,6 +11,13 @@ type PublishManagedProfileButtonProps = {
     label?: string;
     size?: "default" | "sm";
     className?: string;
+    // Server-computed: false when this is a pilot-signup-provisioned artist circle that
+    // hasn't yet met the completion bar (picture, About text, creator's Community
+    // Guidelines signature) — see isPilotArtistCircleReadyToPublish in
+    // src/lib/data/circle.ts. Disables the button here as a UX nicety; the server action
+    // enforces the same bar regardless, so this can never be bypassed client-side.
+    disabled?: boolean;
+    disabledReason?: string;
 };
 
 export function PublishManagedProfileButton({
@@ -18,6 +25,8 @@ export function PublishManagedProfileButton({
     label = "Publish profile",
     size = "sm",
     className,
+    disabled,
+    disabledReason,
 }: PublishManagedProfileButtonProps) {
     const router = useRouter();
     const { toast } = useToast();
@@ -40,7 +49,14 @@ export function PublishManagedProfileButton({
     };
 
     return (
-        <Button type="button" size={size} className={className} onClick={publishProfile} disabled={isPending}>
+        <Button
+            type="button"
+            size={size}
+            className={className}
+            onClick={publishProfile}
+            disabled={isPending || disabled}
+            title={disabled ? disabledReason : undefined}
+        >
             {isPending ? "Publishing..." : label}
         </Button>
     );

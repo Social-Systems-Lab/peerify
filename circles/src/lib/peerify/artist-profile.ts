@@ -97,6 +97,12 @@ export type PeerifyMetadata = {
     intent?: string;
     managedIdentity?: boolean;
     identityType?: PeerifyIdentityType;
+    // Set only on the artist circle auto-provisioned by pilot signup (see
+    // createPilotArtistCircle in src/components/forms/signup/actions.ts). Scopes the
+    // draft->published auto-transition in updateCircle to just this circle, so
+    // manually-created Peerify identities (CircleWizard) keep requiring the existing
+    // verification-request -> admin-approval flow.
+    autoProvisionedFromSignup?: boolean;
     artistProfile?: PeerifyArtistProfile;
     venueProfile?: PeerifyVenueProfile;
 };
@@ -485,6 +491,7 @@ export const getPeerifyMetadata = (circle?: Partial<Circle> | null): PeerifyMeta
         identityType: PEERIFY_MANAGED_IDENTITY_TYPES.includes(asString(input.identityType) as PeerifyIdentityType)
             ? (asString(input.identityType) as PeerifyIdentityType)
             : undefined,
+        autoProvisionedFromSignup: input.autoProvisionedFromSignup === true,
         artistProfile: normalizePeerifyArtistProfile(input.artistProfile),
         venueProfile: normalizePeerifyVenueProfile(input.venueProfile),
     };

@@ -2,7 +2,7 @@ import { AboutSettingsForm } from "@/components/forms/circle-settings/about-sett
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
-import { getCircleByHandle, getCircleById, getCirclePublishStatus } from "@/lib/data/circle";
+import { getCircleByHandle, getCircleById, getCirclePublishStatus, isPilotArtistCircleReadyToPublish } from "@/lib/data/circle";
 import { getPendingAttachCircleRequest, getPendingIncomingAttachCircleRequests } from "@/lib/data/circle-attach";
 import { getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { getMember, getMembers } from "@/lib/data/member";
@@ -11,7 +11,7 @@ import { CircleVerificationThreadCard } from "./circle-verification-thread-card"
 import { CircleStructureCard } from "./circle-structure-card";
 import { getVerificationReadiness } from "@/lib/verification-readiness";
 import { VerificationReadinessChecklist } from "@/components/modules/verification/verification-readiness-checklist";
-import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
+import { getPeerifyMetadata, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 
 type PageProps = {
     params: Promise<{ handle: string }>;
@@ -60,6 +60,15 @@ export default async function AboutSettingsPage(props: PageProps) {
     const resolvedCircleLevel = circle.circleLevel ?? (circle.parentCircleId ? "profile_child" : "top_level");
     const isProfileCircle = resolvedCircleLevel === "profile_child";
     const verificationReadiness = getVerificationReadiness(circle);
+    // Same completion bar as maybeAutoPublishPilotArtistCircle/isPilotArtistCircleReadyToPublish
+    // (src/lib/data/circle.ts) — a pilot-signup-provisioned artist circle can't be published via
+    // this button either until picture, About text, and the creator's Community Guidelines
+    // signature are all in place. Manually-created (CircleWizard) managed identities are unaffected.
+    const isAutoProvisionedArtistCircle = getPeerifyMetadata(circle).autoProvisionedFromSignup === true;
+    const pilotArtistCirclePublishReady =
+        isDraft && isProfileCircle && isAutoProvisionedArtistCircle
+            ? await isPilotArtistCircleReadyToPublish(circle)
+            : true;
     const statusCopy =
         publishStatus === "draft"
             ? "Draft"
@@ -105,12 +114,20 @@ export default async function AboutSettingsPage(props: PageProps) {
                             {!isProfileCircle && isDraft && !verificationReadiness.isReady ? (
                                 <VerificationReadinessChecklist readiness={verificationReadiness} />
                             ) : null}
+                            {isProfileCircle && isDraft && isAutoProvisionedArtistCircle && !pilotArtistCirclePublishReady ? (
+                                <p className="text-sm text-muted-foreground">
+                                    Add a picture and About text here, and sign the Community Guidelines on your
+                                    personal profile, before you can publish.
+                                </p>
+                            ) : null}
                         </div>
                         {isDraft ? (
                             isProfileCircle ? (
                                 <form action={publishCircleAction}>
                                     <input type="hidden" name="circleId" value={circle._id} />
-                                    <Button type="submit">Publish circle</Button>
+                                    <Button type="submit" disabled={!pilotArtistCirclePublishReady}>
+                                        Publish circle
+                                    </Button>
                                 </form>
                             ) : (
                                 <form action={submitCircleForVerificationAction}>

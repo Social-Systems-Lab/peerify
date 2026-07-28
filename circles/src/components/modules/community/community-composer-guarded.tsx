@@ -35,7 +35,7 @@ export function GuardedCommunityComposer({ circle, participation }: GuardedCommu
                     aria-expanded={dialogOpen}
                     className="w-full cursor-pointer rounded-full bg-gray-100 p-2 pl-4 text-left text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                    Complete your profile to post in the Community
+                    Complete your personal profile to post in the Community
                 </button>
             </div>
             <CommunityParticipationDialog

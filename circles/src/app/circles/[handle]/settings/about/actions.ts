@@ -1,7 +1,7 @@
 "use server";
 
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
-import { getCircleById, getCirclePath, updateCircle } from "@/lib/data/circle";
+import { getCircleById, getCirclePath, isPilotArtistCircleReadyToPublish, updateCircle } from "@/lib/data/circle";
 import {
     approveAttachCircleRequest,
     createAttachCircleRequest,
@@ -36,6 +36,7 @@ import { sanitizeSocialLinks } from "@/lib/utils/social-links";
 import { getVerificationReadiness } from "@/lib/verification-readiness";
 import {
     getPeerifyIdentityType,
+    getPeerifyMetadata,
     isPeerifyManagedIdentity,
     isPeerifyVenueIdentity,
     normalizePeerifyArtistProfile,
@@ -194,6 +195,22 @@ export async function publishCircleAction(formData: FormData) {
         return { success: false, message: "Only profile circles can be published directly" };
     }
 
+    // Same completion bar as maybeAutoPublishPilotArtistCircle (src/lib/data/circle.ts) and
+    // publishManagedPeerifyIdentityAction (src/app/profiles/actions.ts) — a pilot-signup-
+    // provisioned artist circle must not be publishable manually before its picture, About
+    // text, and creator's Community Guidelines signature are all in place. Manually-created
+    // (CircleWizard) managed identities are unaffected.
+    if (getPeerifyMetadata(circle).autoProvisionedFromSignup === true) {
+        const ready = await isPilotArtistCircleReadyToPublish(circle);
+        if (!ready) {
+            return {
+                success: false,
+                message:
+                    "Complete this profile's picture and About text, and sign the Community Guidelines on your personal profile, before publishing.",
+            };
+        }
+    }
+
     return updateCirclePublishStatus(circleId, "published");
 }
 
@@ -215,6 +232,26 @@ export async function submitCircleForVerificationAction(formData: FormData) {
     const readiness = getVerificationReadiness(circle);
     if (!readiness.isReady) {
         return { success: false, message: readiness.title, data: { readiness } };
+    }
+
+    // Pilot-signup-provisioned artist circles skip admin verification entirely — they
+    // auto-publish once the completion checklist (just confirmed ready above) is met,
+    // same policy maybeAutoPublishPilotArtistCircle already applies elsewhere (see
+    // src/lib/data/circle.ts). Scoped via metadata.peerify.autoProvisionedFromSignup so
+    // manually-created circles are unaffected. Reversible: delete this block to restore
+    // manual admin review for these circles too, e.g. once past pilot scale.
+    if ((circle.metadata as any)?.peerify?.autoProvisionedFromSignup === true) {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) {
+            return { success: false, message: "You need to be logged in to edit circle settings" };
+        }
+
+        const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+        if (!authorized) {
+            return { success: false, message: "You are not authorized to edit circle settings" };
+        }
+
+        return updateCirclePublishStatus(circleId, "published");
     }
 
     if (circle.representsOrganization) {

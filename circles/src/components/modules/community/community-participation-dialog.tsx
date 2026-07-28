@@ -33,7 +33,7 @@ export function CommunityParticipationDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent onClick={(event) => event.stopPropagation()}>
                 <DialogHeader>
-                    <DialogTitle>Complete your profile to participate</DialogTitle>
+                    <DialogTitle>Complete your personal profile to participate</DialogTitle>
                     <DialogDescription>
                         Finish the required profile steps before posting, commenting, or reacting.
                     </DialogDescription>

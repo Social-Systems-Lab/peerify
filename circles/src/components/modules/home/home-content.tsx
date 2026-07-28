@@ -50,6 +50,19 @@ type HomeContentProps = {
     viewerDid?: string | null;
     parentCircle?: Circle;
     proofOfHumanitySummary?: HumanityVerificationSummary | null;
+    // Whether the viewer already has a pilot-signup-provisioned artist circle — branches
+    // the welcome dialog copy away from telling them to go create one.
+    hasAutoProvisionedArtistCircle?: boolean;
+    // Whether the circle being viewed IS the viewer's own pilot-signup-provisioned artist
+    // circle — artist-path signups land here directly (see verifyEmailAction in
+    // src/app/(auth)/verify-email/actions.ts), so the welcome dialog needs to trigger on
+    // this circle too, not just the viewer's personal profile.
+    isOwnAutoProvisionedArtistCircle?: boolean;
+    // Server-computed (see isPilotArtistCircleReadyToPublish in src/lib/data/circle.ts):
+    // false only when this is a draft pilot-signup-provisioned artist circle that hasn't yet
+    // met the auto-publish completion bar. Defaults to true so it never blocks the "Publish
+    // profile" button for manually-created (CircleWizard) managed identities.
+    pilotArtistCirclePublishReady?: boolean;
 };
 
 export default function HomeContent({
@@ -58,6 +71,9 @@ export default function HomeContent({
     viewerDid,
     parentCircle,
     proofOfHumanitySummary,
+    hasAutoProvisionedArtistCircle,
+    isOwnAutoProvisionedArtistCircle,
+    pilotArtistCirclePublishReady = true,
 }: HomeContentProps) {
     const isUser = circle?.circleType === "user";
     const isKamooniRootCircle = circle?.handle === "default" || circle?.handle === "kamooni";
@@ -68,9 +84,12 @@ export default function HomeContent({
     const isCompact = useIsCompact();
     const [user] = useAtom(userAtom);
     const isOwnUserProfile = isUser && (user?.did === circle.did || viewerDid === circle.did);
+    // Gates the welcome dialog: the viewer's own personal profile, or the viewer's own
+    // freshly auto-provisioned artist profile (where artist-path signups now land).
+    const isOwnLandingProfile = isOwnUserProfile || Boolean(isOwnAutoProvisionedArtistCircle);
     const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
     const showSettingsButton = authorizedToEdit && circle.handle && (!isUser || isOwnUserProfile);
-    const settingsButtonTitle = isUser ? "Profile settings" : "Circle settings";
+    const settingsButtonTitle = isUser || isPeerifyManagedIdentity(circle) ? "Profile settings" : "Circle settings";
     const settingsButtonClassName =
         "h-9 w-9 shrink-0 rounded-full border border-emerald-950 bg-emerald-950 text-white shadow-sm transition-colors hover:bg-emerald-900 focus-visible:ring-2 focus-visible:ring-emerald-950 focus-visible:ring-offset-2";
     const isPeerifyArtistProfile = isPeerifyArtistIdentity(circle);
@@ -95,7 +114,7 @@ export default function HomeContent({
     }, []);
 
     useEffect(() => {
-        if (!isOwnUserProfile || !circle.handle) {
+        if (!isOwnLandingProfile || !circle.handle) {
             setShowWelcomeDialog(false);
             return;
         }
@@ -119,7 +138,7 @@ export default function HomeContent({
         if (!alreadySeen) {
             setShowWelcomeDialog(true);
         }
-    }, [circle, isOwnUserProfile]);
+    }, [circle, isOwnLandingProfile]);
 
     const handleWelcomeDialogChange = (nextOpen: boolean) => {
         setShowWelcomeDialog(nextOpen);
@@ -145,20 +164,56 @@ export default function HomeContent({
                     <DialogHeader>
                         <DialogTitle>Welcome to Peerify</DialogTitle>
                         <DialogDescription className="space-y-3">
-                            <p>
-                                <strong>Complete your profile</strong> with a picture and a short bio to start
-                                posting, commenting, and messaging.
-                            </p>
-                            <p>
-                                Your profile is <strong>private by default</strong>, but you can share it through
-                                Settings &rarr; Discoverability. Just <strong>be mindful</strong> about sharing
-                                personal details like your location publicly.
-                            </p>
-                            <p>
-                                Are you <strong>an artist</strong> or represent <strong>a venue</strong>? Use{" "}
-                                <strong>the Create button</strong> in the left navigation bar to set up a separate
-                                profile. You can easily switch between your private and public profiles.
-                            </p>
+                            {isOwnAutoProvisionedArtistCircle ? (
+                                <>
+                                    <p>
+                                        Your public <strong>artist profile</strong> is ready — this is what fans
+                                        and other artists will see.
+                                    </p>
+                                    <p>
+                                        You can switch between this artist profile and your personal profile
+                                        anytime using the <strong>profile switcher</strong> (tap your profile
+                                        picture in the top-right corner).
+                                    </p>
+                                    <p>
+                                        <strong>Important:</strong> before you can post, comment, or react
+                                        anywhere — even as {circle.name} — you need to complete your{" "}
+                                        <strong>personal profile</strong>: add a picture, a short About, and sign
+                                        the Community Guidelines.
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <p>
+                                        <strong>Complete your profile</strong> with a picture and a short bio to
+                                        start posting, commenting, and messaging.
+                                    </p>
+                                    <p>
+                                        Your profile is <strong>private by default</strong>, but you can share it
+                                        through Settings &rarr; Discoverability. Just <strong>be mindful</strong>{" "}
+                                        about sharing personal details like your location publicly.
+                                    </p>
+                                    {hasAutoProvisionedArtistCircle ? (
+                                        <p>
+                                            You already have a public <strong>artist profile</strong> set up.
+                                            Switch between it and this personal profile anytime using the{" "}
+                                            <strong>profile switcher</strong> (tap your profile picture in the
+                                            top-right corner). <strong>Important:</strong> you still need to
+                                            complete this personal profile — picture, About, and signing the
+                                            Community Guidelines — before you can post, comment, or react
+                                            anywhere, even while acting as your artist profile.
+                                        </p>
+                                    ) : (
+                                        <p>
+                                            Are you <strong>an artist</strong> or represent{" "}
+                                            <strong>a band or venue</strong>? You can also create a public profile
+                                            later — just use <strong>the Create button</strong> in the left
+                                            navigation bar whenever you&apos;re ready. You can easily switch
+                                            between your personal and public profiles.
+                                        </p>
+                                    )}
+                                </>
+                            )}
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -175,13 +230,18 @@ export default function HomeContent({
                         <div className="mb-4 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
                             <p>
                                 <span className="font-semibold">Draft profile</span> — only you and profile managers can
-                                see this. Publish when you&apos;re ready to share it.
+                                see this.{" "}
+                                {pilotArtistCirclePublishReady
+                                    ? "Publish when you're ready to share it."
+                                    : "Add a picture and About text here, and sign the Community Guidelines on your personal profile, before you can publish it."}
                             </p>
                             {circle._id ? (
                                 <PublishManagedProfileButton
                                     circleId={circle._id}
                                     label="Publish profile"
                                     className="shrink-0 bg-amber-900 text-white hover:bg-amber-800"
+                                    disabled={!pilotArtistCirclePublishReady}
+                                    disabledReason="Complete this profile's picture and About text, and sign the Community Guidelines on your personal profile, before publishing."
                                 />
                             ) : null}
                         </div>

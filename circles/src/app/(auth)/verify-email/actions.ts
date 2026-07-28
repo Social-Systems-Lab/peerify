@@ -5,12 +5,23 @@ import { hashToken } from "@/lib/data/email";
 import { revalidatePath } from "next/cache";
 import { createUserSession } from "@/lib/auth/auth";
 import { getUserPrivate } from "@/lib/data/user";
+import { getAutoProvisionedArtistCircle } from "@/lib/data/circle";
 
 interface VerifyEmailResponse {
     success: boolean;
     message: string;
     handle?: string;
 }
+
+// Artist-path pilot signups auto-provision a public artist circle alongside the personal
+// one (see createPilotArtistCircle in src/components/forms/signup/actions.ts) — that's the
+// profile the person actually came to set up, so send them there instead of their personal
+// profile once their email is verified. Fan-path signups have no such circle, so this is a
+// no-op for them and they land on their personal profile exactly as before.
+const resolveLandingHandle = async (did: string, fallbackHandle?: string | null): Promise<string | undefined> => {
+    const artistCircle = await getAutoProvisionedArtistCircle(did);
+    return artistCircle?.handle || fallbackHandle || undefined;
+};
 
 export async function verifyEmailAction(token: string): Promise<VerifyEmailResponse> {
     if (!token) {
@@ -48,7 +59,7 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
             return {
                 success: false,
                 message: "This email verification link has already been used. You can log in.",
-                handle: user.handle || undefined,
+                handle: user.did ? await resolveLandingHandle(user.did, user.handle) : user.handle || undefined,
             };
         }
 
@@ -116,7 +127,7 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
         return {
             success: true,
             message: "Email verified",
-            handle: user.handle || undefined,
+            handle: await resolveLandingHandle(user.did, user.handle),
         };
     } catch (error) {
         console.error("Error during email verification:", error);

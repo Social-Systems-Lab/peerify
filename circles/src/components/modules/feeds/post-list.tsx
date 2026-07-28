@@ -1547,7 +1547,7 @@ export const PostItem = ({
                             aria-expanded={participationDialogOpen}
                             className="w-full rounded-[20px] bg-gray-100 p-2 text-left text-sm text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                         >
-                            Complete your profile to comment in the Community
+                            Complete your personal profile to comment in the Community
                         </button>
                     </div>
                 )}

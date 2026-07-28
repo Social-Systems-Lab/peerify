@@ -1,5 +1,11 @@
 import type { Circle } from "@/models/models";
 import { DEFAULT_HERO_IMAGE_URLS } from "@/lib/default-heroes";
+import {
+    PEERIFY_DEFAULT_ARTIST_AVATAR_URL,
+    PEERIFY_DEFAULT_BAND_AVATAR_URL,
+    PEERIFY_DEFAULT_PROFILE_AVATAR_URL,
+    PEERIFY_DEFAULT_VENUE_AVATAR_URL,
+} from "@/lib/peerify/artist-profile";
 
 export type VerificationReadinessItem = {
     key: "picture" | "coverImage" | "aboutText";
@@ -13,10 +19,17 @@ export type VerificationReadiness = {
     items: VerificationReadinessItem[];
 };
 
-const DEFAULT_PICTURE_URLS = new Set(["/images/default-picture.png", "/images/default-user-picture.png"]);
+const DEFAULT_PICTURE_URLS = new Set([
+    "/images/default-picture.png",
+    "/images/default-user-picture.png",
+    PEERIFY_DEFAULT_PROFILE_AVATAR_URL,
+    PEERIFY_DEFAULT_ARTIST_AVATAR_URL,
+    PEERIFY_DEFAULT_BAND_AVATAR_URL,
+    PEERIFY_DEFAULT_VENUE_AVATAR_URL,
+]);
 const DEFAULT_COVER_URLS = new Set(["/images/default-cover.png", ...DEFAULT_HERO_IMAGE_URLS]);
 
-const hasCustomPicture = (circle?: Partial<Circle> | null): boolean => {
+export const hasCustomPicture = (circle?: Partial<Circle> | null): boolean => {
     const url = circle?.picture?.url?.trim();
     return Boolean(url && !DEFAULT_PICTURE_URLS.has(url));
 };
@@ -24,7 +37,7 @@ const hasCustomPicture = (circle?: Partial<Circle> | null): boolean => {
 const hasCustomCoverImage = (circle?: Partial<Circle> | null): boolean =>
     Boolean(circle?.images?.some((image) => image.fileInfo?.url && !DEFAULT_COVER_URLS.has(image.fileInfo.url)));
 
-const hasAboutText = (circle?: Partial<Circle> | null): boolean => {
+export const hasAboutText = (circle?: Partial<Circle> | null): boolean => {
     if (circle?.circleType === "user") {
         return Boolean(circle.content?.trim() || circle.description?.trim());
     }

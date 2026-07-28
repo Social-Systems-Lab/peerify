@@ -22,8 +22,9 @@ import path from "path";
 import fs from "fs";
 import { USERS_DIR } from "../auth/auth";
 import { getDefaultHeroImage, hasCircleImages } from "@/lib/default-heroes";
-import { getVerificationReadiness } from "@/lib/verification-readiness";
+import { getVerificationReadiness, hasCustomPicture, hasAboutText } from "@/lib/verification-readiness";
 import { buildVerifiedUserSet } from "@/lib/auth/verification";
+import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
 
 export const SAFE_CIRCLE_PROJECTION = {
     _id: 1,
@@ -161,6 +162,31 @@ export const getDefaultCircle = async (inServerConfig: ServerSettings | null = n
 
     return circle;
 };
+
+// The pilot-signup-provisioned artist circle (see createPilotArtistCircle in
+// src/components/forms/signup/actions.ts) a user owns, if any — used both to decide where a
+// freshly-verified artist-path signup should land (see verifyEmailAction in
+// src/app/(auth)/verify-email/actions.ts) and to branch the post-signup welcome dialog copy
+// (src/components/modules/home/home-content.tsx) away from telling someone who already has
+// one to go create it via the Create button.
+export const getAutoProvisionedArtistCircle = async (userDid: string): Promise<Circle | null> => {
+    const circle = (await Circles.findOne(
+        {
+            createdBy: userDid,
+            circleType: { $ne: "user" },
+            "metadata.peerify.autoProvisionedFromSignup": true,
+        },
+        { projection: SAFE_CIRCLE_PROJECTION },
+    )) as Circle | null;
+
+    if (circle?._id) {
+        circle._id = circle._id.toString();
+    }
+    return circle;
+};
+
+export const hasAutoProvisionedArtistCircle = async (userDid: string): Promise<boolean> =>
+    (await getAutoProvisionedArtistCircle(userDid)) !== null;
 
 export const getCirclePublishStatus = (circle?: Partial<Circle> | null): CirclePublishStatus =>
     circle?.publishStatus ?? "published";
@@ -433,6 +459,59 @@ export const getCircleByDid = async (did: string): Promise<Circle> => {
     return circle;
 };
 
+// The draft/pending_verification->published completion bar for a pilot-signup-provisioned
+// artist circle (see createPilotArtistCircle in src/components/forms/signup/actions.ts):
+// its own picture + About text are filled in, and its creator has signed all Community
+// Guidelines rules. Shared by maybeAutoPublishPilotArtistCircle below AND by the manual
+// "Publish profile"/"Publish circle" actions (src/app/profiles/actions.ts,
+// src/app/circles/[handle]/settings/about/actions.ts), which must not let a freshly
+// auto-provisioned circle be published manually before this bar is met — that would
+// bypass the whole point of gating auto-publish on it.
+export const isPilotArtistCircleReadyToPublish = async (artistCircle: Partial<Circle>): Promise<boolean> => {
+    if (!hasCustomPicture(artistCircle) || !hasAboutText(artistCircle)) {
+        return false;
+    }
+
+    if (!artistCircle.createdBy) {
+        return false;
+    }
+
+    const creator = await Circles.findOne(
+        { did: artistCircle.createdBy },
+        { projection: { communityGuidelinesAcceptance: 1 } },
+    );
+    return isCommunityGuidelinesCompleted(creator?.communityGuidelinesAcceptance as any);
+};
+
+// Checks whether a pilot-signup-provisioned artist circle has met the bar above and, if
+// so, publishes it. Matches "draft" OR "pending_verification" (not just "draft") so it
+// can also recover a circle that got pushed into the admin-review queue before
+// submitCircleForVerificationAction's bypass (see that file) existed, or before this
+// metadata flag was set on it. Narrowly scoped via metadata.peerify.autoProvisionedFromSignup
+// so manually-created Peerify identities (CircleWizard) are untouched and still require
+// the existing verification-request -> admin-approval flow.
+const maybeAutoPublishPilotArtistCircle = async (creatorDid: string, knownArtistCircle?: Circle): Promise<void> => {
+    const artistCircle =
+        knownArtistCircle ??
+        ((await Circles.findOne({
+            createdBy: creatorDid,
+            circleType: { $ne: "user" },
+            publishStatus: { $ne: "published" },
+            "metadata.peerify.autoProvisionedFromSignup": true,
+        })) as Circle | null);
+
+    if (!artistCircle || artistCircle.publishStatus === "published") {
+        return;
+    }
+
+    if (!(await isPilotArtistCircleReadyToPublish(artistCircle))) {
+        return;
+    }
+
+    await Circles.updateOne({ _id: new ObjectId(artistCircle._id) }, { $set: { publishStatus: "published" } });
+    console.log(`Auto-published pilot-signup artist circle ${artistCircle._id} for creator ${creatorDid}`);
+};
+
 export const updateCircle = async (circle: Partial<Circle>, authenticatedUserDid: string): Promise<void> => {
     const { _id, ...circleWithoutId } = circle;
     if (!_id) {
@@ -500,6 +579,33 @@ export const updateCircle = async (circle: Partial<Circle>, authenticatedUserDid
             );
         } catch (e) {
             console.error("Failed to send auto-verification notification", e);
+        }
+    }
+
+    // Rules-signed-last case: signing Community Guidelines updates the user's own
+    // circle document, so re-check readiness here too (see maybeAutoPublishPilotArtistCircle).
+    // Note: can't pre-check c.communityGuidelinesAcceptance here as a cheap guard —
+    // SAFE_CIRCLE_PROJECTION (used by getCircleById, which produced c) doesn't include
+    // that field, so it would always read as undefined. maybeAutoPublishPilotArtistCircle
+    // does its own unprojected lookup instead, and cheaply no-ops for the vast majority
+    // of "user" updates (no matching draft artist circle at all).
+    if (c.circleType === "user") {
+        try {
+            await maybeAutoPublishPilotArtistCircle(c.did!);
+        } catch (e) {
+            console.error("Failed to auto-publish pilot artist circle", e);
+        }
+    } else if (
+        c.publishStatus === "draft" &&
+        c.createdBy &&
+        (c.metadata as any)?.peerify?.autoProvisionedFromSignup === true
+    ) {
+        // Picture/About-completed-last case: the artist circle itself was just updated.
+        try {
+            await maybeAutoPublishPilotArtistCircle(c.createdBy, c);
+            c = await getCircleById(_id);
+        } catch (e) {
+            console.error("Failed to auto-publish pilot artist circle", e);
         }
     }
 

@@ -104,7 +104,14 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
 
     return (
         <div className="flex w-full flex-col">
-            <CommunityParticipationBanner circle={circle} isViewerOwnerOrAdmin={isOwnerOrCircleAdmin(user, circle)} />
+            <div className="mx-auto w-full max-w-[1100px] px-0 md:px-4">
+                <CommunityParticipationBanner
+                    circle={circle}
+                    viewerPersonalProfile={user}
+                    isViewerOwnerOrAdmin={isOwnerOrCircleAdmin(user, circle)}
+                    showChecklist
+                />
+            </div>
             <div
                 className="relative z-10 flex w-full"
                 style={{

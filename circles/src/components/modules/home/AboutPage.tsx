@@ -709,7 +709,11 @@ export default function AboutPage({
 
     return (
         <div className="formatted mx-auto max-w-[1100px] px-0 py-0 md:px-4 md:py-6">
-            <CommunityParticipationBanner circle={circle} isViewerOwnerOrAdmin={isOwnerOrCircleAdmin(user, circle)} />
+            <CommunityParticipationBanner
+                circle={circle}
+                viewerPersonalProfile={user}
+                isViewerOwnerOrAdmin={isOwnerOrCircleAdmin(user, circle)}
+            />
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 {/* --- Main Content Column --- */}
                 {/* Adjust column span based on sidebar visibility */}

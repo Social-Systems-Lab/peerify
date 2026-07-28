@@ -80,7 +80,7 @@ function getErrors(state: PilotSignupState, role: SignupRole | null): PilotSignu
     }
 
     if (role === "artist" && !state.bandOrVenueName.trim()) {
-        errors.bandOrVenueName = "Band or venue name is required.";
+        errors.bandOrVenueName = "Band name is required.";
     }
 
     const handle = sanitizeHandle(state.handle);
@@ -328,7 +328,7 @@ export function PilotSignupForm() {
 
                         {role === "artist" ? (
                             <div className="space-y-2">
-                                <Label htmlFor="pilot-signup-band-name">Band or venue name</Label>
+                                <Label htmlFor="pilot-signup-band-name">Band name</Label>
                                 <Input
                                     id="pilot-signup-band-name"
                                     value={state.bandOrVenueName}
