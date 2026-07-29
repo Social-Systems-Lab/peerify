@@ -11,6 +11,7 @@ import { useState, useEffect } from "react";
 import { useForm, Controller, Control, FieldValues } from "react-hook-form";
 import { saveAbout } from "@/app/circles/[handle]/settings/about/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CommunityGuidelinesSettingsCard } from "@/components/forms/circle-settings/community-guidelines-settings-card";
 import {
     DynamicField,
     DynamicTextField,
@@ -627,6 +628,8 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
                         </div>
                     </div>
                 )}
+
+                {isUserProfile && <CommunityGuidelinesSettingsCard ownProfileHandle={circle.handle} />}
 
                 <Card>
                     <CardHeader>
