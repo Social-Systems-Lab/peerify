@@ -2,7 +2,13 @@ import { AboutSettingsForm } from "@/components/forms/circle-settings/about-sett
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
-import { getCircleByHandle, getCircleById, getCirclePublishStatus, isPilotArtistCircleReadyToPublish } from "@/lib/data/circle";
+import {
+    getAutoProvisionedArtistCircle,
+    getCircleByHandle,
+    getCircleById,
+    getCirclePublishStatus,
+    isPilotArtistCircleReadyToPublish,
+} from "@/lib/data/circle";
 import { getPendingAttachCircleRequest, getPendingIncomingAttachCircleRequests } from "@/lib/data/circle-attach";
 import { getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { getMember, getMembers } from "@/lib/data/member";
@@ -72,6 +78,14 @@ export default async function AboutSettingsPage(props: PageProps) {
     const usesPilotPublishFlow = isProfileCircle || isAutoProvisionedArtistCircle;
     const pilotArtistCirclePublishReady =
         isDraft && isAutoProvisionedArtistCircle ? await isPilotArtistCircleReadyToPublish(circle) : true;
+    // Step 1/Step 2 onboarding framing (about-settings-form.tsx): only fetched for the viewer's
+    // OWN personal profile (circle.did is the personal circle's own did, set at creation — see
+    // getCircles in this file's sibling src/lib/data/circle.ts), matching the ownProfileHandle
+    // gating CommunityGuidelinesSettingsCard already uses, so a visitor to someone else's
+    // personal-profile settings page never learns whether that person has an artist circle
+    // mid-onboarding.
+    const ownAutoProvisionedArtistCircle =
+        isUserProfile && userDid && circle.did === userDid ? await getAutoProvisionedArtistCircle(userDid) : null;
     const statusCopy =
         publishStatus === "draft"
             ? "Draft"
@@ -117,10 +131,14 @@ export default async function AboutSettingsPage(props: PageProps) {
                             {!usesPilotPublishFlow && isDraft && !verificationReadiness.isReady ? (
                                 <VerificationReadinessChecklist readiness={verificationReadiness} />
                             ) : null}
+                            {isDraft && isAutoProvisionedArtistCircle ? (
+                                <p className="text-sm font-semibold text-foreground">Step 2 of 2: Complete your public artist profile</p>
+                            ) : null}
                             {isDraft && isAutoProvisionedArtistCircle && !pilotArtistCirclePublishReady ? (
                                 <p className="text-sm text-muted-foreground">
-                                    Add a picture and About text here, and sign the Community Guidelines on your
-                                    personal profile, before you can publish.
+                                    Confirm your artist/band name, add a picture, and add About text here — and make
+                                    sure you&apos;ve signed the Community Guidelines on your personal profile (step
+                                    1) — to finish and publish your artist profile.
                                 </p>
                             ) : null}
                         </div>
@@ -197,7 +215,7 @@ export default async function AboutSettingsPage(props: PageProps) {
                     viewerDid={userDid || null}
                 />
             ) : null}
-            <AboutSettingsForm circle={circle} />
+            <AboutSettingsForm circle={circle} ownAutoProvisionedArtistCircle={ownAutoProvisionedArtistCircle} />
         </div>
     );
 }

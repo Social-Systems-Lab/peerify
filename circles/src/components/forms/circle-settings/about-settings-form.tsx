@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,8 @@ import { useForm, Controller, Control, FieldValues } from "react-hook-form";
 import { saveAbout } from "@/app/circles/[handle]/settings/about/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommunityGuidelinesSettingsCard } from "@/components/forms/circle-settings/community-guidelines-settings-card";
+import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
+import { hasAboutText, hasCustomPicture } from "@/lib/verification-readiness";
 import {
     DynamicField,
     DynamicTextField,
@@ -401,11 +404,21 @@ const CURRENCY_OPTIONS = [
 
 interface AboutSettingsFormProps {
     circle: Circle;
+    // The viewer's own pilot-signup-provisioned artist circle (see getAutoProvisionedArtistCircle
+    // in src/lib/data/circle.ts), passed down only when this IS the viewer's own personal profile
+    // and only while that artist circle is still unpublished — drives the "Step 1 of 2"/"Step 2 of
+    // 2" onboarding framing below. Undefined/null for everyone else (fans, other viewers, or
+    // artists who have already finished onboarding), in which case this form renders exactly as it
+    // always has.
+    ownAutoProvisionedArtistCircle?: Pick<Circle, "handle" | "name" | "publishStatus"> | null;
 }
 
-export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.ReactElement {
+export function AboutSettingsForm({
+    circle,
+    ownAutoProvisionedArtistCircle,
+}: AboutSettingsFormProps): React.ReactElement {
     const { toast } = useToast();
-    const [, setUser] = useAtom(userAtom);
+    const [user, setUser] = useAtom(userAtom);
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -421,6 +434,17 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
     }, []);
     const isIndependentCircle = circle.circleType !== "user" && circle.circleLevel !== "profile_child";
     const isUserProfile = circle.circleType === "user";
+    // Two-step pilot onboarding framing — mirrors the same completion bar
+    // isPilotArtistCircleReadyToPublish (src/lib/data/circle.ts) checks server-side for the
+    // artist circle, just evaluated here against the PERSONAL profile's own fields plus the
+    // viewer's own communityGuidelinesAcceptance (read off userAtom, same as
+    // CommunityGuidelinesSettingsCard does, since SAFE_CIRCLE_PROJECTION excludes that field).
+    const isArtistOnboarding = isUserProfile && Boolean(ownAutoProvisionedArtistCircle);
+    const step1Ready =
+        isArtistOnboarding &&
+        hasCustomPicture(circle) &&
+        hasAboutText(circle) &&
+        isCommunityGuidelinesCompleted(user?.communityGuidelinesAcceptance);
     const isPeerifyManagedVenueCircle = isPeerifyVenueIdentity(circle);
     const isPeerifyManagedArtistCircle = isPeerifyManagedIdentity(circle) && !isPeerifyManagedVenueCircle;
     const canEditPeerifyVenueProfile = isPeerifyManagedVenueCircle;
@@ -598,35 +622,67 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
     return (
         <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="formatted space-y-6">
-                {isUserProfile && !bannerDismissed && (
-                    <div className="rounded-lg border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50 p-4 text-sm text-amber-950">
-                        <p className="font-medium">This is your personal profile</p>
-                        <p className="mt-1 text-amber-900">
-                            It&apos;s private by default and represents you as a person.
-                        </p>
-                        <p className="mt-1 text-amber-900">
-                            Artists, bands, and venues are separate identities. To create one, use the + Create button
-                            in the left sidebar.
-                        </p>
-                        <div className="mt-3 flex justify-end">
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-auto p-0 text-xs text-amber-700 hover:bg-transparent hover:text-amber-900"
-                                onClick={() => {
-                                    setBannerDismissed(true);
-                                    try {
-                                        localStorage.setItem("peerify_personal_profile_banner_dismissed", "true");
-                                    } catch {
-                                        // localStorage unavailable — dismiss for this session only
-                                    }
-                                }}
-                            >
-                                Don&apos;t show me this again
-                            </Button>
+                {isArtistOnboarding ? (
+                    step1Ready ? (
+                        <div className="rounded-lg border border-emerald-200 border-l-4 border-l-emerald-500 bg-emerald-50 p-4 text-sm text-emerald-950">
+                            <p className="font-medium">Step 1 of 2 complete — your personal profile is ready</p>
+                            <p className="mt-1 text-emerald-900">
+                                Next, finish your public artist profile: confirm your artist/band name, add a
+                                picture, and add About text.
+                            </p>
+                            <div className="mt-3">
+                                <Button asChild size="sm">
+                                    <Link href={`/circles/${ownAutoProvisionedArtistCircle?.handle}/settings/about`}>
+                                        Continue to Step 2: Complete your artist profile &rarr;
+                                    </Link>
+                                </Button>
+                            </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="rounded-lg border border-sky-200 border-l-4 border-l-sky-500 bg-sky-50 p-4 text-sm text-sky-950">
+                            <p className="font-medium">Step 1 of 2: Complete your personal profile</p>
+                            <p className="mt-1 text-sky-900">
+                                Before you can finish setting up{" "}
+                                {ownAutoProvisionedArtistCircle?.name
+                                    ? `${ownAutoProvisionedArtistCircle.name}'s`
+                                    : "your artist"}{" "}
+                                public profile, add a profile picture and About text below, and sign the Community
+                                Guidelines.
+                            </p>
+                        </div>
+                    )
+                ) : (
+                    isUserProfile &&
+                    !bannerDismissed && (
+                        <div className="rounded-lg border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50 p-4 text-sm text-amber-950">
+                            <p className="font-medium">This is your personal profile</p>
+                            <p className="mt-1 text-amber-900">
+                                It&apos;s private by default and represents you as a person.
+                            </p>
+                            <p className="mt-1 text-amber-900">
+                                Artists, bands, and venues are separate identities. To create one, use the + Create
+                                button in the left sidebar.
+                            </p>
+                            <div className="mt-3 flex justify-end">
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-auto p-0 text-xs text-amber-700 hover:bg-transparent hover:text-amber-900"
+                                    onClick={() => {
+                                        setBannerDismissed(true);
+                                        try {
+                                            localStorage.setItem("peerify_personal_profile_banner_dismissed", "true");
+                                        } catch {
+                                            // localStorage unavailable — dismiss for this session only
+                                        }
+                                    }}
+                                >
+                                    Don&apos;t show me this again
+                                </Button>
+                            </div>
+                        </div>
+                    )
                 )}
 
                 {isUserProfile && <CommunityGuidelinesSettingsCard ownProfileHandle={circle.handle} />}

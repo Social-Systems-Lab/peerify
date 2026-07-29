@@ -5,22 +5,36 @@ import { hashToken } from "@/lib/data/email";
 import { revalidatePath } from "next/cache";
 import { createUserSession } from "@/lib/auth/auth";
 import { getUserPrivate } from "@/lib/data/user";
-import { getAutoProvisionedArtistCircle } from "@/lib/data/circle";
+import { getAutoProvisionedArtistCircle, getCirclePublishStatus } from "@/lib/data/circle";
 
 interface VerifyEmailResponse {
     success: boolean;
     message: string;
-    handle?: string;
+    redirectPath?: string;
 }
 
 // Artist-path pilot signups auto-provision a public artist circle alongside the personal
-// one (see createPilotArtistCircle in src/components/forms/signup/actions.ts) — that's the
-// profile the person actually came to set up, so send them there instead of their personal
-// profile once their email is verified. Fan-path signups have no such circle, so this is a
-// no-op for them and they land on their personal profile exactly as before.
-const resolveLandingHandle = async (did: string, fallbackHandle?: string | null): Promise<string | undefined> => {
+// one (see createPilotArtistCircle in src/components/forms/signup/actions.ts), but the
+// two-step onboarding sequence (personal profile "Step 1 of 2" -> artist circle "Step 2 of
+// 2", see about-settings-form.tsx / settings/about/page.tsx) starts on the PERSONAL
+// profile's Settings/About page — that's where the step 1 fields (picture, About,
+// CommunityGuidelinesSettingsCard) actually live, not the artist circle's Home tab. Once the
+// artist circle has been published (auto-published via maybeAutoPublishPilotArtistCircle,
+// see src/lib/data/circle.ts), there's no more onboarding to walk them through, so a later
+// email-verification click (e.g. an already-consumed/expired link) just lands them on their
+// personal profile's Home tab like anyone else. Fan-path signups have no auto-provisioned
+// artist circle at all, so this is a no-op for them and they land on their personal
+// profile's Home tab exactly as before.
+const resolveLandingPath = async (did: string, fallbackHandle?: string | null): Promise<string | undefined> => {
+    if (!fallbackHandle) {
+        const artistCircle = await getAutoProvisionedArtistCircle(did);
+        return artistCircle?.handle ? `/circles/${artistCircle.handle}` : undefined;
+    }
+
     const artistCircle = await getAutoProvisionedArtistCircle(did);
-    return artistCircle?.handle || fallbackHandle || undefined;
+    const isArtistOnboardingInProgress = artistCircle && getCirclePublishStatus(artistCircle) !== "published";
+
+    return isArtistOnboardingInProgress ? `/circles/${fallbackHandle}/settings/about` : `/circles/${fallbackHandle}`;
 };
 
 export async function verifyEmailAction(token: string): Promise<VerifyEmailResponse> {
@@ -59,7 +73,11 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
             return {
                 success: false,
                 message: "This email verification link has already been used. You can log in.",
-                handle: user.did ? await resolveLandingHandle(user.did, user.handle) : user.handle || undefined,
+                redirectPath: user.did
+                    ? await resolveLandingPath(user.did, user.handle)
+                    : user.handle
+                      ? `/circles/${user.handle}`
+                      : undefined,
             };
         }
 
@@ -127,7 +145,7 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
         return {
             success: true,
             message: "Email verified",
-            handle: await resolveLandingHandle(user.did, user.handle),
+            redirectPath: await resolveLandingPath(user.did, user.handle),
         };
     } catch (error) {
         console.error("Error during email verification:", error);
