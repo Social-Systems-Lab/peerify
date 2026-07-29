@@ -191,7 +191,12 @@ export async function publishCircleAction(formData: FormData) {
         return { success: false, message: "Circle not found" };
     }
 
-    if (circle.circleLevel !== "profile_child") {
+    // createPilotArtistCircle (src/components/forms/signup/actions.ts) deliberately creates
+    // pilot-signup artist circles with circleLevel "top_level", not "profile_child" — so this
+    // guard must also admit auto-provisioned circles regardless of circleLevel, or they fall
+    // through to submitCircleForVerificationAction's manual-verification flow instead.
+    const isAutoProvisionedArtistCircle = getPeerifyMetadata(circle).autoProvisionedFromSignup === true;
+    if (circle.circleLevel !== "profile_child" && !isAutoProvisionedArtistCircle) {
         return { success: false, message: "Only profile circles can be published directly" };
     }
 
@@ -200,7 +205,7 @@ export async function publishCircleAction(formData: FormData) {
     // provisioned artist circle must not be publishable manually before its picture, About
     // text, and creator's Community Guidelines signature are all in place. Manually-created
     // (CircleWizard) managed identities are unaffected.
-    if (getPeerifyMetadata(circle).autoProvisionedFromSignup === true) {
+    if (isAutoProvisionedArtistCircle) {
         const ready = await isPilotArtistCircleReadyToPublish(circle);
         if (!ready) {
             return {
@@ -225,6 +230,20 @@ export async function submitCircleForVerificationAction(formData: FormData) {
         return { success: false, message: "Circle not found" };
     }
 
+    // Pilot-signup-provisioned artist circles are created with circleLevel "top_level" (see
+    // createPilotArtistCircle, src/components/forms/signup/actions.ts), so they'd otherwise
+    // reach this manual-verification path instead of publishCircleAction's "Publish circle"
+    // flow. They must always go through publishCircleAction, whose isPilotArtistCircleReadyToPublish
+    // check includes the creator's Community Guidelines signature — the readiness check just
+    // below this (getVerificationReadiness) does NOT check guidelines, so letting these circles
+    // through here would let a user bypass the guidelines gate by completing only picture/About/cover.
+    if ((circle.metadata as any)?.peerify?.autoProvisionedFromSignup === true) {
+        return {
+            success: false,
+            message: "This circle publishes automatically once its profile is complete — use the Publish circle button instead.",
+        };
+    }
+
     if (circle.circleLevel === "profile_child") {
         return { success: false, message: "Profile circles should be published directly" };
     }
@@ -232,26 +251,6 @@ export async function submitCircleForVerificationAction(formData: FormData) {
     const readiness = getVerificationReadiness(circle);
     if (!readiness.isReady) {
         return { success: false, message: readiness.title, data: { readiness } };
-    }
-
-    // Pilot-signup-provisioned artist circles skip admin verification entirely — they
-    // auto-publish once the completion checklist (just confirmed ready above) is met,
-    // same policy maybeAutoPublishPilotArtistCircle already applies elsewhere (see
-    // src/lib/data/circle.ts). Scoped via metadata.peerify.autoProvisionedFromSignup so
-    // manually-created circles are unaffected. Reversible: delete this block to restore
-    // manual admin review for these circles too, e.g. once past pilot scale.
-    if ((circle.metadata as any)?.peerify?.autoProvisionedFromSignup === true) {
-        const userDid = await getAuthenticatedUserDid();
-        if (!userDid) {
-            return { success: false, message: "You need to be logged in to edit circle settings" };
-        }
-
-        const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
-        if (!authorized) {
-            return { success: false, message: "You are not authorized to edit circle settings" };
-        }
-
-        return updateCirclePublishStatus(circleId, "published");
     }
 
     if (circle.representsOrganization) {

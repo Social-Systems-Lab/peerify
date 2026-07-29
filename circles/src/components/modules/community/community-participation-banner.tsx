@@ -3,6 +3,7 @@
 
 import Link from "next/link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { getParticipationState, shouldShowParticipationBanner } from "@/lib/auth/participation-readiness";
 import { VerificationReadinessChecklist } from "@/components/modules/verification/verification-readiness-checklist";
 import type { Circle } from "@/models/models";
@@ -63,12 +64,9 @@ export function CommunityParticipationBanner({
                     <span>
                         Complete your <strong>personal profile</strong> to post, comment, and react in the Community.
                     </span>
-                    <Link
-                        href={`/circles/${readinessSubject.handle}/settings/about`}
-                        className="whitespace-nowrap font-medium text-primary hover:underline"
-                    >
-                        Complete your profile →
-                    </Link>
+                    <Button asChild size="sm" className="shrink-0">
+                        <Link href={`/circles/${readinessSubject.handle}/settings/about`}>Complete profile</Link>
+                    </Button>
                 </AlertDescription>
             </Alert>
             {readiness ? <VerificationReadinessChecklist readiness={readiness} /> : null}

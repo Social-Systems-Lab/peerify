@@ -548,7 +548,9 @@ export function AboutSettingsForm({ circle }: AboutSettingsFormProps): React.Rea
             if (result.success) {
                 toast({
                     title: "Success",
-                    description: "Circle profile updated successfully",
+                    description: isUserProfile
+                        ? "Personal profile updated successfully"
+                        : `${circle.name || "Circle"} profile updated successfully`,
                 });
                 let userData = await getUserPrivateAction();
                 setUser(userData);

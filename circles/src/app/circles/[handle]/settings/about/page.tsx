@@ -65,10 +65,13 @@ export default async function AboutSettingsPage(props: PageProps) {
     // this button either until picture, About text, and the creator's Community Guidelines
     // signature are all in place. Manually-created (CircleWizard) managed identities are unaffected.
     const isAutoProvisionedArtistCircle = getPeerifyMetadata(circle).autoProvisionedFromSignup === true;
+    // createPilotArtistCircle (src/components/forms/signup/actions.ts) deliberately creates these
+    // circles with circleLevel "top_level", not "profile_child" — so isProfileCircle alone is NOT
+    // a reliable signal that a circle should skip the manual-verification UI below. Auto-provisioned
+    // artist circles need the same "publish directly" treatment regardless of circleLevel.
+    const usesPilotPublishFlow = isProfileCircle || isAutoProvisionedArtistCircle;
     const pilotArtistCirclePublishReady =
-        isDraft && isProfileCircle && isAutoProvisionedArtistCircle
-            ? await isPilotArtistCircleReadyToPublish(circle)
-            : true;
+        isDraft && isAutoProvisionedArtistCircle ? await isPilotArtistCircleReadyToPublish(circle) : true;
     const statusCopy =
         publishStatus === "draft"
             ? "Draft"
@@ -111,10 +114,10 @@ export default async function AboutSettingsPage(props: PageProps) {
                                     official email you provided.
                                 </p>
                             ) : null}
-                            {!isProfileCircle && isDraft && !verificationReadiness.isReady ? (
+                            {!usesPilotPublishFlow && isDraft && !verificationReadiness.isReady ? (
                                 <VerificationReadinessChecklist readiness={verificationReadiness} />
                             ) : null}
-                            {isProfileCircle && isDraft && isAutoProvisionedArtistCircle && !pilotArtistCirclePublishReady ? (
+                            {isDraft && isAutoProvisionedArtistCircle && !pilotArtistCirclePublishReady ? (
                                 <p className="text-sm text-muted-foreground">
                                     Add a picture and About text here, and sign the Community Guidelines on your
                                     personal profile, before you can publish.
@@ -122,7 +125,7 @@ export default async function AboutSettingsPage(props: PageProps) {
                             ) : null}
                         </div>
                         {isDraft ? (
-                            isProfileCircle ? (
+                            usesPilotPublishFlow ? (
                                 <form action={publishCircleAction}>
                                     <input type="hidden" name="circleId" value={circle._id} />
                                     <Button type="submit" disabled={!pilotArtistCirclePublishReady}>
