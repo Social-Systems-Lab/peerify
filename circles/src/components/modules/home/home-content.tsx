@@ -87,6 +87,10 @@ export default function HomeContent({
     // Gates the welcome dialog: the viewer's own personal profile, or the viewer's own
     // freshly auto-provisioned artist profile (where artist-path signups now land).
     const isOwnLandingProfile = isOwnUserProfile || Boolean(isOwnAutoProvisionedArtistCircle);
+    // isOwnAutoProvisionedArtistCircle only means "this is the viewer's own auto-provisioned
+    // artist circle" — true from the moment it's created in "draft" state, independent of
+    // publishStatus. The congrats copy below must only show once the circle is actually live.
+    const isOwnArtistCircleLive = Boolean(isOwnAutoProvisionedArtistCircle) && circle.publishStatus === "published";
     const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
     const showSettingsButton = authorizedToEdit && circle.handle && (!isUser || isOwnUserProfile);
     const settingsButtonTitle = isUser || isPeerifyManagedIdentity(circle) ? "Profile settings" : "Circle settings";
@@ -113,8 +117,17 @@ export default function HomeContent({
         }
     }, []);
 
+    // Scoped to the artist circle's own publish state (draft vs. published) so dismissing
+    // the pre-publish welcome dialog doesn't permanently suppress the real congrats dialog
+    // once the circle actually goes live later — that's a different key, so it re-arms.
+    const welcomeDialogStorageKey = circle.handle
+        ? isOwnAutoProvisionedArtistCircle
+            ? `kamooni:p_profile_welcome_seen:${circle.handle}:${isOwnArtistCircleLive ? "published" : "draft"}`
+            : `kamooni:p_profile_welcome_seen:${circle.handle}`
+        : null;
+
     useEffect(() => {
-        if (!isOwnLandingProfile || !circle.handle) {
+        if (!isOwnLandingProfile || !welcomeDialogStorageKey) {
             setShowWelcomeDialog(false);
             return;
         }
@@ -132,19 +145,18 @@ export default function HomeContent({
             return;
         }
 
-        const storageKey = `kamooni:p_profile_welcome_seen:${circle.handle}`;
-        const alreadySeen = window.localStorage.getItem(storageKey);
+        const alreadySeen = window.localStorage.getItem(welcomeDialogStorageKey);
 
         if (!alreadySeen) {
             setShowWelcomeDialog(true);
         }
-    }, [circle, isOwnLandingProfile]);
+    }, [circle, isOwnLandingProfile, welcomeDialogStorageKey]);
 
     const handleWelcomeDialogChange = (nextOpen: boolean) => {
         setShowWelcomeDialog(nextOpen);
 
-        if (!nextOpen && circle.handle) {
-            window.localStorage.setItem(`kamooni:p_profile_welcome_seen:${circle.handle}`, "1");
+        if (!nextOpen && welcomeDialogStorageKey) {
+            window.localStorage.setItem(welcomeDialogStorageKey, "1");
         }
     };
 
@@ -162,24 +174,31 @@ export default function HomeContent({
             <Dialog open={showWelcomeDialog} onOpenChange={handleWelcomeDialogChange}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Welcome to Peerify</DialogTitle>
+                        <DialogTitle>
+                            {isOwnArtistCircleLive
+                                ? `Congratulations, ${circle.name}'s public profile is live!`
+                                : "Welcome to Peerify"}
+                        </DialogTitle>
                         <DialogDescription className="space-y-3">
-                            {isOwnAutoProvisionedArtistCircle ? (
+                            {isOwnArtistCircleLive ? (
+                                <p>
+                                    You can switch between this profile and your personal profile anytime using
+                                    the <strong>profile switcher</strong> (tap your profile picture in the
+                                    top-right corner). Use the switcher to post as yourself or as{" "}
+                                    <strong>{circle.name}</strong>, and create more public profiles using the{" "}
+                                    <strong>Create</strong> button.
+                                </p>
+                            ) : hasAutoProvisionedArtistCircle ? (
                                 <>
                                     <p>
-                                        Your public <strong>artist profile</strong> is ready — this is what fans
-                                        and other artists will see.
+                                        Complete your <strong>personal profile</strong> with a picture and a short
+                                        bio to start posting, commenting, and messaging.
                                     </p>
                                     <p>
-                                        You can switch between this artist profile and your personal profile
-                                        anytime using the <strong>profile switcher</strong> (tap your profile
-                                        picture in the top-right corner).
-                                    </p>
-                                    <p>
-                                        <strong>Important:</strong> before you can post, comment, or react
-                                        anywhere — even as {circle.name} — you need to complete your{" "}
-                                        <strong>personal profile</strong>: add a picture, a short About, and sign
-                                        the Community Guidelines.
+                                        You already have a public <strong>artist profile</strong> set up. Switch
+                                        between it and this personal profile anytime using the{" "}
+                                        <strong>profile switcher</strong> (tap your profile picture in the
+                                        top-right corner).
                                     </p>
                                 </>
                             ) : (
@@ -193,25 +212,13 @@ export default function HomeContent({
                                         through Settings &rarr; Discoverability. Just <strong>be mindful</strong>{" "}
                                         about sharing personal details like your location publicly.
                                     </p>
-                                    {hasAutoProvisionedArtistCircle ? (
-                                        <p>
-                                            You already have a public <strong>artist profile</strong> set up.
-                                            Switch between it and this personal profile anytime using the{" "}
-                                            <strong>profile switcher</strong> (tap your profile picture in the
-                                            top-right corner). <strong>Important:</strong> you still need to
-                                            complete this personal profile — picture, About, and signing the
-                                            Community Guidelines — before you can post, comment, or react
-                                            anywhere, even while acting as your artist profile.
-                                        </p>
-                                    ) : (
-                                        <p>
-                                            Are you <strong>an artist</strong> or represent{" "}
-                                            <strong>a band or venue</strong>? You can also create a public profile
-                                            later — just use <strong>the Create button</strong> in the left
-                                            navigation bar whenever you&apos;re ready. You can easily switch
-                                            between your personal and public profiles.
-                                        </p>
-                                    )}
+                                    <p>
+                                        Are you <strong>an artist</strong> or represent{" "}
+                                        <strong>a band or venue</strong>? You can also create a public profile
+                                        later — just use <strong>the Create button</strong> in the left
+                                        navigation bar whenever you&apos;re ready. You can easily switch between
+                                        your personal and public profiles.
+                                    </p>
                                 </>
                             )}
                         </DialogDescription>
