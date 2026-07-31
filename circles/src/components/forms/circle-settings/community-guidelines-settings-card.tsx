@@ -1,15 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import { CheckCircle2 } from "lucide-react";
 import { CodeOfConductAgreement } from "@/components/auth/code-of-conduct-agreement";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import {
-    COMMUNITY_GUIDELINE_RULES,
-    isCommunityGuidelinesCompleted,
-} from "@/lib/community-guidelines";
+import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
 import { userAtom } from "@/lib/data/atoms";
+import { hasAboutText, hasCustomPicture } from "@/lib/verification-readiness";
+import type { Circle } from "@/models/models";
 
 const formatAcceptedAt = (value?: Date | string | null): string | null => {
     if (!value) {
@@ -42,6 +43,12 @@ const formatAcceptedAt = (value?: Date | string | null): string | null => {
 // match what VerifyAccountButton already does elsewhere and avoid introducing a second
 // signing UX.
 //
+// Presented as onboarding "step 3" — it only appears once picture and About text (steps 1
+// and 2) are both filled in, and once ready it auto-opens as a modal the first time (tracked
+// per-handle in localStorage, same pattern as the welcome dialog in home-content.tsx) rather
+// than sitting embedded mid-page. If dismissed before signing, a one-line reopen affordance
+// takes its place so the step isn't stranded.
+//
 // This reads communityGuidelinesAcceptance off the globally-hydrated userAtom (the VIEWER's
 // own data), not off the `circle` prop the rest of this settings page renders from — the
 // SAFE_CIRCLE_PROJECTION getCircleByHandle/getCircleById use to fetch `circle` deliberately
@@ -49,59 +56,89 @@ const formatAcceptedAt = (value?: Date | string | null): string | null => {
 // ownership-gated at the route level (only the save/publish server actions enforce
 // isAuthorized), `ownProfileHandle` guards against showing the viewer's own guidelines status
 // if they land on someone else's personal-profile settings page.
-export function CommunityGuidelinesSettingsCard({ ownProfileHandle }: { ownProfileHandle?: string }) {
+export function CommunityGuidelinesSettingsCard({
+    ownProfileHandle,
+    circle,
+}: {
+    ownProfileHandle?: string;
+    circle?: Partial<Circle> | null;
+}) {
     const [user, setUser] = useAtom(userAtom);
     const { toast } = useToast();
+    const [open, setOpen] = useState(false);
 
-    if (!user?.handle || user.handle !== ownProfileHandle) {
+    const isOwnProfile = Boolean(user?.handle && user.handle === ownProfileHandle);
+    const completed = isCommunityGuidelinesCompleted(user?.communityGuidelinesAcceptance);
+    const readyForStep3 = hasCustomPicture(circle) && hasAboutText(circle);
+    const storageKey = ownProfileHandle ? `peerify_guidelines_modal_seen:${ownProfileHandle}` : null;
+
+    useEffect(() => {
+        if (!isOwnProfile || completed || !readyForStep3 || !storageKey) {
+            return;
+        }
+
+        try {
+            if (!window.localStorage.getItem(storageKey)) {
+                setOpen(true);
+            }
+        } catch {
+            // localStorage unavailable (private mode etc.) — show the modal anyway
+            setOpen(true);
+        }
+    }, [isOwnProfile, completed, readyForStep3, storageKey]);
+
+    const handleOpenChange = (nextOpen: boolean) => {
+        setOpen(nextOpen);
+
+        if (!nextOpen && storageKey) {
+            try {
+                window.localStorage.setItem(storageKey, "1");
+            } catch {
+                // localStorage unavailable — modal just won't remember it was seen this session
+            }
+        }
+    };
+
+    if (!isOwnProfile || !readyForStep3) {
         return null;
     }
 
-    const completed = isCommunityGuidelinesCompleted(user?.communityGuidelinesAcceptance);
-    const acceptedAtLabel = formatAcceptedAt(user?.communityGuidelinesAcceptedAt);
+    if (completed) {
+        const acceptedAtLabel = formatAcceptedAt(user?.communityGuidelinesAcceptedAt);
+
+        return (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                <span>
+                    You agreed to Peerify&apos;s Community Guidelines
+                    {acceptedAtLabel ? ` on ${acceptedAtLabel}` : ""}.
+                </span>
+            </div>
+        );
+    }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Community Guidelines</CardTitle>
-                <CardDescription>
-                    Peerify&apos;s core community rules for honest, respectful participation. Signing them is required
-                    to publish an artist or venue profile you created, and is separate from posting/commenting
-                    verification.
-                </CardDescription>
-            </CardHeader>
-            <CardContent>
-                {completed ? (
-                    <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
-                        <div className="space-y-2">
-                            <p className="font-medium">
-                                You&apos;ve agreed to all five of Peerify&apos;s community rules
-                                {acceptedAtLabel ? ` (${acceptedAtLabel})` : ""}.
-                            </p>
-                            <div className="flex flex-wrap gap-2">
-                                {COMMUNITY_GUIDELINE_RULES.map((rule) => (
-                                    <span
-                                        key={rule.id}
-                                        className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs font-medium text-emerald-800"
-                                    >
-                                        {rule.title}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                ) : (
+        <>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+                <span>Sign the Community Guidelines to finish your profile.</span>
+                <Button type="button" size="sm" variant="outline" onClick={() => setOpen(true)}>
+                    Sign the Community Guidelines &rarr;
+                </Button>
+            </div>
+            <Dialog open={open} onOpenChange={handleOpenChange}>
+                <DialogContent className="max-w-2xl overflow-hidden p-0">
+                    <DialogTitle className="sr-only">Community Guidelines</DialogTitle>
                     <CodeOfConductAgreement
                         user={user}
                         onUserChange={(nextUser) => setUser(nextUser)}
                         onComplete={async () => {
                             toast({ title: "Success", description: "Community Guidelines accepted." });
+                            handleOpenChange(false);
                             return { success: true };
                         }}
                     />
-                )}
-            </CardContent>
-        </Card>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }

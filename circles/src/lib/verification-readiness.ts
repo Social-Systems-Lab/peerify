@@ -82,7 +82,7 @@ export const getVerificationReadiness = (circle?: Partial<Circle> | null): Verif
     return {
         isReady: items.every((item) => item.complete),
         title: isUserProfile
-            ? "Complete your profile before requesting verification."
+            ? "Complete your profile."
             : "Complete this circle before requesting verification.",
         items,
     };

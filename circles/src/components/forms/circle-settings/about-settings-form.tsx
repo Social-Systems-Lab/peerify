@@ -12,6 +12,7 @@ import { useState, useEffect } from "react";
 import { useForm, Controller, Control, FieldValues } from "react-hook-form";
 import { saveAbout } from "@/app/circles/[handle]/settings/about/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommunityGuidelinesSettingsCard } from "@/components/forms/circle-settings/community-guidelines-settings-card";
 import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
 import { hasAboutText, hasCustomPicture } from "@/lib/verification-readiness";
@@ -445,6 +446,38 @@ export function AboutSettingsForm({
         hasCustomPicture(circle) &&
         hasAboutText(circle) &&
         isCommunityGuidelinesCompleted(user?.communityGuidelinesAcceptance);
+    // One-time celebratory modal for reaching step1Ready, tracked per-handle in localStorage
+    // (same pattern as the welcome dialog in home-content.tsx). Once dismissed, the page still
+    // shows a minimal persistent "Step 1 complete" line below so returning users don't lose
+    // track of where they are — see the step1Ready render branch further down.
+    const [showStep1Celebration, setShowStep1Celebration] = useState(false);
+    const step1CelebrationStorageKey = circle.handle ? `peerify_step1_celebration_seen:${circle.handle}` : null;
+
+    useEffect(() => {
+        if (!step1Ready || !step1CelebrationStorageKey) {
+            return;
+        }
+
+        try {
+            if (!localStorage.getItem(step1CelebrationStorageKey)) {
+                setShowStep1Celebration(true);
+            }
+        } catch {
+            // localStorage unavailable (private mode etc.) — show the celebration anyway
+            setShowStep1Celebration(true);
+        }
+    }, [step1Ready, step1CelebrationStorageKey]);
+
+    const dismissStep1Celebration = () => {
+        setShowStep1Celebration(false);
+        if (step1CelebrationStorageKey) {
+            try {
+                localStorage.setItem(step1CelebrationStorageKey, "true");
+            } catch {
+                // localStorage unavailable — celebration just won't remember it was seen
+            }
+        }
+    };
     const isPeerifyManagedVenueCircle = isPeerifyVenueIdentity(circle);
     const isPeerifyManagedArtistCircle = isPeerifyManagedIdentity(circle) && !isPeerifyManagedVenueCircle;
     const canEditPeerifyVenueProfile = isPeerifyManagedVenueCircle;
@@ -624,20 +657,44 @@ export function AboutSettingsForm({
             <form onSubmit={form.handleSubmit(onSubmit)} className="formatted space-y-6">
                 {isArtistOnboarding ? (
                     step1Ready ? (
-                        <div className="rounded-lg border border-emerald-200 border-l-4 border-l-emerald-500 bg-emerald-50 p-4 text-sm text-emerald-950">
-                            <p className="font-medium">Step 1 of 2 complete — your personal profile is ready</p>
-                            <p className="mt-1 text-emerald-900">
-                                Next, finish your public artist profile: confirm your artist/band name, add a
-                                picture, and add About text.
+                        <>
+                            <Dialog
+                                open={showStep1Celebration}
+                                onOpenChange={(open) => {
+                                    if (!open) {
+                                        dismissStep1Celebration();
+                                    }
+                                }}
+                            >
+                                <DialogContent>
+                                    <DialogHeader>
+                                        <DialogTitle>Step 1 of 2 complete — your personal profile is ready</DialogTitle>
+                                        <DialogDescription>
+                                            Next, finish your public artist profile: confirm your artist/band name,
+                                            add a picture, and add About text.
+                                        </DialogDescription>
+                                    </DialogHeader>
+                                    <DialogFooter>
+                                        <Button asChild size="sm" onClick={dismissStep1Celebration}>
+                                            <Link
+                                                href={`/circles/${ownAutoProvisionedArtistCircle?.handle}/settings/about`}
+                                            >
+                                                Continue to Step 2: Complete your artist profile &rarr;
+                                            </Link>
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                            <p className="text-sm text-emerald-900">
+                                Step 1 complete —{" "}
+                                <Link
+                                    href={`/circles/${ownAutoProvisionedArtistCircle?.handle}/settings/about`}
+                                    className="font-medium underline"
+                                >
+                                    Continue to Step 2 &rarr;
+                                </Link>
                             </p>
-                            <div className="mt-3">
-                                <Button asChild size="sm">
-                                    <Link href={`/circles/${ownAutoProvisionedArtistCircle?.handle}/settings/about`}>
-                                        Continue to Step 2: Complete your artist profile &rarr;
-                                    </Link>
-                                </Button>
-                            </div>
-                        </div>
+                        </>
                     ) : (
                         <div className="rounded-lg border border-sky-200 border-l-4 border-l-sky-500 bg-sky-50 p-4 text-sm text-sky-950">
                             <p className="font-medium">Step 1 of 2: Complete your personal profile</p>
@@ -684,8 +741,6 @@ export function AboutSettingsForm({
                         </div>
                     )
                 )}
-
-                {isUserProfile && <CommunityGuidelinesSettingsCard ownProfileHandle={circle.handle} />}
 
                 <Card>
                     <CardHeader>
@@ -1926,6 +1981,8 @@ export function AboutSettingsForm({
                         {/* End of MultiImageUploader */}
                     </CardContent>
                 </Card>
+
+                {isUserProfile && <CommunityGuidelinesSettingsCard ownProfileHandle={circle.handle} circle={circle} />}
 
                 {/* Section-level checkpoint after Images. Renders for every circle type. */}
                 {renderSaveButton()}
