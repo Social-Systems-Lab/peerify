@@ -232,7 +232,7 @@ export function CreatePeerifyVenueDialog({
 
                     <div className="flex items-center justify-between gap-3">
                         <p className="text-sm text-muted-foreground">
-                            The creator becomes the first admin using the existing circle admin flow.
+                            The creator becomes the first admin using the existing profile admin flow.
                         </p>
                         <div className="flex items-center gap-2">
                             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>

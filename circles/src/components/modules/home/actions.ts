@@ -381,7 +381,12 @@ export const updateCircleField = async (circleId: string, formData: FormData): P
             revalidatePath(`${circlePath}settings/about`);
         }
 
-        return { success: true, message: `Circle updated successfully`, circle };
+        const updateMessage =
+            circle?.circleType === "user"
+                ? "Personal profile updated successfully"
+                : `${circle?.name || "Circle"} profile updated successfully`;
+
+        return { success: true, message: updateMessage, circle };
     } catch (error) {
         return { success: false, message: `Failed to update circle. ${error}` };
     }

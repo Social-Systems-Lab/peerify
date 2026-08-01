@@ -22,8 +22,16 @@ import path from "path";
 import fs from "fs";
 import { USERS_DIR } from "../auth/auth";
 import { getDefaultHeroImage, hasCircleImages } from "@/lib/default-heroes";
-import { getVerificationReadiness } from "@/lib/verification-readiness";
+import {
+    getVerificationReadiness,
+    hasCustomPicture,
+    hasAboutText,
+    hasLocationSet,
+    type VerificationReadiness,
+    type VerificationReadinessItem,
+} from "@/lib/verification-readiness";
 import { buildVerifiedUserSet } from "@/lib/auth/verification";
+import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
 
 export const SAFE_CIRCLE_PROJECTION = {
     _id: 1,
@@ -161,6 +169,31 @@ export const getDefaultCircle = async (inServerConfig: ServerSettings | null = n
 
     return circle;
 };
+
+// The pilot-signup-provisioned artist circle (see createPilotArtistCircle in
+// src/components/forms/signup/actions.ts) a user owns, if any — used both to decide where a
+// freshly-verified artist-path signup should land (see verifyEmailAction in
+// src/app/(auth)/verify-email/actions.ts) and to branch the post-signup welcome dialog copy
+// (src/components/modules/home/home-content.tsx) away from telling someone who already has
+// one to go create it via the Create button.
+export const getAutoProvisionedArtistCircle = async (userDid: string): Promise<Circle | null> => {
+    const circle = (await Circles.findOne(
+        {
+            createdBy: userDid,
+            circleType: { $ne: "user" },
+            "metadata.peerify.autoProvisionedFromSignup": true,
+        },
+        { projection: SAFE_CIRCLE_PROJECTION },
+    )) as Circle | null;
+
+    if (circle?._id) {
+        circle._id = circle._id.toString();
+    }
+    return circle;
+};
+
+export const hasAutoProvisionedArtistCircle = async (userDid: string): Promise<boolean> =>
+    (await getAutoProvisionedArtistCircle(userDid)) !== null;
 
 export const getCirclePublishStatus = (circle?: Partial<Circle> | null): CirclePublishStatus =>
     circle?.publishStatus ?? "published";
@@ -431,6 +464,62 @@ export const getCircleByDid = async (did: string): Promise<Circle> => {
         circle._id = circle._id.toString();
     }
     return circle;
+};
+
+// The draft/pending_verification->published completion bar for a pilot-signup-provisioned
+// artist circle (see createPilotArtistCircle in src/components/forms/signup/actions.ts):
+// its own picture + About text + map location are filled in, and its creator has signed
+// all Community Guidelines rules. Publish is manual (see the "Publish circle"/"Publish
+// profile" actions in src/app/circles/[handle]/settings/about/actions.ts and
+// src/app/profiles/actions.ts) — isPilotArtistCircleReadyToPublish only computes readiness;
+// it never mutates publishStatus. Those two actions call it directly to re-validate
+// server-side before flipping publishStatus, so someone can't bypass the gate by hitting
+// the endpoint directly with a stale disabled button state.
+const getPilotArtistCircleReadinessFlags = async (
+    artistCircle: Partial<Circle>,
+): Promise<{ picture: boolean; aboutText: boolean; location: boolean; guidelines: boolean }> => {
+    const picture = hasCustomPicture(artistCircle);
+    const aboutText = hasAboutText(artistCircle);
+    const location = hasLocationSet(artistCircle);
+
+    let guidelines = false;
+    if (artistCircle.createdBy) {
+        const creator = await Circles.findOne(
+            { did: artistCircle.createdBy },
+            { projection: { communityGuidelinesAcceptance: 1 } },
+        );
+        guidelines = isCommunityGuidelinesCompleted(creator?.communityGuidelinesAcceptance as any);
+    }
+
+    return { picture, aboutText, location, guidelines };
+};
+
+export const isPilotArtistCircleReadyToPublish = async (artistCircle: Partial<Circle>): Promise<boolean> => {
+    const flags = await getPilotArtistCircleReadinessFlags(artistCircle);
+    return flags.picture && flags.aboutText && flags.location && flags.guidelines;
+};
+
+// Per-item breakdown of the same bar above, for the Step 2 checklist banner
+// (src/app/circles/[handle]/settings/about/page.tsx) — reuses VerificationReadinessChecklist,
+// the same component the pre-existing generic verification checklist uses.
+export const getPilotArtistCircleReadiness = async (artistCircle: Partial<Circle>): Promise<VerificationReadiness> => {
+    const flags = await getPilotArtistCircleReadinessFlags(artistCircle);
+    const items: VerificationReadinessItem[] = [
+        { key: "picture", label: "Add a picture", complete: flags.picture },
+        { key: "aboutText", label: "Add About text", complete: flags.aboutText },
+        { key: "location", label: "Set your map location", complete: flags.location },
+        {
+            key: "guidelines",
+            label: "Sign the Community Guidelines (on your personal profile, step 1)",
+            complete: flags.guidelines,
+        },
+    ];
+
+    return {
+        isReady: items.every((item) => item.complete),
+        title: "Step 2 of 2: Complete your public artist profile",
+        items,
+    };
 };
 
 export const updateCircle = async (circle: Partial<Circle>, authenticatedUserDid: string): Promise<void> => {

@@ -7,7 +7,7 @@ import { ObjectId } from "mongodb";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { passwordSchema } from "@/models/models";
-import { getAuthenticatedUserDid } from "./auth";
+import { getAuthenticatedUserDid, createUserSession } from "./auth";
 import {
     ENCRYPTION_ALGORITHM,
     ENCRYPTED_PRIVATE_KEY_FILENAME,
@@ -269,5 +269,75 @@ export async function resetPassword(token: string, newPassword: string): Promise
             success: false,
             error: "An unexpected error occurred during password reset.",
         };
+    }
+}
+
+// --- Login Link Action ---
+//
+// Reuses the same hashed-token/expiry pattern as password reset (see resetPassword
+// above and requestLoginLinkAction in src/components/forms/login/actions.ts), but
+// for accounts whose password is unusable to them (e.g. pilot-signup accounts, which
+// get a random server-generated password at creation). Unlike resetPassword, this
+// never touches password-derived credential material on disk — it only verifies the
+// token and establishes a session, the same way clicking the original signup
+// verification link does (see verifyEmailAction in
+// src/app/(auth)/verify-email/actions.ts). Deliberately a separate token/field pair
+// (loginLinkToken/loginLinkTokenExpiry) rather than reusing emailVerificationToken,
+// so requesting a login link can never interfere with a pending signup verification
+// or flip isEmailVerified in a confusing way for an already-verified account.
+
+const consumeLoginLinkSchema = z.object({
+    token: z.string().min(1, "Login link token is required."),
+});
+
+type ConsumeLoginLinkResult = { success: true; handle?: string } | { success: false; error: string };
+
+/**
+ * Server Action to log a user in via a magic login-link token, without requiring
+ * their password.
+ * @param token - The unhashed login link token from the URL.
+ */
+export async function consumeLoginLink(token: string): Promise<ConsumeLoginLinkResult> {
+    try {
+        const result = consumeLoginLinkSchema.safeParse({ token });
+        if (!result.success) {
+            return { success: false, error: "Invalid login link." };
+        }
+
+        const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+        const user = await Circles.findOne({ loginLinkToken: hashedToken });
+
+        if (!user || !user.loginLinkTokenExpiry) {
+            return { success: false, error: "Invalid or expired login link." };
+        }
+
+        if (new Date() > user.loginLinkTokenExpiry) {
+            await Circles.updateOne(
+                { _id: user._id },
+                { $set: { loginLinkToken: null, loginLinkTokenExpiry: null } },
+            );
+            return { success: false, error: "This login link has expired. Please request a new one." };
+        }
+
+        if (!user.did) {
+            return { success: false, error: "Could not log in. Please contact support." };
+        }
+
+        // Clicking a valid link proves ownership of the account, the same way the
+        // original signup verification link does — so mark the email verified here too
+        // if it wasn't already (covers accounts whose original link expired unused).
+        const updateSet: Record<string, unknown> = { loginLinkToken: null, loginLinkTokenExpiry: null };
+        if (!user.isEmailVerified) {
+            updateSet.isEmailVerified = true;
+        }
+        await Circles.updateOne({ _id: user._id }, { $set: updateSet });
+
+        const privateUser = await getUserPrivate(user.did);
+        await createUserSession(privateUser, user.did);
+
+        return { success: true, handle: user.handle || undefined };
+    } catch (error) {
+        console.error("Error consuming login link:", error);
+        return { success: false, error: "An unexpected error occurred. Please try again." };
     }
 }

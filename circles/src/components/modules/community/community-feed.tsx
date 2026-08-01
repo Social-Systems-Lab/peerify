@@ -4,11 +4,13 @@
 import { useIsCompact } from "@/components/utils/use-is-compact";
 import { Circle, Feed, PostDisplay, UserPrivate } from "@/models/models";
 import { CommunityComposer } from "./community-composer";
+import { GuardedCommunityComposer } from "./community-composer-guarded";
 import PostList from "@/components/modules/feeds/post-list";
 import { features } from "@/lib/data/constants";
 import { userAtom } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import Image from "next/image";
+import { getParticipationState } from "@/lib/auth/participation-readiness";
 
 export type CommunityFeedProps = {
     circle: Circle;
@@ -20,11 +22,11 @@ export type CommunityFeedProps = {
 
 // canPostIgnoringVerification mirrors @/lib/auth/client-auth's isAuthorized()
 // body for group-membership, deliberately WITHOUT its needsToBeVerified
-// short-circuit. That check happens instead inside CommunityComposer as an
-// inline message (matching PostForm's existing UNVERIFIED_PROFILE_EXPLAINER
-// pattern) — so an unverified follower still sees the composer and a
-// sensible explanation, rather than it silently disappearing. The real
-// enforcement boundary is still the server action either way.
+// short-circuit — this is "hasPostPermission" (circle-level community.post
+// access), kept separate from participation-readiness (see
+// getParticipationState below) so a follower who has permission but isn't
+// participation-ready sees a guarded composer instead of no composer at all.
+// The real enforcement boundary is still the server action either way.
 function canPostIgnoringVerification(user: UserPrivate | undefined, circle: Circle): boolean {
     if (user && user._id === circle._id) return true;
     const allowedGroups = circle.accessRules?.community?.post ?? features.community.post.defaultUserGroups ?? [];
@@ -38,7 +40,8 @@ export const CommunityFeed = ({ circle, posts, feed, isLoading = false, onPostCr
     const isCompact = useIsCompact();
     const [user] = useAtom(userAtom);
 
-    const canPost = canPostIgnoringVerification(user as UserPrivate | undefined, circle);
+    const hasPostPermission = canPostIgnoringVerification(user as UserPrivate | undefined, circle);
+    const participation = getParticipationState(user as UserPrivate | undefined);
 
     const containerStyle = {
         flexGrow: isCompact ? "1" : "3",
@@ -59,10 +62,14 @@ export const CommunityFeed = ({ circle, posts, feed, isLoading = false, onPostCr
     return (
         <div className="flex h-full min-h-screen w-full flex-1 items-start justify-center" style={containerStyle}>
             <div className="flex w-full flex-col">
-                {canPost && (
+                {hasPostPermission && (
                     <div className="flex w-full justify-center">
                         <div className="w-full max-w-[700px]">
-                            <CommunityComposer circle={circle} feed={feed} onPostCreated={onPostCreated} />
+                            {participation.canParticipate ? (
+                                <CommunityComposer circle={circle} feed={feed} onPostCreated={onPostCreated} />
+                            ) : (
+                                <GuardedCommunityComposer circle={circle} participation={participation} />
+                            )}
                         </div>
                     </div>
                 )}

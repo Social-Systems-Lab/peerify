@@ -7,6 +7,8 @@ import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
 import { getUserOrCircleInfo } from "@/lib/utils/form";
 import { usePathname } from "next/navigation";
+import { isOwnerOrCircleAdmin } from "@/lib/auth/client-auth";
+import { CommunityParticipationBanner } from "@/components/modules/community/community-participation-banner";
 
 type SettingsForm = {
     name: string | UserAndCircleInfo;
@@ -70,6 +72,13 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
     const [user] = useAtom(userAtom);
     const pathname = usePathname();
     const hideSettingsNav = pathname.endsWith("/settings/pledges");
+    // On a personal profile's own Settings/About page, the banner's "Complete profile" button
+    // links back to this same page (readinessSubject === circle here), making it a dead,
+    // self-referential no-op. The checklist is redundant there too — the actual picture/About
+    // fields are right below. Everywhere else (other Settings subpages, or an artist/venue
+    // circle's own Settings, where the button correctly points at the viewer's PERSONAL
+    // profile instead) the banner is a real, functional link, so only suppress this one case.
+    const isOwnAboutPage = isUser && pathname.endsWith("/settings/about");
     const navItems = settingsForms
         .filter((item) => {
             if (item.handle === "subscription") {
@@ -101,27 +110,39 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
         })) as NavItem[];
 
     return (
-        <div
-            className="relative z-10 flex w-full"
-            style={{
-                flexDirection: isCompact ? "column" : "row",
-                paddingTop: isCompact ? "0" : "20px",
-            }}
-        >
-            {!hideSettingsNav && (
-                <div
-                    className="relative z-10 flex flex-col items-center pb-2"
-                    style={{
-                        flex: isCompact ? "0" : "1",
-                        alignItems: isCompact ? "normal" : "flex-end",
-                        minWidth: isCompact ? "0px" : "272px",
-                        paddingLeft: isCompact ? "0px" : "16px",
-                    }}
-                >
-                    <FormNav items={navItems} circle={circle} />
-                </div>
-            )}
-            {children}
+        <div className="flex w-full flex-col">
+            <div className="mx-auto w-full max-w-[1100px] px-0 md:px-4">
+                {!isOwnAboutPage && (
+                    <CommunityParticipationBanner
+                        circle={circle}
+                        viewerPersonalProfile={user}
+                        isViewerOwnerOrAdmin={isOwnerOrCircleAdmin(user, circle)}
+                        showChecklist
+                    />
+                )}
+            </div>
+            <div
+                className="relative z-10 flex w-full"
+                style={{
+                    flexDirection: isCompact ? "column" : "row",
+                    paddingTop: isCompact ? "0" : "20px",
+                }}
+            >
+                {!hideSettingsNav && (
+                    <div
+                        className="relative z-10 flex flex-col items-center pb-2"
+                        style={{
+                            flex: isCompact ? "0" : "1",
+                            alignItems: isCompact ? "normal" : "flex-end",
+                            minWidth: isCompact ? "0px" : "272px",
+                            paddingLeft: isCompact ? "0px" : "16px",
+                        }}
+                    >
+                        <FormNav items={navItems} circle={circle} />
+                    </div>
+                )}
+                {children}
+            </div>
         </div>
     );
 };

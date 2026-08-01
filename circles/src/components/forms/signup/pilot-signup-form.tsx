@@ -12,13 +12,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 
+// The role picked on the first signup screen. Only "artist" and "fan" have buttons today,
+// but "venue" is already a valid value so a Venue button can be added later without
+// reworking this screen or the signup-intent storage.
+type SignupRole = "artist" | "fan" | "venue";
+
 type PilotSignupState = {
     firstName: string;
     lastName: string;
     email: string;
-    password: string;
-    confirmPassword: string;
     handle: string;
+    bandOrVenueName: string;
 };
 
 type PilotSignupErrors = Partial<Record<keyof PilotSignupState, string>>;
@@ -27,10 +31,22 @@ const initialState: PilotSignupState = {
     firstName: "",
     lastName: "",
     email: "",
-    password: "",
-    confirmPassword: "",
     handle: "",
+    bandOrVenueName: "",
 };
+
+const ROLE_OPTIONS: Array<{ value: SignupRole; title: string; subtitle: string }> = [
+    {
+        value: "artist",
+        title: "Artist / Band",
+        subtitle: "Set up your public profile and start reaching fans",
+    },
+    {
+        value: "fan",
+        title: "Fan",
+        subtitle: "Follow artists, discover shows, pledge support",
+    },
+];
 
 function sanitizeHandle(value: string) {
     return value
@@ -46,7 +62,7 @@ function getDefaultHandle(firstName: string, lastName: string) {
     return sanitizeHandle(`${firstName} ${lastName}`);
 }
 
-function getErrors(state: PilotSignupState): PilotSignupErrors {
+function getErrors(state: PilotSignupState, role: SignupRole | null): PilotSignupErrors {
     const errors: PilotSignupErrors = {};
 
     if (!state.firstName.trim()) {
@@ -63,16 +79,8 @@ function getErrors(state: PilotSignupState): PilotSignupErrors {
         errors.email = "Enter a valid email address.";
     }
 
-    if (!state.password) {
-        errors.password = "Password is required.";
-    } else if (state.password.length < 8) {
-        errors.password = "Password must be at least 8 characters.";
-    }
-
-    if (!state.confirmPassword) {
-        errors.confirmPassword = "Please repeat your password.";
-    } else if (state.password !== state.confirmPassword) {
-        errors.confirmPassword = "Passwords do not match.";
+    if (role === "artist" && !state.bandOrVenueName.trim()) {
+        errors.bandOrVenueName = "Band name is required.";
     }
 
     const handle = sanitizeHandle(state.handle);
@@ -99,6 +107,7 @@ export function PilotSignupForm() {
     const { toast } = useToast();
     const [, setUser] = useAtom(userAtom);
     const [, setAuthInfo] = useAtom(authInfoAtom);
+    const [role, setRole] = useState<SignupRole | null>(null);
     const [state, setState] = useState<PilotSignupState>(initialState);
     const [errors, setErrors] = useState<PilotSignupErrors>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -123,7 +132,9 @@ export function PilotSignupForm() {
         };
         el.addEventListener("statechange", handler as EventListener);
         return () => el.removeEventListener("statechange", handler as EventListener);
-    }, []);
+        // The altcha-widget only exists in the DOM once a role is picked, so this needs to
+        // re-attach once `role` flips from null to a value and the widget actually mounts.
+    }, [role]);
 
     const updateField = (field: keyof PilotSignupState, value: string) => {
         setState((prev) => ({ ...prev, [field]: value }));
@@ -142,7 +153,11 @@ export function PilotSignupForm() {
     const onSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
 
-        const nextErrors = getErrors(state);
+        if (!role) {
+            return;
+        }
+
+        const nextErrors = getErrors(state, role);
         if (Object.keys(nextErrors).length > 0) {
             setErrors(nextErrors);
             return;
@@ -165,10 +180,11 @@ export function PilotSignupForm() {
                 name: fullName,
                 handle: sanitizeHandle(state.handle),
                 _email: state.email.trim(),
-                _password: state.password,
                 altcha: altchaPayload,
                 metadata: {
                     onboardingFlow: "pilot-quick-signup",
+                    signupIntent: role,
+                    ...(role === "artist" ? { bandOrVenueName: state.bandOrVenueName.trim() } : {}),
                 },
             });
 
@@ -222,14 +238,64 @@ export function PilotSignupForm() {
         }
     };
 
+    if (!role) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-[#f7f2ea] px-4 py-10">
+                <Card className="w-full max-w-md border-[#e3d5c2] bg-[#faf6ef] shadow-sm">
+                    <CardHeader className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e8720c]">
+                            Peerify Pilot Signup
+                        </p>
+                        <CardTitle className="text-2xl text-[#181512]">How will you use Peerify?</CardTitle>
+                        <p className="text-sm text-[#6b5f52]">Pick what fits best. You can always add more later.</p>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            {ROLE_OPTIONS.map((option) => (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    onClick={() => setRole(option.value)}
+                                    className="flex h-full flex-col items-start gap-2 rounded-2xl border border-[#e5d8c7] bg-[#f7f2ea] p-5 text-left transition-colors hover:border-[#e8720c] hover:bg-[#faf6ef]"
+                                >
+                                    <span className="text-lg font-semibold text-[#181512]">{option.title}</span>
+                                    <span className="text-sm text-[#6b5f52]">{option.subtitle}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <p className="mt-6 text-center text-sm text-[#6b5f52]">
+                            Already have an account?{" "}
+                            <Link href="/login" className="underline hover:text-[#181512]">
+                                Log in
+                            </Link>
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
     return (
         <div className="flex min-h-screen items-center justify-center bg-[#f7f2ea] px-4 py-10">
             <Card className="w-full max-w-md border-[#e3d5c2] bg-[#faf6ef] shadow-sm">
                 <CardHeader className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e8720c]">Peerify Pilot Signup</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e8720c]">
+                        Peerify Pilot Signup
+                    </p>
                     <CardTitle className="text-2xl text-[#181512]">Create your personal account</CardTitle>
                     <p className="text-sm text-[#6b5f52]">
-                        Start with the essentials. You can choose what you want to do first on Peerify right after signup.
+                        Signing up as {role === "artist" ? "an Artist / Band" : "a Fan"}.{" "}
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setRole(null);
+                                setAltchaPayload(null);
+                            }}
+                            className="underline hover:text-[#181512]"
+                        >
+                            Change
+                        </button>
                     </p>
                 </CardHeader>
                 <CardContent>
@@ -260,6 +326,24 @@ export function PilotSignupForm() {
                             </div>
                         </div>
 
+                        {role === "artist" ? (
+                            <div className="space-y-2">
+                                <Label htmlFor="pilot-signup-band-name">Band name</Label>
+                                <Input
+                                    id="pilot-signup-band-name"
+                                    value={state.bandOrVenueName}
+                                    onChange={(event) => updateField("bandOrVenueName", event.target.value)}
+                                    placeholder="e.g. The Night Owls"
+                                />
+                                <p className="text-sm text-[#6b5f52]">
+                                    This becomes the name of your public artist profile.
+                                </p>
+                                {errors.bandOrVenueName ? (
+                                    <p className="text-sm text-red-600">{errors.bandOrVenueName}</p>
+                                ) : null}
+                            </div>
+                        ) : null}
+
                         <div className="space-y-2">
                             <Label htmlFor="pilot-signup-email">Email</Label>
                             <Input
@@ -271,34 +355,6 @@ export function PilotSignupForm() {
                                 placeholder="you@example.com"
                             />
                             {errors.email ? <p className="text-sm text-red-600">{errors.email}</p> : null}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="pilot-signup-password">Password</Label>
-                            <Input
-                                id="pilot-signup-password"
-                                type="password"
-                                value={state.password}
-                                onChange={(event) => updateField("password", event.target.value)}
-                                autoComplete="new-password"
-                                placeholder="At least 8 characters"
-                            />
-                            {errors.password ? <p className="text-sm text-red-600">{errors.password}</p> : null}
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="pilot-signup-confirm-password">Confirm password</Label>
-                            <Input
-                                id="pilot-signup-confirm-password"
-                                type="password"
-                                value={state.confirmPassword}
-                                onChange={(event) => updateField("confirmPassword", event.target.value)}
-                                autoComplete="new-password"
-                                placeholder="Repeat password"
-                            />
-                            {errors.confirmPassword ? (
-                                <p className="text-sm text-red-600">{errors.confirmPassword}</p>
-                            ) : null}
                         </div>
 
                         <div className="space-y-2">
@@ -314,7 +370,8 @@ export function PilotSignupForm() {
                                 placeholder="your-handle"
                             />
                             <p className="text-sm text-[#6b5f52]">
-                                This defaults from your first and last name. You can still edit it before creating your account.
+                                This defaults from your first and last name. You can still edit it before creating
+                                your account.
                             </p>
                             {errors.handle ? <p className="text-sm text-red-600">{errors.handle}</p> : null}
                         </div>

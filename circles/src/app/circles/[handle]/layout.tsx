@@ -1,5 +1,12 @@
 import type { Metadata } from "next";
-import { getCircleByHandle, getDefaultCircle, getCircleById, isCirclePublished } from "@/lib/data/circle";
+import {
+    getCircleByHandle,
+    getDefaultCircle,
+    getCircleById,
+    isCirclePublished,
+    hasAutoProvisionedArtistCircle,
+    isPilotArtistCircleReadyToPublish,
+} from "@/lib/data/circle";
 import { redirect } from "next/navigation";
 import HomeCover from "@/components/modules/home/home-cover";
 import HomeContent from "@/components/modules/home/home-content";
@@ -8,6 +15,7 @@ import { features } from "@/lib/data/constants";
 import { CircleTabs } from "@/components/layout/circle-tabs";
 import { getHumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
 import { appConfig } from "@/config/app";
+import { getPeerifyMetadata } from "@/lib/peerify/artist-profile";
 
 type Props = { params: Promise<{ handle: string }>; children: React.ReactNode };
 
@@ -42,6 +50,33 @@ export default async function RootLayout(props: Props) {
     const plainParentCircle = parentCircle ? JSON.parse(JSON.stringify(parentCircle)) : undefined;
     const plainProofOfHumanitySummary = proofOfHumanitySummary ? JSON.parse(JSON.stringify(proofOfHumanitySummary)) : null;
 
+    // Artist-path pilot signups now land directly on their new artist circle's home page
+    // (see verifyEmailAction in src/app/(auth)/verify-email/actions.ts), so the welcome
+    // dialog's own-profile branching needs to recognize that circle too, not just the
+    // viewer's personal ("user"-type) circle.
+    const isOwnAutoProvisionedArtistCircle =
+        circle.circleType !== "user" &&
+        Boolean(userDid) &&
+        circle.createdBy === userDid &&
+        getPeerifyMetadata(circle).autoProvisionedFromSignup === true;
+    const viewerHasAutoProvisionedArtistCircle =
+        circle.circleType === "user" && userDid && circle.did === userDid
+            ? await hasAutoProvisionedArtistCircle(userDid)
+            : false;
+
+    // Gates the manual "Publish profile" button in HomeContent's draft banner — a pilot-
+    // signup-provisioned artist circle must meet isPilotArtistCircleReadyToPublish's
+    // completion bar (picture, About text, map location, creator's Community Guidelines
+    // signature) before it can be published. Manually-created (CircleWizard) managed
+    // identities were never gated here and stay that way.
+    const isDraftAutoProvisionedArtistCircle =
+        circle.circleType !== "user" &&
+        (circle.publishStatus ?? "published") === "draft" &&
+        getPeerifyMetadata(circle).autoProvisionedFromSignup === true;
+    const pilotArtistCirclePublishReady = isDraftAutoProvisionedArtistCircle
+        ? await isPilotArtistCircleReadyToPublish(circle)
+        : true;
+
     return (
         <>
             <>
@@ -52,6 +87,9 @@ export default async function RootLayout(props: Props) {
                     viewerDid={userDid}
                     parentCircle={plainParentCircle}
                     proofOfHumanitySummary={plainProofOfHumanitySummary}
+                    isOwnAutoProvisionedArtistCircle={isOwnAutoProvisionedArtistCircle}
+                    hasAutoProvisionedArtistCircle={viewerHasAutoProvisionedArtistCircle}
+                    pilotArtistCirclePublishReady={pilotArtistCirclePublishReady}
                 />
             </>
             <CircleTabs circle={plainCircle} />

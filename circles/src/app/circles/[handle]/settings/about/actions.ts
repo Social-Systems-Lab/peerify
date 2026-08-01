@@ -1,7 +1,7 @@
 "use server";
 
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
-import { getCircleById, getCirclePath, updateCircle } from "@/lib/data/circle";
+import { getCircleById, getCirclePath, isPilotArtistCircleReadyToPublish, updateCircle } from "@/lib/data/circle";
 import {
     approveAttachCircleRequest,
     createAttachCircleRequest,
@@ -36,6 +36,7 @@ import { sanitizeSocialLinks } from "@/lib/utils/social-links";
 import { getVerificationReadiness } from "@/lib/verification-readiness";
 import {
     getPeerifyIdentityType,
+    getPeerifyMetadata,
     isPeerifyManagedIdentity,
     isPeerifyVenueIdentity,
     normalizePeerifyArtistProfile,
@@ -190,8 +191,30 @@ export async function publishCircleAction(formData: FormData) {
         return { success: false, message: "Circle not found" };
     }
 
-    if (circle.circleLevel !== "profile_child") {
+    // createPilotArtistCircle (src/components/forms/signup/actions.ts) deliberately creates
+    // pilot-signup artist circles with circleLevel "top_level", not "profile_child" — so this
+    // guard must also admit auto-provisioned circles regardless of circleLevel, or they fall
+    // through to submitCircleForVerificationAction's manual-verification flow instead.
+    const isAutoProvisionedArtistCircle = getPeerifyMetadata(circle).autoProvisionedFromSignup === true;
+    if (circle.circleLevel !== "profile_child" && !isAutoProvisionedArtistCircle) {
         return { success: false, message: "Only profile circles can be published directly" };
+    }
+
+    // Same completion bar as isPilotArtistCircleReadyToPublish (src/lib/data/circle.ts) and
+    // publishManagedPeerifyIdentityAction (src/app/profiles/actions.ts) — a pilot-signup-
+    // provisioned artist circle must not be publishable before its picture, About text, map
+    // location, and creator's Community Guidelines signature are all in place. Re-validated
+    // here server-side regardless of the button's client-side disabled state. Manually-created
+    // (CircleWizard) managed identities are unaffected.
+    if (isAutoProvisionedArtistCircle) {
+        const ready = await isPilotArtistCircleReadyToPublish(circle);
+        if (!ready) {
+            return {
+                success: false,
+                message:
+                    "Complete this profile's picture, About text, and map location, and sign the Community Guidelines on your personal profile, before publishing.",
+            };
+        }
     }
 
     return updateCirclePublishStatus(circleId, "published");
@@ -206,6 +229,20 @@ export async function submitCircleForVerificationAction(formData: FormData) {
     const circle = await getCircleById(circleId);
     if (!circle) {
         return { success: false, message: "Circle not found" };
+    }
+
+    // Pilot-signup-provisioned artist circles are created with circleLevel "top_level" (see
+    // createPilotArtistCircle, src/components/forms/signup/actions.ts), so they'd otherwise
+    // reach this manual-verification path instead of publishCircleAction's "Publish circle"
+    // flow. They must always go through publishCircleAction, whose isPilotArtistCircleReadyToPublish
+    // check includes the creator's Community Guidelines signature — the readiness check just
+    // below this (getVerificationReadiness) does NOT check guidelines, so letting these circles
+    // through here would let a user bypass the guidelines gate by completing only picture/About/cover.
+    if ((circle.metadata as any)?.peerify?.autoProvisionedFromSignup === true) {
+        return {
+            success: false,
+            message: "This circle publishes automatically once its profile is complete — use the Publish circle button instead.",
+        };
     }
 
     if (circle.circleLevel === "profile_child") {

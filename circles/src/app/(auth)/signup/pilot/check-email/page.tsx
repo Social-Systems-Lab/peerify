@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type PageProps = {
@@ -10,24 +9,8 @@ type PageProps = {
     }>;
 };
 
-function normalizePeerifyIntent(value?: string): "fan" | "artist" | "host" | null {
-    return value === "fan" || value === "artist" || value === "host" ? value : null;
-}
-
 export default async function PilotCheckEmailPage(props: PageProps) {
     const searchParams = await props.searchParams;
-    const handle = searchParams.handle?.trim();
-    const redirectTo = searchParams.redirectTo?.trim();
-    const peerifyIntent = normalizePeerifyIntent(searchParams.intent);
-    // A bare "/" redirectTo carries no real destination preference (e.g. it's the fallback the
-    // header's Sign Up button used to attach) — prefer sending a brand-new signup to their own
-    // profile over the marketing homepage whenever a handle is available.
-    const hasMeaningfulRedirect = redirectTo && redirectTo !== "/";
-    const continueUrl = hasMeaningfulRedirect
-        ? redirectTo
-        : handle
-          ? `/circles/${handle}/home`
-          : "/";
 
     return (
         <div className="flex min-h-screen items-center justify-center bg-[#f7f2ea] px-4 py-10">
@@ -42,16 +25,10 @@ export default async function PilotCheckEmailPage(props: PageProps) {
                         {searchParams.email ? <span className="font-medium text-[#181512]">{searchParams.email}</span> : "your email address"}.
                     </p>
                     <p className="text-base text-[#6b5f52]">
-                        Email verification lets you recover your account if you forget your password. Some account and
-                        trust features may ask for it later.
+                        Click the link in your email to finish creating your account and log in. No password
+                        needed — we&apos;ll always log you in this way.
                     </p>
-                    <p className="text-xs text-[#6b5f52]">
-                        Didn&apos;t get the email? Check your spam folder, or{" "}
-                        <Link href={continueUrl} className="underline text-[#e8720c] hover:text-[#ff8c2a]">
-                            click here
-                        </Link>{" "}
-                        to go directly to your profile.
-                    </p>
+                    <p className="text-xs text-[#6b5f52]">Didn&apos;t get the email? Check your spam folder.</p>
                 </CardContent>
             </Card>
         </div>

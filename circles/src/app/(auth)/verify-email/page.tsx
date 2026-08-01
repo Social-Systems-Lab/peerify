@@ -33,7 +33,7 @@ function VerifyEmailContent() {
                         setDetail(
                             "Your email address has been verified. Continue to your profile next to complete your setup.",
                         );
-                        setContinueHref(response.handle ? `/circles/${response.handle}` : "/");
+                        setContinueHref(response.redirectPath || "/");
                         setError(false);
                         setIsResolved(true);
                     } else {
@@ -44,7 +44,7 @@ function VerifyEmailContent() {
                         setDetail(
                             "If you cannot use the original link right now, you can still continue to your profile, but some account steps may require email verification later.",
                         );
-                        setContinueHref(response.handle ? `/circles/${response.handle}` : "/");
+                        setContinueHref(response.redirectPath || "/");
                         setError(true);
                         setIsResolved(true);
                     }

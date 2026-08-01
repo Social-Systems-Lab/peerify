@@ -12,6 +12,156 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-01 — Made pilot artist-circle publish manual instead of automatic; added map location to the readiness bar; converted the Step 1/Step 2 onboarding banners to per-item checklists
+
+Headline: product decision to stop auto-publishing pilot-signup artist circles and require an explicit "Publish circle" click, and to require a map location (not just picture/About/guidelines) before a circle counts as ready. Investigated the existing location field first, then implemented both changes plus a banner-copy cleanup. Committed locally only (not deployed, not pushed), per instruction.
+
+**1. Location field investigation (read-only).** Circles already have a shared `location: locationSchema.optional()` field on the base circle schema (`src/models/models.ts`) — `{ precision, country?, region?, city?, street?, lngLat? }` — included in `SAFE_CIRCLE_PROJECTION`, so it round-trips through `getCircleByHandle`/`getCircleById` like `picture`/`description` already do. The personal-profile "Discoverability" section's own map toggle (`mapVisible`) is a *separate* boolean (whether the pin shows on the public map) from whether a location is actually *set* — the two are orthogonal. A generic "Location" card (`about-settings-form.tsx`, `DynamicLocationField` → `LocationPicker`) already renders for every circle type except venues (venues get their own address-precision variant of the same field) — so artist circles already had a working location-picker UI on their own About Settings page; no new UI was needed. Confirmed via `location-picker.tsx` that a "set" location always carries `lngLat` (map click, search-suggestion select, or "Use Current Location" all set it; the only clear action explicitly drops it) — so `hasLocationSet()` (new, `src/lib/verification-readiness.ts`) checks for a finite `location.lngLat.{lat,lng}` pair, not just any truthy `location` object.
+
+**2. `isPilotArtistCircleReadyToPublish` now requires a location (`src/lib/data/circle.ts`).** Extracted the four checks (picture, About text, location, creator's Community Guidelines) into an internal `getPilotArtistCircleReadinessFlags()` helper, kept `isPilotArtistCircleReadyToPublish` as the boolean gate (same name — still literally "ready to publish", not "ready to auto-publish", so no rename needed), and added a new `getPilotArtistCircleReadiness()` that returns the same shape as the pre-existing `VerificationReadiness` type (`title` + per-item `{key, label, complete}[]`) so the Step 2 banner can reuse the existing `VerificationReadinessChecklist` component instead of prose. Broadened `VerificationReadinessItem.key` to include `"location" | "guidelines"`.
+
+**3. Auto-publish removed; publish is now button-only.** Deleted `maybeAutoPublishPilotArtistCircle` and its two call sites inside `updateCircle()` entirely — `updateCircle` no longer inspects `publishStatus` or flips it for anyone. `publishStatus: "published"` is now written in exactly two places: `publishCircleAction` (`settings/about/actions.ts`) and `publishManagedPeerifyIdentityAction` (`profiles/actions.ts`) — both of which already existed from the 2026-07-28 session and already re-validated `isPilotArtistCircleReadyToPublish` server-side against a fresh DB read before flipping the flag, so they needed no new guard logic, just updated error copy to mention location. Both buttons' `disabled` props were already wired to the same readiness check client-side, so the "Publish circle"/"Publish profile" buttons stay disabled until a location is set. Confirmed nobody can flip `publishStatus` by hitting either action directly with a stale disabled button state: both re-fetch the circle by ID and re-run the readiness check themselves.
+
+**4. Step 1/Step 2 banners rewritten as checklists.** `about-settings-form.tsx`'s "Step 1 of 2: Complete your personal profile" banner and `settings/about/page.tsx`'s "Step 2 of 2" banner were both single paragraphs of prose. Replaced both with `VerificationReadinessChecklist` (Step 1: picture/About/guidelines computed inline from the personal circle + `userAtom`; Step 2: `getPilotArtistCircleReadiness()`), showing per-item done/outstanding state instead of a wall of text. Also removed the stale "Confirm your artist/band name" phrase (no such process exists) from three places it had spread to: the old Step 2 prose banner, the Step 1-complete celebration modal's description, and (for consistency, since it now silently omitted the newly-required field) updated the Home tab's separate "Draft profile" banner and its button's `disabledReason`/`title` tooltip copy to mention map location alongside picture/About/guidelines.
+
+**5. Congrats-modal regression check (no code change).** `home-content.tsx`'s `isOwnArtistCircleLive = isOwnAutoProvisionedArtistCircle && circle.publishStatus === "published"` depends only on `circle.publishStatus`, which now only ever becomes `"published"` via an explicit, server-revalidated button click — so this condition is now strictly *more* correctly gated than before (previously it could only turn true via the auto-publish path this session removed). Confirmed no change needed.
+
+**Verification:** `bun run lint` and `CI=1 bun run build` both clean (only pre-existing warnings, none in touched files). No headless-browser tooling available (same recurring limitation as prior sessions) — verified by hand-tracing: fresh auto-provisioned artist circle (draft, no picture/About/location, guidelines unsigned) → Publish button disabled, checklist all unchecked → Step 1 completed (personal profile picture+About+guidelines) → Step 1 celebration modal fires, artist circle untouched, still draft (no more auto-publish side effect from that save) → Step 2 picture+About done, location still unset → button still disabled, checklist shows only location outstanding → location set and saved → button becomes enabled, `publishStatus` still `"draft"` (setting location alone no longer publishes anything) → "Publish circle" clicked → `publishCircleAction` re-validates server-side and sets `publishStatus: "published"` → next Home-tab visit, `isOwnArtistCircleLive` true, real congrats modal fires once (per the existing `:draft`/`:published`-scoped localStorage key from the 2026-07-31 fix).
+
+**Carry-forward:**
+- Not pushed to `origin/staging` — commits are local only, per instruction. (Deployed to staging later the same day — see the follow-up incident entry directly above this one once added; a bad manual `bun run build` outside `deploy-staging.sh` briefly broke staging before that deploy landed cleanly.)
+- A human click-through on staging.peerify.one is still worth doing once browser tooling is available: particularly confirming the Location card's Mapbox picker renders/saves correctly for artist circles in practice (the schema/wiring is shared with the personal-profile location field, which is exercised elsewhere, but wasn't re-tested live here).
+- Possible real name-confirmation step (the removed "Confirm your artist/band name" copy implied one exists) — flagged as a product suggestion, not built; no such flow currently exists for a name typo caught after signup.
+- "Welcome to Peerify" popup (separate, already-identified follow-up item — suppressing it for artist-path signups) intentionally untouched, out of scope for this session.
+
+---
+
+## 2026-08-01 (cont.) — Diagnosed and fixed a blank-hydration incident on staging (asset-copy/restart skipped outside `deploy-staging.sh`)
+
+Headline: staging.peerify.one broke after the pilot artist-circle changes above were deployed — server-rendered HTML was fine, but all client-side content (Explore's map/list, sidebar nav labels/avatar) was blank. Investigated before touching anything, per instruction.
+
+**Root cause: NOT a bug in today's code — a deploy-mechanics failure.** Specifically checked the new location/readiness code for the null/undefined-access bug this looked like it could be (`hasLocationSet()`, `isPilotArtistCircleReadyToPublish`/`getPilotArtistCircleReadiness`, the checklist rendering) — all short-circuit on `location?.lngLat` before touching `.lat`/`.lng`, so an existing `location: {}` document can't throw there; found nothing wrong. The real cause: something had run `bun run build` directly in the worktree (project-root `.next/BUILD_ID` refreshed to 06:37) without going through `deploy-staging.sh`, so the standalone directory's `.next/static` and `public/` were never copied in (confirmed completely *absent*, not stale) and the `peerify-staging` PM2 process was never restarted (`pm_uptime` dated from 2026-07-31 19:34:37, ~11h before the rebuild). This is the same "asset-copy step skipped + stale process" pattern as the 2026-06-30, 2026-07-08, and 2026-07-03 incidents. Reproduced directly: `curl` for a JS chunk referenced by the current build manifest returned HTTP 400 from the live server — confirming the browser genuinely could not load the client bundle, hence no hydration anywhere on the page.
+
+**Fix:** ran `deploy-staging.sh` properly. All 8 steps passed (build → BUILD_ID `WKa_YVDtYf68w0tvkJBxz` → static/public copied into the standalone dir → nested BUILD_ID match verified → `peerify-staging` restarted → prod pid/uptime confirmed unchanged throughout → HTTP root 200 → static asset 200). Re-ran the same manifest-referenced-chunk check post-deploy: 200 instead of 400. `/` and `/explore` both 200. Prod confirmed untouched (pid 267259, same uptime baseline before and after).
+
+**Carry-forward:**
+- A human click-through on staging.peerify.one is still worth doing to visually confirm the Explore map/list and sidebar render correctly (no browser tooling available in this environment to verify hydration directly).
+- Same recurring root cause as three prior incidents (2026-06-30, 2026-07-08, 2026-07-03): someone/some process is still occasionally running `bun run build` directly instead of `deploy-staging.sh`, bypassing the exact checks the script exists to enforce. `deploy-staging.sh` itself fails loudly and would have caught this immediately if it had been the thing invoked — the gap is upstream of the script, in what actually gets run. Worth a standing reminder (or a guard) that a bare `bun run build` in this worktree is never sufficient on its own.
+
+---
+
+## 2026-07-31 — Fixed a premature "public profile is live" congrats modal; committed a silently-uncommitted step-1/step-3 celebration UX found sitting in the worktree since 2026-07-30
+
+Headline: investigated a report that the artist-circle "Congratulations, [name]'s public profile is live!" modal was firing before the artist had done any of picture/About/guidelines. Root-caused and fixed it (commit `8e47db3a`). While verifying the fix, `git status` turned up four more files modified with no corresponding commit or `SESSION_LOG.md` entry — file mtimes put them at 2026-07-30 21:56–22:02, a session that apparently did real, coherent work and never committed or logged it (same failure mode as the 2026-07-28 entry below, happening again). Investigated that work read-only first, confirmed it was complete and consistent with the current two-step onboarding sequence, then committed it separately (`003002cc`) per instruction — two commits, not squashed together, so the unrelated UX work doesn't get attributed to the bug fix or vice versa. Neither commit has been deployed (`deploy-staging.sh` was not run this session) or pushed to `origin/staging`.
+
+**1. Root cause: congrats modal keyed off the wrong flag (commit `8e47db3a`).** The modal is not a dedicated component — it's the existing "Welcome to Peerify" dialog in `HomeContent` (`src/components/modules/home/home-content.tsx`), with the title/body swapped to congrats copy whenever `isOwnAutoProvisionedArtistCircle` is true. That flag (`src/app/circles/[handle]/layout.tsx`) is a pure ownership/provenance check — circle type + `createdBy` + `metadata.peerify.autoProvisionedFromSignup === true` — set at circle **creation** time (`createPilotArtistCircle`, alongside `publishStatus: "draft"`), completely independent of `circle.publishStatus`. Since an owner can already view their own draft circle (`canViewCircle` in the same layout), simply visiting it — e.g. via the profile switcher, which the modal's own copy points users to — showed the congrats title before any real completion, while the correctly-gated draft banner two lines below said the opposite on the same screen. The actual publish-gating logic (`isPilotArtistCircleReadyToPublish` / `maybeAutoPublishPilotArtistCircle`, `src/lib/data/circle.ts`) was confirmed sound and untouched — this was purely a modal-trigger bug (option (a) of the two possible root causes), not a real premature-publish bug. Confirmed the publish mechanism itself is fully automatic: `updateCircle` calls `maybeAutoPublishPilotArtistCircle` on every relevant save (personal circle update on guidelines-signing, artist circle update on picture/About save), which flips `publishStatus` directly server-side with no manual button click required.
+
+**Fix:** new `isOwnArtistCircleLive = isOwnAutoProvisionedArtistCircle && circle.publishStatus === "published"` drives the congrats copy instead. Also scoped the dismiss-once `localStorage` key (`kamooni:p_profile_welcome_seen:{handle}`) to include draft-vs-published state for this case, so a user who dismissed the false-positive pre-publish version isn't permanently blocked from seeing the real congrats modal once the circle actually goes live later — dismissing under the `:draft` key doesn't suppress the `:published` key.
+
+**2. Committed pre-existing, previously-uncommitted step-1/step-3 celebration UX (commit `003002cc`).** Four files, built correctly on top of the `66015709` two-step restructure (Step 1 = personal profile picture/About/guidelines; Step 2 = artist circle's own picture/About): converts the inline "Step 1 of 2 complete" strip and the Community Guidelines settings card into auto-opening, one-shot modals (`about-settings-form.tsx`, `community-guidelines-settings-card.tsx`, same per-handle localStorage "seen" pattern as the welcome dialog); suppresses `CommunityParticipationBanner` on the personal profile's own Settings/About page where it was self-referential (`settings-layout-wrapper.tsx`); shortens stale "before requesting verification" copy left over from the pre-auto-verify flow (`verification-readiness.ts`). Traced the guidelines modal's `onComplete` through `acceptCodeOfConductAction` → `updateCircle` → `maybeAutoPublishPilotArtistCircle` to confirm it still correctly triggers real auto-publish-checking. Confirmed no storage-key or render-condition overlap with the congrats-modal fix above — three separate modals, three separate key namespaces, on two different pages, and the sequencing (Step 1 celebration → Step 2 completion → real publish → congrats modal on next Home visit) is complementary rather than duplicative.
+
+**Verification:** `bun run lint` and `CI=1 bun run build` both clean across the full working tree (only pre-existing warnings, none in touched files). No headless-browser tooling available in this environment (same recurring limitation as prior sessions) — verified via direct code tracing, not live click-through. A human pass on staging.peerify.one (visit a still-draft auto-provisioned artist circle's own page and confirm generic welcome copy + draft banner, not congrats; complete picture+About+guidelines and confirm the real congrats modal fires) is still worth doing.
+
+**Carry-forward:**
+- Neither commit deployed or pushed — 2 commits ahead of `origin/staging` locally as of this session.
+- Worth a standing habit: check `git status` for unexpected modifications at the *start* of a session, not just when something looks off mid-session — this is the second time a prior session's real work sat silently uncommitted and unlogged for a day-plus.
+- Human click-through on staging still recommended (no headless-browser tooling in this environment).
+
+---
+
+## 2026-07-29 — Root-caused the verification-checklist leak on auto-provisioned artist circles; found Community Guidelines signing is completely unreachable; two smaller UX fixes
+
+Headline: Four items from manual testing on "The Bat Boys" (a real auto-provisioned artist circle). Two were real bugs with root causes deeper than they first looked; two were straightforward copy/UX fixes. Committed (`76f26832`) and deployed to staging — all 8 `deploy-staging.sh` steps passed, prod pid/uptime confirmed unaffected. Prod/main untouched.
+
+**1. Root cause: "Complete this circle before requesting verification" checklist + "Submit for verification" button still rendering on auto-provisioned artist circles.** The 2026-07-28 session's fix gated the hide-logic in `about/page.tsx` on `isProfileCircle` (`circleLevel === "profile_child"`) — but `createPilotArtistCircle` (`src/components/forms/signup/actions.ts`) deliberately creates these circles with `circleLevel: "top_level"` (comment there: "the artist profile is meant to be primary... no parentCircleId"). So `isProfileCircle` is always `false` for real pilot circles, and last session's entire pilot-aware branch — client hide-logic AND the `publishCircleAction` server guard — was dead code as far as real auto-provisioned circles are concerned. They instead render through the pre-existing generic non-profile-circle branch (the checklist + "Submit for verification" button, wired to `submitCircleForVerificationAction`) exactly as seen on "The Bat Boys." Worse: `submitCircleForVerificationAction`'s own `autoProvisionedFromSignup` bypass block (added the same prior session) only checked `getVerificationReadiness(circle)` (picture + About + **cover image** — cover isn't even required by the real pilot bar) and never called `isPilotArtistCircleReadyToPublish`, so it never checked the creator's Community Guidelines signature. That made "Submit for verification" a live, still-unguarded manual-publish bypass for auto-provisioned circles once their own picture/About/cover were filled in, regardless of guidelines. Fixed by keying `about/page.tsx`, `publishCircleAction`, and `submitCircleForVerificationAction` off `autoProvisionedFromSignup` directly (a new `usesPilotPublishFlow = isProfileCircle || isAutoProvisionedArtistCircle`), not `circleLevel`/`isProfileCircle` alone. `submitCircleForVerificationAction` now flatly refuses auto-provisioned circles ("...use the Publish circle button instead") rather than special-casing them with a weaker check.
+
+**2. Investigated, then fixed (founder confirmed): is signing Community Guidelines reachable anywhere?** Confirmed it is reachable **nowhere at all** — worse than "only reactively." `participation-readiness.ts` explicitly documents that the guarded-composer gate (`CommunityParticipationDialog`) only ever checks `profile_incomplete` (picture+About) — "Community Guidelines acceptance... do[es] not currently affect this gate" by design, so the reactive composer flow never prompts for it either. The only UI that ever rendered guidelines-signing (`CodeOfConductAgreement`, inside `VerifyAccountButton`'s "guidelines" dialog mode) has been commented out at all three of its render sites (`home-content.tsx`, `user-toolbox.tsx`, `verification-settings-card.tsx` via `subscription-form-settings.tsx`) as collateral damage from the 2026-07-08 auto-verify migration — that migration correctly hid the *manual request-verification* flow for personal profiles, without realizing it was also the sole home of guidelines-signing, which only later became load-bearing when `isPilotArtistCircleReadyToPublish` was added on 07-28. Separately found `src/components/auth/community-guidelines-gate.tsx` (`CommunityGuidelinesAgreementFlow`, a richer 5-rule-at-a-time flow) is completely unimported/orphaned since `685e8362` ("Simplify pilot verification flow", May 25) replaced it with the simpler single-checkbox `CodeOfConductAgreement` — it is dead code today, not a currently-live shared path. Both components write to the same `communityGuidelinesAcceptance` field so there's no data-model inconsistency between them.
+
+**Fix (commit `d600e015`):** new `CommunityGuidelinesSettingsCard` (`src/components/forms/circle-settings/community-guidelines-settings-card.tsx`), rendered in `AboutSettingsForm`'s personal-profile (`isUserProfile`) branch. Shows a green completed-state summary (all five rule titles + accepted date) once signed; otherwise embeds the existing `CodeOfConductAgreement`/`acceptCodeOfConductAction` flow inline — reusing the same one-shot-accept-all-five action `VerifyAccountButton` already used, not the orphaned rule-by-rule `CommunityGuidelinesAgreementFlow`, to avoid introducing a second signing UX. Two data-plumbing subtleties resolved before writing it (researched via a sub-agent first): (a) the `circle` prop `about/page.tsx`/`AboutSettingsForm` already have is fetched via `getCircleByHandle`/`getCircleById`, which use `SAFE_CIRCLE_PROJECTION` — that projection excludes `communityGuidelinesAcceptance`/`communityGuidelinesAcceptedAt` entirely, so the new card reads them off the globally-hydrated `userAtom` (the viewer's own `UserPrivate`, populated app-wide via `Authenticator`'s `checkAuth()` call) instead; (b) `/circles/[handle]/settings/about` is **not itself ownership-gated at the route level** (unlike `settings/subscription/page.tsx`'s explicit `user.handle !== circle.handle` check) — only the save/publish server actions enforce `isAuthorized` — so the new card takes an `ownProfileHandle` prop and renders `null` unless the viewer's own atom `handle` matches the profile being viewed, to avoid showing the viewer's own guidelines status on someone else's settings page if they land there directly by URL.
+
+**3. Added a real "Complete profile" button to `CommunityParticipationBanner`** (`community-participation-banner.tsx`) — was a plain text link ("Complete your profile →") easy to miss next to the bolded "personal profile" text. Now a proper `Button asChild` linking to the personal profile's Settings/About page, matching the button already used in `CommunityParticipationDialog`.
+
+**4. Disambiguated generic profile-update success toasts.** `about-settings-form.tsx`'s save toast ("Circle profile updated successfully") and `updateCircleField`'s generic message (`home/actions.ts`, surfaced directly by `editable-field.tsx`/`editable-image.tsx`) didn't say which profile was saved — both are shared across personal/artist/venue/community circle types. Both now branch on `circleType === "user"` → "Personal profile updated successfully", else `` `${circle.name} profile updated successfully` ``. Left `circle-wizard/actions.ts`'s per-step messages ("Profile/Mission/Location/... updated successfully") alone — those fire during a single linear circle-creation flow with no personal/artist ambiguity — and `settings/about/actions.ts`'s "Circle workflow updated successfully", which explicitly excludes `circleType: "user"` already.
+
+**Verification:** `bun run lint` (only pre-existing warnings) and `CI=1 bun run build` both clean. Deployed via `deploy-staging.sh`, all 8 steps passed (build, BUILD_ID match, static-asset copy verified, staging restarted, prod pid/uptime confirmed unaffected throughout, HTTP root + static-asset checks 200). No headless-browser tooling available in this environment (same recurring limitation as prior sessions) — verified via direct code tracing of the exact render/gating conditions and the actual `circleLevel`/`autoProvisionedFromSignup` values `createPilotArtistCircle` writes, not live click-through. A human pass on staging.peerify.one against a real auto-provisioned circle (e.g. re-testing "The Bat Boys") is still worth doing.
+
+**Verification (item 2 fix):** `bun run lint` and `CI=1 bun run build` both clean; deployed via `deploy-staging.sh`, all 8 steps passed, prod pid/uptime unaffected. No headless-browser tooling available — a human click-through on staging.peerify.one (sign guidelines from a personal profile's About Settings page, confirm the pilot artist circle then auto-publishes) is still worth doing.
+
+**Carry-forward:**
+- Not merged to `main`/prod — staged only, per this feature's existing pattern. 6 commits ahead of `origin/staging`, not pushed.
+- Human click-through on staging still recommended for all of today's fixes (no headless-browser tooling in this environment, same recurring limitation as prior sessions).
+
+---
+
+## 2026-07-28 — Shipped staged pilot artist-circle work; fixed ambiguous participation-banner copy and an unguarded manual-publish bug
+
+Headline: Found a large uncommitted diff already sitting in the staging worktree (pilot
+artist-path auto-provisioning, magic-link login, the "Welcome to Peerify" modal) — never
+committed by whatever session produced it. Committed it as-is plus two fixes found in this
+session's manual-testing pass, then deployed to staging (commit `26382ca8`). Prod untouched.
+
+**1. Ambiguous "Complete your profile to post, comment, and react in the Community" banner.**
+Traced every render site: `CommunityParticipationBanner` (Settings pages via
+`settings-layout-wrapper.tsx`, and the Home tab via `AboutPage.tsx`), `CommunityParticipationDialog`
+(the guarded composer/comment click-through), and the two collapsed-composer placeholder
+strings in `community-composer-guarded.tsx`/`post-list.tsx`. Reworded all of them to say
+"personal profile" explicitly (bolded in the banner), matching the welcome modal's existing
+copy. Found a second, functional bug underneath the wording while doing this:
+`CommunityParticipationBanner` computed readiness from whatever `circle` was being viewed,
+not the viewer's own personal profile — on an owned artist/venue circle's Home or Settings
+tab this checked that circle's own `isVerified` field, which auto-verify never sets (only
+personal, `circleType: "user"` profiles auto-verify), so the banner would never clear even
+after the real gate (the owner's personal profile) was complete, and its "Complete your
+profile" link pointed at that circle's own Settings/About instead of the personal profile
+that actually needed completing. Fixed by passing the viewer's own `UserPrivate` (already
+available via `userAtom` at both call sites) through as a new `viewerPersonalProfile` prop and
+using it as the readiness subject whenever the circle being viewed isn't the personal profile
+itself. Verified the before/after behavior directly against `getParticipationState`/
+`shouldShowParticipationBanner` with constructed circle/profile objects (no browser tooling
+available in this environment — same limitation prior sessions hit).
+
+**2. Bug: "Publish profile"/"Publish circle" had no completion check at all.** Traced both
+manual publish surfaces: `publishManagedPeerifyIdentityAction` (`src/app/profiles/actions.ts`,
+behind the `PublishManagedProfileButton` in `home-content.tsx`'s draft banner) and
+`publishCircleAction` (`src/app/circles/[handle]/settings/about/actions.ts`, behind the
+Settings/About page's "Publish circle" button for any `profile_child` circle) — neither checked
+readiness before flipping `publishStatus` to `published`, so a freshly auto-provisioned artist
+circle (default avatar, empty About, guidelines unsigned) could be published with zero edits,
+defeating the point of `maybeAutoPublishPilotArtistCircle`'s gate. Scoping decision: gated only
+circles with `metadata.peerify.autoProvisionedFromSignup === true`, not manually-created
+(CircleWizard "Create" button) managed identities — those have never had a completion gate on
+this button, so there's no existing gate for a manual click to defeat, and gating them now
+would be an unrelated behavior change to that flow, not a bug fix. Extracted the shared bar into
+`isPilotArtistCircleReadyToPublish` (`src/lib/data/circle.ts`, used by both the manual actions
+and the existing auto-publish function) and enforced it server-side in both actions, with the
+buttons also disabled client-side (`about/page.tsx`'s "Publish circle", and a new
+`disabled`/`disabledReason` prop on `PublishManagedProfileButton`) as a UX nicety only — the
+server side is what actually blocks it. Along the way, fixed `hasCustomPicture`
+(`verification-readiness.ts`) to also recognize Peerify's own stock artist/band/venue/profile
+avatar URLs as still-default (it previously only knew about the two generic legacy defaults),
+since otherwise a circle that added About text but never swapped out its stock avatar would
+have read as picture-complete and could have auto-published or manually published prematurely.
+
+**Verification:** `bun run lint` and `CI=1 bun run build` both clean. No headless-browser
+tooling available (same `libnspr4.so` blocker as prior sessions; Claude-in-Chrome extension not
+connected in this environment either) — fell back to the established pattern of exercising the
+real functions directly against throwaway documents in the staging DB (cleaned up after):
+confirmed a fresh zero-edit auto-provisioned circle is blocked from manual publish; confirmed it
+stays blocked once the artist circle's own picture/About are done but the creator's Community
+Guidelines are still unsigned; confirmed signing the guidelines still correctly triggers
+auto-publish afterward (no regression to the existing gate); confirmed a manually-created
+identity's `autoProvisionedFromSignup` flag is correctly absent so the new gate never applies to
+it. Deployed via `deploy-staging.sh` — all 8 steps passed; prod pid/uptime confirmed unaffected
+throughout.
+
+**Carry-forward:** none of this touches `main`/prod — staged only, matching this feature's
+existing pattern of shipping to staging first. Confirmed live via the built bundle (new banner
+copy string present in the staging static chunks) and the deploy script's own HTTP checks;
+a human click-through on staging.peerify.one is still worth doing once browser tooling is
+available, per the usual caveat.
+
+---
+
 ## 2026-07-12 — SDG feature removed platform-wide; Primary Genre built end-to-end as its replacement; map-pin race bug fixed; merged to main and deployed to prod
 
 Headline: Retired the SDG/causes feature across every surface it touched and replaced it with a new Primary Genre field + real server-side search filter, mirroring the old causes/SDG architecture (top-level `Circle` sync + Mongo `$in` queries) rather than client-side filtering. Along the way, found and fixed a pre-existing map-pin race condition, did a round of filter-UI polish, and logged one new known bug for a future design decision. All work merged `staging` → `main` (`bc14ad61`, `ebd83122`, `66721b20`, `80f4fc47`) and deployed to prod; verified live.

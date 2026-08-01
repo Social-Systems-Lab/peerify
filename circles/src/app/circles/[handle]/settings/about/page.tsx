@@ -2,7 +2,13 @@ import { AboutSettingsForm } from "@/components/forms/circle-settings/about-sett
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
-import { getCircleByHandle, getCircleById, getCirclePublishStatus } from "@/lib/data/circle";
+import {
+    getAutoProvisionedArtistCircle,
+    getCircleByHandle,
+    getCircleById,
+    getCirclePublishStatus,
+    getPilotArtistCircleReadiness,
+} from "@/lib/data/circle";
 import { getPendingAttachCircleRequest, getPendingIncomingAttachCircleRequests } from "@/lib/data/circle-attach";
 import { getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { getMember, getMembers } from "@/lib/data/member";
@@ -11,7 +17,7 @@ import { CircleVerificationThreadCard } from "./circle-verification-thread-card"
 import { CircleStructureCard } from "./circle-structure-card";
 import { getVerificationReadiness } from "@/lib/verification-readiness";
 import { VerificationReadinessChecklist } from "@/components/modules/verification/verification-readiness-checklist";
-import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
+import { getPeerifyMetadata, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 
 type PageProps = {
     params: Promise<{ handle: string }>;
@@ -60,6 +66,28 @@ export default async function AboutSettingsPage(props: PageProps) {
     const resolvedCircleLevel = circle.circleLevel ?? (circle.parentCircleId ? "profile_child" : "top_level");
     const isProfileCircle = resolvedCircleLevel === "profile_child";
     const verificationReadiness = getVerificationReadiness(circle);
+    // Same completion bar as isPilotArtistCircleReadyToPublish/getPilotArtistCircleReadiness
+    // (src/lib/data/circle.ts) — a pilot-signup-provisioned artist circle can't be published via
+    // this button either until picture, About text, map location, and the creator's Community
+    // Guidelines signature are all in place. Manually-created (CircleWizard) managed identities
+    // are unaffected.
+    const isAutoProvisionedArtistCircle = getPeerifyMetadata(circle).autoProvisionedFromSignup === true;
+    // createPilotArtistCircle (src/components/forms/signup/actions.ts) deliberately creates these
+    // circles with circleLevel "top_level", not "profile_child" — so isProfileCircle alone is NOT
+    // a reliable signal that a circle should skip the manual-verification UI below. Auto-provisioned
+    // artist circles need the same "publish directly" treatment regardless of circleLevel.
+    const usesPilotPublishFlow = isProfileCircle || isAutoProvisionedArtistCircle;
+    const pilotArtistCircleReadiness =
+        isDraft && isAutoProvisionedArtistCircle ? await getPilotArtistCircleReadiness(circle) : null;
+    const pilotArtistCirclePublishReady = pilotArtistCircleReadiness ? pilotArtistCircleReadiness.isReady : true;
+    // Step 1/Step 2 onboarding framing (about-settings-form.tsx): only fetched for the viewer's
+    // OWN personal profile (circle.did is the personal circle's own did, set at creation — see
+    // getCircles in this file's sibling src/lib/data/circle.ts), matching the ownProfileHandle
+    // gating CommunityGuidelinesSettingsCard already uses, so a visitor to someone else's
+    // personal-profile settings page never learns whether that person has an artist circle
+    // mid-onboarding.
+    const ownAutoProvisionedArtistCircle =
+        isUserProfile && userDid && circle.did === userDid ? await getAutoProvisionedArtistCircle(userDid) : null;
     const statusCopy =
         publishStatus === "draft"
             ? "Draft"
@@ -102,15 +130,20 @@ export default async function AboutSettingsPage(props: PageProps) {
                                     official email you provided.
                                 </p>
                             ) : null}
-                            {!isProfileCircle && isDraft && !verificationReadiness.isReady ? (
+                            {!usesPilotPublishFlow && isDraft && !verificationReadiness.isReady ? (
                                 <VerificationReadinessChecklist readiness={verificationReadiness} />
+                            ) : null}
+                            {isDraft && isAutoProvisionedArtistCircle && pilotArtistCircleReadiness ? (
+                                <VerificationReadinessChecklist readiness={pilotArtistCircleReadiness} />
                             ) : null}
                         </div>
                         {isDraft ? (
-                            isProfileCircle ? (
+                            usesPilotPublishFlow ? (
                                 <form action={publishCircleAction}>
                                     <input type="hidden" name="circleId" value={circle._id} />
-                                    <Button type="submit">Publish circle</Button>
+                                    <Button type="submit" disabled={!pilotArtistCirclePublishReady}>
+                                        Publish circle
+                                    </Button>
                                 </form>
                             ) : (
                                 <form action={submitCircleForVerificationAction}>
@@ -177,7 +210,7 @@ export default async function AboutSettingsPage(props: PageProps) {
                     viewerDid={userDid || null}
                 />
             ) : null}
-            <AboutSettingsForm circle={circle} />
+            <AboutSettingsForm circle={circle} ownAutoProvisionedArtistCircle={ownAutoProvisionedArtistCircle} />
         </div>
     );
 }

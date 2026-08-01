@@ -2,9 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
-import { getCircleById, updateCircle } from "@/lib/data/circle";
+import { getCircleById, isPilotArtistCircleReadyToPublish, updateCircle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
-import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
+import { getPeerifyMetadata, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 
 type PublishManagedPeerifyIdentityResult = {
     success: boolean;
@@ -33,6 +33,23 @@ export async function publishManagedPeerifyIdentityAction(circleId: string): Pro
 
     if (circle.publishStatus === "published") {
         return { success: true, message: "Profile is already published." };
+    }
+
+    // Pilot-signup-provisioned artist circles require isPilotArtistCircleReadyToPublish
+    // (src/lib/data/circle.ts) before this manual button can publish them, or it would let a
+    // freshly auto-provisioned circle (default avatar, no About text, no location, guidelines
+    // unsigned) publish with zero edits. Re-validated here server-side regardless of the
+    // button's client-side disabled state. Manually-created (CircleWizard) managed identities
+    // are untouched — they've never had a completion gate on this button.
+    if (getPeerifyMetadata(circle).autoProvisionedFromSignup === true) {
+        const ready = await isPilotArtistCircleReadyToPublish(circle);
+        if (!ready) {
+            return {
+                success: false,
+                message:
+                    "Complete this profile's picture, About text, and map location, and sign the Community Guidelines on your personal profile, before publishing.",
+            };
+        }
     }
 
     await updateCircle({ _id: circle._id, publishStatus: "published" }, userDid);

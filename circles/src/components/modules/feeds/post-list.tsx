@@ -81,9 +81,11 @@ import { HoverCardArrow } from "@radix-ui/react-hover-card";
 import { AiOutlineHeart, AiFillHeart } from "react-icons/ai";
 import { useToast } from "@/components/ui/use-toast";
 import { PostForm } from "./post-form";
-import { isAuthorized } from "@/lib/auth/client-auth";
+import { isAuthorized, hasFeatureAccessIgnoringVerification } from "@/lib/auth/client-auth";
 import { useActingIdentity, canActAsAuthorDid } from "@/lib/utils/acting-identity";
 import { getPostCommentFeature, getPostModerateFeature, LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
+import { getParticipationState } from "@/lib/auth/participation-readiness";
+import { CommunityParticipationDialog } from "@/components/modules/community/community-participation-dialog";
 import { SuggestionDataItem } from "react-mentions";
 import { over, set } from "lodash";
 import ReactMarkdown from "react-markdown";
@@ -352,6 +354,20 @@ export const PostItem = ({
     const canEditPost = isAuthor || canActAsAuthorDid(user, post.createdBy);
     const canModerate = circle && isAuthorized(user, circle, getPostModerateFeature(post.postType));
     const canComment = circle && isAuthorized(user, circle, getPostCommentFeature(post.postType));
+    // Community-scoped participation-readiness: distinguishes "no community.post
+    // permission at all" (existing behavior, unchanged) from "has permission but
+    // isn't participation-ready" (new guarded state) — see
+    // src/lib/auth/participation-readiness.ts. Only postType "community" is
+    // affected; every other postType's canComment/reactions are unchanged.
+    const isCommunityPost = post.postType === "community";
+    const hasCommunityPostPermission =
+        isCommunityPost && circle
+            ? hasFeatureAccessIgnoringVerification(user, circle, getPostCommentFeature(post.postType))
+            : false;
+    const communityParticipation = isCommunityPost ? getParticipationState(user) : null;
+    const isCommunityParticipationGuarded =
+        isCommunityPost && hasCommunityPostPermission && communityParticipation?.canParticipate === false;
+    const [participationDialogOpen, setParticipationDialogOpen] = useState(false);
     // Attribute comments/reactions to whichever persona the profile switcher persistently
     // has active (see useActingIdentity) — independent of which circle's feed this happens
     // to be — re-verified server-side, never trusted blindly.
@@ -1317,7 +1333,18 @@ export const PostItem = ({
                 <div className="flex flex-1 items-center gap-1.5">
                     {/* Likes Section */}
                     <div className="flex h-[24px] cursor-pointer items-center gap-1.5 text-gray-500">
-                        <LikeButton isLiked={isLiked} onClick={handleLikePost} />
+                        {(!isCommunityPost || hasCommunityPostPermission) && (
+                            <LikeButton
+                                isLiked={isLiked}
+                                onClick={() => {
+                                    if (isCommunityParticipationGuarded) {
+                                        setParticipationDialogOpen(true);
+                                        return;
+                                    }
+                                    handleLikePost();
+                                }}
+                            />
+                        )}
                         {likes > 0 && (
                             <HoverCard openDelay={200} onOpenChange={(open) => handleLikesPopoverHover(open)}>
                                 <HoverCardTrigger>
@@ -1510,6 +1537,20 @@ export const PostItem = ({
                 )}
 
                 {/* Comment input box */}
+                {user && isCommunityParticipationGuarded && !disableComments && (
+                    <div className="mt-2 flex items-start gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setParticipationDialogOpen(true)}
+                            onFocus={() => setParticipationDialogOpen(true)}
+                            aria-haspopup="dialog"
+                            aria-expanded={participationDialogOpen}
+                            className="w-full rounded-[20px] bg-gray-100 p-2 text-left text-sm text-gray-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        >
+                            Complete your personal profile to comment in the Community
+                        </button>
+                    </div>
+                )}
                 {user && canComment && !disableComments && (
                     <div className="mt-2 flex items-start gap-2">
                         {/* TODO: Mentions intentionally disabled for launch. Rebuild later using the working chat mention path as the reference. */}
@@ -1529,6 +1570,14 @@ export const PostItem = ({
                             </button>
                         )}
                     </div>
+                )}
+                {communityParticipation && (
+                    <CommunityParticipationDialog
+                        open={participationDialogOpen}
+                        onOpenChange={setParticipationDialogOpen}
+                        participation={communityParticipation}
+                        profileHandle={user?.handle}
+                    />
                 )}
             </div>
         </div>

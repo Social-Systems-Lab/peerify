@@ -9,7 +9,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { MultiImageUploader, ImageItem } from "@/components/forms/controls/multi-image-uploader";
-import { UNVERIFIED_PROFILE_EXPLAINER, canPerformRestrictedAction } from "@/lib/auth/verification";
 import { createPostAction } from "@/components/modules/feeds/actions";
 import { useToast } from "@/components/ui/use-toast";
 import { UserPicture } from "@/components/modules/members/user-picture";
@@ -123,9 +122,6 @@ export function CommunityComposer({ circle, feed, onPostCreated }: CommunityComp
                     size="40px"
                 />
                 <div className="flex-1">
-                    {isExpanded && !canPerformRestrictedAction(user) && (
-                        <p className="mb-2 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
-                    )}
                     {!canPostAsActingIdentity && (
                         <p className="mb-2 text-sm text-muted-foreground">
                             {`You're acting as ${actingIdentity?.name ?? "another persona"}, which can't post in ${circle.name}'s community. Switch back to ${circle.name}${user && user._id !== circle._id ? " or your own profile" : ""} to post here.`}

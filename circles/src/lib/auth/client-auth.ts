@@ -44,11 +44,19 @@ export const hasHigherAccess = (
  * @param feature The feature to check, can be a Feature object or a string in format "moduleHandle.featureHandle" or just "featureHandle" for general features
  * @returns True if the user is authorized, false otherwise
  */
-export const isAuthorized = (user: UserPrivate | undefined, circle: Circle, feature: Feature): boolean => {
-    if (feature.needsToBeVerified && !isVerifiedUser(user) && user?._id !== circle._id) {
-        return false;
-    }
-
+/**
+ * Same access-rule/user-group resolution as isAuthorized, but without the
+ * needsToBeVerified/isVerifiedUser gate — for callers that need to
+ * distinguish "has circle-level permission for this feature" from "is also
+ * participation-ready" (e.g. Community's guarded composer/comment/reaction
+ * states). isAuthorized itself is unchanged; it simply delegates here after
+ * its verification check.
+ */
+export const hasFeatureAccessIgnoringVerification = (
+    user: UserPrivate | undefined,
+    circle: Circle,
+    feature: Feature,
+): boolean => {
     let moduleHandle: string;
     let featureHandle: string;
 
@@ -83,6 +91,28 @@ export const isAuthorized = (user: UserPrivate | undefined, circle: Circle, feat
 
     // Check if the user is in any of the allowed user groups
     return allowedUserGroups.some((group) => membership.userGroups.includes(group));
+};
+
+export const isAuthorized = (user: UserPrivate | undefined, circle: Circle, feature: Feature): boolean => {
+    if (feature.needsToBeVerified && !isVerifiedUser(user) && user?._id !== circle._id) {
+        return false;
+    }
+
+    return hasFeatureAccessIgnoringVerification(user, circle, feature);
+};
+
+/**
+ * "Is the viewer the owner of this circle, or an admin of it" — the same
+ * self-check + admins-group-membership combination already used to gate
+ * About-editing UI (see AboutPage.tsx's isOwner/canEditAbout), but built on
+ * hasFeatureAccessIgnoringVerification rather than isAuthorized so it isn't
+ * itself gated by the circle's own verification state — otherwise an
+ * unverified owner/admin would never see owner/admin-only UI *about* their
+ * own unverified state (e.g. the participation-readiness completion banner).
+ */
+export const isOwnerOrCircleAdmin = (user: UserPrivate | undefined, circle: Circle): boolean => {
+    if (user?.did === circle.did) return true;
+    return hasFeatureAccessIgnoringVerification(user, circle, features.settings.edit_about);
 };
 
 /**

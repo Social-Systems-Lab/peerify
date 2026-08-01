@@ -5,7 +5,7 @@ import HomeModuleWrapper from "./home-module-wrapper";
 import HomeCover from "./home-cover";
 import HomeContent from "./home-content";
 import ContentDisplayWrapper from "@/components/utils/content-display-wrapper";
-import { getCirclesWithMetrics } from "@/lib/data/circle";
+import { getCirclesWithMetrics, hasAutoProvisionedArtistCircle } from "@/lib/data/circle";
 import { getMembersWithMetrics } from "@/lib/data/member";
 
 type HomeModuleProps = {
@@ -29,5 +29,13 @@ export default async function HomeModule(props: HomeModuleProps) {
     let circles = await getCirclesWithMetrics(userDid, circle?._id, searchParams?.sort as SortingOptions);
     let members = await getMembersWithMetrics(userDid, circle?._id, searchParams?.sort as SortingOptions);
 
-    return <HomeContent circle={circle} authorizedToEdit={authorizedToEdit} />;
+    // Only relevant for the viewer's own profile (the only case the welcome dialog renders).
+    const ownsArtistCircle =
+        circle.circleType === "user" && userDid && circle.did === userDid
+            ? await hasAutoProvisionedArtistCircle(userDid)
+            : false;
+
+    return (
+        <HomeContent circle={circle} authorizedToEdit={authorizedToEdit} hasAutoProvisionedArtistCircle={ownsArtistCircle} />
+    );
 }

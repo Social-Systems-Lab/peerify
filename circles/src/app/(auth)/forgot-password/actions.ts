@@ -23,7 +23,9 @@ function isLocalHost(hostname: string): boolean {
     return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
 }
 
-async function resolveResetBaseUrl(): Promise<string> {
+// Exported so requestLoginLinkAction (src/components/forms/login/actions.ts) can reuse the
+// same base-url resolution (docker/local/prod handling) instead of duplicating it.
+export async function resolveResetBaseUrl(): Promise<string> {
     const explicitBaseUrl =
         process.env.NEXT_PUBLIC_APP_URL ||
         process.env.APP_URL ||
