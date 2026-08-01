@@ -44,29 +44,38 @@ const ARTIST_STOCK_AVATAR_URLS = new Set([PEERIFY_DEFAULT_ARTIST_AVATAR_URL, PEE
 const stripStockCoverImages = (images?: Media[]): Media[] =>
     (images || []).filter((image) => !DEFAULT_HERO_IMAGE_URLS.includes(image.fileInfo.url as (typeof DEFAULT_HERO_IMAGE_URLS)[number]));
 
-// Step names across both paths, used only to size the progress bar — the fan "yes" branch is
-// the longest, so it's the denominator; other branches just finish early against it.
-const SHARED_STEPS = ["photo", "about", "location", "guidelines", "explainer"] as const;
-const FAN_STEPS = [
-    ...SHARED_STEPS,
-    "fan-genres",
-    "fan-contribution",
-    "fan-offers-explainer",
-    "fan-offers",
-    "fan-done",
-] as const;
-const ARTIST_STEPS = [
-    ...SHARED_STEPS,
+// Two independent, phase-labeled step counters (replaces one continuous "Step X of 10/12"
+// counter that made both paths — especially the artist one — feel long from the very first
+// frame, and misled anyone who might "Go to profile" early). Each phase resets its own
+// numbering; the role-aware explainer between phases and the final completion screens are
+// deliberately excluded from every array below (and get no stepLabel/progress at all — see
+// `phaseInfo`) since they're checkpoints/endpoints, not steps within a phase.
+//
+// Frames 1a-1d — the shared "Personal profile" phase, 4 real steps.
+const PERSONAL_STEPS = ["photo", "about", "location", "guidelines"] as const;
+// Frames F2/F3(/F3-explainer/F3-expanded) — "Fan setup". F3-explainer and F3-offers only
+// render on the F3 "yes" answer, so the shorter ("maybe"/"no") path finishes against this same
+// 4-step denominator early rather than the counter shrinking after the fact — same convention
+// the old single counter already used for the fan "yes" branch being the longest path.
+const FAN_PHASE_STEPS = ["fan-genres", "fan-contribution", "fan-offers-explainer", "fan-offers"] as const;
+// Frames A2-A5 — "Artist profile", 6 real steps (artist-ready is the completion screen, not
+// counted here).
+const ARTIST_PHASE_STEPS = [
     "artist-solo-band",
     "artist-photo",
     "artist-about",
     "artist-songs",
     "artist-location",
     "artist-genres",
-    "artist-ready",
 ] as const;
 
-type StepName = (typeof FAN_STEPS)[number] | (typeof ARTIST_STEPS)[number];
+type StepName =
+    | (typeof PERSONAL_STEPS)[number]
+    | "explainer"
+    | (typeof FAN_PHASE_STEPS)[number]
+    | "fan-done"
+    | (typeof ARTIST_PHASE_STEPS)[number]
+    | "artist-ready";
 
 type PilotOnboardingFlowProps = {
     personalCircle: UserPrivate;
@@ -92,11 +101,20 @@ export function PilotOnboardingFlow({
     const [step, setStep] = useState<StepName>("photo");
     const [artistIdentityType, setArtistIdentityType] = useState(getInitialArtistIdentityType(artistCircle));
 
-    const orderedSteps = role === "fan" ? FAN_STEPS : ARTIST_STEPS;
-    const progress = useMemo(() => {
-        const index = (orderedSteps as readonly string[]).indexOf(step);
-        return ((index + 1) / orderedSteps.length) * 100;
-    }, [orderedSteps, step]);
+    // Which phase `step` currently belongs to, and that phase's own step count — null for the
+    // explainer/completion screens, which render unnumbered (see stepLabel/progress below).
+    const phaseInfo = useMemo(() => {
+        if ((PERSONAL_STEPS as readonly string[]).includes(step)) {
+            return { label: "Personal profile", steps: PERSONAL_STEPS as readonly string[] };
+        }
+        if ((FAN_PHASE_STEPS as readonly string[]).includes(step)) {
+            return { label: "Fan setup", steps: FAN_PHASE_STEPS as readonly string[] };
+        }
+        if ((ARTIST_PHASE_STEPS as readonly string[]).includes(step)) {
+            return { label: "Artist profile", steps: ARTIST_PHASE_STEPS as readonly string[] };
+        }
+        return null;
+    }, [step]);
 
     // The header/profile-switcher avatar reads from `userAtom`, which is only populated once
     // at initial page load — it doesn't know a picture saved mid-flow via savePilotPictureAction
@@ -126,8 +144,13 @@ export function PilotOnboardingFlow({
         router.push(`/circles/${personalCircle.handle}/home`);
     };
 
-    const stepIndex = (orderedSteps as readonly string[]).indexOf(step) + 1;
-    const stepLabel = `Step ${stepIndex} of ${orderedSteps.length}`;
+    // undefined (not just omitted) for the explainer/completion screens — OnboardingCardShell
+    // only renders the counter block when stepLabel/progress are actually provided, so these
+    // render as plain unnumbered transition/checkpoint cards.
+    const stepLabel = phaseInfo
+        ? `${phaseInfo.label} — Step ${phaseInfo.steps.indexOf(step) + 1} of ${phaseInfo.steps.length}`
+        : undefined;
+    const progress = phaseInfo ? ((phaseInfo.steps.indexOf(step) + 1) / phaseInfo.steps.length) * 100 : undefined;
 
     if (step === "photo") {
         return (
