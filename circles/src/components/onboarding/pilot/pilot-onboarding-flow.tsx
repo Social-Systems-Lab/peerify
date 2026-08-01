@@ -330,12 +330,8 @@ export function PilotOnboardingFlow({
     if (step === "artist-about" && artistCircle) {
         return (
             <OnboardingCardShell
-                title={
-                    artistIdentityType === "band"
-                        ? "Describe yourselves in a few words"
-                        : "Describe yourself in a few words"
-                }
-                subtitle="A sentence or two — fans will see this on your profile."
+                title="A short about me"
+                subtitle="Share a few words about yourselves — fans will see this on your profile."
                 stepLabel={stepLabel}
                 progress={progress}
             >
