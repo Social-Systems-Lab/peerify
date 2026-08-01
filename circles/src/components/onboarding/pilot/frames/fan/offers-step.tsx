@@ -116,6 +116,12 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
                                     <Input
                                         value={offering.label || ""}
                                         onChange={(event) => updateOffering(offering.id, { label: event.target.value })}
+                                        onKeyDown={(event) => {
+                                            // Single-line field — belt-and-suspenders against Enter ever being
+                                            // read as "submit" (no <form> wraps this today, but nothing here
+                                            // should advance the step except the explicit Continue click).
+                                            if (event.key === "Enter") event.preventDefault();
+                                        }}
                                         placeholder="What can you offer?"
                                         maxLength={60}
                                     />
@@ -134,6 +140,12 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
                             <Textarea
                                 value={offering.detail || ""}
                                 onChange={(event) => updateOffering(offering.id, { detail: event.target.value })}
+                                onKeyDown={(event) => {
+                                    // Multi-line field — Enter should only ever insert a newline here.
+                                    // Nothing advances the step except the explicit Continue click below;
+                                    // this just stops the keystroke from bubbling to any ancestor handler.
+                                    if (event.key === "Enter") event.stopPropagation();
+                                }}
                                 placeholder="Add detail (optional)"
                                 maxLength={300}
                                 className="min-h-[60px]"
