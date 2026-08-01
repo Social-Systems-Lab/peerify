@@ -14,7 +14,7 @@ import GalleryTrigger from "./gallery-trigger";
 import { useIsCompact } from "@/components/utils/use-is-compact";
 import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { MessageButton } from "./message-button";
-import { userAtom } from "@/lib/data/atoms";
+import { userAtom, PILOT_ONBOARDING_COMPLETED_STORAGE_KEY } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import { NotificationSettingsDialog } from "@/components/notifications/NotificationSettingsDialog";
 import { Button } from "@/components/ui/button";
@@ -137,8 +137,23 @@ export default function HomeContent({
             completedOnboardingSteps.includes("welcome") ||
             completedOnboardingSteps.includes("member") ||
             completedOnboardingSteps.includes("final");
+        // Anyone who just went through the guided /onboarding/pilot sequence already got a
+        // tailored walkthrough (photo/about/location, role-specific explainers, and — for the
+        // artist path — a dedicated "ready to publish" screen) — showing this generic popup
+        // right after is redundant, and its "are you an artist, use the Create button" copy is
+        // actively nonsensical on someone's own just-built artist circle. See
+        // PILOT_ONBOARDING_COMPLETED_STORAGE_KEY's comment for where this gets set. Deliberately
+        // does NOT suppress the `isOwnArtistCircleLive` congrats copy below — that's a distinct,
+        // legitimate one-time celebration for the moment the circle actually goes live, not the
+        // redundant generic welcome.
+        const hasCompletedPilotOnboarding = Boolean(
+            window.localStorage.getItem(PILOT_ONBOARDING_COMPLETED_STORAGE_KEY),
+        );
         const shouldSuppressWelcomeDialog =
-            isVerifiedUser(circle) || hasContributorPerks(circle) || hasSeenWelcomeOnboarding;
+            isVerifiedUser(circle) ||
+            hasContributorPerks(circle) ||
+            hasSeenWelcomeOnboarding ||
+            (hasCompletedPilotOnboarding && !isOwnArtistCircleLive);
 
         if (shouldSuppressWelcomeDialog) {
             setShowWelcomeDialog(false);
@@ -150,7 +165,7 @@ export default function HomeContent({
         if (!alreadySeen) {
             setShowWelcomeDialog(true);
         }
-    }, [circle, isOwnLandingProfile, welcomeDialogStorageKey]);
+    }, [circle, isOwnLandingProfile, welcomeDialogStorageKey, isOwnArtistCircleLive]);
 
     const handleWelcomeDialogChange = (nextOpen: boolean) => {
         setShowWelcomeDialog(nextOpen);

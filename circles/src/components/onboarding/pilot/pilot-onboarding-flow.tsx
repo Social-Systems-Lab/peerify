@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAtom } from "jotai";
-import { userAtom } from "@/lib/data/atoms";
+import { userAtom, PILOT_ONBOARDING_COMPLETED_STORAGE_KEY } from "@/lib/data/atoms";
 import { getUserPrivateAction } from "@/components/modules/home/actions";
 import { Circle, Track, UserPrivate } from "@/models/models";
 import type { VerificationReadiness } from "@/lib/verification-readiness";
@@ -96,7 +96,21 @@ export function PilotOnboardingFlow({
         if (refreshedUser) setUser(refreshedUser);
     };
 
+    // See PILOT_ONBOARDING_COMPLETED_STORAGE_KEY's own comment (atoms.ts) — marks this
+    // account as having already been through a tailored walkthrough, so HomeContent's
+    // generic "Welcome to Peerify" popup (esp. its "are you an artist" pitch) doesn't show
+    // again right after, on either the personal profile or a just-built artist circle.
+    const markPilotOnboardingComplete = () => {
+        try {
+            window.localStorage.setItem(PILOT_ONBOARDING_COMPLETED_STORAGE_KEY, "1");
+        } catch {
+            // localStorage unavailable (private mode etc.) — non-critical, the dialog just
+            // falls back to its existing suppression rules.
+        }
+    };
+
     const goToProfile = async () => {
+        markPilotOnboardingComplete();
         await refreshUser();
         router.push(`/circles/${personalCircle.handle}/home`);
     };
@@ -255,7 +269,12 @@ export function PilotOnboardingFlow({
     if (step === "fan-done") {
         return (
             <OnboardingCardShell title="You're in" stepLabel={stepLabel} progress={progress}>
-                <FanDoneStep onExplore={() => router.push("/explore")} />
+                <FanDoneStep
+                    onExplore={() => {
+                        markPilotOnboardingComplete();
+                        router.push("/explore");
+                    }}
+                />
             </OnboardingCardShell>
         );
     }
@@ -388,7 +407,10 @@ export function PilotOnboardingFlow({
     }
 
     if (step === "artist-ready" && artistCircle && initialArtistReadiness) {
-        const goToArtistProfile = () => router.push(`/circles/${artistCircle.handle}`);
+        const goToArtistProfile = () => {
+            markPilotOnboardingComplete();
+            router.push(`/circles/${artistCircle.handle}`);
+        };
 
         return (
             <OnboardingCardShell
