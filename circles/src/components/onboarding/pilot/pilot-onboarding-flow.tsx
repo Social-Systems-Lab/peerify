@@ -385,7 +385,7 @@ export function PilotOnboardingFlow({
         return (
             <OnboardingCardShell
                 title="Add a few songs"
-                subtitle="Aim for at least three — this is what most fans will hear first. You can always add more later."
+                subtitle="Add up to three — this is what most fans will hear first. You can add more later from the Music tab."
                 stepLabel={stepLabel}
                 progress={progress}
             >
