@@ -11,17 +11,26 @@ import { PRIMARY_GENRE_MAX_SELECTIONS, PRIMARY_GENRE_OPTIONS } from "@/lib/peeri
 import { savePrimaryGenresAction } from "@/app/onboarding/pilot/actions";
 
 // Shared between Frame F2 (fan) and Frame A5 (artist) — same taxonomy
-// (PRIMARY_GENRE_OPTIONS/PRIMARY_GENRE_MAX_SELECTIONS) the artist Settings/About genre picker
-// already uses, capped at 3 by the underlying zod schema either way.
+// (PRIMARY_GENRE_OPTIONS) the artist Settings/About genre picker already uses. Fans aren't
+// capped here (see maxSelections below, passed as Infinity from the fan-genres step) — the
+// artist side keeps the existing PRIMARY_GENRE_MAX_SELECTIONS default unchanged.
 type GenresStepProps = {
     circleId: string;
     initialGenres?: string[];
     initialGenreOther?: string;
+    maxSelections?: number;
     onContinue: () => void;
     onSkip: () => void;
 };
 
-export function GenresStep({ circleId, initialGenres, initialGenreOther, onContinue, onSkip }: GenresStepProps) {
+export function GenresStep({
+    circleId,
+    initialGenres,
+    initialGenreOther,
+    maxSelections = PRIMARY_GENRE_MAX_SELECTIONS,
+    onContinue,
+    onSkip,
+}: GenresStepProps) {
     const { toast } = useToast();
     const [selected, setSelected] = useState<string[]>(initialGenres || []);
     const [otherText, setOtherText] = useState(initialGenreOther || "");
@@ -30,7 +39,7 @@ export function GenresStep({ circleId, initialGenres, initialGenreOther, onConti
     const toggleGenre = (genre: string) => {
         setSelected((prev) => {
             if (prev.includes(genre)) return prev.filter((g) => g !== genre);
-            if (prev.length >= PRIMARY_GENRE_MAX_SELECTIONS) return prev;
+            if (prev.length >= maxSelections) return prev;
             return [...prev, genre];
         });
     };
@@ -78,7 +87,7 @@ export function GenresStep({ circleId, initialGenres, initialGenreOther, onConti
             </div>
 
             <p className="text-xs text-muted-foreground">
-                {selected.length}/{PRIMARY_GENRE_MAX_SELECTIONS} selected
+                {Number.isFinite(maxSelections) ? `${selected.length}/${maxSelections} selected` : `${selected.length} selected`}
             </p>
 
             {selected.includes("Other") ? (

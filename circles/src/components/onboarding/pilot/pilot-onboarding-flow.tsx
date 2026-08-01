@@ -229,6 +229,7 @@ export function PilotOnboardingFlow({
                     circleId={String(personalCircle._id)}
                     initialGenres={personalCircle.primaryGenres}
                     initialGenreOther={personalCircle.primaryGenreOther}
+                    maxSelections={Infinity}
                     onContinue={() => setStep("fan-contribution")}
                     onSkip={() => setStep("fan-contribution")}
                 />
