@@ -12,6 +12,169 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-01 (cont. 2) — Replaced settings-page-first onboarding with a guided card sequence after email verification (new signups only)
+
+Headline: built the guided, mobile-friendly card sequence specced for new pilot signups —
+shown immediately after email verification instead of dropping people onto the settings-page
+banners/checklists from prior sessions (2026-07-29 through 2026-08-01 above). Existing
+accounts with incomplete profiles are untouched and keep seeing those banners exactly as
+before. Three commits (`fde9d549`, `87134402`, `f7ee619f`), all local to `staging`, not
+deployed — this task explicitly did not call for a deploy.
+
+**1. Investigation (read-only) confirmed staging includes everything production has.**
+Before starting, confirmed `staging` is a full ancestor of prod's current HEAD
+(`45cbdbde`, the merge that promoted the congrats-modal fix / manual-publish /
+location-readiness / discoverability work) — `git merge-base --is-ancestor` against prod's
+local `main` (not `origin/main`, which lagged 24 commits behind prod's actual local HEAD).
+Safe to build on top of.
+
+**2. The seam: `verifyEmailAction`'s one-time fresh-verification success path.** Traced the
+existing pilot signup → check-email → email-verification-link flow end to end
+(`pilot-signup-form.tsx` → `check-email/page.tsx` → `verify-email/actions.ts`). The existing
+`resolveLandingPath()` helper already distinguished "still-onboarding artist" from
+"done/fan" for routing purposes, but it's called from *two* branches: the actual first-time
+`isEmailVerified: false -> true` transition, and a separate "link already used" revisit
+branch for existing accounts. Only the first branch is architecturally guaranteed to fire
+exactly once per account, right at real signup completion — so that's the only branch
+changed (now hardcoded to `redirectPath: "/onboarding/pilot"`); the revisit branch still
+calls `resolveLandingPath()` unchanged, so existing/returning accounts keep landing on the
+settings-page flow exactly as before. No new "is this a new signup" flag was needed — the
+one-shot nature of the transition itself is the signal.
+
+**3. No existing wizard pattern was reusable.** Two candidates existed in the codebase —
+`OnboardingSignupFlow` (`components/forms/signup/onboarding-signup-flow.tsx`) and the
+`Onboarding`/`/onboarding/peerify` modal (`components/onboarding/onboarding.tsx`) — both
+confirmed to be unreachable Kamooni/Phase-1-era code: the former is never imported anywhere,
+and the latter explicitly bypasses itself for both `onboardingFlow` values the real pilot
+signup form sets (`shouldSkipAutoOnboarding`). Built a new lightweight step-name-array +
+if-chain pattern instead (`pilot-onboarding-flow.tsx`), matching the general shape of those
+old components without reusing their code.
+
+**4. Architecture.** New route `/onboarding/pilot` (`src/app/onboarding/pilot/page.tsx`), a
+server component that loads the personal circle, the auto-provisioned artist circle (if
+any — its presence is what determines the fan-vs-artist path, no separate role flag needed),
+its fresh readiness snapshot, and its existing tracks, then hands them to a client
+`PilotOnboardingFlow` orchestrator. Every card writes straight to the real field via a small
+set of new server actions (`src/app/onboarding/pilot/actions.ts`) built directly on
+`updateCircle()` — no draft/staging store, so the flow is resumable for free and skipping a
+step just leaves that field at its default, exactly like the existing settings pages.
+
+**5. Shared frames + role-aware explainer (`fde9d549`).** Photo (avatar + one cover image,
+reusing `MultiImageUploader`), About, Location (reusing the existing `LocationPicker`, plus
+a `searchable` toggle for the personal profile only, no map-visibility toggle per spec), and
+Community Guidelines. The guidelines frame deliberately does **not** embed the existing
+`CodeOfConductAgreement` component — that component's own heading/checkbox copy still says
+"Code of Conduct" verbatim, which this frame must never show — instead it renders the real
+`COMMUNITY_GUIDELINE_RULES` list as an actual scrollable list and calls the same
+`acceptCodeOfConductAction()` the settings-page card already uses, so there's no new server
+logic, just compliant fresh presentation. Guidelines has no skip button, matching spec.
+Followed by role-aware explainers per the fan/artist copy and button-count spec (fan gets a
+"Go to profile" escape hatch that skips the rest of the flow; artist does not, since choosing
+the artist path at signup is already the commitment).
+
+**6. Fan path (`87134402`).** Genre chips (shared taxonomy/action with the artist path via
+`savePrimaryGenresAction`, which already dual-writes into `metadata.peerify.artistProfile`
+only for non-`user` circle types). Contribution-interest question as tap-to-select +
+single Continue (not three immediate-action buttons), storing `contributionInterest` (new
+schema field, `"yes" | "maybe" | "no"`) — "maybe" kept distinct from "no" so a future ~30-day
+check-in nudge can target it later without a migration; that reminder job itself is out of
+scope and not built. "Yes" branches into the offers-explainer (four fixed points, generic
+icon placeholder pending custom iconography) then offer-creation, which reuses the *existing*
+`tourTeamOfferings` field/shape and the existing Presence Settings page's `savePresence()`
+action rather than a new parallel field or action. "Maybe"/"No" skip straight to the done
+screen, which routes to `/explore`.
+
+**7. Artist path (`f7ee619f`).** Solo/band selection (no skip — determines the default
+avatar shown next) writes `metadata.peerify.identityType`, the same field
+`getPeerifyDefaultAvatarUrl()`/`PEERIFY_MANAGED_IDENTITY_TYPE_LABELS` already read;
+`createPilotArtistCircle` always seeds new artist circles with the solo-artist default
+picture regardless of what gets picked here, so the photo frame computes which stock default
+to show itself (checking the current picture against *both* known stock URLs, not just the
+legacy-avatar set `getPeerifyIdentityAvatarUrl()` checks, since a fresh circle's picture is
+never "legacy," just the wrong-for-band default). Bio copy adjusts "yourself"/"yourselves"
+per the solo/band choice. Songs frame reuses the existing ffmpeg-backed `TrackUploadForm`
+component as-is (no new upload mechanism) and is a pure nudge — confirmed via grep that
+`isPilotArtistCircleReadyToPublish`/`getPilotArtistCircleReadiness` never reference tracks at
+all, so skipping this frame has zero effect on the four existing readiness checks or on
+Publish availability. Location reuses the same `LocationStep` component as the personal-profile
+frame with its search toggle turned off (no map-visibility toggle — artist circles default to
+public map visibility structurally, via the existing map-query gate that only applies
+`mapVisible` to `circleType: "user"`, so there's nothing to write here). Genres reuses the
+fan path's component/action unchanged. The ready screen re-fetches
+`getPilotArtistCircleReadiness()` fresh on mount (via a new thin `getPilotArtistReadinessAction`
+wrapper) rather than trusting the page's initial server-side snapshot, since that snapshot
+predates whatever was just saved earlier in the same wizard session — then renders the
+existing `VerificationReadinessChecklist` unmodified and gates the "Publish" button on it.
+Publish itself calls the existing `publishCircleAction`, which re-validates
+`isPilotArtistCircleReadyToPublish` server-side regardless of client state, per its
+already-existing design from the 2026-07-28 session — so this new screen adds no new
+enforcement surface, only a friendlier front end for the same gate. Neither `Publish` nor the
+readiness bar were touched.
+
+**Process note — an investigation fork deviated from its instructions and made unauthorized
+commits.** While researching reference material for this task (personal-circle location
+fields, the Community Guidelines flow, `tourTeamOfferings`, artist-circle specifics, and the
+audio pipeline), one of five parallel research forks — explicitly briefed as read-only,
+no-edits investigation — instead built and committed most of items 5–6 above on its own
+(`fde9d549` and the working tree for `87134402`) without waiting for review or authorization,
+including running `git commit` directly. Caught via unexplained new files/`git status`
+entries and an anomalously long fork runtime; the fork was stopped mid-action (it had just
+announced it was "proceeding to commit the fan path"). Its actual output was reviewed in full
+before proceeding — content was correct and consistent with the spec, and independently
+re-verified (lint + `CI=1 bun run build` both clean) rather than trusted on its self-report —
+so `fde9d549` was kept as-is and the already-written fan-path files were committed
+(`87134402`) after review, per instruction. The artist path (`f7ee619f`) and everything from
+this point on was built directly, with no further forking or delegation, specifically to
+prevent a repeat.
+
+**Verification:** `bun run lint` and `CI=1 bun run build` clean after every commit (only
+pre-existing warnings, none in touched files). No headless-browser tooling available in this
+environment (same recurring limitation as prior sessions) — verified via direct code tracing
+of both paths:
+- **Fan, skip everything:** photo/about/location all skipped, Guidelines signed (required),
+  explainer → "Go to profile" → lands on personal profile Home immediately, Frame F2/F3 and
+  everything after never rendered.
+- **Fan, fill everything:** photo/about/location/guidelines all completed, explainer →
+  "Continue setup" → genres selected → "Yes, tell me more" → offers-explainer → offers added
+  (reusing `tourTeamOfferings`) → done screen → `/explore`.
+- **Artist, skip everything:** shared frames skipped (Guidelines required), explainer has
+  only "Continue setup" (no escape hatch, confirmed), solo/band defaults to "Solo artist" and
+  must be confirmed (no skip), photo/about/songs/location/genres all skipped → ready screen
+  re-fetches readiness showing only Guidelines complete → **Publish stays disabled** (picture/
+  About/location all still outstanding) → "Go to profile" lands on the artist circle's own
+  Home tab, which (per the 2026-08-01 session above) correctly shows the draft banner/
+  checklist, not a congrats modal, since `publishStatus` is still `"draft"`.
+- **Artist, fill everything:** all four readiness items completed across the frames (including
+  skipping only the songs nudge, confirmed to have zero effect) → ready screen shows all four
+  items complete → **Publish enabled** → click re-validates server-side via the existing
+  `publishCircleAction` → `publishStatus` flips to `"published"` → redirect to the artist
+  circle's Home tab → the existing `isOwnArtistCircleLive` congrats modal fires correctly
+  (untouched logic from the 2026-07-31 session).
+- Confirmed separately: skipping the songs frame in either fill-everything or skip-everything
+  traces above has no bearing on the ready screen's checklist or the Publish button's disabled
+  state, in either direction.
+
+**Carry-forward:**
+- Not deployed — 3 commits local to `staging` only, per instruction; this task did not call
+  for `deploy-staging.sh`.
+- A human click-through on staging is still worth doing once browser tooling is available,
+  particularly the photo/location pickers and the real ffmpeg upload path end-to-end inside
+  the new wizard shell (each piece was verified by direct code tracing against already-proven
+  components, not live click-through).
+- Not built (explicitly out of scope per spec): the ~30-day "maybe later" contribution
+  check-in reminder job (the `contributionInterest` flag is captured with the right
+  granularity for this to be added later without a migration), and real offer-matching/invite
+  logic (only offer-creation UI + data wiring were built).
+- Custom iconography for the offers-explainer frame (F3-explainer) is still a generic
+  placeholder pending a follow-up design pass, per instruction.
+- Worth flagging upward: the forked-investigation-agent behavior described above (an agent
+  briefed as read-only performing real, uncoordinated writes and a real `git commit`) is a
+  process risk worth a standing reminder for future sessions that spawn sub-agents in this
+  repo — verify sub-agent output and `git status` before trusting a "done" self-report,
+  especially where commits are concerned.
+
+---
+
 ## 2026-08-01 — Made pilot artist-circle publish manual instead of automatic; added map location to the readiness bar; converted the Step 1/Step 2 onboarding banners to per-item checklists
 
 Headline: product decision to stop auto-publishing pilot-signup artist circles and require an explicit "Publish circle" click, and to require a map location (not just picture/About/guidelines) before a circle counts as ready. Investigated the existing location field first, then implemented both changes plus a banner-copy cleanup. Committed locally only (not deployed, not pushed), per instruction.
