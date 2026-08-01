@@ -12,6 +12,141 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-01 (cont. 3) — Fixed real click-through bugs in the pilot onboarding sequence, plus copy/design fixes and a two-phase step counter
+
+Headline: following a real click-through test of the guided card-based onboarding flow
+(shipped in the 2026-08-01 (cont. 2) session below), fixed four genuine bugs, three
+copy/design issues, and replaced the single continuous step counter with two phase-labeled
+ones. Eight commits, all local to `staging`, not deployed — same as the prior session, this
+task didn't call for a deploy.
+
+**Bug 1 — cover/hero image upload didn't work (`fcd2826a`).** Root cause:
+`MultiImageUploader`'s dropzone disabled itself (`disabled: images.length >= maxImages`) the
+moment its image count reached `maxImages`, with no way to click through to replace. For the
+onboarding photo frames (`maxImages={1}`, a single-cover-photo widget) this meant the upload
+box was broken from the very first render for any account whose circle already carried an
+image in that slot — including the stock default every fresh circle gets seeded with (see Fix
+6 below), which is exactly what onboarding pre-populated. Fixed at the component level (not
+just worked around in onboarding) since `maxImages === 1` is inherently a "replace" widget, not
+an "add until full" one: it now stays clickable with an image present, and a new drop swaps the
+single image instead of appending/blocking. Also benefits `funding-form.tsx`'s single-image
+uploader, which had the identical latent bug.
+
+**Bug 2 — avatar didn't live-update in the header (`cf085d97`).** Root cause: the header/
+profile-switcher avatar reads from `userAtom`, populated once at initial page load.
+`savePilotPictureAction` writes straight to the Circle document server-side and never touched
+that atom — so uploading a photo mid-flow left the header stale until a full reload. For the
+artist path this also meant the switcher never picked up the new artist-circle picture even
+after switching identities, since `getManagedIdentities` reads the same stale `memberships`
+snapshot embedded in the atom. `PhotoStep` already had an unused `onSaved` callback for exactly
+this case — wired it (both the personal and artist photo frames) to refetch
+`getUserPrivateAction()` and update the atom, so the header syncs immediately, no reload
+required. Confirmed via code trace this is the same root cause underlying Bug 1 in spirit
+(state not propagating from a successful save) though the two needed distinct fixes.
+
+**Bug 3 — offer-detail textarea allegedly auto-advancing the step — investigated, no
+reproducible cause found, hardened defensively (`f48a1834`).** Traced the full render path for
+Frame F3-expanded (`offers-step.tsx`, "What could you offer?"): no `<form>` anywhere in the
+component or its ancestors (`OnboardingCardShell`/`Card`/root layout), no `onKeyDown`/`onBlur`
+wiring, `onContinue` only ever called from the explicit Continue click handler, all buttons
+`type="button"`. Spawned a dedicated read-only investigation fork with fresh eyes to check
+angles not yet ruled out (jotai atom side effects, Next.js router-cache revalidation resetting
+client state, a stray `onChange`/`onContinue` typo, the `Input`/`Textarea` primitives
+themselves) — it independently confirmed no reproducible code path exists in current source.
+Best-supported hypothesis: a stale pre-redeploy staging bundle, or a mouse-position artifact
+from the layout reflow when a chip toggle inserts the detail card above the Continue button —
+not a keyboard bug. Added defensive `onKeyDown` guards on both the custom-offering label input
+and the detail textarea anyway (Enter is explicitly prevented on the single-line input,
+explicitly non-propagating but otherwise default — i.e. inserts a newline — on the multi-line
+textarea), so the acceptance criteria hold regardless of root cause.
+
+**Bug 4 — redundant "Welcome to Peerify" popup after artist-path completion (`968e5399`).**
+Root cause: `HomeContent`'s welcome-dialog logic suppresses itself via
+`completedOnboardingSteps` flags the *old* settings-page onboarding flow used to write — the
+new `/onboarding/pilot` sequence never wrote them. Compounding this, `HomeContent`'s own
+`hasAutoProvisionedArtistCircle` prop (which branches the dialog away from the "are you an
+artist... use the Create button" copy) is only ever populated by
+`src/app/circles/[handle]/layout.tsx` when viewing the *personal* profile — never when viewing
+the artist circle itself. So landing on your own just-built, still-draft artist circle (e.g.
+via "Go to profile" without publishing) rendered the fully generic branch, telling someone to
+go create the artist profile they were currently standing on. Fix: `PilotOnboardingFlow` now
+sets a `localStorage` completion flag (`PILOT_ONBOARDING_COMPLETED_STORAGE_KEY`, `atoms.ts`) at
+every exit point of the wizard, both roles; `HomeContent`'s welcome-dialog effect treats that
+flag as an additional suppression signal — deliberately excluding `isOwnArtistCircleLive`, so
+the real "your public profile is live" congrats dialog (existing, correct logic from the
+2026-07-31 session) still fires normally once published.
+
+**Fix 5 — simplified Frame A3.5 bio copy (`d91238d7`).** Dropped the solo/band-conditional
+title ("Describe yourself" vs. "Describe yourselves") for a single consistent "A short about
+me" / "Share a few words about yourselves" pairing that reads naturally either way, matching
+the personal-profile About frame's own title.
+
+**Fix 6 — removed default stock cover images from onboarding (`45218338`).** `createCircle()`
+seeds every fresh circle's `images` with one of a small fixed set of stock hero photos
+(`getDefaultHeroImage`) as a display fallback — correct for an already-published photo-less
+profile, confusing as a pre-populated "your cover image" (with an X to remove it) during
+onboarding. The onboarding photo step now filters those known stock URLs
+(`DEFAULT_HERO_IMAGE_URLS`) out of what it hands `MultiImageUploader`, so the box starts
+genuinely empty. The stored default itself is untouched — skipping this step still leaves the
+existing fallback in place for a photo-less published profile, out of scope here.
+
+**Fix 7 — removed the 3-genre cap for fans (`186cb45d`).** `GenresStep` is shared between Frame
+F2 (fan) and Frame A5 (artist) via one `PRIMARY_GENRE_MAX_SELECTIONS` constant (checked: no
+server-side zod enforcement on this write path — `savePrimaryGenresAction` writes the raw
+client array directly, so the cap was purely a client-side UI limit). Added a `maxSelections`
+prop defaulting to that same constant (A5 completely unchanged) and pass `Infinity` from the
+fan-genres call site only. Confirmed A5 has the identical cap via the same shared
+component/constant — left as-is per instruction, since the intended artist-side limit (if any
+should differ) wasn't part of this task.
+
+**Fix 8 — replaced the single continuous step counter with two phase-labeled ones
+(`5f85b98f`).** The old counter ran "Step X of 10" (fan) / "Step X of 12" (artist) from the very
+first frame, folding shared frames + role-specific frames + the role-aware explainer + the
+final completion screen into one denominator. Verified actual frame counts rather than
+assuming:
+- **"Personal profile — Step X of 4"**: Frames 1a-1d (photo/about/location/guidelines). The old
+  `SHARED_STEPS` array folded the role-aware explainer in as a fifth "step" — that's a
+  transition checkpoint, not a step in this phase, so it's 4, not 5.
+- **"Fan setup — Step X of 4"**: Frames F2/F3/F3-explainer/F3-expanded. The latter two only
+  render on the F3 "yes" answer; kept the denominator fixed at the longer path's length (4)
+  rather than shrinking after the fact on "maybe"/"no" — same convention the old counter
+  already used for the fan branch overall, and avoids a denominator that jumps *up* mid-flow.
+- **"Artist profile — Step X of 6"**: Frames A2/A3/A3.5/A-SONGS/A4/A5. The old `ARTIST_STEPS`
+  array counted the final "ready to publish" screen as a step — that's the phase's completion
+  screen, so it's 6, not 7.
+- The role-aware explainer and both completion screens ("You're in", "Your artist profile is
+  set up") now render fully unnumbered — `stepLabel`/`progress` are `undefined` for them, and
+  `OnboardingCardShell` already only renders the counter block when they're actually provided,
+  so no shell change was needed.
+- This directly addresses the "12 steps feels long" concern: no phase ever shows more than 6
+  steps (not the 5+7 ballpark floated in the task — verified counts are 4+4 for fans, 4+6 for
+  artists), and each phase now gets its own fresh start and its own completion moment instead of
+  one long march.
+
+**Process note.** One investigation fork (Bug 3, explicitly read-only) was spawned and
+completed within its remit this time — reviewed its findings before acting on them, per the
+standing reminder from the 2026-08-01 (cont. 2) session below about verifying sub-agent output.
+No other delegation was used; all fixes were implemented directly.
+
+**Verification:** `bun run lint` and `CI=1 bun run build` clean after every commit (only
+pre-existing warnings, all in files this session didn't touch). No headless-browser tooling
+available in this environment (same recurring limitation) — Bugs 1/2/4 and Fixes 5-8 were
+verified via direct code tracing (root cause identified, fix traced end-to-end through the
+write path and render path); Bug 3 was investigated exhaustively but never reproduced.
+
+**Carry-forward:**
+- Not deployed — 8 commits local to `staging` only, per instruction.
+- A human click-through on staging (once browser tooling is available, or manually) is still
+  the strongest way to confirm Bug 3 doesn't actually reproduce, and to sanity-check the new
+  two-phase step counter and stock-cover-image removal visually.
+- Frame A5's 3-genre cap was left unchanged (Fix 7) — if an artist-side limit change is ever
+  wanted, it needs its own decision on what that limit should be.
+- Structural suggestion only (not implemented, per instruction): several adjacent frames could
+  potentially be combined further without violating the one-decision-per-screen intent — not
+  investigated this session, flagged for a future design discussion if wanted.
+
+---
+
 ## 2026-08-01 (cont. 2) — Replaced settings-page-first onboarding with a guided card sequence after email verification (new signups only)
 
 Headline: built the guided, mobile-friendly card sequence specced for new pilot signups —
