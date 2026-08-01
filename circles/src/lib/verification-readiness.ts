@@ -8,7 +8,7 @@ import {
 } from "@/lib/peerify/artist-profile";
 
 export type VerificationReadinessItem = {
-    key: "picture" | "coverImage" | "aboutText";
+    key: "picture" | "coverImage" | "aboutText" | "location" | "guidelines";
     label: string;
     complete: boolean;
 };
@@ -43,6 +43,17 @@ export const hasAboutText = (circle?: Partial<Circle> | null): boolean => {
     }
 
     return Boolean(circle?.content?.trim() || circle?.description?.trim());
+};
+
+// A "set" location means an actual map pin (lngLat), not just a precision default —
+// LocationPicker (src/components/forms/location-picker.tsx) always writes lngLat when a
+// place is picked (map click, search suggestion, or "Use Current Location"), and clearing
+// it (handleClearLocation) writes back `{ precision }` with lngLat omitted.
+export const hasLocationSet = (circle?: Partial<Circle> | null): boolean => {
+    const lngLat = circle?.location?.lngLat;
+    return Boolean(
+        lngLat && Number.isFinite(lngLat.lat) && Number.isFinite(lngLat.lng),
+    );
 };
 
 export const getVerificationReadiness = (circle?: Partial<Circle> | null): VerificationReadiness => {

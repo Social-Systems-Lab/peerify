@@ -12,8 +12,8 @@ type PublishManagedProfileButtonProps = {
     size?: "default" | "sm";
     className?: string;
     // Server-computed: false when this is a pilot-signup-provisioned artist circle that
-    // hasn't yet met the completion bar (picture, About text, creator's Community
-    // Guidelines signature) — see isPilotArtistCircleReadyToPublish in
+    // hasn't yet met the completion bar (picture, About text, map location, creator's
+    // Community Guidelines signature) — see isPilotArtistCircleReadyToPublish in
     // src/lib/data/circle.ts. Disables the button here as a UX nicety; the server action
     // enforces the same bar regardless, so this can never be bypassed client-side.
     disabled?: boolean;

@@ -200,10 +200,11 @@ export async function publishCircleAction(formData: FormData) {
         return { success: false, message: "Only profile circles can be published directly" };
     }
 
-    // Same completion bar as maybeAutoPublishPilotArtistCircle (src/lib/data/circle.ts) and
+    // Same completion bar as isPilotArtistCircleReadyToPublish (src/lib/data/circle.ts) and
     // publishManagedPeerifyIdentityAction (src/app/profiles/actions.ts) — a pilot-signup-
-    // provisioned artist circle must not be publishable manually before its picture, About
-    // text, and creator's Community Guidelines signature are all in place. Manually-created
+    // provisioned artist circle must not be publishable before its picture, About text, map
+    // location, and creator's Community Guidelines signature are all in place. Re-validated
+    // here server-side regardless of the button's client-side disabled state. Manually-created
     // (CircleWizard) managed identities are unaffected.
     if (isAutoProvisionedArtistCircle) {
         const ready = await isPilotArtistCircleReadyToPublish(circle);
@@ -211,7 +212,7 @@ export async function publishCircleAction(formData: FormData) {
             return {
                 success: false,
                 message:
-                    "Complete this profile's picture and About text, and sign the Community Guidelines on your personal profile, before publishing.",
+                    "Complete this profile's picture, About text, and map location, and sign the Community Guidelines on your personal profile, before publishing.",
             };
         }
     }

@@ -46,8 +46,9 @@ const generateUniqueArtistHandle = async (baseName: string): Promise<string> => 
 // personal circle the auto-generated afterthought). Reuses the same createCircle() +
 // addMember() path the CircleWizard "Create" button uses, rather than extending
 // createUserAccount/createNewUser. Starts as publishStatus "draft"; see
-// maybeAutoPublishPilotArtistCircle in src/lib/data/circle.ts for the auto-transition
-// to "published" once picture + About text + Community Guidelines are all complete.
+// isPilotArtistCircleReadyToPublish in src/lib/data/circle.ts for the readiness bar
+// (picture + About text + map location + Community Guidelines) that gates the manual
+// "Publish circle" button once all of it is complete.
 const createPilotArtistCircle = async (userDid: string, bandOrVenueName: string): Promise<void> => {
     const handle = await generateUniqueArtistHandle(bandOrVenueName);
     const { did } = generateLocalDidAndPublicKey();

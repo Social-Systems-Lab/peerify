@@ -65,11 +65,10 @@ export default async function RootLayout(props: Props) {
             : false;
 
     // Gates the manual "Publish profile" button in HomeContent's draft banner — a pilot-
-    // signup-provisioned artist circle must meet the same completion bar as
-    // maybeAutoPublishPilotArtistCircle (picture, About text, creator's Community Guidelines
-    // signature) before it can be published manually, or that button defeats the whole point
-    // of gating auto-publish on it. Manually-created (CircleWizard) managed identities were
-    // never gated here and stay that way.
+    // signup-provisioned artist circle must meet isPilotArtistCircleReadyToPublish's
+    // completion bar (picture, About text, map location, creator's Community Guidelines
+    // signature) before it can be published. Manually-created (CircleWizard) managed
+    // identities were never gated here and stay that way.
     const isDraftAutoProvisionedArtistCircle =
         circle.circleType !== "user" &&
         (circle.publishStatus ?? "published") === "draft" &&

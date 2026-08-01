@@ -35,19 +35,19 @@ export async function publishManagedPeerifyIdentityAction(circleId: string): Pro
         return { success: true, message: "Profile is already published." };
     }
 
-    // Pilot-signup-provisioned artist circles auto-publish once complete (see
-    // maybeAutoPublishPilotArtistCircle in src/lib/data/circle.ts) — this manual button must
-    // enforce the same completion bar, or it would let a freshly auto-provisioned circle
-    // (default avatar, no About text, guidelines unsigned) publish with zero edits, bypassing
-    // the entire point of that gate. Manually-created (CircleWizard) managed identities are
-    // untouched — they've never had a completion gate on this button.
+    // Pilot-signup-provisioned artist circles require isPilotArtistCircleReadyToPublish
+    // (src/lib/data/circle.ts) before this manual button can publish them, or it would let a
+    // freshly auto-provisioned circle (default avatar, no About text, no location, guidelines
+    // unsigned) publish with zero edits. Re-validated here server-side regardless of the
+    // button's client-side disabled state. Manually-created (CircleWizard) managed identities
+    // are untouched — they've never had a completion gate on this button.
     if (getPeerifyMetadata(circle).autoProvisionedFromSignup === true) {
         const ready = await isPilotArtistCircleReadyToPublish(circle);
         if (!ready) {
             return {
                 success: false,
                 message:
-                    "Complete this profile's picture and About text, and sign the Community Guidelines on your personal profile, before publishing.",
+                    "Complete this profile's picture, About text, and map location, and sign the Community Guidelines on your personal profile, before publishing.",
             };
         }
     }

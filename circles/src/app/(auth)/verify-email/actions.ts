@@ -19,10 +19,11 @@ interface VerifyEmailResponse {
 // 2", see about-settings-form.tsx / settings/about/page.tsx) starts on the PERSONAL
 // profile's Settings/About page — that's where the step 1 fields (picture, About,
 // CommunityGuidelinesSettingsCard) actually live, not the artist circle's Home tab. Once the
-// artist circle has been published (auto-published via maybeAutoPublishPilotArtistCircle,
-// see src/lib/data/circle.ts), there's no more onboarding to walk them through, so a later
-// email-verification click (e.g. an already-consumed/expired link) just lands them on their
-// personal profile's Home tab like anyone else. Fan-path signups have no auto-provisioned
+// artist circle has been published (manually, via the "Publish circle" button once
+// isPilotArtistCircleReadyToPublish is true — see src/lib/data/circle.ts), there's no more
+// onboarding to walk them through, so a later email-verification click (e.g. an
+// already-consumed/expired link) just lands them on their personal profile's Home tab like
+// anyone else. Fan-path signups have no auto-provisioned
 // artist circle at all, so this is a no-op for them and they land on their personal
 // profile's Home tab exactly as before.
 const resolveLandingPath = async (did: string, fallbackHandle?: string | null): Promise<string | undefined> => {
