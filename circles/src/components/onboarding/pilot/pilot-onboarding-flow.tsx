@@ -13,6 +13,11 @@ import { AboutStep } from "./frames/about-step";
 import { LocationStep } from "./frames/location-step";
 import { GuidelinesStep } from "./frames/guidelines-step";
 import { RoleExplainerStep } from "./frames/role-explainer-step";
+import { GenresStep } from "./frames/genres-step";
+import { ContributionStep } from "./frames/fan/contribution-step";
+import { OffersExplainerStep } from "./frames/fan/offers-explainer-step";
+import { OffersStep } from "./frames/fan/offers-step";
+import { FanDoneStep } from "./frames/fan/fan-done-step";
 
 // Step names across both paths, used only to size the progress bar — the fan "yes" branch is
 // the longest, so it's the denominator; other branches just finish early against it.
@@ -152,6 +157,74 @@ export function PilotOnboardingFlow({ personalCircle, artistCircle, initialArtis
         );
     }
 
-    // Role-specific continuation is wired in as each path is built out.
+    if (step === "fan-genres") {
+        return (
+            <OnboardingCardShell
+                title="Pick a few genres"
+                subtitle="Helps us surface artists you'll actually like."
+                stepLabel={stepLabel}
+                progress={progress}
+            >
+                <GenresStep
+                    circleId={String(personalCircle._id)}
+                    initialGenres={personalCircle.primaryGenres}
+                    initialGenreOther={personalCircle.primaryGenreOther}
+                    onContinue={() => setStep("fan-contribution")}
+                    onSkip={() => setStep("fan-contribution")}
+                />
+            </OnboardingCardShell>
+        );
+    }
+
+    if (step === "fan-contribution") {
+        return (
+            <OnboardingCardShell
+                title="Want to help artists on tour?"
+                subtitle="A spare room, a lift from the station, a hand with promotion — small things that make a huge difference. Totally optional, no pressure either way."
+                stepLabel={stepLabel}
+                progress={progress}
+            >
+                <ContributionStep
+                    onSelected={(value) => setStep(value === "yes" ? "fan-offers-explainer" : "fan-done")}
+                />
+            </OnboardingCardShell>
+        );
+    }
+
+    if (step === "fan-offers-explainer") {
+        return (
+            <OnboardingCardShell title="How offers work" stepLabel={stepLabel} progress={progress}>
+                <OffersExplainerStep onContinue={() => setStep("fan-offers")} />
+            </OnboardingCardShell>
+        );
+    }
+
+    if (step === "fan-offers") {
+        return (
+            <OnboardingCardShell
+                title="What could you offer?"
+                subtitle="Pick as many as apply — you can add detail or change these anytime."
+                stepLabel={stepLabel}
+                progress={progress}
+            >
+                <OffersStep
+                    circleId={String(personalCircle._id)}
+                    circleHandle={personalCircle.handle || ""}
+                    initialOfferings={personalCircle.tourTeamOfferings}
+                    onContinue={() => setStep("fan-done")}
+                />
+            </OnboardingCardShell>
+        );
+    }
+
+    if (step === "fan-done") {
+        return (
+            <OnboardingCardShell title="You're in" stepLabel={stepLabel} progress={progress}>
+                <FanDoneStep onExplore={() => router.push("/explore")} />
+            </OnboardingCardShell>
+        );
+    }
+
+    // Artist-path continuation is wired in as that path is built out.
     return null;
 }
