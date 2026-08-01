@@ -604,6 +604,10 @@ export const circleSchema = z.object({
     lastActionableEmailDigestAt: z.date().optional(),
     communityGuidelinesAcceptance: communityGuidelineAgreementStateSchema.optional(),
     communityGuidelinesAcceptedAt: z.date().optional(),
+    // Captured once, at pilot-signup onboarding (Frame F3 in the fan path) — "maybe" is kept
+    // distinct from "no" so a future ~30-day-active check-in nudge can target it without a
+    // data migration. That reminder job itself is not built yet.
+    contributionInterest: z.enum(["yes", "maybe", "no"]).optional(),
     metadata: z.record(z.string(), z.any()).optional(), // For storing additional data like commentPostId
     // Password Reset Fields
     passwordResetToken: z.string().nullable().optional(),
