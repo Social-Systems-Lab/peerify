@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getUserPrivate } from "@/lib/data/user";
 import { getAutoProvisionedArtistCircle, getPilotArtistCircleReadiness } from "@/lib/data/circle";
+import { getTracksByCircleId } from "@/lib/data/track";
 import { PilotOnboardingFlow } from "@/components/onboarding/pilot/pilot-onboarding-flow";
 
 // Entry point for the guided, card-based onboarding sequence shown immediately after email
@@ -21,13 +22,17 @@ export default async function PilotOnboardingPage() {
     }
 
     const artistCircle = await getAutoProvisionedArtistCircle(userDid);
-    const artistReadiness = artistCircle ? await getPilotArtistCircleReadiness(artistCircle) : null;
+    const [artistReadiness, artistTracks] = await Promise.all([
+        artistCircle ? getPilotArtistCircleReadiness(artistCircle) : Promise.resolve(null),
+        artistCircle?._id ? getTracksByCircleId(String(artistCircle._id)) : Promise.resolve([]),
+    ]);
 
     return (
         <PilotOnboardingFlow
             personalCircle={personalCircle}
             artistCircle={artistCircle}
             initialArtistReadiness={artistReadiness}
+            initialArtistTracks={artistTracks}
         />
     );
 }
