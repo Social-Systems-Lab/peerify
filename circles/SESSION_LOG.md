@@ -12,6 +12,35 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-01 (cont. 4) — Two small copy/UI fixes from a further click-through round on the pilot onboarding flow
+
+Headline: much smaller scope than the prior two sessions on this flow — one copy fix, one
+visual-polish fix. Two commits, both local to `staging`, not deployed (this task didn't call
+for one).
+
+**Fix 1 — songs-frame copy contradicted its own 3-song hard cap (`29efb946`).** Frame A-SONGS
+said "Aim for at least three ... you can always add more later" while on this exact step — but
+`SongsStep` already enforces `MAX_TRACKS_PER_ARTIST = 3` as a hard ceiling, showing "You've
+added the max of 3 for now — you can swap tracks later from the Music tab" once reached. "Aim
+for at least" implied a floor with room to keep going right here, when 3 was actually the most
+possible at this step. Reworded the subtitle to "Add up to three ... you can add more later
+from the Music tab" to match the cap's own existing copy instead of contradicting it.
+
+**Fix 2 — genre-selection counter wasn't prominent enough (`69b46085`).** Frames F2 (fan) and
+A5 (artist) share `GenresStep`'s "X/Y selected" counter, previously small muted `<p>` text.
+Switched it to the existing `Badge` component (`secondary` variant — same neutral bg/text
+tokens already used elsewhere in the app) at `text-sm` instead of the default `text-xs`, giving
+it a small pill treatment without introducing any new color or component.
+
+**Verification:** `bun run lint` and `CI=1 bun run build` clean after each commit. Both fixes
+are copy/CSS-only — no new logic paths, so verified by reading the resulting markup/copy
+against the described contradiction and the existing design-system tokens rather than a
+runtime trace.
+
+**Carry-forward:** not deployed — 2 commits local to `staging` only, per instruction.
+
+---
+
 ## 2026-08-01 (cont. 3) — Fixed real click-through bugs in the pilot onboarding sequence, plus copy/design fixes and a two-phase step counter
 
 Headline: following a real click-through test of the guided card-based onboarding flow
