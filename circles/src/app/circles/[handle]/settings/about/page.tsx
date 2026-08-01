@@ -7,7 +7,7 @@ import {
     getCircleByHandle,
     getCircleById,
     getCirclePublishStatus,
-    isPilotArtistCircleReadyToPublish,
+    getPilotArtistCircleReadiness,
 } from "@/lib/data/circle";
 import { getPendingAttachCircleRequest, getPendingIncomingAttachCircleRequests } from "@/lib/data/circle-attach";
 import { getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
@@ -66,18 +66,20 @@ export default async function AboutSettingsPage(props: PageProps) {
     const resolvedCircleLevel = circle.circleLevel ?? (circle.parentCircleId ? "profile_child" : "top_level");
     const isProfileCircle = resolvedCircleLevel === "profile_child";
     const verificationReadiness = getVerificationReadiness(circle);
-    // Same completion bar as maybeAutoPublishPilotArtistCircle/isPilotArtistCircleReadyToPublish
+    // Same completion bar as isPilotArtistCircleReadyToPublish/getPilotArtistCircleReadiness
     // (src/lib/data/circle.ts) — a pilot-signup-provisioned artist circle can't be published via
-    // this button either until picture, About text, and the creator's Community Guidelines
-    // signature are all in place. Manually-created (CircleWizard) managed identities are unaffected.
+    // this button either until picture, About text, map location, and the creator's Community
+    // Guidelines signature are all in place. Manually-created (CircleWizard) managed identities
+    // are unaffected.
     const isAutoProvisionedArtistCircle = getPeerifyMetadata(circle).autoProvisionedFromSignup === true;
     // createPilotArtistCircle (src/components/forms/signup/actions.ts) deliberately creates these
     // circles with circleLevel "top_level", not "profile_child" — so isProfileCircle alone is NOT
     // a reliable signal that a circle should skip the manual-verification UI below. Auto-provisioned
     // artist circles need the same "publish directly" treatment regardless of circleLevel.
     const usesPilotPublishFlow = isProfileCircle || isAutoProvisionedArtistCircle;
-    const pilotArtistCirclePublishReady =
-        isDraft && isAutoProvisionedArtistCircle ? await isPilotArtistCircleReadyToPublish(circle) : true;
+    const pilotArtistCircleReadiness =
+        isDraft && isAutoProvisionedArtistCircle ? await getPilotArtistCircleReadiness(circle) : null;
+    const pilotArtistCirclePublishReady = pilotArtistCircleReadiness ? pilotArtistCircleReadiness.isReady : true;
     // Step 1/Step 2 onboarding framing (about-settings-form.tsx): only fetched for the viewer's
     // OWN personal profile (circle.did is the personal circle's own did, set at creation — see
     // getCircles in this file's sibling src/lib/data/circle.ts), matching the ownProfileHandle
@@ -131,15 +133,8 @@ export default async function AboutSettingsPage(props: PageProps) {
                             {!usesPilotPublishFlow && isDraft && !verificationReadiness.isReady ? (
                                 <VerificationReadinessChecklist readiness={verificationReadiness} />
                             ) : null}
-                            {isDraft && isAutoProvisionedArtistCircle ? (
-                                <p className="text-sm font-semibold text-foreground">Step 2 of 2: Complete your public artist profile</p>
-                            ) : null}
-                            {isDraft && isAutoProvisionedArtistCircle && !pilotArtistCirclePublishReady ? (
-                                <p className="text-sm text-muted-foreground">
-                                    Confirm your artist/band name, add a picture, and add About text here — and make
-                                    sure you&apos;ve signed the Community Guidelines on your personal profile (step
-                                    1) — to finish and publish your artist profile.
-                                </p>
+                            {isDraft && isAutoProvisionedArtistCircle && pilotArtistCircleReadiness ? (
+                                <VerificationReadinessChecklist readiness={pilotArtistCircleReadiness} />
                             ) : null}
                         </div>
                         {isDraft ? (

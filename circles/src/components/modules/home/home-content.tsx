@@ -240,7 +240,7 @@ export default function HomeContent({
                                 see this.{" "}
                                 {pilotArtistCirclePublishReady
                                     ? "Publish when you're ready to share it."
-                                    : "Add a picture and About text here, and sign the Community Guidelines on your personal profile, before you can publish it."}
+                                    : "Add a picture, About text, and a map location here, and sign the Community Guidelines on your personal profile, before you can publish it."}
                             </p>
                             {circle._id ? (
                                 <PublishManagedProfileButton
@@ -248,7 +248,7 @@ export default function HomeContent({
                                     label="Publish profile"
                                     className="shrink-0 bg-amber-900 text-white hover:bg-amber-800"
                                     disabled={!pilotArtistCirclePublishReady}
-                                    disabledReason="Complete this profile's picture and About text, and sign the Community Guidelines on your personal profile, before publishing."
+                                    disabledReason="Complete this profile's picture, About text, and map location, and sign the Community Guidelines on your personal profile, before publishing."
                                 />
                             ) : null}
                         </div>

@@ -15,7 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommunityGuidelinesSettingsCard } from "@/components/forms/circle-settings/community-guidelines-settings-card";
 import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
-import { hasAboutText, hasCustomPicture } from "@/lib/verification-readiness";
+import { hasAboutText, hasCustomPicture, type VerificationReadiness } from "@/lib/verification-readiness";
+import { VerificationReadinessChecklist } from "@/components/modules/verification/verification-readiness-checklist";
 import {
     DynamicField,
     DynamicTextField,
@@ -441,11 +442,19 @@ export function AboutSettingsForm({
     // viewer's own communityGuidelinesAcceptance (read off userAtom, same as
     // CommunityGuidelinesSettingsCard does, since SAFE_CIRCLE_PROJECTION excludes that field).
     const isArtistOnboarding = isUserProfile && Boolean(ownAutoProvisionedArtistCircle);
-    const step1Ready =
-        isArtistOnboarding &&
-        hasCustomPicture(circle) &&
-        hasAboutText(circle) &&
-        isCommunityGuidelinesCompleted(user?.communityGuidelinesAcceptance);
+    const step1PictureDone = hasCustomPicture(circle);
+    const step1AboutDone = hasAboutText(circle);
+    const step1GuidelinesDone = isCommunityGuidelinesCompleted(user?.communityGuidelinesAcceptance);
+    const step1Ready = isArtistOnboarding && step1PictureDone && step1AboutDone && step1GuidelinesDone;
+    const step1Readiness: VerificationReadiness = {
+        isReady: step1Ready,
+        title: "Step 1 of 2: Complete your personal profile",
+        items: [
+            { key: "picture", label: "Add a profile picture", complete: step1PictureDone },
+            { key: "aboutText", label: "Add About text", complete: step1AboutDone },
+            { key: "guidelines", label: "Sign the Community Guidelines", complete: step1GuidelinesDone },
+        ],
+    };
     // One-time celebratory modal for reaching step1Ready, tracked per-handle in localStorage
     // (same pattern as the welcome dialog in home-content.tsx). Once dismissed, the page still
     // shows a minimal persistent "Step 1 complete" line below so returning users don't lose
@@ -670,8 +679,8 @@ export function AboutSettingsForm({
                                     <DialogHeader>
                                         <DialogTitle>Step 1 of 2 complete — your personal profile is ready</DialogTitle>
                                         <DialogDescription>
-                                            Next, finish your public artist profile: confirm your artist/band name,
-                                            add a picture, and add About text.
+                                            Next, finish your public artist profile: add a picture, add About text,
+                                            and set your map location.
                                         </DialogDescription>
                                     </DialogHeader>
                                     <DialogFooter>
@@ -696,17 +705,7 @@ export function AboutSettingsForm({
                             </p>
                         </>
                     ) : (
-                        <div className="rounded-lg border border-sky-200 border-l-4 border-l-sky-500 bg-sky-50 p-4 text-sm text-sky-950">
-                            <p className="font-medium">Step 1 of 2: Complete your personal profile</p>
-                            <p className="mt-1 text-sky-900">
-                                Before you can finish setting up{" "}
-                                {ownAutoProvisionedArtistCircle?.name
-                                    ? `${ownAutoProvisionedArtistCircle.name}'s`
-                                    : "your artist"}{" "}
-                                public profile, add a profile picture and About text below, and sign the Community
-                                Guidelines.
-                            </p>
-                        </div>
+                        <VerificationReadinessChecklist readiness={step1Readiness} />
                     )
                 ) : (
                     isUserProfile &&
