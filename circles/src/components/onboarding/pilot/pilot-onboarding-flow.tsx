@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { useAtom } from "jotai";
 import { userAtom, PILOT_ONBOARDING_COMPLETED_STORAGE_KEY } from "@/lib/data/atoms";
 import { getUserPrivateAction } from "@/components/modules/home/actions";
-import { Circle, Track, UserPrivate } from "@/models/models";
+import { Circle, Media, Track, UserPrivate } from "@/models/models";
 import type { VerificationReadiness } from "@/lib/verification-readiness";
 import {
     PEERIFY_DEFAULT_ARTIST_AVATAR_URL,
     PEERIFY_DEFAULT_BAND_AVATAR_URL,
     PeerifyArtistIdentityType,
 } from "@/lib/peerify/artist-profile";
+import { DEFAULT_HERO_IMAGE_URLS } from "@/lib/default-heroes";
 import { OnboardingCardShell } from "./onboarding-card-shell";
 import { PhotoStep } from "./frames/photo-step";
 import { AboutStep } from "./frames/about-step";
@@ -32,6 +33,16 @@ import { ArtistReadyStep } from "./frames/artist/artist-ready-step";
 // Frame A3 needs to treat both as "still a placeholder" rather than "already customized" when
 // picking which default to display for the identity type just selected.
 const ARTIST_STOCK_AVATAR_URLS = new Set([PEERIFY_DEFAULT_ARTIST_AVATAR_URL, PEERIFY_DEFAULT_BAND_AVATAR_URL]);
+
+// createCircle() seeds every fresh circle's `images` with one of a small fixed set of stock
+// hero photos (see getDefaultHeroImage) so profiles never render with a blank cover elsewhere
+// in the app. That's the right fallback for an already-published profile, but showing it as a
+// pre-populated "your cover image" in this onboarding step is confusing (people can't tell if
+// it's already their photo) — so the upload box here should start empty until a real photo is
+// uploaded. The stored default is left untouched in the database; this only affects what this
+// step displays.
+const stripStockCoverImages = (images?: Media[]): Media[] =>
+    (images || []).filter((image) => !DEFAULT_HERO_IMAGE_URLS.includes(image.fileInfo.url as (typeof DEFAULT_HERO_IMAGE_URLS)[number]));
 
 // Step names across both paths, used only to size the progress bar — the fan "yes" branch is
 // the longest, so it's the denominator; other branches just finish early against it.
@@ -129,7 +140,7 @@ export function PilotOnboardingFlow({
                 <PhotoStep
                     circleId={String(personalCircle._id)}
                     initialPictureUrl={personalCircle.picture?.url}
-                    initialImages={personalCircle.images}
+                    initialImages={stripStockCoverImages(personalCircle.images)}
                     reassurance="Private by default, so a missing photo carries no risk. No hard requirement."
                     onSaved={() => void refreshUser()}
                     onContinue={() => setStep("about")}
@@ -318,7 +329,7 @@ export function PilotOnboardingFlow({
                 <PhotoStep
                     circleId={String(artistCircle._id)}
                     initialPictureUrl={artistInitialPictureUrl}
-                    initialImages={artistCircle.images}
+                    initialImages={stripStockCoverImages(artistCircle.images)}
                     onSaved={() => void refreshUser()}
                     onContinue={() => setStep("artist-about")}
                     onSkip={() => setStep("artist-about")}
