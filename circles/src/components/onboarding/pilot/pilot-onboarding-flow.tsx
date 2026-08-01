@@ -87,9 +87,17 @@ export function PilotOnboardingFlow({
         return ((index + 1) / orderedSteps.length) * 100;
     }, [orderedSteps, step]);
 
-    const goToProfile = async () => {
+    // The header/profile-switcher avatar reads from `userAtom`, which is only populated once
+    // at initial page load — it doesn't know a picture saved mid-flow via savePilotPictureAction
+    // changed anything server-side (that write goes straight to the Circle document, bypassing
+    // the atom entirely). Re-fetching here keeps the header in sync without a full page reload.
+    const refreshUser = async () => {
         const refreshedUser = await getUserPrivateAction();
         if (refreshedUser) setUser(refreshedUser);
+    };
+
+    const goToProfile = async () => {
+        await refreshUser();
         router.push(`/circles/${personalCircle.handle}/home`);
     };
 
@@ -109,6 +117,7 @@ export function PilotOnboardingFlow({
                     initialPictureUrl={personalCircle.picture?.url}
                     initialImages={personalCircle.images}
                     reassurance="Private by default, so a missing photo carries no risk. No hard requirement."
+                    onSaved={() => void refreshUser()}
                     onContinue={() => setStep("about")}
                     onSkip={() => setStep("about")}
                 />
@@ -291,6 +300,7 @@ export function PilotOnboardingFlow({
                     circleId={String(artistCircle._id)}
                     initialPictureUrl={artistInitialPictureUrl}
                     initialImages={artistCircle.images}
+                    onSaved={() => void refreshUser()}
                     onContinue={() => setStep("artist-about")}
                     onSkip={() => setStep("artist-about")}
                 />
