@@ -6,6 +6,7 @@ import {
     PEERIFY_DEFAULT_PROFILE_AVATAR_URL,
     PEERIFY_DEFAULT_VENUE_AVATAR_URL,
 } from "@/lib/peerify/artist-profile";
+import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
 
 export type VerificationReadinessItem = {
     key: "picture" | "coverImage" | "aboutText" | "location" | "guidelines";
@@ -45,6 +46,12 @@ export const hasAboutText = (circle?: Partial<Circle> | null): boolean => {
     return Boolean(circle?.content?.trim() || circle?.description?.trim());
 };
 
+// Same check the artist-circle equivalent already uses (getPilotArtistCircleReadinessFlags,
+// src/lib/data/circle.ts) — verifies every individual Community Guidelines rule was actually
+// accepted, not just that some acceptance timestamp exists.
+export const hasAcceptedGuidelines = (circle?: Partial<Circle> | null): boolean =>
+    isCommunityGuidelinesCompleted(circle?.communityGuidelinesAcceptance as any);
+
 // A "set" location means an actual map pin (lngLat), not just a precision default —
 // LocationPicker (src/components/forms/location-picker.tsx) always writes lngLat when a
 // place is picked (map click, search suggestion, or "Use Current Location"), and clearing
@@ -70,6 +77,11 @@ export const getVerificationReadiness = (circle?: Partial<Circle> | null): Verif
                   key: "aboutText",
                   label: "Add About text",
                   complete: hasAboutText(circle),
+              },
+              {
+                  key: "guidelines",
+                  label: "Sign the Community Guidelines",
+                  complete: hasAcceptedGuidelines(circle),
               },
           ]
         : [
