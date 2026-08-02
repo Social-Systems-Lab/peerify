@@ -6,6 +6,7 @@ import { FormSubmitResponse } from "@/models/models";
 import { revalidatePath } from "next/cache";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { Feeds, Members, Posts } from "@/lib/data/db";
+import { getSoleAdminCircles } from "@/lib/data/member";
 import { features } from "@/lib/data/constants";
 
 export async function getCircleByIdAction(id: string) {
@@ -48,6 +49,12 @@ export async function getCircleDeletionStatsAction(circleId: string) {
         // Check if this is a user account
         const isUser = circle.circleType === "user";
 
+        // Phase 0 fix (see SESSION_LOG.md — orphaned-circles investigation): surfaced here too,
+        // proactively, as soon as the delete dialog opens — not just as a failure message after
+        // someone types the confirmation name — since this stats fetch already runs at exactly
+        // that moment (see DeleteCircleButton).
+        const soleAdminCircles = circle.did ? await getSoleAdminCircles(circle.did, circleId) : [];
+
         return {
             success: true,
             stats: {
@@ -55,6 +62,7 @@ export async function getCircleDeletionStatsAction(circleId: string) {
                 feedsCount,
                 postsCount,
                 isUser,
+                soleAdminCircles,
             },
         };
     } catch (error) {
@@ -105,6 +113,27 @@ export async function deleteCircleAction(circleId: string, confirmationName: str
                 success: false,
                 message: "You don't have permission to delete this circle. Only admins can delete circles.",
             };
+        }
+
+        // Phase 0 fix (see SESSION_LOG.md — orphaned-circles investigation): deleteCircle's own
+        // otherMemberships cleanup strips this circle's did from every OTHER circle it's a
+        // member of, with no check for whether that leaves any of them with zero admins —
+        // completely bypassing the "cannot remove the last admin" rule removeMemberAction
+        // already enforces for direct membership removal. Block here instead, before deletion
+        // ever starts, using the same countAdmins-based rule via the shared getSoleAdminCircles
+        // helper (excludeCircleId skips the circle being deleted itself).
+        if (circle.did) {
+            const soleAdminCircles = await getSoleAdminCircles(circle.did, circleId);
+            if (soleAdminCircles.length > 0) {
+                const circleNames = soleAdminCircles.map((c) => c.name || c.handle || "an unnamed circle").join(", ");
+                return {
+                    success: false,
+                    message: `You're the only admin of ${circleNames}. Please transfer ownership or remove ${
+                        soleAdminCircles.length === 1 ? "this circle" : "these circles"
+                    } before deleting this account.`,
+                    data: { soleAdminCircles },
+                };
+            }
         }
 
         // Verify the confirmation name matches the circle name

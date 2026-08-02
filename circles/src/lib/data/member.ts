@@ -176,6 +176,39 @@ export const countAdmins = async (circleId: string): Promise<number> => {
     return await Members.countDocuments({ circleId: circleId, userGroups: "admins" });
 };
 
+// Circles where `did` is currently the SOLE admin — i.e. removing this account/circle would
+// leave that circle with zero admins. Mirrors the same "cannot remove the last admin" rule
+// removeMemberAction already enforces for direct membership removal (via countAdmins above),
+// reused here so account/circle deletion can't silently bypass it via a different code path
+// (see deleteCircle in ./circle.ts, whose otherMemberships cleanup strips this same DID's
+// membership from every circle it belongs to — including any it solely administers — with no
+// such check today). excludeCircleId lets a caller skip the very circle being deleted itself,
+// since that one ceasing to have this admin is expected, not a problem.
+export const getSoleAdminCircles = async (
+    did: string,
+    excludeCircleId?: string,
+): Promise<Array<{ _id: string; name?: string; handle?: string }>> => {
+    const adminMemberships = await Members.find({ userDid: did, userGroups: "admins" }).toArray();
+    const soleAdminCircles: Array<{ _id: string; name?: string; handle?: string }> = [];
+
+    for (const membership of adminMemberships) {
+        if (excludeCircleId && membership.circleId === excludeCircleId) continue;
+
+        const adminCount = await countAdmins(membership.circleId);
+        if (adminCount <= 1) {
+            const circle = await Circles.findOne(
+                { _id: new ObjectId(membership.circleId) },
+                { projection: { name: 1, handle: 1 } },
+            );
+            if (circle) {
+                soleAdminCircles.push({ _id: membership.circleId, name: circle.name, handle: circle.handle });
+            }
+        }
+    }
+
+    return soleAdminCircles;
+};
+
 async function autoAddToMemberChats(userDid: string, circleId: string) {
     // Find the “members” chat in that circle
     const membersChat = await getChatRoomByHandle(circleId, "members");

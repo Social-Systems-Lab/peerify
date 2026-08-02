@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { Circles, Notifications } from "@/lib/data/db";
 import { deleteCircle } from "@/lib/data/circle";
+import { getSoleAdminCircles } from "@/lib/data/member";
 import { Circle, UserPrivate } from "@/models/models";
 import { ObjectId } from "mongodb";
 import { getAuthenticatedUserDid, getServerPublicKey } from "@/lib/auth/auth";
@@ -131,6 +132,27 @@ export async function deleteEntity(id: string) {
     }
 
     try {
+        // Phase 0 fix (see SESSION_LOG.md — orphaned-circles investigation): deleteCircle's own
+        // otherMemberships cleanup strips this entity's did from every OTHER circle it's a
+        // member of, with no check for whether that leaves any of them with zero admins —
+        // completely bypassing the "cannot remove the last admin" rule removeMemberAction
+        // already enforces for direct membership removal. Block here instead, before deletion
+        // ever starts, using the same countAdmins-based rule via the shared getSoleAdminCircles
+        // helper (excludeCircleId skips the entity being deleted itself).
+        const targetCircle = await getCircleById(id);
+        if (targetCircle?.did) {
+            const soleAdminCircles = await getSoleAdminCircles(targetCircle.did, id);
+            if (soleAdminCircles.length > 0) {
+                const circleNames = soleAdminCircles.map((c) => c.name || c.handle || "an unnamed circle").join(", ");
+                return {
+                    success: false,
+                    message: `Cannot delete: this account is the only admin of ${circleNames}. Transfer ownership or remove ${
+                        soleAdminCircles.length === 1 ? "that circle" : "those circles"
+                    } first.`,
+                };
+            }
+        }
+
         await deleteCircle(id);
         revalidatePath("/admin");
         return { success: true, message: "Entity deleted successfully" };

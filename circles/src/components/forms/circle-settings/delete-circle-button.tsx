@@ -35,6 +35,7 @@ export function DeleteCircleButton({ circle }: DeleteCircleButtonProps) {
         feedsCount: number;
         postsCount: number;
         isUser: boolean;
+        soleAdminCircles: Array<{ _id: string; name?: string; handle?: string }>;
     } | null>(null);
     const router = useRouter();
     const { toast } = useToast();
@@ -190,20 +191,40 @@ export function DeleteCircleButton({ circle }: DeleteCircleButtonProps) {
                             </div>
                         ) : null}
 
-                        <p className="mb-4 text-sm text-gray-500">
-                            To confirm, please type the name of the circle: <strong>{circle.name}</strong>
-                        </p>
-                        <div className="grid gap-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="confirmation">Confirmation</Label>
-                                <Input
-                                    id="confirmation"
-                                    value={confirmationText}
-                                    onChange={(e) => setConfirmationText(e.target.value)}
-                                    placeholder="Enter circle name"
-                                />
+                        {deletionStats && deletionStats.soleAdminCircles.length > 0 ? (
+                            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                                <p className="font-medium">Cannot delete yet</p>
+                                <p className="mt-1">
+                                    You&apos;re the only admin of{" "}
+                                    {deletionStats.soleAdminCircles.map((c, i) => (
+                                        <span key={c._id}>
+                                            {i > 0 ? ", " : ""}
+                                            <strong>{c.name || c.handle || "an unnamed circle"}</strong>
+                                        </span>
+                                    ))}
+                                    . Please transfer ownership or remove{" "}
+                                    {deletionStats.soleAdminCircles.length === 1 ? "this circle" : "these circles"}{" "}
+                                    before deleting this account.
+                                </p>
                             </div>
-                        </div>
+                        ) : (
+                            <>
+                                <p className="mb-4 text-sm text-gray-500">
+                                    To confirm, please type the name of the circle: <strong>{circle.name}</strong>
+                                </p>
+                                <div className="grid gap-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="confirmation">Confirmation</Label>
+                                        <Input
+                                            id="confirmation"
+                                            value={confirmationText}
+                                            onChange={(e) => setConfirmationText(e.target.value)}
+                                            placeholder="Enter circle name"
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isDeleting}>
@@ -212,7 +233,11 @@ export function DeleteCircleButton({ circle }: DeleteCircleButtonProps) {
                         <Button
                             variant="destructive"
                             onClick={handleDelete}
-                            disabled={isDeleting || confirmationText !== circle.name}
+                            disabled={
+                                isDeleting ||
+                                Boolean(deletionStats?.soleAdminCircles.length) ||
+                                confirmationText !== circle.name
+                            }
                         >
                             {isDeleting ? "Deleting..." : "Delete Circle"}
                         </Button>
