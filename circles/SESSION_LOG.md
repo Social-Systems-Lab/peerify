@@ -19,11 +19,9 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   restarting PM2 to match) — site-wide breakage, not specific to whatever was being verified.
   Verification builds are fine standalone; just always follow one with a real
   `deploy-staging.sh` run before trusting staging is in a consistent, servable state again.
-  **Currently live (2026-08-02 cont. 4 session):** that session's own verification build means
-  staging's live standalone build is out of sync with `staging` HEAD right now — deploy
-  wasn't requested that session, so it was left as-is per the hazard note above rather than
-  deployed unprompted. Run `deploy-staging.sh` before relying on staging reflecting current
-  code.
+  Resolved as of 2026-08-02 (cont. 4)'s own follow-up deploy — a real `deploy-staging.sh` run
+  was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
+  post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
 
 ---
