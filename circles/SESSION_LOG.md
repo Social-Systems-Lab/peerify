@@ -8,11 +8,74 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
-- **PRODUCT CHANGE (2026-08-02, staging only, not yet deployed):** personal-profile
-  participation (posting/commenting/messaging) now requires Community Guidelines acceptance
-  in addition to picture + About text — see dated entry below. `getVerificationReadiness`
-  is the single source of truth for this; do not add a separate guidelines check elsewhere.
+- **PRODUCT CHANGE (2026-08-02, deployed to staging):** personal-profile participation
+  (posting/commenting/messaging) now requires Community Guidelines acceptance in addition to
+  picture + About text — see dated entry below. `getVerificationReadiness` is the single
+  source of truth for this; do not add a separate guidelines check elsewhere.
+- **OPERATIONAL HAZARD (see 2026-08-02 (cont. 3) incident below):** running a bare
+  `bun run build`/`CI=1 bun run build` in this worktree AFTER a real deploy has happened will
+  silently corrupt the live standalone build (Next.js regenerates `.next/standalone` from
+  scratch, wiping the static assets a prior `deploy-staging.sh` run copied in, without
+  restarting PM2 to match) — site-wide breakage, not specific to whatever was being verified.
+  Verification builds are fine standalone; just always follow one with a real
+  `deploy-staging.sh` run before trusting staging is in a consistent, servable state again.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-02 (cont. 3) — INCIDENT: site-wide "Application error" on staging after deploy, root-caused to a stale/corrupted standalone build (not the Community Guidelines change)
+
+Headline: immediately after the (cont. 2) Community Guidelines deploy, staging.peerify.one
+showed "Application error: a client-side exception has occurred" — reported on `/explore`,
+confirmed in Chrome and Brave. Investigated on the assumption it was probably NOT the
+Community Guidelines change despite the timing (per the task's own framing), and confirmed
+that directly. No code changes this session — purely investigation + an operational fix
+(`deploy-staging.sh`). Prod untouched throughout.
+
+**Ruled out: `SAFE_CIRCLE_PROJECTION` (today's Fix 1 change).** `/explore`'s actual data path
+(`getSwipeCircles()` in `page.tsx`) uses a completely different, untouched projection
+(`DISCOVERY_CIRCLE_PROJECTION`). The only place `/explore`'s code touches the modified
+projection is `getMetricsForCircles()` fetching the viewer's own record for ranking — traced
+into `getMetrics()` (`src/lib/utils/metrics.ts`) and confirmed it only ever extracts
+`user.location?.lngLat` into a numeric distance/similarity value; it never copies raw fields
+(e.g. the `Date` `communityGuidelinesAcceptedAt`) into anything serialized to the client. No
+serialization path exists from the projection change to `/explore`'s rendered output.
+
+**Actual root cause: a stale build/static-asset manifest mismatch, site-wide, not
+`/explore`-specific — confirmed directly, not inferred.**
+1. Every JS chunk referenced in the server-rendered HTML for both `/explore` and `/` returned
+   **HTTP 400** (checked via direct `curl` against `localhost:3001` and each chunk URL it
+   referenced).
+2. The live standalone build's static directory
+   (`.next/standalone/apps/peerify-staging/circles/circles/.next/static/chunks/`) was
+   **completely empty**.
+3. PM2 (`peerify-staging`) had been running continuously since the (cont. 2) session's real
+   `deploy-staging.sh` run (`07:59:01Z`), but the on-disk standalone `.next/BUILD_ID` had a
+   *later* mtime (`09:06:23Z`) — newer than the running process.
+
+**Mechanism:** Next.js's `output: "standalone"` mode fully regenerates `.next/standalone` from
+scratch on every `next build` — it does not preserve a prior deploy's manually-copied
+`public/`/`.next/static` files (that copy is specifically `deploy-staging.sh`'s Step 4, done
+only during a real deploy). The (cont. 2) session's own verification `CI=1 bun run build`
+calls (run purely to confirm lint/build cleanliness — bare builds, never followed by
+`deploy-staging.sh` within that session) silently regenerated the standalone directory each
+time, wiping the static assets the earlier real deploy had copied in, without PM2 ever
+restarting to match. Same failure class as the 2026-07-03 "blank Explore mid-deploy" incident
+in this log, just a different trigger this time (verification builds racing ahead of the live
+process, rather than a copy/restart race during an active deploy).
+
+**Fix:** ran `deploy-staging.sh` (the sanctioned path) — full rebuild, correct static copy,
+PM2 restart, self-verified BUILD_ID match at its own Step 5. Directly re-verified afterward:
+every JS chunk `/explore`'s HTML now references returns HTTP 200. Prod pid/uptime confirmed
+unaffected throughout (deploy script's own Step 6 check, plus manual confirmation).
+
+**Carry-forward / standing hazard (added to Current Status above):** a bare `bun run build`
+(or `CI=1 bun run build`) run in this worktree *after* a real deploy has happened will
+silently corrupt the live standalone build the next time anyone runs it, regardless of what
+it was being run to verify — it's not scoped to whatever change prompted the build. Fine to
+run standalone for lint/type verification; just always follow one with a real
+`deploy-staging.sh` run before trusting staging is in a servable state again, rather than
+assuming a clean `bun run build` means nothing changed operationally.
 
 ---
 
