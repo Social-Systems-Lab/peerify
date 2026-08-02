@@ -8,6 +8,16 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
+- **KNOWN GAP, ALSO LIVE IN PRODUCTION (see 2026-08-02 (cont. 5) entry below):**
+  deleting a personal account (admin dashboard or self-service — both call the identical
+  `deleteCircle()`) never touches circles that account created/administers. Worse: it silently
+  removes that account's own admin membership row from those circles (via the "fix
+  member-count drift" cleanup), so a single-admin circle is left with zero members of any
+  kind — completely bypassing the existing "cannot remove the last admin" safeguard
+  (`removeMemberAction`), which never runs on this path. Confirmed identical in
+  `~/apps/peerify-app/circles` (prod) — not staging-specific. On staging right now: 17 of 19
+  auto-provisioned artist circles are genuinely orphaned this way. No fix implemented —
+  investigation + proposed options only, pending a product decision.
 - **PRODUCT CHANGE (2026-08-02, deployed to staging):** personal-profile participation
   (posting/commenting/messaging) now requires Community Guidelines acceptance in addition to
   picture + About text — see dated entry below. `getVerificationReadiness` is the single
@@ -23,6 +33,121 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-02 (cont. 5) — Fixed a stale onboarding banner; investigated a serious orphaned-circles gap in account deletion (also live in production)
+
+Headline: one small display-condition fix, plus a read-only investigation into a real
+data-integrity gap that turned out to already be live in production, not staging-specific.
+One commit for the fix; the investigation made no code changes, per instruction.
+
+**Fix — "Step 1 complete — Continue to Step 2" banner outliving Step 2 (`a90978d2`).** Root
+cause: `settings/about/page.tsx` fetched `ownAutoProvisionedArtistCircle` via
+`getAutoProvisionedArtistCircle(userDid)` with no `publishStatus` filter at all — contradicting
+that prop's own documented contract on `AboutSettingsForm` ("only passed down... while that
+artist circle is still unpublished"). `getAutoProvisionedArtistCircle` itself deliberately
+doesn't filter by publish status (other callers, e.g. `/onboarding/pilot`, need the circle
+regardless of publish state), so this call site needed its own filter to honor its promise.
+Fixed at both ends: `page.tsx` now only passes the prop while `publishStatus !== "published"`,
+and `about-settings-form.tsx`'s `isArtistOnboarding` also checks this directly as defense in
+depth. Once published, the component now falls through to the standard "This is your personal
+profile" banner instead of the stale two-step framing — the artist circle's own page already
+celebrates publication (the congrats modal from a prior session), so no new UI was needed.
+
+**Investigation — orphaned public circles after account deletion. Read-only, no fixes
+implemented, per instruction.**
+
+1. **What does account deletion actually do?** Both the admin dashboard (`deleteEntity` in
+   `admin/actions.ts`) and self-service deletion (`deleteCircleAction` in
+   `circles/actions.ts`, reachable via the personal profile's own General settings —
+   confirmed "general" is NOT in `settings-layout-wrapper.tsx`'s hidden-for-`isUser` nav list)
+   call the exact same underlying `deleteCircle(circleId)` — byte-identical behavior, not two
+   diverging implementations. That function deletes the target circle's own Members, feeds,
+   posts, chat rooms, and vector-DB entries, plus (for a personal/`user` circle) the local
+   filesystem user directory — but **never queries for circles the deleted account
+   created/administers at all.** Worse than pure inaction, though: it removes the deleted
+   account's own membership from *every other circle it belongs to* (a separate cleanup block,
+   there specifically to fix a member-count-drift bug, not written with this scenario in mind)
+   — which includes its own admin membership on any circle it created, since the creator is
+   always added as a member at creation time. Net effect: the circle document survives fully
+   intact and publicly visible, but is left with **zero member rows of any kind** — completely
+   bypassing `removeMemberAction`'s existing "cannot remove the last admin" safeguard
+   (`adminCount <= 1` check), which never runs on this path since it's a raw batch delete, not
+   a call to `removeMemberAction`.
+
+2. **Can circles have multiple admins?** Yes — genuinely, not just theoretically.
+   `Members` has no uniqueness constraint limiting a circle to one admin; `updateUserGroupsAction`
+   lets an existing admin promote another member to `"admins"`; there's even a full
+   admin-role-removal-*request* workflow (`createAdminRoleRemovalRequest`/
+   `approveAdminRoleRemovalRequestAction`/`declineAdminRoleRemovalRequestAction`) — real
+   product surface built around multi-admin governance. In practice, though, none of the 19
+   auto-provisioned artist circles on staging have more than the one creator/admin — every one
+   of them is single-owner, so for this specific circle type, "creator's account deleted"
+   and "zero surviving admins" are currently the same thing. Confirmed via direct query
+   (0 circles found in an "some surviving members, zero surviving admins" intermediate state).
+
+3. **Does an "orphaned"/"unclaimed" circle concept already exist?** No — confirmed via a
+   repo-wide grep. The only "orphan"/"unclaimed" hits are unrelated (orphaned *shadow posts* in
+   task/issue/proposal/goal modules; "Unclaimed" *shifts* in the tasks module). Nothing for
+   circles at all.
+
+4. **Does this diverge from production?** No. Read-only, byte-for-byte compared
+   `deleteCircle()` in `~/apps/peerify-staging/circles/circles/src/lib/data/circle.ts` against
+   `~/apps/peerify-app/circles/src/lib/data/circle.ts` (production, `main` branch) — identical,
+   line for line, same comments. This is a pre-existing, already-live gap in production, not
+   something newly relevant because of staging test-account churn. (Aside, not part of the
+   app's runtime code: found a standalone `delete-user.ts` script at the production worktree's
+   root that does a raw, single-document `deleteOne` with zero cascade cleanup at all — an
+   even blunter tool, but a one-off admin script, not the app's actual deletion path.)
+
+5. **Real orphan count on staging (queried directly, not estimated):** 19 auto-provisioned
+   artist circles exist total (`metadata.peerify.autoProvisionedFromSignup: true`) — matches
+   the report exactly. Of those, **17 have zero surviving members of any kind** (their
+   creator's personal account no longer exists, confirmed against the 5 personal accounts
+   currently on staging); only 2 have a surviving creator/admin. Across *all* non-user circles
+   (34 total, including manually-created ones), two more zero-member circles exist but are
+   unrelated to this same mechanism: "Kamooni" (the platform's own legacy default circle, has
+   never had tracked members) and "Aritst artist" (an apparent abandoned test signup) — both
+   noted for completeness, not counted in the 17.
+
+**Proposed options (not implemented — pending direction):**
+- **(a) Cascade-delete owned circles when their last admin's account is deleted.** Reuse the
+  existing `countAdmins`/last-admin-check logic (`removeMemberAction` already has it) so a
+  multi-admin circle only loses that one admin's membership, not the whole circle. Simplest,
+  leaves no orphaned data. Tradeoff: destructive and irreversible — a circle with a real
+  following, tracks, or history could vanish because its founder deleted their *personal*
+  account for unrelated reasons, with no chance to reconsider.
+- **(b) Mark the circle "unclaimed"/hidden-from-discovery when its last admin is deleted,
+  with a reclaim path.** Keep the data, pull it from `/explore`/search/map (would touch
+  `getSwipeCircles`/`DISCOVERY_CIRCLE_PROJECTION`/`search.ts` and similar query paths), and
+  let someone re-claim it later via verified ownership. Non-destructive, reversible, avoids
+  the "deleting my personal account nuked a whole community" surprise. Tradeoff: real new
+  surface to design and build — an unclaimed-state flag, discovery-filtering changes across
+  several query paths, and a reclaim/verification flow with its own anti-abuse considerations.
+- **(c) Leave circles live as-is, but surface them for manual admin review** (an admin-dashboard
+  report/filter for "circles with no surviving admin"). Cheapest to build, keeps a human
+  judgment call in the loop (some circles may warrant deletion, others transfer or
+  preservation) — but doesn't change today's status quo by itself; admin-less circles stay
+  fully live and discoverable until someone acts on the report.
+- Orthogonal to all three: a **pre-deletion warning** at the moment someone deletes their own
+  account ("You administer N circles that have no other admin — deleting your account will
+  leave them without an owner") would catch this proactively rather than reactively, and fits
+  the existing UX pattern (circle deletion already requires typing the circle's name to
+  confirm) — worth doing regardless of which of (a)/(b)/(c) is chosen for the automatic
+  handling.
+
+**Verification (Fix only):** `bun run lint` and `CI=1 bun run build` clean. The investigation
+made zero code or data changes — read-only throughout, confirmed via `git status` before and
+after.
+
+**Carry-forward:**
+- Not deployed — 1 commit local to `staging` only, per instruction.
+- The orphaned-circles gap needs a product decision before any fix is built — flagged
+  prominently in Current Status above given its confirmed production relevance.
+- Worth a full inventory of the 17 orphaned artist circles' actual content (tracks, posts,
+  follower counts) before deciding between options (a)/(b)/(c) — a circle with real
+  engagement is a very different call from an empty test artifact.
 
 ---
 
