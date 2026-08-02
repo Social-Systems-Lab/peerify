@@ -8,16 +8,20 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
-- **KNOWN GAP, ALSO LIVE IN PRODUCTION (see 2026-08-02 (cont. 5) entry below):**
-  deleting a personal account (admin dashboard or self-service — both call the identical
-  `deleteCircle()`) never touches circles that account created/administers. Worse: it silently
-  removes that account's own admin membership row from those circles (via the "fix
-  member-count drift" cleanup), so a single-admin circle is left with zero members of any
-  kind — completely bypassing the existing "cannot remove the last admin" safeguard
-  (`removeMemberAction`), which never runs on this path. Confirmed identical in
-  `~/apps/peerify-app/circles` (prod) — not staging-specific. On staging right now: 17 of 19
-  auto-provisioned artist circles are genuinely orphaned this way. No fix implemented —
-  investigation + proposed options only, pending a product decision.
+- **ORPHANED-CIRCLES ISSUE — Phase 0 fix deployed to staging (see 2026-08-02 (cont. 6) entry
+  below), Phase 1/2 still open, ALSO STILL LIVE IN PRODUCTION:** deleting a personal account
+  (admin dashboard or self-service — both call the identical `deleteCircle()`) never touches
+  circles that account created/administers, and silently strips that account's own admin
+  membership from those circles as a side effect of unrelated member-count-drift cleanup —
+  bypassing the existing "cannot remove the last admin" safeguard (`removeMemberAction`),
+  which never runs on this path. **Phase 0 (this staging-only fix): both deletion entry
+  points now BLOCK the deletion outright** if the account is the sole admin of any circle,
+  naming the affected circle(s) — no new orphaning can happen going forward on staging.
+  **Still open:** production has not been touched (byte-identical gap still live there); the
+  17 circles already orphaned on staging before this fix are untouched (Phase 1); no
+  reclaim/discovery-hiding/formal-orphan-state work has been done (Phase 2). Do not consider
+  this issue closed until Phase 1/2 are addressed or explicitly descoped, and until the
+  Phase 0 fix itself is deployed to production.
 - **PRODUCT CHANGE (2026-08-02, deployed to staging):** personal-profile participation
   (posting/commenting/messaging) now requires Community Guidelines acceptance in addition to
   picture + About text — see dated entry below. `getVerificationReadiness` is the single
@@ -33,6 +37,96 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-02 (cont. 6) — Orphaned-circles issue, Phase 0: block deletion that would orphan a circle
+
+Headline: narrow, urgent safety fix for the gap the (cont. 5) investigation below found —
+deliberately scoped to *just* stopping new orphaning, not the broader long-term handling
+(formal orphan state, discovery hiding, reclaim flows). One commit, local to `staging` only,
+not deployed. Explicitly framed here and in the commit as **Phase 0** of a three-phase plan:
+
+- **Phase 0 (this entry): block deletion outright when it would orphan a circle.** Done.
+- **Phase 1 (not started):** decide what to do with circles already orphaned (17 on staging
+  as of the (cont. 5) investigation) and/or formalize an orphaned/unclaimed state.
+- **Phase 2 (not started):** reclaim/ownership-verification flow for orphaned circles.
+
+**Investigation, per instruction, before implementing:**
+1. Confirmed the exact path again: `deleteCircle()`'s `otherMemberships` cleanup block
+   (`src/lib/data/circle.ts`) strips the deleted did's membership from every circle it
+   belongs to — a side effect of fixing member-count drift, not written with "does this
+   orphan something" in mind. The existing "cannot remove the last admin" safeguard lives in
+   `removeMemberAction` (`src/components/modules/members/actions.ts`): it checks
+   `countAdmins(circleId) <= 1` before letting a single membership be removed. It doesn't run
+   on the deletion path because deletion never calls `removeMemberAction` at all — `deleteCircle`
+   does a raw batch `Members.deleteMany`, an entirely separate code path.
+2. Checked whether that exact safeguard is directly reusable: it isn't, as-is — it's built
+   around removing *one* membership from *one* circle for *one* target member (with its own
+   authorization/access-level checks baked in), not "does deleting this did leave *any* circle
+   it administers with zero admins." So implemented the "block before deletion begins" shape
+   (option b from the task), reusing the underlying `countAdmins` function `removeMemberAction`
+   itself is built on — same rule, new shared entry point (`getSoleAdminCircles`), rather than
+   force-fitting the single-removal function into a different shape.
+
+**Fix:**
+- New `getSoleAdminCircles(did, excludeCircleId?)` in `src/lib/data/member.ts`: finds every
+  circle where `did` is an admin, and returns the ones where `countAdmins(circleId) <= 1` —
+  i.e. removing this did would leave zero admins. `excludeCircleId` skips the very circle
+  being deleted (every personal circle has a self-membership row for its own did, confirmed
+  via a real staging account — Dave Knowles' own personal circle has a Members row for
+  itself — so without this, every deletion would incorrectly flag its own about-to-be-deleted
+  circle as a "orphan").
+- Wired into both entry points the investigation named:
+  - `deleteCircleAction` (self-service, `circles/actions.ts`): blocks with a message naming
+    the affected circle(s), checked before the confirmation-name comparison even runs.
+  - `deleteEntity` (admin dashboard, `admin/actions.ts`): same check, same message; already
+    surfaces via the existing `result.message` toast-on-failure handling already present in
+    `users-tab.tsx`/`circles-tab.tsx`/`projects-tab.tsx` — confirmed by reading all three, no
+    UI change needed there.
+- Also surfaced proactively in `getCircleDeletionStatsAction` (already fetched the moment the
+  delete dialog opens, per `DeleteCircleButton`'s existing `useEffect`) so the dialog shows a
+  clear "Cannot delete yet" notice and disables the destructive button entirely — using the
+  existing "type the circle's name to confirm" dialog as the integration point, per
+  instruction, rather than only surfacing the block as an error after someone types the
+  confirmation and clicks delete.
+
+**Hand-traced against real staging data — read-only queries only, zero accounts/circles
+modified (confirmed via `git status` before and after):**
+- `dave-knowles`: 1 sole-admin circle (`dave-knowles-2`) after excluding its own personal
+  circle — would correctly block, naming that one circle.
+- `cryp-timothy`: 4 sole-admin circles (`The Bandy Band`, `The other one`, `McCool`,
+  `My Circle dirkle`) — would correctly block, naming all four.
+- `linus`: 2 sole-admin circles; `tim-admin`: 7 sole-admin circles — both would correctly
+  block. (Did not attempt to actually delete any of these real accounts — traced the query
+  logic directly against their real membership data instead.)
+- No real account on current staging happens to have zero admin-memberships beyond its own
+  circle (every remaining test account administers at least one other circle) — the "proceeds
+  normally" case was verified by direct code-logic reasoning (empty result array → no block)
+  rather than a live example, since none exists on staging right now to demonstrate it against.
+
+**What this fix deliberately does NOT do (per instruction):** no cascade-delete, no
+orphaned/unclaimed state or flag, no discovery/map/search hiding, no reclaim or
+identity-verification flow, and the 17 circles already orphaned before this fix are left
+exactly as they were — this only prevents new orphaning going forward.
+
+**Verification:** `bun run lint` and `CI=1 bun run build` both clean.
+
+**Aside:** hit the long-standing "over-broad `circles/` rule in `circles/.gitignore`" issue
+from the 2026-06-30 session's carry-forward notes again — `git add` silently refused
+`src/components/modules/circles/actions.ts` (an already-tracked file) until `-f`. Still
+unfixed, still a live footgun for anyone touching files under that path; not fixed here
+(out of scope for this task), but worth flagging again since it's now caused friction twice.
+
+**Carry-forward:**
+- Not deployed — 1 commit local to `staging` only, per instruction. Do not promote to
+  production until this has been exercised on staging first (per instruction) — this changes
+  account-deletion behavior, a sensitive path to get wrong.
+- Phase 1 and Phase 2 (see above) are deliberately deferred, not forgotten — do not treat the
+  orphaned-circles issue as resolved until a decision is made on those.
+- Worth actually clicking through this on staging once browser tooling is available (or
+  manually): confirm the dialog's blocking notice renders correctly and the destructive
+  button is genuinely disabled, not just logically blocked server-side.
 
 ---
 
