@@ -8,7 +8,126 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
+- **PRODUCT CHANGE (2026-08-02, staging only, not yet deployed):** personal-profile
+  participation (posting/commenting/messaging) now requires Community Guidelines acceptance
+  in addition to picture + About text — see dated entry below. `getVerificationReadiness`
+  is the single source of truth for this; do not add a separate guidelines check elsewhere.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-02 (cont. 2) — Community Guidelines is now a real participation requirement, plus the userAtom staleness bug this surfaced
+
+Headline: follow-up to the same-day investigation below (premature "profile complete"
+notification vs. the comment-gate dialog disagreeing). Confirmed root cause, then implemented
+the two agreed fixes: Community Guidelines acceptance is now genuinely required to
+post/comment/message on a personal profile (a **product decision**, reversing the 2026-07-29
+session's deliberate exclusion), and the client-side staleness bug that made the two signals
+visibly disagree is fixed. Two commits, both local to `staging`, not deployed.
+
+**Fix 1 — Community Guidelines added to `getVerificationReadiness` (`92bc3188`).** The
+user-profile branch gains a third item, "Sign the Community Guidelines", via
+`isCommunityGuidelinesCompleted(circle.communityGuidelinesAcceptance)` — the same check
+(verifies every individual rule accepted, not just a timestamp) `getPilotArtistCircleReadinessFlags`
+already uses for the artist-circle equivalent. Since this is the one shared function behind
+both `updateCircle`'s auto-verify trigger and `getParticipationState`/`CommunityParticipationDialog`,
+both inherit the new requirement automatically — confirmed, not duplicated.
+
+This surfaced a real, separate gap while implementing it: `SAFE_CIRCLE_PROJECTION` (used by
+`getCircleById`/`getCircleByHandle`, which feed `updateCircle`'s auto-verify check *and* several
+server-rendered "Complete profile" banners, e.g. `AboutPage.tsx`'s via `home/page.tsx`) excluded
+`communityGuidelinesAcceptance`/`communityGuidelinesAcceptedAt` entirely — a circle fetched
+through those paths would have read guidelines as permanently unaccepted regardless of its real
+state, silently breaking auto-verification for anyone who actually signed them. Added both
+fields to the projection (traced every one of `getVerificationReadiness`'s 7 call sites first to
+confirm which actually needed it — the client-side ones already read the full, unrestricted
+`userAtom`/`getUserPrivate` object, so only the `SAFE_CIRCLE_PROJECTION`-backed server paths were
+affected). No more sensitive than `isVerified`/`verificationStatus`, already exposed in the same
+projection.
+
+**Fix 2 — confirmed, no code change needed.** Traced `createPostAction`, `createCommentAction`
+(via `isAuthorized`'s `needsToBeVerified` branch, gated on `features.community.post.needsToBeVerified
+=== true`), and `ensureVerifiedMessagingUser`: none call `getVerificationReadiness` directly —
+all three check the *persisted* `isVerified`/`verificationStatus` fields via `canPerformRestrictedAction`/
+`isVerifiedUser`, always against a fresh `Circles.findOne` at call time (never client-supplied
+data). The only place those persisted fields are ever set to `true` (for the automatic path) is
+`updateCircle`'s auto-verify block, which is gated on `getVerificationReadiness(c).isReady` — so
+Fix 1 alone correctly propagates to all three enforcement points for every *future* auto-verification
+event, with no separate change needed. (The admin-initiated manual-verify path,
+`activateUserAccount` in `account-lifecycle.ts`, calls `buildVerifiedUserSet` directly and
+deliberately bypasses all automated criteria — confirmed intentional, out of scope.)
+
+**Fix 3 — `userAtom` refreshed after every onboarding step save (`c5771c52`).** Root cause of
+the original contradiction: only `PhotoStep`'s `onSaved` called `refreshUser()` (added narrowly
+for the avatar-staleness bug two sessions ago) — About/Location/Genres/Contribution/Offers/
+Guidelines never did, so completing any of those left `userAtom` — which `getParticipationState`
+(`community-feed.tsx`/`post-list.tsx`) and `AboutPage`'s own "Complete profile" banner both read
+— holding stale data. Rather than threading a new `onSaved` callback through every frame
+component (several don't have one), centralized the refresh inside `advanceStep()`, the function
+already called after every "continue following an actual/attempted save" transition for every
+phase-scoped step (added in the prior Back-navigation session) — every save already funnels
+through it. Removed the now-redundant standalone `onSaved={() => void refreshUser()}` from both
+`PhotoStep` instances since `advanceStep` covers them too.
+
+**Downstream impact — investigated directly against the staging database (read-only query,
+`peerify_staging.circles`):** all 6 personal (`circleType: "user"`) accounts on staging are
+already `isVerified: true`. Of those, 3 (`cryp-timothy`, `linus`, `hello-kitty`) have picture +
+About complete but **0/5 Community Guidelines rules accepted**. **Important correction to the
+task's framing:** these 3 accounts will **NOT** become newly blocked — `isVerified` is a
+persisted, forward-only flag (by existing, documented design: "never revokes isVerified if
+those fields are later cleared"), and `canPerformRestrictedAction` checks that persisted flag
+directly, never live readiness. Since these accounts were auto-verified under the *old*,
+narrower bar before this session, they keep full posting/commenting/messaging access
+indefinitely under the new bar too. Only **new** auto-verification events (accounts not yet
+verified as of this fix) now require guidelines. Flagging this explicitly since it contradicts
+what the task described as "expected/correct behavior" — no accounts on staging are actually
+affected by this change today; a decision on whether to retroactively re-evaluate already-verified
+accounts is a separate, unmade product call this session did not implement.
+
+**Checklist UI — confirmed no change needed.** `CommunityParticipationDialog` renders
+`VerificationReadinessChecklist`, which maps generically over `readiness.items` with no
+hardcoded item count or keys — the new "Sign the Community Guidelines" item appears
+automatically once Fix 1 landed, with zero UI code changes.
+
+**Hand-trace (fresh account, picture + About done, guidelines NOT signed — confirming this is
+now correctly blocked, the intended new behavior, not a regression):**
+1. Fresh signup → personal circle created with no `isVerified` field (`createNewUser` never
+   sets it) → `isVerifiedUser` reads it as `false`.
+2. Frame 1a (photo) saved → `updateCircle`'s auto-verify check: picture✓, about✗, guidelines✗
+   → not ready → `isVerified` stays `false`. (Unchanged from before.)
+3. Frame 1b (About) saved → auto-verify check: picture✓, about✓, guidelines✗ → **not ready**
+   (this is the changed line — previously guidelines wasn't checked here at all, so this is
+   exactly where the premature "profile complete" notification used to fire) → `isVerified`
+   correctly stays `false`. No premature notification.
+4. Account exits the flow here and tries to comment: `createCommentAction` →
+   `isAuthorized(userDid, feed.circleId, features.community.post)` → fresh
+   `Circles.findOne({did: userDid})` → `needsToBeVerified: true && !isVerifiedUser(user)` →
+   `true` → returns `false` → comment action returns `{success: false, message: "You are not
+   authorized to comment on this post"}`. **Confirmed blocked, server-side, correctly.**
+5. Comment-gate dialog: thanks to Fix 3, `userAtom` was refreshed after the About save, so
+   `getParticipationState(user)`'s checklist now *accurately* shows picture✓, About✓, and
+   "Sign the Community Guidelines" unchecked — no contradiction with the (now also correctly
+   silent) notification.
+6. Completing Frame 1d (guidelines) → `acceptCodeOfConductAction` → `updateCircle` → auto-verify
+   check now sees picture✓, about✓, guidelines✓ (via the projection fix) → `isReady = true` →
+   `isVerified` flips to `true`, notification fires — correctly, only now, after all three are
+   genuinely done.
+
+**Verification:** `bun run lint` and `CI=1 bun run build` clean after each commit (only
+pre-existing warnings, none in touched files) and once more on the fully assembled result. No
+headless-browser tooling available in this environment — verified via direct code tracing (per
+above) plus a real, read-only query against the staging database for the downstream-impact
+section, not live click-through.
+
+**Carry-forward:**
+- Not deployed — 2 commits local to `staging` only, per instruction.
+- Open product question, not resolved this session: should the 3 already-verified staging test
+  accounts missing guidelines be retroactively re-gated? Current behavior (forward-only,
+  grandfathered) is consistent with the existing documented design; changing it would mean
+  re-deriving `isVerified` live instead of trusting a persisted flag, a materially bigger and
+  riskier change than what was authorized here.
+- A human click-through (once browser tooling is available, or manually) is still the strongest
+  way to confirm the notification/dialog agree in practice for a real fresh signup.
 
 ---
 
