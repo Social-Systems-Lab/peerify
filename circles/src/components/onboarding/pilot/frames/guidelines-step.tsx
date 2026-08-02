@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -15,10 +15,17 @@ import { COMMUNITY_GUIDELINE_RULES } from "@/lib/community-guidelines";
 // never show) — it reuses the same acceptCodeOfConductAction the settings-page
 // CommunityGuidelinesSettingsCard already calls, just with fresh "Community Guidelines" copy.
 type GuidelinesStepProps = {
+    // True when the account has already accepted the Community Guidelines (via any path —
+    // this onboarding flow previously, the Settings page, etc.) — computed by the caller from
+    // isPilotPersonalPhaseComplete's same hasAcceptedGuidelines check
+    // (src/lib/verification-readiness.ts), so re-entering this frame (forward nav, the Back
+    // button, or any of the "Complete profile"/"Continue setup" entry points) never re-requires
+    // scrolling through and re-checking something already agreed to.
+    alreadyAccepted?: boolean;
     onAccepted: () => void;
 };
 
-export function GuidelinesStep({ onAccepted }: GuidelinesStepProps) {
+export function GuidelinesStep({ alreadyAccepted, onAccepted }: GuidelinesStepProps) {
     const { toast } = useToast();
     const [agreed, setAgreed] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -64,6 +71,20 @@ export function GuidelinesStep({ onAccepted }: GuidelinesStepProps) {
             setIsSaving(false);
         }
     };
+
+    if (alreadyAccepted) {
+        return (
+            <div className="space-y-6">
+                <div className="flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-950">
+                    <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                    <p className="text-sm">You&apos;ve already agreed to the Community Guidelines.</p>
+                </div>
+                <Button type="button" className="w-full" onClick={onAccepted}>
+                    Continue
+                </Button>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">

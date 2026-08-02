@@ -6,7 +6,7 @@ import { useAtom } from "jotai";
 import { userAtom, PILOT_ONBOARDING_COMPLETED_STORAGE_KEY } from "@/lib/data/atoms";
 import { getUserPrivateAction } from "@/components/modules/home/actions";
 import { Circle, Media, Track, UserPrivate } from "@/models/models";
-import type { VerificationReadiness } from "@/lib/verification-readiness";
+import { hasAcceptedGuidelines, type VerificationReadiness } from "@/lib/verification-readiness";
 import {
     PEERIFY_DEFAULT_ARTIST_AVATAR_URL,
     PEERIFY_DEFAULT_BAND_AVATAR_URL,
@@ -266,7 +266,10 @@ export function PilotOnboardingFlow({
                 onBack={goBack}
                 canGoBack={canGoBack}
             >
-                <GuidelinesStep onAccepted={() => advanceStep("explainer")} />
+                <GuidelinesStep
+                    alreadyAccepted={hasAcceptedGuidelines(personalCircle)}
+                    onAccepted={() => advanceStep("explainer")}
+                />
             </OnboardingCardShell>
         );
     }
