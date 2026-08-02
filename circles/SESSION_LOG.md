@@ -12,6 +12,109 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-02 — Four fixes from a further click-through round: copy clarity, a scroll-gated consent checkbox, in-flow Back navigation, and resuming into onboarding from "Complete profile"
+
+Headline: this round included one genuinely structural change (Back navigation, requiring a
+real fix for stale data on return-visits to a frame) alongside copy/UX polish. Four commits,
+all local to `staging`, not deployed — this task didn't call for one, and this flow still
+hasn't been promoted to production.
+
+**Fix 1 — copy tweaks (`f9878d2d`).** Frame 1b's subtitle now reads "Say a few words about
+yourself — a sentence or two is plenty." Frame A3.5 needed to read distinctly from the
+personal-profile About frame (both had drifted to the identical title "A short about me" after
+a prior session's simplification) — retitled to "Add an introduction to your public artist
+profile", with a subtitle explicitly calling out that this is the artist circle's own bio, a
+separate field on a separate circle from the personal one.
+
+**Fix 2 — gated the Community Guidelines checkbox behind actually scrolling to the end
+(`0b6ae703`).** Added scroll-position tracking on `ScrollArea`'s viewport via its existing
+`viewportRef` prop: a one-way latch flips true once `scrollTop + clientHeight` reaches
+`scrollHeight` (small rounding threshold), and the same check runs once on mount — before any
+scroll event fires — so content short enough to fit without scrolling on a given screen size
+auto-satisfies immediately rather than permanently blocking. The checkbox stays disabled until
+the latch flips, with a hint ("Scroll to the end of the guidelines above to continue") that
+disappears once satisfied. Also made the scrollbar itself more prominent — wider track,
+primary-tinted thumb instead of the barely-visible default, always-visible instead of
+auto-hide-on-idle — via two new optional props (`scrollbarClassName`/`thumbClassName`) added to
+the shared `ScrollArea`/`ScrollBar` primitives; both default to the existing styling, so no
+other usage elsewhere in the app (chat, pickers, etc.) is affected.
+
+**Fix 3 — added in-flow Back navigation to every onboarding frame (`23f1e70f`).** The only way
+back previously was the browser's back button, which exits the whole flow into raw history.
+`OnboardingCardShell` gained an optional `onBack`/`canGoBack` pair, rendered as a small ghost
+"← Back" control above the title — only passed on frames within a counted phase (the role-aware
+explainer and both completion screens never pass it, same as they never get a step counter).
+`goBack()` steps `step` back one entry within the *current phase's own* step array only, never
+across a phase boundary and never via router history; `canGoBack` is false at index 0, so the
+first frame of each phase (1a, F2, A2) renders its Back button visibly disabled rather than
+hidden or routed elsewhere, per spec.
+
+This surfaced a real bug that had to be fixed for Back to be safe: `PilotOnboardingFlow` only
+ever fetches `personalCircle`/`artistCircle`/`initialArtistTracks` ONCE, at initial page load —
+so returning to an earlier frame after saving later ones would have shown stale or blank data.
+Fixed by extending a pattern the codebase already had proven working (`SongsStep`/
+`TrackUploadForm` already calls `router.refresh()` after a track upload specifically so its own
+track list stays current): a new `advanceStep()` helper calls `router.refresh()` alongside
+every "continue after an actual save" transition, re-running the page's server component and
+pushing fresh props back down while `PilotOnboardingFlow`'s own state (`step`,
+`artistIdentityType`) survives the refresh untouched. `ContributionStep` (F3) also gained an
+`initialValue` prop it never had before — previously there was no way to redisplay a prior
+"yes"/"maybe"/"no" choice at all. Deliberate exception: Community Guidelines (1d) resets its
+scroll/checkbox gate on remount rather than remembering "already agreed" — the underlying
+acceptance is still permanently recorded server-side, so this only means re-confirming the
+consent gesture, which reads as intentional for a compliance step rather than a data-loss bug.
+
+**Fix 4 — "Complete profile" led nowhere useful (`85b110f2`).** Investigation before
+implementing, per instruction:
+- `/onboarding/pilot`'s `page.tsx` always initialized `step` to `"photo"` (Frame 1a) — no
+  resume logic existed at all, regardless of what was already saved.
+- Frames already showed correctly pre-populated data on a *fresh* page load (every frame's
+  `initialValue`/etc. already reads from `personalCircle`/`artistCircle`, fetched fresh on
+  every request) — there's no separate "blank fields on resume" bug at initial load distinct
+  from the in-flow Back staleness Fix 3 already found and fixed.
+- `CommunityParticipationBanner` (the Home tab's "Complete profile" button) and
+  `CommunityParticipationDialog` (its modal twin, shown when posting/commenting while
+  incomplete) both linked to `/circles/{handle}/settings/about` — the old settings-page flow,
+  never the guided cards.
+- The same gap affects artist accounts: `home-content.tsx`'s "Draft profile" banner (shown on
+  an unpublished auto-provisioned artist circle's own Home tab) described what was missing in
+  prose with no link back into the wizard at all.
+
+Implemented: both "Complete profile" links now point to `/onboarding/pilot`, which works for
+any authenticated account regardless of signup path (it only ever reads the *currently logged
+in* user's own circle state, never a URL param) — safe and generically better for every
+account, not just pilot signups. Restarting at Frame 1a is the confirmed-acceptable default.
+Nice-to-have implemented (not skipped): `page.tsx` now checks whether the shared Personal
+profile phase is already fully done — `hasCustomPicture`/`hasAboutText`/`hasLocationSet` (all
+already exported from `verification-readiness.ts`) plus `circle.communityGuidelinesAcceptedAt`
+— and if so, with an artist circle still ahead, opens directly on Frame A2
+(`initialStep="artist-solo-band"`) instead of re-walking four already-complete shared frames.
+This was straightforward given the existing readiness helpers and phase-tracking state, so it
+added negligible complexity over the Frame-1a-only fallback. Added a "Continue setup" link to
+the artist Draft-profile banner too, scoped specifically to `isOwnAutoProvisionedArtistCircle`
+— a manually-created (CircleWizard) managed identity isn't reachable via
+`getAutoProvisionedArtistCircle`, so linking there for a non-pilot circle would silently strand
+its owner on the fan path instead of resuming that circle.
+
+**Verification:** `bun run lint` and `CI=1 bun run build` clean after every commit (only
+pre-existing warnings, none in touched files) and once more on the fully assembled result. No
+headless-browser tooling available in this environment (same recurring limitation) — verified
+via direct code tracing of the save/refresh/remount paths described above rather than live
+click-through.
+
+**Carry-forward:**
+- Not deployed — 4 commits local to `staging` only, per instruction.
+- A human click-through (once browser tooling is available, or manually) is still the
+  strongest way to confirm the scroll-gate feels right across real screen sizes, and that Back
+  navigation's router.refresh()-based data restoration has no perceptible flicker in practice.
+- `settings-layout-wrapper.tsx`'s suppression of `CommunityParticipationBanner` on someone's own
+  Settings/About page still stands (that banner would be redundant there regardless of link
+  target, since the actual fields are inline below) — its comment's original "dead
+  self-referential no-op" framing is now slightly stale since the link target changed, but the
+  suppression itself is still correct on independent grounds; left untouched as out of scope.
+
+---
+
 ## 2026-08-01 (cont. 4) — Two small copy/UI fixes from a further click-through round on the pilot onboarding flow
 
 Headline: much smaller scope than the prior two sessions on this flow — one copy fix, one
