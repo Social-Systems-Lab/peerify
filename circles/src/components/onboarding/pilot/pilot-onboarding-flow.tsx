@@ -217,7 +217,7 @@ export function PilotOnboardingFlow({
     if (step === "about") {
         return (
             <OnboardingCardShell
-                title="A short about me"
+                title="A short About me"
                 subtitle="Say a few words about yourself — a sentence or two is plenty."
                 stepLabel={stepLabel}
                 progress={progress}
