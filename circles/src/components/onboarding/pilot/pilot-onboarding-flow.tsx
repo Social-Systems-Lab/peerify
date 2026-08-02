@@ -82,6 +82,11 @@ type PilotOnboardingFlowProps = {
     artistCircle: Circle | null;
     initialArtistReadiness: VerificationReadiness | null;
     initialArtistTracks: Track[];
+    // Where the flow starts on this page load — "photo" (Frame 1a) by default, or
+    // "artist-solo-band" (Frame A2) when page.tsx has determined the shared Personal profile
+    // phase is already fully complete and an artist phase is still ahead. See page.tsx for the
+    // exact readiness check; this component just trusts whatever it's given.
+    initialStep?: "photo" | "artist-solo-band";
 };
 
 const getInitialArtistIdentityType = (circle: Circle | null): Extract<PeerifyArtistIdentityType, "artist" | "band"> => {
@@ -94,11 +99,12 @@ export function PilotOnboardingFlow({
     artistCircle,
     initialArtistReadiness,
     initialArtistTracks,
+    initialStep,
 }: PilotOnboardingFlowProps) {
     const router = useRouter();
     const [, setUser] = useAtom(userAtom);
     const role: "fan" | "artist" = artistCircle ? "artist" : "fan";
-    const [step, setStep] = useState<StepName>("photo");
+    const [step, setStep] = useState<StepName>(initialStep ?? "photo");
     const [artistIdentityType, setArtistIdentityType] = useState(getInitialArtistIdentityType(artistCircle));
 
     // Which phase `step` currently belongs to, and that phase's own step count — null for the

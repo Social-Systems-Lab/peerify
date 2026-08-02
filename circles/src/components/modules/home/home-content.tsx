@@ -257,15 +257,26 @@ export default function HomeContent({
                                     ? "Publish when you're ready to share it."
                                     : "Add a picture, About text, and a map location here, and sign the Community Guidelines on your personal profile, before you can publish it."}
                             </p>
-                            {circle._id ? (
-                                <PublishManagedProfileButton
-                                    circleId={circle._id}
-                                    label="Publish profile"
-                                    className="shrink-0 bg-amber-900 text-white hover:bg-amber-800"
-                                    disabled={!pilotArtistCirclePublishReady}
-                                    disabledReason="Complete this profile's picture, About text, and map location, and sign the Community Guidelines on your personal profile, before publishing."
-                                />
-                            ) : null}
+                            <div className="flex shrink-0 items-center gap-2">
+                                {/* Only for the pilot-auto-provisioned circle the guided wizard actually knows how
+                                    to resume — a manually-created (CircleWizard) managed identity isn't reachable
+                                    from /onboarding/pilot, which would otherwise silently land the owner on the
+                                    fan path instead of this circle. */}
+                                {!pilotArtistCirclePublishReady && isOwnAutoProvisionedArtistCircle ? (
+                                    <Button asChild variant="outline" size="sm" className="border-amber-900 text-amber-900 hover:bg-amber-100">
+                                        <Link href="/onboarding/pilot">Continue setup</Link>
+                                    </Button>
+                                ) : null}
+                                {circle._id ? (
+                                    <PublishManagedProfileButton
+                                        circleId={circle._id}
+                                        label="Publish profile"
+                                        className="bg-amber-900 text-white hover:bg-amber-800"
+                                        disabled={!pilotArtistCirclePublishReady}
+                                        disabledReason="Complete this profile's picture, About text, and map location, and sign the Community Guidelines on your personal profile, before publishing."
+                                    />
+                                ) : null}
+                            </div>
                         </div>
                     )}
                     <div className={`relative flex ${isCompact ? "flex-col items-center justify-center" : "flex-row"}`}>
