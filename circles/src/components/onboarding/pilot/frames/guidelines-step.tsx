@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +22,32 @@ export function GuidelinesStep({ onAccepted }: GuidelinesStepProps) {
     const { toast } = useToast();
     const [agreed, setAgreed] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const viewportRef = useRef<HTMLDivElement>(null);
+    // One-way latch — once true, stays true (scrolling back up shouldn't punish someone who
+    // already proved they read to the end). Also covers the "content is short enough to fit
+    // without scrolling on this screen size" case: the initial check runs before any scroll
+    // event ever fires, so it auto-satisfies immediately rather than permanently blocking.
+    const [hasScrolledToEnd, setHasScrolledToEnd] = useState(false);
+
+    useEffect(() => {
+        const viewport = viewportRef.current;
+        if (!viewport) return;
+
+        const checkScrollEnd = () => {
+            const { scrollTop, scrollHeight, clientHeight } = viewport;
+            if (scrollHeight - scrollTop - clientHeight <= 4) {
+                setHasScrolledToEnd(true);
+            }
+        };
+
+        checkScrollEnd();
+        viewport.addEventListener("scroll", checkScrollEnd);
+        window.addEventListener("resize", checkScrollEnd);
+        return () => {
+            viewport.removeEventListener("scroll", checkScrollEnd);
+            window.removeEventListener("resize", checkScrollEnd);
+        };
+    }, []);
 
     const handleContinue = async () => {
         if (!agreed) return;
@@ -41,7 +67,13 @@ export function GuidelinesStep({ onAccepted }: GuidelinesStepProps) {
 
     return (
         <div className="space-y-6">
-            <ScrollArea className="h-48 rounded-lg border p-4">
+            <ScrollArea
+                type="always"
+                className="h-48 rounded-lg border p-4"
+                viewportRef={viewportRef}
+                scrollbarClassName="w-3"
+                thumbClassName="bg-primary/50 hover:bg-primary/70"
+            >
                 <div className="space-y-4">
                     {COMMUNITY_GUIDELINE_RULES.map((rule) => (
                         <div key={rule.id} className="space-y-1">
@@ -52,17 +84,22 @@ export function GuidelinesStep({ onAccepted }: GuidelinesStepProps) {
                 </div>
             </ScrollArea>
 
-            <div className="flex items-start gap-3 rounded-lg border p-4">
-                <Checkbox
-                    id="onboarding-guidelines-agree"
-                    checked={agreed}
-                    onCheckedChange={(checked) => setAgreed(checked === true)}
-                    disabled={isSaving}
-                    className="mt-0.5"
-                />
-                <Label htmlFor="onboarding-guidelines-agree" className="text-sm leading-6">
-                    I&apos;ve read and agree to the Community Guidelines
-                </Label>
+            <div className="space-y-2">
+                <div className="flex items-start gap-3 rounded-lg border p-4">
+                    <Checkbox
+                        id="onboarding-guidelines-agree"
+                        checked={agreed}
+                        onCheckedChange={(checked) => setAgreed(checked === true)}
+                        disabled={isSaving || !hasScrolledToEnd}
+                        className="mt-0.5"
+                    />
+                    <Label htmlFor="onboarding-guidelines-agree" className="text-sm leading-6">
+                        I&apos;ve read and agree to the Community Guidelines
+                    </Label>
+                </div>
+                {!hasScrolledToEnd ? (
+                    <p className="text-xs text-muted-foreground">Scroll to the end of the guidelines above to continue.</p>
+                ) : null}
             </div>
 
             <Button type="button" className="w-full" onClick={handleContinue} disabled={!agreed || isSaving}>
