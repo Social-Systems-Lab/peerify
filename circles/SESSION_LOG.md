@@ -19,7 +19,89 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   restarting PM2 to match) — site-wide breakage, not specific to whatever was being verified.
   Verification builds are fine standalone; just always follow one with a real
   `deploy-staging.sh` run before trusting staging is in a consistent, servable state again.
+  **Currently live (2026-08-02 cont. 4 session):** that session's own verification build means
+  staging's live standalone build is out of sync with `staging` HEAD right now — deploy
+  wasn't requested that session, so it was left as-is per the hazard note above rather than
+  deployed unprompted. Run `deploy-staging.sh` before relying on staging reflecting current
+  code.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-02 (cont. 4) — Four more click-through fixes: copy, a more robust popup suppression signal, an inconclusive routing investigation, and skipping already-signed guidelines
+
+Headline: four commits, all local to `staging`, not deployed (not requested this session).
+Three straightforward; one (Fix 3) is an investigation that could not confirm the reported
+bug's premise — documented clearly rather than implementing a redundant "fix."
+
+**Fix 1 — copy (`bf0aa15c`).** Frame 1b's title: "A short about me" → "A short About me",
+matching "About" as used elsewhere (the About tab/section name).
+
+**Fix 2 — welcome popup still showed after abandoning the pilot flow partway through
+(`8cbc840c`).** The prior fix (cont. 2 session, and earlier) only set its suppression
+localStorage flag at the flow's exit/completion points — so anyone who abandoned before
+reaching one of those points still saw the generic "Welcome to Peerify" popup on their own
+Home tab. Verified the exact persisted signup field first (per instruction, did not assume):
+`circle.metadata.onboardingFlow === "pilot-quick-signup"`, set in `pilot-signup-form.tsx` at
+account creation, regardless of role or completion. Added this as the primary suppression
+signal — for the personal-profile-viewing case, checked directly on `circle.metadata`; for
+the artist-circle-viewing case, `isOwnAutoProvisionedArtistCircle` (already available) is
+already an equally reliable pilot-signup signal, since it's exclusively set by the same
+`createPilotArtistCircle` signup path. Kept the existing localStorage flag as an additional
+OR'd condition rather than removing it — still accurate, just narrower, harmless to keep.
+
+**Fix 3 — artist Draft-profile banner's "Continue setup" allegedly missing the
+artist-phase-jump (`70c4017b`) — investigated, premise not confirmed.** Traced all three
+"Complete profile"/"Continue setup" entry points (personal Home-tab banner, posting-gate
+dialog, artist Draft-profile banner) exhaustively: all three link to the identical plain
+`/onboarding/pilot` URL with no query params, and the artist-phase-jump decision
+(`initialStep`) is computed entirely server-side in `page.tsx` from the account's actual
+current data — there is no separate per-entry-point implementation for anything to be
+"missing" from. Verified against real staging data: `dave-knowles` has a fully-complete
+personal phase (picture/about/location/guidelines all set) and an unpublished draft artist
+circle (`dave-knowles-2`) — exactly the reported scenario — and the current check, read
+literally against that real document, already evaluates to the correct jump. Could not
+reproduce a code-level discrepancy between entry points.
+
+Extracted the check into a new exported `isPilotPersonalPhaseComplete`
+(`verification-readiness.ts`) anyway, since it's a real (if minor) improvement: `page.tsx`
+previously reinvented the guidelines check inline (`Boolean(communityGuidelinesAcceptedAt)`)
+instead of reusing the existing `hasAcceptedGuidelines` helper (verifies every individual
+rule accepted, not just that a timestamp exists). No behavior change. Flagged that this may
+be worth retesting now that staging has been redeployed since the unrelated stale-build
+incident (cont. 3, below) — that incident's corrupted/stale JS could plausibly explain a
+discrepancy observed during a testing window that no longer exists in current code.
+
+**Fix 4 — re-entering onboarding required re-signing guidelines even if already accepted
+(`a549f672`).** `GuidelinesStep` (Frame 1d) gained an `alreadyAccepted` prop; when true, skips
+the scroll-gate/checkbox entirely for a plain confirmation state ("You've already agreed to
+the Community Guidelines") with Continue enabled immediately — no re-save call. Wired from
+`pilot-onboarding-flow.tsx` via `hasAcceptedGuidelines(personalCircle)` (the same helper
+`isPilotPersonalPhaseComplete` composes). Chose this over skipping Frame 1d entirely from the
+phase's step array/counter — simpler, doesn't touch the two-phase step-counting logic, and
+the task's own instruction left the choice open. Since `personalCircle` is always freshly
+fetched on any `/onboarding/pilot` load and kept current client-side (`advanceStep`'s
+`router.refresh()` after each save), this is correct regardless of how Frame 1d is reached —
+forward navigation, the Back button, or any of the three entry points — with no separate
+wiring needed per path.
+
+**Verification:** `bun run lint` clean after each commit, plus `npx tsc --noEmit -p .`
+(stricter type-checking, no build-artifact side effects) per fix instead of a full
+`CI=1 bun run build` after every individual commit — per this session's own process-note
+instruction about bare builds silently corrupting the live standalone build once a real
+deploy has happened, and deploying wasn't requested this session. Ran one consolidated
+`CI=1 bun run build` at the very end, covering all four fixes together, and did not run any
+build after it. **Consequence, exactly as the process note anticipated:** staging's live
+standalone build is now out of sync with `staging` HEAD as of the end of this session (see
+Current Status above) — left as-is rather than deploying unprompted.
+
+**Carry-forward:**
+- Not deployed — 4 commits local to `staging` only, per instruction. Staging needs a real
+  `deploy-staging.sh` run before it reflects this session's code (see hazard note above).
+- Fix 3's premise (artist banner's "Continue setup" missing the phase-jump) could not be
+  confirmed — worth a fresh click-through retest once staging is redeployed, specifically
+  checking whether it's still reproducible now that the unrelated stale-build incident is
+  resolved.
 
 ---
 
