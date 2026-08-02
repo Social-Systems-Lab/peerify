@@ -143,10 +143,16 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
         const privateUser = await getUserPrivate(user.did);
         await createUserSession(privateUser, user.did);
 
+        // This branch only ever runs once per account — the moment isEmailVerified flips
+        // false->true for the first time. Every later visit to a (now-consumed) verification
+        // link falls into the "already verified" branch above, which still uses
+        // resolveLandingPath. That makes this the exact, one-time "new signup" moment, so it's
+        // the only place that should ever route into the new card-based onboarding sequence
+        // (src/app/onboarding/pilot) — existing accounts can never land here again.
         return {
             success: true,
             message: "Email verified",
-            redirectPath: await resolveLandingPath(user.did, user.handle),
+            redirectPath: "/onboarding/pilot",
         };
     } catch (error) {
         console.error("Error during email verification:", error);

@@ -441,7 +441,13 @@ export function AboutSettingsForm({
     // artist circle, just evaluated here against the PERSONAL profile's own fields plus the
     // viewer's own communityGuidelinesAcceptance (read off userAtom, same as
     // CommunityGuidelinesSettingsCard does, since SAFE_CIRCLE_PROJECTION excludes that field).
-    const isArtistOnboarding = isUserProfile && Boolean(ownAutoProvisionedArtistCircle);
+    // Defensive on top of the caller's own filtering (page.tsx only passes this prop while the
+    // artist circle isn't published yet) — checked again here so this component is correct on
+    // its own terms regardless of what any caller passes: once the artist circle is published,
+    // there's no meaningful "next step" left, so the Step 1/Step 2 onboarding framing below
+    // (including the persistent "Continue to Step 2" banner) must not keep showing.
+    const isArtistOnboarding =
+        isUserProfile && Boolean(ownAutoProvisionedArtistCircle) && ownAutoProvisionedArtistCircle?.publishStatus !== "published";
     const step1PictureDone = hasCustomPicture(circle);
     const step1AboutDone = hasAboutText(circle);
     const step1GuidelinesDone = isCommunityGuidelinesCompleted(user?.communityGuidelinesAcceptance);

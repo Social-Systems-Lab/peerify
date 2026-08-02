@@ -65,7 +65,7 @@ export function CommunityParticipationBanner({
                         Complete your <strong>personal profile</strong> to post, comment, and react in the Community.
                     </span>
                     <Button asChild size="sm" className="shrink-0">
-                        <Link href={`/circles/${readinessSubject.handle}/settings/about`}>Complete profile</Link>
+                        <Link href="/onboarding/pilot">Complete profile</Link>
                     </Button>
                 </AlertDescription>
             </Alert>

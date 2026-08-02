@@ -52,6 +52,15 @@ export const SAFE_CIRCLE_PROJECTION = {
     searchable: 1,
     isVerified: 1,
     verificationStatus: 1,
+    // Needed so getVerificationReadiness (src/lib/verification-readiness.ts) can see a
+    // personal profile's Community Guidelines acceptance wherever a circle document reaches it
+    // via this projection (e.g. updateCircle's auto-verify check, AboutPage's Home-tab
+    // "Complete profile" banner) — without these, guidelines would silently read as
+    // permanently unaccepted for every circle fetched through this projection, regardless of
+    // its real state. No more sensitive than isVerified/verificationStatus already exposed
+    // here — just another compliance flag, not personal data.
+    communityGuidelinesAcceptance: 1,
+    communityGuidelinesAcceptedAt: 1,
     isMember: 1,
     manualMember: 1,
     accountStatus: 1,

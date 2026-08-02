@@ -98,3 +98,11 @@ export const chatSettingsModalAtom = atom<{ chatRoomId: string | null; isOpen: b
 // personal" (key present, stored as null) via a raw localStorage read.
 export const ACTING_IDENTITY_STORAGE_KEY = "actingIdentityCircleId";
 export const actingIdentityCircleIdAtom = atomWithStorage<string | null>(ACTING_IDENTITY_STORAGE_KEY, null);
+
+// Set by PilotOnboardingFlow (src/components/onboarding/pilot/pilot-onboarding-flow.tsx) the
+// moment someone exits the guided /onboarding/pilot sequence, either role. Read by
+// HomeContent's welcome-dialog effect (src/components/modules/home/home-content.tsx) to
+// suppress the generic "Welcome to Peerify" popup for accounts that already got a tailored
+// walkthrough — showing it again (esp. the "are you an artist, use the Create button" copy on
+// someone's own just-built artist circle) is redundant at best and nonsensical at worst.
+export const PILOT_ONBOARDING_COMPLETED_STORAGE_KEY = "peerify_pilot_onboarding_completed";

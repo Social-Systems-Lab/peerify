@@ -7,15 +7,21 @@ import { cn } from "@/lib/utils";
 
 interface ScrollAreaProps extends React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> {
     viewportRef?: React.Ref<HTMLDivElement>;
+    // Optional overrides for callers that need a more prominent scrollbar than the default
+    // subtle one (e.g. onboarding's Community Guidelines frame, where the scrollbar itself
+    // needs to signal "there's more to read"). Both default to the existing styling, so every
+    // other ScrollArea usage in the app is unaffected.
+    scrollbarClassName?: string;
+    thumbClassName?: string;
 }
 
 const ScrollArea = React.forwardRef<React.ElementRef<typeof ScrollAreaPrimitive.Root>, ScrollAreaProps>(
-    ({ className, children, viewportRef, ...props }, ref) => (
+    ({ className, children, viewportRef, scrollbarClassName, thumbClassName, ...props }, ref) => (
         <ScrollAreaPrimitive.Root ref={ref} className={cn("relative overflow-hidden", className)} {...props}>
             <ScrollAreaPrimitive.Viewport ref={viewportRef} className="h-full w-full rounded-[inherit]">
                 {children}
             </ScrollAreaPrimitive.Viewport>
-            <ScrollBar />
+            <ScrollBar className={scrollbarClassName} thumbClassName={thumbClassName} />
             <ScrollAreaPrimitive.Corner />
         </ScrollAreaPrimitive.Root>
     ),
@@ -24,8 +30,8 @@ ScrollArea.displayName = ScrollAreaPrimitive.Root.displayName;
 
 const ScrollBar = React.forwardRef<
     React.ElementRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>,
-    React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar>
->(({ className, orientation = "vertical", ...props }, ref) => (
+    React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.ScrollAreaScrollbar> & { thumbClassName?: string }
+>(({ className, thumbClassName, orientation = "vertical", ...props }, ref) => (
     <ScrollAreaPrimitive.ScrollAreaScrollbar
         ref={ref}
         orientation={orientation}
@@ -37,7 +43,7 @@ const ScrollBar = React.forwardRef<
         )}
         {...props}
     >
-        <ScrollAreaPrimitive.ScrollAreaThumb className="relative flex-1 rounded-full bg-border" />
+        <ScrollAreaPrimitive.ScrollAreaThumb className={cn("relative flex-1 rounded-full bg-border", thumbClassName)} />
     </ScrollAreaPrimitive.ScrollAreaScrollbar>
 ));
 ScrollBar.displayName = ScrollAreaPrimitive.ScrollAreaScrollbar.displayName;

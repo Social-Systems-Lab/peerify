@@ -6,6 +6,7 @@ import {
     PEERIFY_DEFAULT_PROFILE_AVATAR_URL,
     PEERIFY_DEFAULT_VENUE_AVATAR_URL,
 } from "@/lib/peerify/artist-profile";
+import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
 
 export type VerificationReadinessItem = {
     key: "picture" | "coverImage" | "aboutText" | "location" | "guidelines";
@@ -45,6 +46,12 @@ export const hasAboutText = (circle?: Partial<Circle> | null): boolean => {
     return Boolean(circle?.content?.trim() || circle?.description?.trim());
 };
 
+// Same check the artist-circle equivalent already uses (getPilotArtistCircleReadinessFlags,
+// src/lib/data/circle.ts) — verifies every individual Community Guidelines rule was actually
+// accepted, not just that some acceptance timestamp exists.
+export const hasAcceptedGuidelines = (circle?: Partial<Circle> | null): boolean =>
+    isCommunityGuidelinesCompleted(circle?.communityGuidelinesAcceptance as any);
+
 // A "set" location means an actual map pin (lngLat), not just a precision default —
 // LocationPicker (src/components/forms/location-picker.tsx) always writes lngLat when a
 // place is picked (map click, search suggestion, or "Use Current Location"), and clearing
@@ -55,6 +62,21 @@ export const hasLocationSet = (circle?: Partial<Circle> | null): boolean => {
         lngLat && Number.isFinite(lngLat.lat) && Number.isFinite(lngLat.lng),
     );
 };
+
+// The shared "Personal profile" onboarding phase's own completion bar (Frames 1a-1d: photo/
+// about/location/guidelines) — distinct from getVerificationReadiness's "user" branch below,
+// which checks picture+about+guidelines for the participation gate but deliberately excludes
+// location (location was never part of what's required to post/comment/message). Single source
+// of truth for every /onboarding/pilot entry point that needs to decide whether to open on
+// Frame 1a or skip straight to the artist phase (Frame A2) — currently page.tsx (used by
+// all three "Complete profile"/"Continue setup" links: the Home-tab banner, the posting-gate
+// dialog, and the artist Draft-profile banner, which all just link to the same plain
+// /onboarding/pilot URL and rely on this same server-side check, not per-entry-point logic).
+export const isPilotPersonalPhaseComplete = (personalCircle?: Partial<Circle> | null): boolean =>
+    hasCustomPicture(personalCircle) &&
+    hasAboutText(personalCircle) &&
+    hasLocationSet(personalCircle) &&
+    hasAcceptedGuidelines(personalCircle);
 
 export const getVerificationReadiness = (circle?: Partial<Circle> | null): VerificationReadiness => {
     const isUserProfile = circle?.circleType === "user";
@@ -70,6 +92,11 @@ export const getVerificationReadiness = (circle?: Partial<Circle> | null): Verif
                   key: "aboutText",
                   label: "Add About text",
                   complete: hasAboutText(circle),
+              },
+              {
+                  key: "guidelines",
+                  label: "Sign the Community Guidelines",
+                  complete: hasAcceptedGuidelines(circle),
               },
           ]
         : [

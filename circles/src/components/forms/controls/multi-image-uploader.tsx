@@ -101,8 +101,12 @@ export function MultiImageUploader({
     const onDrop = useCallback(
         (acceptedFiles: File[]) => {
             setDragging(false);
+            // maxImages === 1 is a "replace" widget (e.g. a single cover photo), not an
+            // "add until full" one — capping it via `disabled` would permanently block
+            // uploading once any image (even a pre-populated default) occupies the one slot.
+            const isReplaceMode = maxImages === 1;
             const currentImageCount = images.length;
-            const filesToAdd = acceptedFiles.slice(0, maxImages - currentImageCount);
+            const filesToAdd = isReplaceMode ? acceptedFiles.slice(0, 1) : acceptedFiles.slice(0, maxImages - currentImageCount);
 
             if (filesToAdd.length === 0) return; // Don't add if max reached
 
@@ -112,7 +116,13 @@ export function MultiImageUploader({
                 preview: URL.createObjectURL(file),
             }));
 
-            const updatedImages = [...images, ...newImageItems];
+            if (isReplaceMode) {
+                images.forEach((image) => {
+                    if (image.file) URL.revokeObjectURL(image.preview);
+                });
+            }
+
+            const updatedImages = isReplaceMode ? newImageItems : [...images, ...newImageItems];
             handleSetImages(updatedImages);
 
             // Scroll to the newly added images in carousel mode
@@ -161,7 +171,9 @@ export function MultiImageUploader({
         onDragEnter: () => setDragging(true),
         onDragLeave: () => setDragging(false),
         onDropAccepted: () => setDragging(false),
-        disabled: images.length >= maxImages,
+        // maxImages === 1 stays clickable even with an image already present, so it acts as
+        // "replace" rather than becoming permanently disabled the moment one slot is filled.
+        disabled: maxImages > 1 && images.length >= maxImages,
     });
 
     // Carousel API effect
@@ -346,7 +358,7 @@ export function MultiImageUploader({
                 className={cn(
                     "relative cursor-pointer rounded-lg border-2 border-dashed border-gray-300 p-6 text-center transition hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2",
                     isDragActive && "border-indigo-500 bg-indigo-50",
-                    images.length >= maxImages && "cursor-not-allowed border-gray-200 bg-gray-50 opacity-50",
+                    maxImages > 1 && images.length >= maxImages && "cursor-not-allowed border-gray-200 bg-gray-50 opacity-50",
                     dropzoneClassName,
                 )}
             >

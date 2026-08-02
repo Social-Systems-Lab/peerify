@@ -14,7 +14,7 @@ import GalleryTrigger from "./gallery-trigger";
 import { useIsCompact } from "@/components/utils/use-is-compact";
 import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { MessageButton } from "./message-button";
-import { userAtom } from "@/lib/data/atoms";
+import { userAtom, PILOT_ONBOARDING_COMPLETED_STORAGE_KEY } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import { NotificationSettingsDialog } from "@/components/notifications/NotificationSettingsDialog";
 import { Button } from "@/components/ui/button";
@@ -137,8 +137,33 @@ export default function HomeContent({
             completedOnboardingSteps.includes("welcome") ||
             completedOnboardingSteps.includes("member") ||
             completedOnboardingSteps.includes("final");
+        // Anyone whose account came through the guided /onboarding/pilot sequence already got
+        // (or is currently getting) a tailored walkthrough — showing this generic popup is
+        // redundant, and its "are you an artist, use the Create button" copy is actively
+        // nonsensical on someone's own just-built artist circle. Keyed off the account's real
+        // signup metadata (set once, at account creation, in pilot-signup-form.tsx: `metadata:
+        // { onboardingFlow: "pilot-quick-signup", ... }`) rather than only a completion-triggered
+        // localStorage flag — that flag (see PILOT_ONBOARDING_COMPLETED_STORAGE_KEY) only ever
+        // gets set at the flow's exit points, so someone who abandoned the flow partway through
+        // (never reaching any of those points) still slipped through and saw this popup. Signup
+        // metadata is persisted the moment the account exists, so it catches every abort point
+        // without needing to instrument each one individually. For the artist-circle-viewing
+        // case, `isOwnAutoProvisionedArtistCircle` IS already an equally reliable pilot-signup
+        // signal — that flag is exclusively set by the same createPilotArtistCircle path.
+        const cameThroughPilotSignup =
+            (isOwnUserProfile && circle.metadata?.onboardingFlow === "pilot-quick-signup") ||
+            Boolean(isOwnAutoProvisionedArtistCircle);
+        const hasCompletedPilotOnboarding = Boolean(
+            window.localStorage.getItem(PILOT_ONBOARDING_COMPLETED_STORAGE_KEY),
+        );
+        // Deliberately does NOT suppress the `isOwnArtistCircleLive` congrats copy below —
+        // that's a distinct, legitimate one-time celebration for the moment the circle actually
+        // goes live, not the redundant generic welcome.
         const shouldSuppressWelcomeDialog =
-            isVerifiedUser(circle) || hasContributorPerks(circle) || hasSeenWelcomeOnboarding;
+            isVerifiedUser(circle) ||
+            hasContributorPerks(circle) ||
+            hasSeenWelcomeOnboarding ||
+            ((cameThroughPilotSignup || hasCompletedPilotOnboarding) && !isOwnArtistCircleLive);
 
         if (shouldSuppressWelcomeDialog) {
             setShowWelcomeDialog(false);
@@ -150,7 +175,14 @@ export default function HomeContent({
         if (!alreadySeen) {
             setShowWelcomeDialog(true);
         }
-    }, [circle, isOwnLandingProfile, welcomeDialogStorageKey]);
+    }, [
+        circle,
+        isOwnLandingProfile,
+        welcomeDialogStorageKey,
+        isOwnArtistCircleLive,
+        isOwnAutoProvisionedArtistCircle,
+        isOwnUserProfile,
+    ]);
 
     const handleWelcomeDialogChange = (nextOpen: boolean) => {
         setShowWelcomeDialog(nextOpen);
@@ -242,15 +274,26 @@ export default function HomeContent({
                                     ? "Publish when you're ready to share it."
                                     : "Add a picture, About text, and a map location here, and sign the Community Guidelines on your personal profile, before you can publish it."}
                             </p>
-                            {circle._id ? (
-                                <PublishManagedProfileButton
-                                    circleId={circle._id}
-                                    label="Publish profile"
-                                    className="shrink-0 bg-amber-900 text-white hover:bg-amber-800"
-                                    disabled={!pilotArtistCirclePublishReady}
-                                    disabledReason="Complete this profile's picture, About text, and map location, and sign the Community Guidelines on your personal profile, before publishing."
-                                />
-                            ) : null}
+                            <div className="flex shrink-0 items-center gap-2">
+                                {/* Only for the pilot-auto-provisioned circle the guided wizard actually knows how
+                                    to resume — a manually-created (CircleWizard) managed identity isn't reachable
+                                    from /onboarding/pilot, which would otherwise silently land the owner on the
+                                    fan path instead of this circle. */}
+                                {!pilotArtistCirclePublishReady && isOwnAutoProvisionedArtistCircle ? (
+                                    <Button asChild variant="outline" size="sm" className="border-amber-900 text-amber-900 hover:bg-amber-100">
+                                        <Link href="/onboarding/pilot">Continue setup</Link>
+                                    </Button>
+                                ) : null}
+                                {circle._id ? (
+                                    <PublishManagedProfileButton
+                                        circleId={circle._id}
+                                        label="Publish profile"
+                                        className="bg-amber-900 text-white hover:bg-amber-800"
+                                        disabled={!pilotArtistCirclePublishReady}
+                                        disabledReason="Complete this profile's picture, About text, and map location, and sign the Community Guidelines on your personal profile, before publishing."
+                                    />
+                                ) : null}
+                            </div>
                         </div>
                     )}
                     <div className={`relative flex ${isCompact ? "flex-col items-center justify-center" : "flex-row"}`}>

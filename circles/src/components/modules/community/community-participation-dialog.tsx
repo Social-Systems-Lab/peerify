@@ -42,7 +42,7 @@ export function CommunityParticipationDialog({
                 {profileHandle && (
                     <DialogFooter>
                         <Button asChild>
-                            <Link href={`/circles/${profileHandle}/settings/about`}>Complete your profile</Link>
+                            <Link href="/onboarding/pilot">Complete your profile</Link>
                         </Button>
                     </DialogFooter>
                 )}

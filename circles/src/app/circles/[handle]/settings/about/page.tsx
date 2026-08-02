@@ -86,8 +86,18 @@ export default async function AboutSettingsPage(props: PageProps) {
     // gating CommunityGuidelinesSettingsCard already uses, so a visitor to someone else's
     // personal-profile settings page never learns whether that person has an artist circle
     // mid-onboarding.
-    const ownAutoProvisionedArtistCircle =
+    const ownAutoProvisionedArtistCircleAny =
         isUserProfile && userDid && circle.did === userDid ? await getAutoProvisionedArtistCircle(userDid) : null;
+    // getAutoProvisionedArtistCircle itself doesn't filter by publishStatus (other callers, e.g.
+    // /onboarding/pilot, need the circle regardless of publish state) — this call site's own
+    // prop contract (see AboutSettingsForm's ownAutoProvisionedArtistCircle doc comment) promises
+    // it's only ever passed while still unpublished, so filter here. Without this, the "Step 1
+    // complete — Continue to Step 2" banner never went away once the artist circle was actually
+    // published, since it had nothing left to check against.
+    const ownAutoProvisionedArtistCircle =
+        ownAutoProvisionedArtistCircleAny && ownAutoProvisionedArtistCircleAny.publishStatus !== "published"
+            ? ownAutoProvisionedArtistCircleAny
+            : null;
     const statusCopy =
         publishStatus === "draft"
             ? "Draft"
