@@ -3,7 +3,7 @@ import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getUserPrivate } from "@/lib/data/user";
 import { getAutoProvisionedArtistCircle, getPilotArtistCircleReadiness } from "@/lib/data/circle";
 import { getTracksByCircleId } from "@/lib/data/track";
-import { hasAboutText, hasCustomPicture, hasLocationSet } from "@/lib/verification-readiness";
+import { isPilotPersonalPhaseComplete } from "@/lib/verification-readiness";
 import { PilotOnboardingFlow } from "@/components/onboarding/pilot/pilot-onboarding-flow";
 
 // Entry point for the guided, card-based onboarding sequence — originally shown immediately
@@ -37,13 +37,13 @@ export default async function PilotOnboardingPage() {
     // exception: if the shared Personal profile phase (photo/about/location/guidelines — the
     // same four fields/gesture Frames 1a-1d write) is already fully done and there's an artist
     // phase still ahead, skip straight to its first frame (A2) instead of re-clicking through
-    // four already-complete shared frames again.
-    const isPersonalPhaseComplete =
-        hasCustomPicture(personalCircle) &&
-        hasAboutText(personalCircle) &&
-        hasLocationSet(personalCircle) &&
-        Boolean(personalCircle.communityGuidelinesAcceptedAt);
-    const initialStep = artistCircle && isPersonalPhaseComplete ? "artist-solo-band" : "photo";
+    // four already-complete shared frames again. isPilotPersonalPhaseComplete is the single
+    // shared check for this — every entry point that can land here (the Home-tab "Complete
+    // profile" banner, the posting-gate dialog, and the artist Draft-profile banner's "Continue
+    // setup") just links to this same plain /onboarding/pilot URL, so they all get this same
+    // server-computed jump decision automatically; there is no separate per-entry-point logic
+    // to keep in sync.
+    const initialStep = artistCircle && isPilotPersonalPhaseComplete(personalCircle) ? "artist-solo-band" : "photo";
 
     return (
         <PilotOnboardingFlow
