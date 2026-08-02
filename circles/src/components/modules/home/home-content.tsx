@@ -137,23 +137,33 @@ export default function HomeContent({
             completedOnboardingSteps.includes("welcome") ||
             completedOnboardingSteps.includes("member") ||
             completedOnboardingSteps.includes("final");
-        // Anyone who just went through the guided /onboarding/pilot sequence already got a
-        // tailored walkthrough (photo/about/location, role-specific explainers, and — for the
-        // artist path — a dedicated "ready to publish" screen) — showing this generic popup
-        // right after is redundant, and its "are you an artist, use the Create button" copy is
-        // actively nonsensical on someone's own just-built artist circle. See
-        // PILOT_ONBOARDING_COMPLETED_STORAGE_KEY's comment for where this gets set. Deliberately
-        // does NOT suppress the `isOwnArtistCircleLive` congrats copy below — that's a distinct,
-        // legitimate one-time celebration for the moment the circle actually goes live, not the
-        // redundant generic welcome.
+        // Anyone whose account came through the guided /onboarding/pilot sequence already got
+        // (or is currently getting) a tailored walkthrough — showing this generic popup is
+        // redundant, and its "are you an artist, use the Create button" copy is actively
+        // nonsensical on someone's own just-built artist circle. Keyed off the account's real
+        // signup metadata (set once, at account creation, in pilot-signup-form.tsx: `metadata:
+        // { onboardingFlow: "pilot-quick-signup", ... }`) rather than only a completion-triggered
+        // localStorage flag — that flag (see PILOT_ONBOARDING_COMPLETED_STORAGE_KEY) only ever
+        // gets set at the flow's exit points, so someone who abandoned the flow partway through
+        // (never reaching any of those points) still slipped through and saw this popup. Signup
+        // metadata is persisted the moment the account exists, so it catches every abort point
+        // without needing to instrument each one individually. For the artist-circle-viewing
+        // case, `isOwnAutoProvisionedArtistCircle` IS already an equally reliable pilot-signup
+        // signal — that flag is exclusively set by the same createPilotArtistCircle path.
+        const cameThroughPilotSignup =
+            (isOwnUserProfile && circle.metadata?.onboardingFlow === "pilot-quick-signup") ||
+            Boolean(isOwnAutoProvisionedArtistCircle);
         const hasCompletedPilotOnboarding = Boolean(
             window.localStorage.getItem(PILOT_ONBOARDING_COMPLETED_STORAGE_KEY),
         );
+        // Deliberately does NOT suppress the `isOwnArtistCircleLive` congrats copy below —
+        // that's a distinct, legitimate one-time celebration for the moment the circle actually
+        // goes live, not the redundant generic welcome.
         const shouldSuppressWelcomeDialog =
             isVerifiedUser(circle) ||
             hasContributorPerks(circle) ||
             hasSeenWelcomeOnboarding ||
-            (hasCompletedPilotOnboarding && !isOwnArtistCircleLive);
+            ((cameThroughPilotSignup || hasCompletedPilotOnboarding) && !isOwnArtistCircleLive);
 
         if (shouldSuppressWelcomeDialog) {
             setShowWelcomeDialog(false);
@@ -165,7 +175,14 @@ export default function HomeContent({
         if (!alreadySeen) {
             setShowWelcomeDialog(true);
         }
-    }, [circle, isOwnLandingProfile, welcomeDialogStorageKey, isOwnArtistCircleLive]);
+    }, [
+        circle,
+        isOwnLandingProfile,
+        welcomeDialogStorageKey,
+        isOwnArtistCircleLive,
+        isOwnAutoProvisionedArtistCircle,
+        isOwnUserProfile,
+    ]);
 
     const handleWelcomeDialogChange = (nextOpen: boolean) => {
         setShowWelcomeDialog(nextOpen);
