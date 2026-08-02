@@ -135,6 +135,20 @@ export function PilotOnboardingFlow({
         if (index > 0) setStep(phaseInfo.steps[index - 1] as StepName);
     };
 
+    // userAtom (the header avatar, and — more importantly — every client-side "is my profile
+    // complete" check: getParticipationState in community-feed.tsx/post-list.tsx, and
+    // AboutPage's own "Complete profile" banner) is populated once at initial page load and
+    // otherwise never refreshes itself. Without this, completing a field mid-flow (About,
+    // location, genres, guidelines, ...) leaves those checks reading old data — e.g. showing
+    // "Add About text" still unchecked in the participation-gate dialog right after actually
+    // saving it. Real server-side authorization is unaffected either way (isAuthorized/
+    // canPerformRestrictedAction always re-derive from a fresh DB read, never from this atom)
+    // — this only fixes what the CLIENT displays and pre-emptively gates on.
+    const refreshUser = async () => {
+        const refreshedUser = await getUserPrivateAction();
+        if (refreshedUser) setUser(refreshedUser);
+    };
+
     // Every step writes straight to the real circle document as it goes (no draft store), but
     // this component only ever fetches personalCircle/artistCircle/initialArtistTracks ONCE, at
     // initial page load — so without this, going back to an earlier frame after saving later
@@ -142,18 +156,13 @@ export function PilotOnboardingFlow({
     // router.refresh() re-runs the page's server component and pushes fresh props back down
     // (same technique SongsStep/TrackUploadForm already uses for its own track list), while
     // this component's own state (step, artistIdentityType) survives the refresh untouched.
+    // Also refreshes userAtom (see refreshUser above) for the same reason, on every phase-scoped
+    // step transition — centralized here rather than threaded through each frame's own onSaved,
+    // since every real save already funnels through this one function.
     const advanceStep = (next: StepName) => {
         router.refresh();
+        void refreshUser();
         setStep(next);
-    };
-
-    // The header/profile-switcher avatar reads from `userAtom`, which is only populated once
-    // at initial page load — it doesn't know a picture saved mid-flow via savePilotPictureAction
-    // changed anything server-side (that write goes straight to the Circle document, bypassing
-    // the atom entirely). Re-fetching here keeps the header in sync without a full page reload.
-    const refreshUser = async () => {
-        const refreshedUser = await getUserPrivateAction();
-        if (refreshedUser) setUser(refreshedUser);
     };
 
     // See PILOT_ONBOARDING_COMPLETED_STORAGE_KEY's own comment (atoms.ts) — marks this
@@ -198,7 +207,6 @@ export function PilotOnboardingFlow({
                     initialPictureUrl={personalCircle.picture?.url}
                     initialImages={stripStockCoverImages(personalCircle.images)}
                     reassurance="Private by default, so a missing photo carries no risk. No hard requirement."
-                    onSaved={() => void refreshUser()}
                     onContinue={() => advanceStep("about")}
                     onSkip={() => setStep("about")}
                 />
@@ -410,7 +418,6 @@ export function PilotOnboardingFlow({
                     circleId={String(artistCircle._id)}
                     initialPictureUrl={artistInitialPictureUrl}
                     initialImages={stripStockCoverImages(artistCircle.images)}
-                    onSaved={() => void refreshUser()}
                     onContinue={() => advanceStep("artist-about")}
                     onSkip={() => setStep("artist-about")}
                 />
