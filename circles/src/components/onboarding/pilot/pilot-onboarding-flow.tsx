@@ -177,7 +177,7 @@ export function PilotOnboardingFlow({
         return (
             <OnboardingCardShell
                 title="A short about me"
-                subtitle="A sentence or two is plenty."
+                subtitle="Say a few words about yourself — a sentence or two is plenty."
                 stepLabel={stepLabel}
                 progress={progress}
             >
@@ -365,8 +365,8 @@ export function PilotOnboardingFlow({
     if (step === "artist-about" && artistCircle) {
         return (
             <OnboardingCardShell
-                title="A short about me"
-                subtitle="Share a few words about yourselves — fans will see this on your profile."
+                title="Add an introduction to your public artist profile"
+                subtitle="A sentence or two — this is your public artist profile's own bio, separate from your personal profile, and fans will see it here."
                 stepLabel={stepLabel}
                 progress={progress}
             >
