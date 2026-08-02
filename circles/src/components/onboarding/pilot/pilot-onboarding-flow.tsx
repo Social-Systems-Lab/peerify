@@ -116,6 +116,31 @@ export function PilotOnboardingFlow({
         return null;
     }, [step]);
 
+    // Whether the Back control should be interactive on the current frame — disabled (never
+    // hidden) on the very first frame of a phase, per spec: Back must never fall through to
+    // raw browser history, so the first frame of each phase is a dead end going backward.
+    const canGoBack = Boolean(phaseInfo) && phaseInfo!.steps.indexOf(step) > 0;
+
+    // Steps back exactly one frame within the current phase's own step array — never across a
+    // phase boundary (canGoBack is false there) and never via router history.
+    const goBack = () => {
+        if (!phaseInfo) return;
+        const index = phaseInfo.steps.indexOf(step);
+        if (index > 0) setStep(phaseInfo.steps[index - 1] as StepName);
+    };
+
+    // Every step writes straight to the real circle document as it goes (no draft store), but
+    // this component only ever fetches personalCircle/artistCircle/initialArtistTracks ONCE, at
+    // initial page load — so without this, going back to an earlier frame after saving later
+    // ones would show stale (often blank) data instead of what was actually just saved.
+    // router.refresh() re-runs the page's server component and pushes fresh props back down
+    // (same technique SongsStep/TrackUploadForm already uses for its own track list), while
+    // this component's own state (step, artistIdentityType) survives the refresh untouched.
+    const advanceStep = (next: StepName) => {
+        router.refresh();
+        setStep(next);
+    };
+
     // The header/profile-switcher avatar reads from `userAtom`, which is only populated once
     // at initial page load — it doesn't know a picture saved mid-flow via savePilotPictureAction
     // changed anything server-side (that write goes straight to the Circle document, bypassing
@@ -159,6 +184,8 @@ export function PilotOnboardingFlow({
                 subtitle="A face helps people recognize you. You can always change this later."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <PhotoStep
                     circleId={String(personalCircle._id)}
@@ -166,7 +193,7 @@ export function PilotOnboardingFlow({
                     initialImages={stripStockCoverImages(personalCircle.images)}
                     reassurance="Private by default, so a missing photo carries no risk. No hard requirement."
                     onSaved={() => void refreshUser()}
-                    onContinue={() => setStep("about")}
+                    onContinue={() => advanceStep("about")}
                     onSkip={() => setStep("about")}
                 />
             </OnboardingCardShell>
@@ -180,11 +207,13 @@ export function PilotOnboardingFlow({
                 subtitle="Say a few words about yourself — a sentence or two is plenty."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <AboutStep
                     circleId={String(personalCircle._id)}
                     initialValue={personalCircle.description}
-                    onContinue={() => setStep("location")}
+                    onContinue={() => advanceStep("location")}
                     onSkip={() => setStep("location")}
                 />
             </OnboardingCardShell>
@@ -198,13 +227,15 @@ export function PilotOnboardingFlow({
                 subtitle="You won't show up on the map — your location here just helps with things like distance and search."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <LocationStep
                     circleId={String(personalCircle._id)}
                     initialLocation={personalCircle.location}
                     showSearchToggle
                     initialSearchable={personalCircle.searchable ?? true}
-                    onContinue={() => setStep("guidelines")}
+                    onContinue={() => advanceStep("guidelines")}
                     onSkip={() => setStep("guidelines")}
                 />
             </OnboardingCardShell>
@@ -218,8 +249,10 @@ export function PilotOnboardingFlow({
                 subtitle="A quick read — this is what keeps Peerify feeling like a community, not a marketplace."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
-                <GuidelinesStep onAccepted={() => setStep("explainer")} />
+                <GuidelinesStep onAccepted={() => advanceStep("explainer")} />
             </OnboardingCardShell>
         );
     }
@@ -247,13 +280,15 @@ export function PilotOnboardingFlow({
                 subtitle="Helps us surface artists you'll actually like."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <GenresStep
                     circleId={String(personalCircle._id)}
                     initialGenres={personalCircle.primaryGenres}
                     initialGenreOther={personalCircle.primaryGenreOther}
                     maxSelections={Infinity}
-                    onContinue={() => setStep("fan-contribution")}
+                    onContinue={() => advanceStep("fan-contribution")}
                     onSkip={() => setStep("fan-contribution")}
                 />
             </OnboardingCardShell>
@@ -267,9 +302,12 @@ export function PilotOnboardingFlow({
                 subtitle="A spare room, a lift from the station, a hand with promotion — small things that make a huge difference. Totally optional, no pressure either way."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <ContributionStep
-                    onSelected={(value) => setStep(value === "yes" ? "fan-offers-explainer" : "fan-done")}
+                    initialValue={personalCircle.contributionInterest}
+                    onSelected={(value) => advanceStep(value === "yes" ? "fan-offers-explainer" : "fan-done")}
                 />
             </OnboardingCardShell>
         );
@@ -277,7 +315,13 @@ export function PilotOnboardingFlow({
 
     if (step === "fan-offers-explainer") {
         return (
-            <OnboardingCardShell title="How offers work" stepLabel={stepLabel} progress={progress}>
+            <OnboardingCardShell
+                title="How offers work"
+                stepLabel={stepLabel}
+                progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
+            >
                 <OffersExplainerStep onContinue={() => setStep("fan-offers")} />
             </OnboardingCardShell>
         );
@@ -290,12 +334,14 @@ export function PilotOnboardingFlow({
                 subtitle="Pick as many as apply — you can add detail or change these anytime."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <OffersStep
                     circleId={String(personalCircle._id)}
                     circleHandle={personalCircle.handle || ""}
                     initialOfferings={personalCircle.tourTeamOfferings}
-                    onContinue={() => setStep("fan-done")}
+                    onContinue={() => advanceStep("fan-done")}
                 />
             </OnboardingCardShell>
         );
@@ -321,13 +367,15 @@ export function PilotOnboardingFlow({
                 subtitle="This is different from your personal profile — it's what fans and hosts will see."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <ArtistTypeStep
                     circleId={String(artistCircle._id)}
                     initialType={artistIdentityType}
                     onSaved={(type) => {
                         setArtistIdentityType(type);
-                        setStep("artist-photo");
+                        advanceStep("artist-photo");
                     }}
                 />
             </OnboardingCardShell>
@@ -349,13 +397,15 @@ export function PilotOnboardingFlow({
                 subtitle="This is what shows up on the map and in search — not your personal photo from before."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <PhotoStep
                     circleId={String(artistCircle._id)}
                     initialPictureUrl={artistInitialPictureUrl}
                     initialImages={stripStockCoverImages(artistCircle.images)}
                     onSaved={() => void refreshUser()}
-                    onContinue={() => setStep("artist-about")}
+                    onContinue={() => advanceStep("artist-about")}
                     onSkip={() => setStep("artist-about")}
                 />
             </OnboardingCardShell>
@@ -369,12 +419,14 @@ export function PilotOnboardingFlow({
                 subtitle="A sentence or two — this is your public artist profile's own bio, separate from your personal profile, and fans will see it here."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <AboutStep
                     circleId={String(artistCircle._id)}
                     initialValue={artistCircle.description}
                     placeholder="Tell fans a little about the music"
-                    onContinue={() => setStep("artist-songs")}
+                    onContinue={() => advanceStep("artist-songs")}
                     onSkip={() => setStep("artist-songs")}
                 />
             </OnboardingCardShell>
@@ -388,11 +440,13 @@ export function PilotOnboardingFlow({
                 subtitle="Add up to three — this is what most fans will hear first. You can add more later from the Music tab."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <SongsStep
                     circleId={String(artistCircle._id)}
                     tracks={initialArtistTracks}
-                    onContinue={() => setStep("artist-location")}
+                    onContinue={() => advanceStep("artist-location")}
                     onSkip={() => setStep("artist-location")}
                 />
             </OnboardingCardShell>
@@ -406,12 +460,14 @@ export function PilotOnboardingFlow({
                 subtitle="Your artist profile shows up on the public map by default — that's how fans find you. You can change this in Settings later if needed."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <LocationStep
                     circleId={String(artistCircle._id)}
                     initialLocation={artistCircle.location}
                     showSearchToggle={false}
-                    onContinue={() => setStep("artist-genres")}
+                    onContinue={() => advanceStep("artist-genres")}
                     onSkip={() => setStep("artist-genres")}
                 />
             </OnboardingCardShell>
@@ -425,12 +481,14 @@ export function PilotOnboardingFlow({
                 subtitle="Optional — helps with future matchmaking."
                 stepLabel={stepLabel}
                 progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
             >
                 <GenresStep
                     circleId={String(artistCircle._id)}
                     initialGenres={artistCircle.primaryGenres}
                     initialGenreOther={artistCircle.primaryGenreOther}
-                    onContinue={() => setStep("artist-ready")}
+                    onContinue={() => advanceStep("artist-ready")}
                     onSkip={() => setStep("artist-ready")}
                 />
             </OnboardingCardShell>

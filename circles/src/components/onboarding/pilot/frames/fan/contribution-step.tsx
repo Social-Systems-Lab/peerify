@@ -16,15 +16,18 @@ const OPTIONS: { value: ContributionValue; label: string }[] = [
 ];
 
 type ContributionStepProps = {
+    initialValue?: ContributionValue;
     onSelected: (value: ContributionValue) => void;
 };
 
 // Frame F3. Tap-to-select, then a single Continue button — not three immediate-action
 // buttons. "Maybe later" is stored distinct from "Not for me" (see saveContributionInterestAction)
 // so a future ~30-day check-in nudge can target it; that reminder job itself isn't built here.
-export function ContributionStep({ onSelected }: ContributionStepProps) {
+// initialValue lets the Back button (pilot-onboarding-flow.tsx) return here without losing an
+// already-made choice.
+export function ContributionStep({ initialValue, onSelected }: ContributionStepProps) {
     const { toast } = useToast();
-    const [value, setValue] = useState<ContributionValue | null>(null);
+    const [value, setValue] = useState<ContributionValue | null>(initialValue ?? null);
     const [isSaving, setIsSaving] = useState(false);
 
     const handleContinue = async () => {
