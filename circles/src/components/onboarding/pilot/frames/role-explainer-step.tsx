@@ -35,10 +35,10 @@ export function RoleExplainerStep({ role, onGoToProfile, onContinueSetup }: Role
         <div className="space-y-6">
             <p className="text-sm text-muted-foreground">
                 It&apos;s off the public map by default, but findable by search — you can refine it anytime in
-                Settings. Now let&apos;s set up your public artist profile.
+                Settings. Now let&apos;s set up your <strong>public artist profile</strong>.
             </p>
             <Button type="button" className="w-full" onClick={onContinueSetup}>
-                Continue setup
+                Continue with artist setup
             </Button>
         </div>
     );
