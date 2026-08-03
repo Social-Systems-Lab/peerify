@@ -120,11 +120,17 @@ on `router.push` + `router.refresh()` being the identical, already-proven patter
 component already relies on elsewhere. Dave Knowles' real account
 (`metadata.peerify.identityType`) was restored to its original untouched value after testing.
 
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `jHdE4BKZ2ITp5x20I6rjM`), prod pid/uptime unchanged. Post-deploy curl re-check against
+the freshly restarted staging process confirmed `/onboarding/pilot` still resumes at the artist
+phase for the patched-`identityType` DB state — same result as pre-deploy, as expected since
+the deploy only ships what was already verified, not a new server-side behavior change.
+
 **Carry-forward:**
-- Not deployed — 2 commits local to `staging` only, per instruction. Needs a real
-  `deploy-staging.sh` run, then a real click-through retest in an actual browser, before this
-  can be considered verified end-to-end (this session could only verify the server side and
-  the fix's underlying idiom, not the live client behavior).
+- Staging is deployed; production is not — the fix has not been promoted yet. Still needs a
+  real click-through retest in an actual browser on staging before promoting (this session
+  could only verify the server side and the fix's underlying idiom via curl, not live client
+  navigation behavior — no browser tooling available in this environment).
 - Worth a quick sweep of the other two "Continue setup"/"Complete profile" entry points
   (`community-participation-banner.tsx`, `community-participation-dialog.tsx`) for the same
   stale-soft-navigation risk if this class of bug resurfaces elsewhere — not done here since
