@@ -3,25 +3,24 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-06-28)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 116e9394.
+## Current Status (2026-06-28, partially updated 2026-08-03 — see note below)
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 1ce96eda (2026-08-03 promotion — see dated entry below; this line was previously stale at 116e9394).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
-- **ORPHANED-CIRCLES ISSUE — Phase 0 fix deployed to staging (see 2026-08-02 (cont. 6) entry
-  below), Phase 1/2 still open, ALSO STILL LIVE IN PRODUCTION:** deleting a personal account
-  (admin dashboard or self-service — both call the identical `deleteCircle()`) never touches
-  circles that account created/administers, and silently strips that account's own admin
-  membership from those circles as a side effect of unrelated member-count-drift cleanup —
-  bypassing the existing "cannot remove the last admin" safeguard (`removeMemberAction`),
-  which never runs on this path. **Phase 0 (this staging-only fix): both deletion entry
-  points now BLOCK the deletion outright** if the account is the sole admin of any circle,
-  naming the affected circle(s) — no new orphaning can happen going forward on staging.
-  **Still open:** production has not been touched (byte-identical gap still live there); the
-  17 circles already orphaned on staging before this fix are untouched (Phase 1); no
-  reclaim/discovery-hiding/formal-orphan-state work has been done (Phase 2). Do not consider
-  this issue closed until Phase 1/2 are addressed or explicitly descoped, and until the
-  Phase 0 fix itself is deployed to production.
+- **ORPHANED-CIRCLES ISSUE — Phase 0 fix now LIVE IN PRODUCTION as of the 2026-08-03 promotion
+  below (it was already part of the earlier `0521025d` merge to main; this note was stale —
+  Phase 1/2 still open):** deleting a personal account (admin dashboard or self-service — both
+  call the identical `deleteCircle()`) never touches circles that account created/administers,
+  and silently strips that account's own admin membership from those circles as a side effect
+  of unrelated member-count-drift cleanup — bypassing the existing "cannot remove the last
+  admin" safeguard (`removeMemberAction`), which never runs on this path. **Phase 0: both
+  deletion entry points now BLOCK the deletion outright** if the account is the sole admin of
+  any circle, naming the affected circle(s) — no new orphaning can happen going forward, on
+  staging or production. **Still open:** the circles already orphaned before this fix are
+  untouched (Phase 1); no reclaim/discovery-hiding/formal-orphan-state work has been done
+  (Phase 2). Do not consider this issue closed until Phase 1/2 are addressed or explicitly
+  descoped.
 - **PRODUCT CHANGE (2026-08-02, deployed to staging):** personal-profile participation
   (posting/commenting/messaging) now requires Community Guidelines acceptance in addition to
   picture + About text — see dated entry below. `getVerificationReadiness` is the single
@@ -37,6 +36,58 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-03 — Promoted to production: Continue-setup routing fix + profile-complete notification copy fix
+
+Headline: promoted two small, independently-verified staging fixes to production. Both had
+already been confirmed via real click-through/live-request testing on staging (not just
+lint/build) — see the two dated `staging`-branch entries below for the full investigations.
+
+**Promoted (merge `1ce96eda`, staging HEAD `1e733b9d` → main, rollback point `0521025d`):**
+- `96cb4f37` — artist Draft-profile banner's "Continue setup" no longer routes back to Frame
+  1a via a stale client-cached `<Link>` navigation to `/onboarding/pilot`; replaced with
+  `router.push` + `router.refresh()`. This exact bug was originally discovered live on
+  production via a real signup, before being fixed and verified on staging.
+- `30b18a95` — accompanying copy (bold "public artist profile", button label to "Continue with
+  artist setup" on the artist-track explainer screen).
+- `42e771c7` — the auto-verify "profile complete" notification no longer overclaims
+  completeness when location is unset (branches on `hasLocationSet`); the actual
+  posting/commenting/messaging participation gate is unchanged — location stays genuinely
+  optional for that, by deliberate design, not by oversight.
+- Plus 4 SESSION_LOG.md-only commits documenting the above.
+
+**Process:** confirmed staging's working tree clean at `1e733b9d`, `bun run lint` and
+`CI=1 bun run build` both clean on that exact commit (re-running the build regenerated
+staging's live standalone artifacts per the known hazard — immediately restored via a real
+`deploy-staging.sh` run before proceeding, no code change). Confirmed via `git log main..staging`
+that exactly these 7 commits (3 code + 4 docs) were ahead — nothing unexpected. `main` was not a
+fast-forward target for `staging` (main's tip `0521025d` isn't an ancestor of `staging`), so
+merged with `git merge --no-ff` — auto-resolved cleanly, no conflicts. `bun run lint` and
+`CI=1 bun run build` both clean on the resulting merge commit in the production worktree.
+
+**Deploy:** `scripts/deploy-peerify.sh`, all 8 steps passed. GIT_SHA `1ce96eda`, BUILD_ID
+`WbNzBMEbRxYbKiXh22vVx`. Staging pid/uptime unchanged throughout.
+
+**Post-deploy health checks:** `pm2 status` — both processes online, prod not crash-looping.
+`pm2 logs peerify` showed a burst of "Failed to find Server Action ... older or newer
+deployment" errors right after restart — expected, benign collateral of any redeploy (browser
+tabs already open from before the restart still reference the previous build's Server Action
+IDs; resolves itself as those tabs refresh or make their next request). Homepage and `/explore`
+both curl-verified to return full real content (70KB/93KB, correct `<title>`, zero
+"Application error" occurrences) — not blank/hydration-failed. Grepped the deployed server
+bundle directly for both notification message variants (the full "complete" wording and the
+trimmed one) — both present. Grepped the deployed client bundle for the Continue-setup fix's
+exact code (`router.push`/`router.refresh()`, no `<Link>`) — present, matching staging's bundle
+byte-for-byte in substance.
+
+**Not done, recommended:** a real click-through on production itself for the Continue-setup
+fix specifically — this bug was originally found live on production, and while the exact fixed
+code is confirmed present and staging's click-through passed, production's own real traffic/
+caching patterns haven't been directly exercised end-to-end this time (no browser tooling in
+this environment; verification here was via bundle inspection and curl, same method used
+throughout this investigation).
 
 ---
 
