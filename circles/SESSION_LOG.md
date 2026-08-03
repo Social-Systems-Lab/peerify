@@ -104,10 +104,14 @@ session added it to `getVerificationReadiness`'s user branch.
 deploy in this session, so staging's live standalone build is now out of sync with `staging`
 HEAD pending a real `deploy-staging.sh` run, per the standing operational note).
 
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `EgpYDPyOxQW9eE4I9vX_z`), prod pid/uptime unchanged. Grepped the deployed server
+bundle for both notification message variants to confirm they actually shipped (server-side
+code isn't visible via the client-HTML curl trick used for the routing fix).
+
 **Carry-forward:**
-- Not deployed yet — needs a `deploy-staging.sh` run before staging serves this copy fix (or
-  the earlier Continue-setup routing fix's live standalone build gets overwritten by this
-  build's artifacts either way — the fix is already included in this build too).
+- Staging is deployed with both this notification-copy fix and the earlier Continue-setup
+  routing fix (same build). Production has neither yet.
 - The product question raised here — should `isPilotPersonalPhaseComplete` keep requiring
   location for onboarding-resume purposes even though participation never will — was answered
   for now (yes, keep both as they are); revisit only if this class of confusion recurs.
