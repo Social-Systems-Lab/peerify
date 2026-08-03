@@ -40,6 +40,80 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-03 (cont.) — Retest investigation: fix confirmed working; found (and fixed) a misleading "profile complete" notification, a deliberate design divergence, not a bug
+
+Headline: a retest of the Continue-setup fix below appeared to fail (still routed to
+"Personal Profile — Step 1 of 4"). Investigated before touching anything, per instruction.
+The fix is fine; the retest account's personal phase genuinely wasn't complete. That in turn
+surfaced a real, separate piece of user-facing confusion, now fixed.
+
+**Retest investigation — fix confirmed correct, not stale:**
+1. Verified the deploy wasn't stale: local and nested standalone `BUILD_ID` matched
+   (`jHdE4BKZ2ITp5x20I6rjM`), and grepping the actual deployed bundle
+   (`.next/static/chunks/app/circles/[handle]/layout-*.js`) found the real fixed code live —
+   `onClick:()=>{K.push("/onboarding/pilot"),K.refresh()}` — no `<Link>`/anchor remaining.
+2. Confirmed no duplicate/second "Continue setup" button exists anywhere else that could still
+   be using the old `<Link>`-based navigation — only one other literal occurrence in the whole
+   source tree, an unrelated fan-branch button inside the flow itself.
+3. Identified the retest account (`hello-test`, created 2026-08-03T08:39 UTC — the only account
+   anywhere near that recent; everything else is 8+ days old) and checked its real DB state:
+   picture ✓, About text ✓, Community Guidelines ✓, but **`location` was never set** (`undefined`,
+   not just a default). `hasLocationSet()` requires `location.lngLat` with finite lat/lng —
+   fails outright for this account.
+4. Confirmed directly via curl (minted JWT, real session) against the live server: this
+   account's `/onboarding/pilot` genuinely and correctly returns "Personal profile — Step 1 of
+   4" — matching the retest's "failure" exactly, but as correct behavior given the account's
+   real state, not a caching bug recurring. The Location step's "Skip" option looks identical
+   to completing it, and appears to be what actually happened during the retest.
+
+**Real finding, not the retest's premise:** the human got a "Your profile is complete! You can
+now post, comment, and message on Peerify" notification despite never setting location — a
+reasonable, direct cause of assuming location wasn't required and of the confusing retest.
+Compared all three places this could matter:
+- The notification's trigger (`updateCircle`'s auto-verify block, `circle.ts`) and the actual
+  server-side post/comment/message permission gate (`canPerformRestrictedAction` → `isVerified`,
+  set by that exact same trigger) are **the same flag** — no drift between these two. Both
+  require picture + About text + Community Guidelines. **Not** location.
+- `isPilotPersonalPhaseComplete` (the onboarding resume-routing check) requires all of the above
+  **plus location** — and says so explicitly in its own file comment, which already documents
+  location as deliberately excluded from the participation gate.
+
+Unlike the Community Guidelines session's bug (an accidental missing-DB-projection defect),
+this divergence is intentional and self-documented in the code — a genuinely different bar for
+"can participate" vs. "onboarding flow's personal phase is done." Confirmed empirically against
+`hello-test`'s real record: `isVerified: true`, `verifiedAt: 2026-08-03T08:40:36Z` (the instant
+guidelines were accepted, the last of the three required fields) — notification fired, full
+participation granted, location never touched.
+
+**Decision (explicit, this session): keep the participation gate exactly as-is.** Location stays
+genuinely optional for posting/commenting/messaging — not changing that. Only the notification
+copy was misleading relative to the onboarding flow's own stricter "complete" definition, so
+only the copy was fixed.
+
+**Fix (`42e771c7`):** `updateCircle`'s auto-verify block now checks `hasLocationSet(c)` at the
+moment it fires and picks between two messages — the fuller "Your profile is complete! You can
+now post, comment, and message on Peerify." only when location is actually set, otherwise "You
+can now post, comment, and message on Peerify!" (drops the "complete" claim, doesn't mention
+location, just announces what's actually been unlocked). Also corrected
+`participation-readiness.ts`'s stale file-header comment, which still said Community Guidelines
+acceptance didn't affect this gate — that's been inaccurate since the Community Guidelines
+session added it to `getVerificationReadiness`'s user branch.
+
+**Verification:** `bun run lint` clean (same pre-existing warnings elsewhere, nothing new).
+`CI=1 bun run build` clean (full build this time, as instructed — not immediately followed by a
+deploy in this session, so staging's live standalone build is now out of sync with `staging`
+HEAD pending a real `deploy-staging.sh` run, per the standing operational note).
+
+**Carry-forward:**
+- Not deployed yet — needs a `deploy-staging.sh` run before staging serves this copy fix (or
+  the earlier Continue-setup routing fix's live standalone build gets overwritten by this
+  build's artifacts either way — the fix is already included in this build too).
+- The product question raised here — should `isPilotPersonalPhaseComplete` keep requiring
+  location for onboarding-resume purposes even though participation never will — was answered
+  for now (yes, keep both as they are); revisit only if this class of confusion recurs.
+
+---
+
 ## 2026-08-03 — Artist Draft-profile banner's "Continue setup" misroute: CONFIRMED via real production signup, root cause found (client-side, not page.tsx)
 
 Headline: the 2026-08-02 (cont. 4) "Fix 3" investigation below concluded this bug's premise
