@@ -20,6 +20,7 @@ import { NotificationSettingsDialog } from "@/components/notifications/Notificat
 import { Button } from "@/components/ui/button";
 import { BarChart3, Settings } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PublishManagedProfileButton } from "@/components/profiles/publish-managed-profile-button";
 import { VerifyAccountButton } from "../auth/verify-account-button";
 import SocialLinks from "./social-links";
@@ -82,6 +83,7 @@ export default function HomeContent({
         (circle.parentCircleId && parentCircle?.circleType === "user" ? "profile_child" : undefined);
     const memberCount = circle?.members ? (isUser ? circle.members - 1 : circle.members) : 0;
     const isCompact = useIsCompact();
+    const router = useRouter();
     const [user] = useAtom(userAtom);
     const isOwnUserProfile = isUser && (user?.did === circle.did || viewerDid === circle.did);
     // Gates the welcome dialog: the viewer's own personal profile, or the viewer's own
@@ -280,8 +282,28 @@ export default function HomeContent({
                                     from /onboarding/pilot, which would otherwise silently land the owner on the
                                     fan path instead of this circle. */}
                                 {!pilotArtistCirclePublishReady && isOwnAutoProvisionedArtistCircle ? (
-                                    <Button asChild variant="outline" size="sm" className="border-amber-900 text-amber-900 hover:bg-amber-100">
-                                        <Link href="/onboarding/pilot">Continue setup</Link>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-amber-900 text-amber-900 hover:bg-amber-100"
+                                        onClick={() => {
+                                            // A plain <Link> here can resolve to a stale RSC payload for
+                                            // /onboarding/pilot cached from earlier in this browser session
+                                            // (e.g. right after signup, before the personal phase — or this
+                                            // artist phase — was actually completed), because the route has no
+                                            // distinguishing search params and no loading.tsx to force a real
+                                            // fetch on click. page.tsx's own resume-point logic (which decides
+                                            // "photo" vs. "artist-solo-band") is already correct — confirmed by
+                                            // hitting the live server directly, bypassing the client entirely —
+                                            // so router.refresh() right after navigating (the same idiom
+                                            // PilotOnboardingFlow's own advanceStep already uses to keep itself
+                                            // fresh) is enough to force that correct logic to actually run,
+                                            // rather than reusing a stale cached instance.
+                                            router.push("/onboarding/pilot");
+                                            router.refresh();
+                                        }}
+                                    >
+                                        Continue setup
                                     </Button>
                                 ) : null}
                                 {circle._id ? (
