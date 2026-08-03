@@ -4,11 +4,14 @@
 // canPerformRestrictedAction (isVerifiedUser OR isAdmin bypass) — see
 // createPostAction in src/components/modules/feeds/actions.ts and
 // isAuthorized's needsToBeVerified branch in src/lib/auth/auth.ts. Today,
-// isVerifiedUser is only ever set once a profile's picture + About text are
-// both complete (see getVerificationReadiness / updateCircle's auto-verify),
-// so "profile_incomplete" is the one real, server-enforced blocking reason.
-// Email verification and Community Guidelines acceptance are separate,
-// independently-tracked fields that do not currently affect this gate — this
+// isVerifiedUser is only ever set once a profile's picture, About text, and
+// Community Guidelines acceptance are all complete (see getVerificationReadiness
+// / updateCircle's auto-verify), so "profile_incomplete" is the one real,
+// server-enforced blocking reason. Location and email verification are
+// separate, independently-tracked fields that do not currently affect this
+// gate — location in particular is deliberately excluded and staying that way
+// (it matters for the onboarding flow's own "personal phase complete" bar, via
+// isPilotPersonalPhaseComplete, but was never required to participate). This
 // helper mirrors canPerformRestrictedAction exactly rather than inventing a
 // stricter check, so it can never drift from what the server actually denies.
 import type { Circle } from "@/models/models";

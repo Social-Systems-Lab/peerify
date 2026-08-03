@@ -592,10 +592,15 @@ export const updateCircle = async (circle: Partial<Circle>, authenticatedUserDid
         // Dynamic import avoids a circular dependency: notifications.ts imports from circle.ts.
         try {
             const { sendUserVerifiedNotification } = await import("./notifications");
-            await sendUserVerifiedNotification(
-                c as any,
-                "Your profile is complete! You can now post, comment, and message on Peerify.",
-            );
+            // getVerificationReadiness (picture+about+guidelines) deliberately excludes location —
+            // it's genuinely optional for participation and that's not changing here. But claiming
+            // the profile is "complete" is only accurate when location is ALSO set, since that's
+            // still part of isPilotPersonalPhaseComplete's (the onboarding flow's own) definition
+            // of a finished personal profile. Check it just for wording, not to gate anything.
+            const message = hasLocationSet(c)
+                ? "Your profile is complete! You can now post, comment, and message on Peerify."
+                : "You can now post, comment, and message on Peerify!";
+            await sendUserVerifiedNotification(c as any, message);
         } catch (e) {
             console.error("Failed to send auto-verification notification", e);
         }
