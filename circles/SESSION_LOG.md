@@ -40,6 +40,183 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-03 (cont.) — Retest investigation: fix confirmed working; found (and fixed) a misleading "profile complete" notification, a deliberate design divergence, not a bug
+
+Headline: a retest of the Continue-setup fix below appeared to fail (still routed to
+"Personal Profile — Step 1 of 4"). Investigated before touching anything, per instruction.
+The fix is fine; the retest account's personal phase genuinely wasn't complete. That in turn
+surfaced a real, separate piece of user-facing confusion, now fixed.
+
+**Retest investigation — fix confirmed correct, not stale:**
+1. Verified the deploy wasn't stale: local and nested standalone `BUILD_ID` matched
+   (`jHdE4BKZ2ITp5x20I6rjM`), and grepping the actual deployed bundle
+   (`.next/static/chunks/app/circles/[handle]/layout-*.js`) found the real fixed code live —
+   `onClick:()=>{K.push("/onboarding/pilot"),K.refresh()}` — no `<Link>`/anchor remaining.
+2. Confirmed no duplicate/second "Continue setup" button exists anywhere else that could still
+   be using the old `<Link>`-based navigation — only one other literal occurrence in the whole
+   source tree, an unrelated fan-branch button inside the flow itself.
+3. Identified the retest account (`hello-test`, created 2026-08-03T08:39 UTC — the only account
+   anywhere near that recent; everything else is 8+ days old) and checked its real DB state:
+   picture ✓, About text ✓, Community Guidelines ✓, but **`location` was never set** (`undefined`,
+   not just a default). `hasLocationSet()` requires `location.lngLat` with finite lat/lng —
+   fails outright for this account.
+4. Confirmed directly via curl (minted JWT, real session) against the live server: this
+   account's `/onboarding/pilot` genuinely and correctly returns "Personal profile — Step 1 of
+   4" — matching the retest's "failure" exactly, but as correct behavior given the account's
+   real state, not a caching bug recurring. The Location step's "Skip" option looks identical
+   to completing it, and appears to be what actually happened during the retest.
+
+**Real finding, not the retest's premise:** the human got a "Your profile is complete! You can
+now post, comment, and message on Peerify" notification despite never setting location — a
+reasonable, direct cause of assuming location wasn't required and of the confusing retest.
+Compared all three places this could matter:
+- The notification's trigger (`updateCircle`'s auto-verify block, `circle.ts`) and the actual
+  server-side post/comment/message permission gate (`canPerformRestrictedAction` → `isVerified`,
+  set by that exact same trigger) are **the same flag** — no drift between these two. Both
+  require picture + About text + Community Guidelines. **Not** location.
+- `isPilotPersonalPhaseComplete` (the onboarding resume-routing check) requires all of the above
+  **plus location** — and says so explicitly in its own file comment, which already documents
+  location as deliberately excluded from the participation gate.
+
+Unlike the Community Guidelines session's bug (an accidental missing-DB-projection defect),
+this divergence is intentional and self-documented in the code — a genuinely different bar for
+"can participate" vs. "onboarding flow's personal phase is done." Confirmed empirically against
+`hello-test`'s real record: `isVerified: true`, `verifiedAt: 2026-08-03T08:40:36Z` (the instant
+guidelines were accepted, the last of the three required fields) — notification fired, full
+participation granted, location never touched.
+
+**Decision (explicit, this session): keep the participation gate exactly as-is.** Location stays
+genuinely optional for posting/commenting/messaging — not changing that. Only the notification
+copy was misleading relative to the onboarding flow's own stricter "complete" definition, so
+only the copy was fixed.
+
+**Fix (`42e771c7`):** `updateCircle`'s auto-verify block now checks `hasLocationSet(c)` at the
+moment it fires and picks between two messages — the fuller "Your profile is complete! You can
+now post, comment, and message on Peerify." only when location is actually set, otherwise "You
+can now post, comment, and message on Peerify!" (drops the "complete" claim, doesn't mention
+location, just announces what's actually been unlocked). Also corrected
+`participation-readiness.ts`'s stale file-header comment, which still said Community Guidelines
+acceptance didn't affect this gate — that's been inaccurate since the Community Guidelines
+session added it to `getVerificationReadiness`'s user branch.
+
+**Verification:** `bun run lint` clean (same pre-existing warnings elsewhere, nothing new).
+`CI=1 bun run build` clean (full build this time, as instructed — not immediately followed by a
+deploy in this session, so staging's live standalone build is now out of sync with `staging`
+HEAD pending a real `deploy-staging.sh` run, per the standing operational note).
+
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `EgpYDPyOxQW9eE4I9vX_z`), prod pid/uptime unchanged. Grepped the deployed server
+bundle for both notification message variants to confirm they actually shipped (server-side
+code isn't visible via the client-HTML curl trick used for the routing fix).
+
+**Carry-forward:**
+- Staging is deployed with both this notification-copy fix and the earlier Continue-setup
+  routing fix (same build). Production has neither yet.
+- The product question raised here — should `isPilotPersonalPhaseComplete` keep requiring
+  location for onboarding-resume purposes even though participation never will — was answered
+  for now (yes, keep both as they are); revisit only if this class of confusion recurs.
+
+---
+
+## 2026-08-03 — Artist Draft-profile banner's "Continue setup" misroute: CONFIRMED via real production signup, root cause found (client-side, not page.tsx)
+
+Headline: the 2026-08-02 (cont. 4) "Fix 3" investigation below concluded this bug's premise
+could not be confirmed. It was wrong — a real signup on **production** (peerify.one, not
+staging) reproduced it cleanly. This session reproduced it first (as instructed, without
+assuming the prior conclusion still held), found the actual root cause — which is NOT what
+Fix 3 checked — and fixed it. Two commits, both local to `staging`, not deployed.
+
+**Confirmed repro:** complete the shared/personal phase (Frames 1a-1d) on a fresh account,
+proceed into the artist phase past Solo/Band selection (i.e. `saveArtistIdentityTypeAction`
+has actually run at least once), then abandon before finishing. Visit the artist circle's own
+page — its Draft-profile banner appears. Click **that banner's own** "Continue setup" (not the
+personal Home tab's "Complete profile" banner, a separate, already-correctly-routed entry
+point) — it lands on Frame 1a of the personal phase instead of resuming the artist phase, even
+though the personal phase is already fully complete.
+
+**Why Fix 3 missed it:** Fix 3 tested against `dave-knowles`'s real artist circle
+(`dave-knowles-2`), which matched the reported scenario's *surface* description ("personal
+phase complete, artist circle draft") but not its *actual* precondition — Dave's artist circle
+had never been touched at all (`identityType: "artist"` — the untouched default,
+`description: ""`, stock avatar). The bug specifically requires having progressed **past**
+Solo/Band (i.e. `metadata.peerify.identityType` explicitly saved) before abandoning. Fix 3
+never controlled for this variable, so its "already evaluates to the correct jump" finding was
+true for the account it tested but didn't cover the account state the real report described.
+
+**Root cause investigation, this session:**
+1. Reproduced the exact precondition without a real signup (no browser tooling in this
+   environment — see repeated note elsewhere in this log): patched `dave-knowles-2`'s
+   `metadata.peerify.identityType` directly to simulate having actually run
+   `saveArtistIdentityTypeAction` once, then abandoned (matching the reported repro exactly).
+2. Called `page.tsx`'s own real, unmodified functions (`getAutoProvisionedArtistCircle`,
+   `isPilotPersonalPhaseComplete`) directly via a throwaway script against the live staging DB
+   — **result: correctly computed `initialStep: "artist-solo-band"`**. Confirmed
+   `updateCircle`'s auto-verify block (the only other write-path side effect
+   `saveArtistIdentityTypeAction` touches) only fires for `circleType === "user"`, never the
+   artist circle — ruled out as a factor.
+3. Not trusting a reimplementation alone: minted a real JWT for `dave-knowles`'s actual account
+   (same secret/algorithm as `generateUserToken`) and hit the **live staging server directly**
+   with `curl`, cookie included, for both the untouched and the patched-artist-circle DB
+   states. Both returned the correct frame ("Welcome to your public artist profile setup", not
+   "Add a photo"). Also confirmed the response header: `Cache-Control: private, no-cache,
+   no-store, max-age=0, must-revalidate` — no HTTP/CDN caching involved.
+4. **Conclusion: `page.tsx`'s resume-point logic is, and was, correct.** The bug is not a
+   missing-wiring gap in the server-side "artist-phase-jump" logic at all (confirming Fix 3's
+   narrower finding was right, as far as it tested) — it's that the banner's `<Link
+   href="/onboarding/pilot">` is a client-side App Router soft-navigation, which curl cannot
+   exercise. `/onboarding/pilot` has no distinguishing search params and no `loading.tsx`, so a
+   navigation to it can resolve to a stale cached RSC payload/props from **earlier in the same
+   browser session** — plausibly from right after signup, before the personal phase (or this
+   artist phase) was actually complete — instead of triggering a fresh server round-trip. This
+   specific banner is the likeliest of the three entry points to have been rendered, and thus
+   navigated from, at that earliest, least-complete point (it's on the artist circle's own
+   page, visible immediately after auto-provisioning at signup), which is why it manifests here
+   without necessarily implicating the other two.
+
+**Fix (`96cb4f37`):** replaced the plain `<Link>` in `home-content.tsx`'s Draft-profile banner
+with `router.push("/onboarding/pilot"); router.refresh();` — the same idiom
+`PilotOnboardingFlow`'s own `advanceStep` already uses to keep itself fresh after a save. This
+doesn't touch or duplicate the (already-correct) `page.tsx` logic; it just forces that logic to
+actually run against fresh data instead of a stale cached instance being reused. Did not touch
+the other two entry points — no evidence they share the same failure mode in practice, and the
+instruction scoped the fix to this banner.
+
+**Copy (`30b18a95`):** on the artist-track explainer screen (`role-explainer-step.tsx`,
+step `"explainer"`, artist branch) — bolded "public artist profile" in "Now let's set up your
+**public artist profile**", and renamed its "Continue setup" button to "Continue with artist
+setup" (singular "artist", matching the bolded text right above it). Left the fan branch's
+identical-looking "Continue setup" button (leads into fan setup, not artist) unchanged.
+
+**Verification:** `bun run lint` clean (only pre-existing warnings elsewhere). `npx tsc --noEmit
+-p .` clean — used instead of a full `CI=1 bun run build` per this week's standing process note
+(a bare build after a real deploy silently corrupts the live standalone build; not deploying
+this session, so a full build wasn't run and staging's live process is unaffected/untouched).
+Re-ran the same curl-based repro (patch `identityType` -> curl -> restore) after the fix to
+reconfirm `page.tsx` is unchanged/correct; the fix itself is a client-side navigation change
+that could not be exercised the same way (no browser tooling available) — its correctness rests
+on `router.push` + `router.refresh()` being the identical, already-proven pattern this exact
+component already relies on elsewhere. Dave Knowles' real account
+(`metadata.peerify.identityType`) was restored to its original untouched value after testing.
+
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `jHdE4BKZ2ITp5x20I6rjM`), prod pid/uptime unchanged. Post-deploy curl re-check against
+the freshly restarted staging process confirmed `/onboarding/pilot` still resumes at the artist
+phase for the patched-`identityType` DB state — same result as pre-deploy, as expected since
+the deploy only ships what was already verified, not a new server-side behavior change.
+
+**Carry-forward:**
+- Staging is deployed; production is not — the fix has not been promoted yet. Still needs a
+  real click-through retest in an actual browser on staging before promoting (this session
+  could only verify the server side and the fix's underlying idiom via curl, not live client
+  navigation behavior — no browser tooling available in this environment).
+- Worth a quick sweep of the other two "Continue setup"/"Complete profile" entry points
+  (`community-participation-banner.tsx`, `community-participation-dialog.tsx`) for the same
+  stale-soft-navigation risk if this class of bug resurfaces elsewhere — not done here since
+  the instruction scoped this fix to the one banner and there's no evidence yet they're
+  actually affected in practice.
+
+---
+
 ## 2026-08-02 (cont. 6) — Orphaned-circles issue, Phase 0: block deletion that would orphan a circle
 
 Headline: narrow, urgent safety fix for the gap the (cont. 5) investigation below found —
