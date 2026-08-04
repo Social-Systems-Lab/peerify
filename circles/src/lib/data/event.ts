@@ -1545,6 +1545,9 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
                                 handle: 1,
                                 picture: 1,
                                 enabledModules: 1,
+                                publishStatus: 1,
+                                circleType: 1,
+                                mapVisible: 1,
                             },
                         },
                     ],
@@ -1552,6 +1555,34 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
                 },
             },
             { $unwind: { path: "$circleDetails", preserveNullAndEmptyArrays: true } },
+
+            // Host-circle visibility gating — mirrors getSwipeCircles' own rule (circle.ts), same
+            // as the identical fix already applied to getOpenEventsForMap: the host circle must be
+            // published, and if it's a personal ("user") profile, must also have explicitly opted in
+            // via mapVisible. A missing host circle (e.g. deleted) fails closed.
+            {
+                $match: {
+                    $and: [
+                        { circleDetails: { $ne: null } },
+                        {
+                            $or: [
+                                { "circleDetails.publishStatus": "published" },
+                                { "circleDetails.publishStatus": { $exists: false } },
+                            ],
+                        },
+                        {
+                            $or: [
+                                { "circleDetails.circleType": { $ne: "user" } },
+                                { "circleDetails.mapVisible": true },
+                            ],
+                        },
+                    ],
+                },
+            },
+
+            // Drop the gating-only fields just added to circleDetails' projection above, so the
+            // client-facing `circle` shape is unchanged from before this fix.
+            { $unset: ["circleDetails.publishStatus", "circleDetails.circleType", "circleDetails.mapVisible"] },
 
             // RSVP counts
             {
