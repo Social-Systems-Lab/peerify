@@ -247,7 +247,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const searchParams = useSearchParams();
     const [viewMode, setViewMode] = useState<ViewMode>("explore");
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<string | null>("users");
     const [allSearchResults, setAllSearchResults] = useState<WithMetric<Circle>[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
@@ -813,8 +813,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 .map((circle) => mapItemToContent(circle))
                 .filter((c): c is Content => c !== null);
 
-            // Default: combine circles with filtered events
-            const combined: Content[] = [...mapData, ...(filteredEventsForMap as unknown as Content[])];
+            // Only combine circles with events when no specific category pill is active — a
+            // circle-type pill (Artists/Venues) must exclude every other content type, events
+            // included, not just other circle types (baseCircles already handles that part).
+            const combined: Content[] = selectedCategory
+                ? mapData
+                : [...mapData, ...(filteredEventsForMap as unknown as Content[])];
             setDisplayedContent(combined);
         }
     }, [
