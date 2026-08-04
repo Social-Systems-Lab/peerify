@@ -40,6 +40,57 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-04 (cont. 3) — Hid Topics from chat/messages UI — not needed for Peerify
+
+Headline: investigated then hid the chat "Topics" feature from the UI, per request. One commit
+(`2b448ef1`), two files changed, local to `staging` only, not deployed.
+
+**Investigation first, as instructed.** Topics turned out to be real, Peerify-built
+functionality — not leftover Kamooni/Circles scaffolding. No dedicated Mongo collection or
+model in `src/models/models.ts`; it's implemented as `thread`/`threadId` fields directly on
+`ChatMessageDoc` (`src/lib/chat/mongo-types.ts`), with full CRUD in `mongo-chat.ts`
+(`createThread`, `fetchThreadReplies`, `listThreadsForConversation`, ...) and server actions in
+`mongo-actions.ts` (`createThreadAction`, `sendThreadReplyAction` — which fires real chat
+notifications). Wired into unread-count logic too (`app/chat/layout.tsx` explicitly accounts
+for topic replies). Three user-facing surfaces, all in `src/components/modules/chat/`: the
+composer's "New topic" lightbulb button + `NewThreadModal` (`chat-room.tsx`), an inline
+green-tinted "Topic card" replacing the normal bubble for topic-starter messages
+(`chat-room.tsx`), and a "Topics" tab in the room's Info dialog (`group-settings-modal.tsx`,
+`ThreadsTab`). Confirmed via full-repo case-insensitive search: **fully self-contained within
+the chat module** — nothing in circles/forums/discussions/notifications references it.
+
+**Decision, explicit and confirmed with the user rather than assumed:** since Topics isn't
+entangled with other modules, the hide-vs-remove tradeoff wasn't about breaking other features
+— it was about whether to also delete the real, functioning backend. Chose **UI-only hide**:
+backend (`mongo-actions.ts`, `mongo-chat.ts`, `mongo-types.ts`) completely untouched, so any
+existing topic data and the notification/unread-count integration stay intact and this remains
+easily reversible. Confirmed zero topic-starter messages exist on staging currently, so no
+existing content is actually affected either way at this moment.
+
+**Fix:** removed/gated the three UI entry points without deleting the underlying component
+definitions — the "New topic" button (its modal and state left in place, now unreachable), the
+inline TopicCard branch (topic-starter messages now render through the same normal-bubble path
+as any other message; `TopicCard` itself left defined, just unused), and the "Topics" tab
+(`ThreadsTab` and chat-room.tsx's `OPEN_TOPIC_EVENT` listener left in place, unreachable).
+Removed the two artifacts my own edit made genuinely dead in `group-settings-modal.tsx` (an
+unused `HiLightBulb` import and a local `OPEN_TOPIC_EVENT` constant — chat-room.tsx has its own
+independent copy of that same string, untouched).
+
+**Verification:** no browser tooling available, and deploying wasn't authorized for this task,
+so verified via a full grep sweep (no visible "Topic" text remains reachable in either changed
+file — remaining matches are all inside the now-unreachable definitions, or the unrelated
+Matrix protocol field `m.room.topic`) plus `bun run lint` and `npx tsc --noEmit -p .`, both
+clean. Deliberately did not run a build — staging's live standalone build would be corrupted by
+a bare build without an immediate redeploy (the standing operational hazard), and this task
+explicitly said not to deploy without checking first.
+
+**Carry-forward:** not deployed — local to `staging` only, per instruction. Needs a real
+click-through once deployed to confirm messaging (send/receive) is unaffected in an actual
+browser — this session's changes never touched any server action or data-access code, so
+send/receive is unaffected by construction, but that hasn't been interactively confirmed.
+
+---
+
 ## 2026-08-04 (cont. 2) — Fixed map filter-pill bugs: events leaked through Artists/Venues pills; defaulted map to Artists
 
 Headline: two related bugs found while testing the just-promoted event-visibility fixes, but
