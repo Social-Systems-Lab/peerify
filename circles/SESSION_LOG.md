@@ -40,6 +40,54 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-04 (cont. 4) — Decoupled map search scope from the active filter pill
+
+Headline: fixed the map search silently getting pre-scoped by whichever content-type pill was
+active (including the Artists default), causing a search for a friend/venue to return zero
+results with no indication why. One commit (`277eba2a`), one file changed
+(`map-explorer.tsx`), local to `staging` only, not deployed.
+
+**Investigation first, as instructed.** Found where the pill couples into search:
+`filteredSearchResults` (`map-explorer.tsx`) filters `allSearchResults` by `selectedCategory`
+before anything else runs — with Artists as the now-default pill, EVERY fresh search
+immediately excluded venues. Separately, the search panel's "items" display (used in two
+places — a panel-sync effect and inside `handleSearchTrigger` itself) only ever showed events
+when `selectedCategory === "events"` exactly, excluding events from search results for every
+other pill state (including the default). The **default (no-search) browsing view uses a
+different code path** (`baseCircles` = `filterCirclesByCategory(allDiscoverableCircles,
+selectedCategory)` directly, not through search state at all) — confirming the pill's role as
+"default view filter" and "search pre-scope" were coupled only through `selectedCategory` being
+read in both places, not through shared logic that needed disentangling elsewhere.
+
+**Fix:** on the transition into a *fresh* search (`!hasSearched` at call time — not on a
+refinement of an already-active search, e.g. a genre pill change, so a pill still works as a
+post-search narrowing tool rather than getting silently reset out from under a search already
+in progress), reset `selectedCategory` to `null` before computing results. Generalized the
+"items" display logic into a shared `searchDisplayItems` memo (plus an equivalent local
+computation inside `handleSearchTrigger` for that same-tick closure, since the memo's inputs
+wouldn't yet reflect the just-fetched results within the same synchronous execution): with no
+pill exclusively active, search results now span every content type — circles of every identity
+plus matching events — rather than only whichever type the leftover pill happened to select.
+`baseCircles`/`filterCirclesByCategory`'s own logic, and their use for the default browsing
+view, are completely unchanged.
+
+**Verification:** no browser tooling available, so verified via a fixture-based script (not
+committed) using the real `isPeerifyArtistIdentity`/`isPeerifyVenueIdentity` functions,
+mirroring the exact new logic: a venue-matching search with the Artists pill active returns the
+venue; an artist-matching search with the Venues pill active returns the artist; a search
+already in progress keeps a subsequently-applied pill's narrowing (not reset by a genre-change
+refinement); and the default Artists-pill browsing view (calling `filterCirclesByCategory`
+directly, the unchanged code path) is unaffected. `bun run lint` and `npx tsc --noEmit -p .`
+both clean — only one new, pre-existing-pattern-unrelated warning surfaced in the whole lint
+run, confirmed to be a shifted line number for an already-existing, untouched effect further
+down the file.
+
+**Carry-forward:** not deployed — local to `staging` only, per instruction. Needs a real
+click-through once deployed to confirm the actual search UX (typing a query, watching results
+populate) matches this logical verification.
+
+---
+
 ## 2026-08-04 (cont. 3) — Hid Topics from chat/messages UI — not needed for Peerify
 
 Headline: investigated then hid the chat "Topics" feature from the UI, per request. One commit
