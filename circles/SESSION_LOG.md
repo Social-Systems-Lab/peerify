@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ a8b2dfdf (2026-08-04 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 46c1aded (2026-08-04 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -36,6 +36,51 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-04 (cont. 5) — Promoted to production: hide Topics from chat/messages UI
+
+Headline: promoted the Topics-hide fix below to production. Deploy only — no code changes made
+in this worktree beyond the merge itself.
+
+**Promoted (merge `46c1aded`, rollback point `64047344`):**
+- `2b448ef1` — removes the three Topics UI entry points (composer's "New topic" button, inline
+  Topic card, "Topics" tab in the room Info dialog) without touching the backend
+  (`mongo-actions.ts`, `mongo-chat.ts`, `mongo-types.ts`) or deleting the underlying component
+  definitions — a reversible UI-only hide, per explicit product decision (Topics is real,
+  functioning, Peerify-built chat-thread functionality, not leftover Kamooni/Circles
+  scaffolding, but fully self-contained within the chat module).
+- `afa0c641`, `f5d1fca6` — SESSION_LOG entries for the above and its staging deploy.
+
+**Process:** the task named 2 commits ("`f5d1fca6` and its parent"); confirmed via
+`git log main..staging` that staging was actually 3 commits ahead, and that a literal reading
+of "its parent" would have excluded the actual code fix (`2b448ef1`) — flagged this before
+merging and brought over all 3, matching staging's entire divergence exactly (nothing else
+bundled in). `main` was not a fast-forward target (main's tip `64047344` isn't an ancestor of
+`staging`), so merged with `git merge --no-ff`.
+
+**Merge conflict:** `SESSION_LOG.md` only, the same class as the two prior promotions. Resolved
+by interleaving in chronological order. Both chat files (`chat-room.tsx`,
+`group-settings-modal.tsx`) merged with no conflict and were confirmed byte-for-byte identical
+to staging's versions afterward. `bun run lint` clean; no bare build run (per instruction) —
+build verified via the deploy script itself.
+
+**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting. `scripts/deploy-peerify.sh`,
+all 8 steps passed. GIT_SHA `46c1aded`, BUILD_ID `AJ1LWZ1qdw08cigOxZNYJ`. `pm2 save` ran inside
+the script. Staging pid/uptime unchanged throughout.
+
+**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
+`pm2 status` — both processes online, prod not crash-looping, clean "Ready in 243ms" boot.
+`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
+deployment" burst seen on every prior redeploy — expected, not a fault. Homepage and `/explore`
+both curl-verified to return full real content, zero "Application error" occurrences. Went
+further this time and curl-verified a real **production chat conversation** directly (minted a
+JWT for the session owner's own admin account — not an arbitrary third-party user — and hit
+`/chat/6a2a62bee1871c530830cef0`, the real "Peerify Announcements" conversation): page rendered
+fully (67.7KB, zero errors), the conversation's own content still present, and zero matches
+anywhere in the output for "New topic", "Topic title", "Create Topic", or a "Topics" tab label.
+Real end-to-end confirmation on production itself, not just staging.
 
 ---
 
