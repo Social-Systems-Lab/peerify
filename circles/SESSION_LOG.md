@@ -87,6 +87,30 @@ later, reusing this exact pattern.
 
 ---
 
+## 2026-08-04 (cont.) — Closed the flagged getOpenEventsForList gap: same fix as the map, its own commit
+
+Headline: applied the identical host-circle visibility fix to `getOpenEventsForList`
+(`event.ts:1454`, the list/panel view) — the gap explicitly flagged, but left out of scope, in
+the map fix above. One commit (`7f8bdb14`), one file changed, deployed to staging only.
+
+**Fix:** same host-circle lookup-based `$match` stage as `getOpenEventsForMap`'s fix
+(`6efd8066`/`1f5575a2`) — host circle must be published, and if a personal profile, must also
+have `mapVisible: true`. Same `$unset` of the gating-only projection fields immediately after, so
+`circle`'s client-facing shape on `EventDisplay` is unchanged.
+
+**Verification:** same three test cases as the map fix (constructed against the real,
+unmodified `getOpenEventsForList`, cleaned up after) — draft-circle event and
+`mapVisible: false`-profile event both correctly excluded; a published-circle control event
+still shown with an unchanged `circle` shape. `bun run lint` clean, only the one file changed.
+Build verified via `deploy-staging.sh` only — all 8 steps passed, prod untouched.
+
+No remaining known gap between circles/profiles and events for map-adjacent visibility (map +
+list). Not checked: search (events aren't part of the text-search path per the earlier
+investigation, so not applicable), and any other event-surfacing view not covered by this task's
+remit.
+
+---
+
 ## 2026-08-03 (cont.) — Retest investigation: fix confirmed working; found (and fixed) a misleading "profile complete" notification, a deliberate design divergence, not a bug
 
 Headline: a retest of the Continue-setup fix below appeared to fail (still routed to
