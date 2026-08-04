@@ -3,8 +3,8 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-06-28, partially updated 2026-08-03 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 1ce96eda (2026-08-03 promotion — see dated entry below; this line was previously stale at 116e9394).
+## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 54776725 (2026-08-04 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -36,6 +36,53 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-04 — Promoted to production: map + list event-visibility fixes
+
+Headline: promoted both event-visibility fixes below (map and list) to production in one merge.
+Deploy only — no code changes made in this worktree beyond the merge itself.
+
+**Promoted (merge `54776725`, rollback point `5e837e5e`):**
+- `6efd8066` — `getOpenEventsForMap` now requires the host circle to pass the same visibility
+  gate circles/profiles already use before an event can appear on the map: published, and
+  (for personal "user"-type profiles) `mapVisible: true`. Confirmed exploitable pre-fix via two
+  constructed test cases (draft-circle event, `mapVisible: false`-profile event, both leaked).
+- `1f5575a2` — SESSION_LOG entry for the above.
+- `7f8bdb14` — the identical fix applied to `getOpenEventsForList` (list/panel view), closing
+  the gap the map fix explicitly flagged as out of scope.
+- `cbdd865a` — SESSION_LOG entry for the above.
+
+**Process:** the two commit hashes given for this task named only the list fix
+(`7f8bdb14`/`cbdd865a`); confirmed via `git log main..staging` that staging was actually 4
+commits ahead (the map fix's `6efd8066`/`1f5575a2` too), and confirmed with the user before
+proceeding that all 4 should be promoted together — "both event-visibility fixes" wouldn't
+otherwise both end up live. `main` was not a fast-forward target for `staging` (main's tip
+`5e837e5e` isn't an ancestor of `staging`), so merged with `git merge --no-ff`.
+
+**Merge conflict:** `SESSION_LOG.md` only — a positional conflict, not a real content conflict.
+The prior promotion's "Current Status" correction was made directly on `main` and never synced
+back to `staging`, so both branches had independently inserted new dated entries at the same
+anchor point. Resolved by interleaving both branches' entries in chronological order; `event.ts`
+merged with no conflict and was confirmed byte-for-byte identical to staging's version
+afterward. `bun run lint` clean on the resulting merge commit; no bare build run (per
+instruction) — build verified via the deploy script itself.
+
+**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting (per standing process).
+`scripts/deploy-peerify.sh`, all 8 steps passed. GIT_SHA `54776725`, BUILD_ID
+`UX-odmVugv4fIUWgwTapI`. `pm2 save` ran inside the script. Staging pid/uptime unchanged
+throughout.
+
+**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
+`pm2 status` — both processes online, prod not crash-looping, "Ready in 197ms" on boot.
+`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
+deployment" burst as the prior promotion (pre-restart browser tabs referencing the previous
+build's action IDs) — expected, not a fault. Homepage and `/explore` both curl-verified to
+return full real content (70KB/93KB, correct `<title>`, zero "Application error" occurrences).
+Grepped the deployed server bundle directly for the fix's exact query field
+(`circleDetails.mapVisible`) — present, confirming the fix actually shipped rather than trusting
+the build log alone.
 
 ---
 
