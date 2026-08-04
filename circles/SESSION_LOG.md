@@ -39,6 +39,66 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-04 (cont. 4) — Hid Topics from chat/messages UI — not needed for Peerify
+
+Headline: investigated then hid the chat "Topics" feature from the UI, per request. One commit
+(`2b448ef1`), two files changed, local to `staging` only, not deployed.
+
+**Investigation first, as instructed.** Topics turned out to be real, Peerify-built
+functionality — not leftover Kamooni/Circles scaffolding. No dedicated Mongo collection or
+model in `src/models/models.ts`; it's implemented as `thread`/`threadId` fields directly on
+`ChatMessageDoc` (`src/lib/chat/mongo-types.ts`), with full CRUD in `mongo-chat.ts`
+(`createThread`, `fetchThreadReplies`, `listThreadsForConversation`, ...) and server actions in
+`mongo-actions.ts` (`createThreadAction`, `sendThreadReplyAction` — which fires real chat
+notifications). Wired into unread-count logic too (`app/chat/layout.tsx` explicitly accounts
+for topic replies). Three user-facing surfaces, all in `src/components/modules/chat/`: the
+composer's "New topic" lightbulb button + `NewThreadModal` (`chat-room.tsx`), an inline
+green-tinted "Topic card" replacing the normal bubble for topic-starter messages
+(`chat-room.tsx`), and a "Topics" tab in the room's Info dialog (`group-settings-modal.tsx`,
+`ThreadsTab`). Confirmed via full-repo case-insensitive search: **fully self-contained within
+the chat module** — nothing in circles/forums/discussions/notifications references it.
+
+**Decision, explicit and confirmed with the user rather than assumed:** since Topics isn't
+entangled with other modules, the hide-vs-remove tradeoff wasn't about breaking other features
+— it was about whether to also delete the real, functioning backend. Chose **UI-only hide**:
+backend (`mongo-actions.ts`, `mongo-chat.ts`, `mongo-types.ts`) completely untouched, so any
+existing topic data and the notification/unread-count integration stay intact and this remains
+easily reversible. Confirmed zero topic-starter messages exist on staging currently, so no
+existing content is actually affected either way at this moment.
+
+**Fix:** removed/gated the three UI entry points without deleting the underlying component
+definitions — the "New topic" button (its modal and state left in place, now unreachable), the
+inline TopicCard branch (topic-starter messages now render through the same normal-bubble path
+as any other message; `TopicCard` itself left defined, just unused), and the "Topics" tab
+(`ThreadsTab` and chat-room.tsx's `OPEN_TOPIC_EVENT` listener left in place, unreachable).
+Removed the two artifacts my own edit made genuinely dead in `group-settings-modal.tsx` (an
+unused `HiLightBulb` import and a local `OPEN_TOPIC_EVENT` constant — chat-room.tsx has its own
+independent copy of that same string, untouched).
+
+**Verification:** no browser tooling available, and deploying wasn't authorized for this task,
+so verified via a full grep sweep (no visible "Topic" text remains reachable in either changed
+file — remaining matches are all inside the now-unreachable definitions, or the unrelated
+Matrix protocol field `m.room.topic`) plus `bun run lint` and `npx tsc --noEmit -p .`, both
+clean. Deliberately did not run a build — staging's live standalone build would be corrupted by
+a bare build without an immediate redeploy (the standing operational hazard), and this task
+explicitly said not to deploy without checking first.
+
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `-r7gE08dU4aWKhl1pZh88`), prod pid/uptime unchanged. Post-deploy, hit the live chat
+room page directly (minted JWT, real session, real conversation `6a40ec0a1b387a97b3cd8410`) —
+page rendered fully (68.7KB, zero "Application error" occurrences), the conversation's own
+content ("Welcome to Peerify") still present confirming the room loads correctly, and zero
+matches anywhere in the rendered output for "New topic", "Topic title", "Create Topic", or a
+"Topics" tab label. Real end-to-end confirmation (not just code-level analysis) that Topics is
+gone and the conversation itself is unaffected.
+
+**Carry-forward:** still not interactively tested — no browser tooling available in this
+environment, so send/receive itself (as opposed to page load) hasn't been clicked through live.
+Unaffected by construction (no server action or data-access code was touched), but that's
+inference, not an interactive confirmation.
+
+---
+
 ## 2026-08-04 (cont. 3) — Promoted to production: map filter-pill fixes
 
 Headline: promoted the map filter-pill fix below to production. Deploy only — no code changes
