@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 54776725 (2026-08-04 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ a8b2dfdf (2026-08-04 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -36,6 +36,48 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-04 (cont. 3) — Promoted to production: map filter-pill fixes
+
+Headline: promoted the map filter-pill fix below to production. Deploy only — no code changes
+made in this worktree beyond the merge itself.
+
+**Promoted (merge `a8b2dfdf`, rollback point `e7d8cb3d`):**
+- `284816d2` — category pills (Artists/Venues/Events) now correctly exclude every other content
+  type instead of always showing events alongside them; map defaults to Artists selected on
+  load instead of showing everyone.
+- `eca8b574` — SESSION_LOG entry for the above.
+
+**Process:** confirmed via `git log main..staging` that staging was exactly these 2 commits
+ahead — no discrepancy this time (unlike the prior promotion, where the named commits didn't
+cover the full gap). `main` was not a fast-forward target (main's tip `e7d8cb3d` isn't an
+ancestor of `staging`), so merged with `git merge --no-ff`.
+
+**Merge conflict:** `SESSION_LOG.md` only, the same class as the prior promotion — main's own
+promotion-log entries never sync back to staging, so both branches inserted new entries at the
+same anchor point. Resolved by interleaving in chronological order. `map-explorer.tsx` merged
+with no conflict and was confirmed byte-for-byte identical to staging's version afterward.
+`bun run lint` clean; no bare build run (per instruction) — build verified via the deploy
+script itself.
+
+**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting. `scripts/deploy-peerify.sh`,
+all 8 steps passed. GIT_SHA `a8b2dfdf`, BUILD_ID `X1mxJiIiEUVCQAi_SM-Fu`. `pm2 save` ran inside
+the script. Staging pid/uptime unchanged throughout.
+
+**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
+`pm2 status` — both processes online, prod not crash-looping, "Ready in 199ms" on boot.
+`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
+deployment" burst seen on every prior redeploy (pre-restart browser tabs referencing the
+previous build's action IDs) — expected, not a fault. Homepage and `/explore` both
+curl-verified to return full real content (70KB/93KB, correct `<title>`, zero "Application
+error" occurrences).
+
+**Not done, carried forward from the staging fix itself:** a real click-through confirming pill
+highlighting/map marker behavior in an actual browser — this fix was verified on staging via
+manual code trace + a fixture-based script (no browser tooling in this environment), not
+interactive testing, and that gap carries through to this production promotion too.
 
 ---
 
