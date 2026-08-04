@@ -84,10 +84,19 @@ clean. Deliberately did not run a build — staging's live standalone build woul
 a bare build without an immediate redeploy (the standing operational hazard), and this task
 explicitly said not to deploy without checking first.
 
-**Carry-forward:** not deployed — local to `staging` only, per instruction. Needs a real
-click-through once deployed to confirm messaging (send/receive) is unaffected in an actual
-browser — this session's changes never touched any server action or data-access code, so
-send/receive is unaffected by construction, but that hasn't been interactively confirmed.
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `-r7gE08dU4aWKhl1pZh88`), prod pid/uptime unchanged. Post-deploy, hit the live chat
+room page directly (minted JWT, real session, real conversation `6a40ec0a1b387a97b3cd8410`) —
+page rendered fully (68.7KB, zero "Application error" occurrences), the conversation's own
+content ("Welcome to Peerify") still present confirming the room loads correctly, and zero
+matches anywhere in the rendered output for "New topic", "Topic title", "Create Topic", or a
+"Topics" tab label. Real end-to-end confirmation (not just code-level analysis) that Topics is
+gone and the conversation itself is unaffected.
+
+**Carry-forward:** still not interactively tested — no browser tooling available in this
+environment, so send/receive itself (as opposed to page load) hasn't been clicked through live.
+Unaffected by construction (no server action or data-access code was touched), but that's
+inference, not an interactive confirmation.
 
 ---
 
