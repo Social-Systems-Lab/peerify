@@ -39,6 +39,75 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-04 (cont.) — Closed the flagged getOpenEventsForList gap: same fix as the map, its own commit
+
+Headline: applied the identical host-circle visibility fix to `getOpenEventsForList`
+(`event.ts:1454`, the list/panel view) — the gap explicitly flagged, but left out of scope, in
+the map fix above. One commit (`7f8bdb14`), one file changed, deployed to staging only.
+
+**Fix:** same host-circle lookup-based `$match` stage as `getOpenEventsForMap`'s fix
+(`6efd8066`/`1f5575a2`) — host circle must be published, and if a personal profile, must also
+have `mapVisible: true`. Same `$unset` of the gating-only projection fields immediately after, so
+`circle`'s client-facing shape on `EventDisplay` is unchanged.
+
+**Verification:** same three test cases as the map fix (constructed against the real,
+unmodified `getOpenEventsForList`, cleaned up after) — draft-circle event and
+`mapVisible: false`-profile event both correctly excluded; a published-circle control event
+still shown with an unchanged `circle` shape. `bun run lint` clean, only the one file changed.
+Build verified via `deploy-staging.sh` only — all 8 steps passed, prod untouched.
+
+No remaining known gap between circles/profiles and events for map-adjacent visibility (map +
+list). Not checked: search (events aren't part of the text-search path per the earlier
+investigation, so not applicable), and any other event-surfacing view not covered by this task's
+remit.
+
+---
+
+## 2026-08-04 — Fixed map event-visibility bug: events ignored their host circle's own privacy gate
+
+Headline: investigated and fixed a scoped map visibility bug — events shown on the map never
+checked their host circle's own visibility, only the event's own `visibility` field. One commit
+(`6efd8066`), one file changed (`src/lib/data/event.ts`), deployed to staging only.
+
+**Root cause.** Compared how circles/profiles vs. events are gated for the map:
+- Circles (`getSwipeCircles`, `circle.ts:217`): must pass `getPublishedCircleQuery()`
+  (`publishStatus: "published"` or missing), and personal ("user"-type) profiles additionally
+  require an explicit `mapVisible: true` opt-in (defaults to `false`).
+- Events (`getOpenEventsForMap`, `event.ts:1225`): only checked the event's own `visibility`
+  field (public/private) plus creator/RSVP/invite overrides. Zero references to
+  `publishStatus`/`mapVisible`/`isPublic` anywhere in `event.ts` — the host circle's own
+  visibility was never consulted at all.
+
+**Confirmed exploitable**, not just theoretical — called the real, unmodified
+`getOpenEventsForMap` directly against two constructed test cases (staging DB, cleaned up
+after): a public/open event hosted by a draft (unpublished) circle leaked onto the map, and one
+hosted by a personal profile with `mapVisible: false` (explicitly opted out) also leaked,
+bypassing that account's own privacy choice. A background research agent's independent findings
+(after stalling for ~19 minutes before finally completing) corroborated this precisely, plus one
+extra detail: `map.tsx`'s client-side defense-in-depth check (`isSuppressedUserProfile`) covers
+circles but has no event equivalent either.
+
+**Fix.** Added a host-circle lookup-based `$match` stage to `getOpenEventsForMap`'s aggregation,
+mirroring `getSwipeCircles`' exact rule: the host circle must be published, and if it's a
+personal profile, must also have `mapVisible: true`. A missing host circle (e.g. deleted) now
+fails closed. The two extra fields (`publishStatus`, `circleType`, `mapVisible`) added to the
+circle lookup's own projection are `$unset` immediately after the gating match, so the
+client-facing `circle` shape on `EventDisplay` is unchanged — confirmed empirically (hit a real
+MongoDB quirk here: `$set`/`$addFields` reassigning an existing document-valued field with a new
+document expression *merges* rather than replaces, confirmed via isolated aggregation tests;
+`$unset` on the specific sub-fields avoided the quirk entirely).
+
+**Verification:** re-ran the same two leak test cases post-fix — both now correctly excluded — plus
+a third positive-control case (event hosted by a genuinely published circle) to confirm nothing
+else regressed and the returned `circle` shape is unchanged. `bun run lint` clean. Build verified
+via `deploy-staging.sh` only (no bare build), which also deployed the fix to staging — all 8
+steps passed, prod untouched.
+
+**Scope note:** the `getOpenEventsForList` gap flagged here was closed immediately after in the
+entry above (`7f8bdb14`) — both fixes are promoted to production together in this same merge.
+
+---
+
 ## 2026-08-03 — Promoted to production: Continue-setup routing fix + profile-complete notification copy fix
 
 Headline: promoted two small, independently-verified staging fixes to production. Both had
