@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 46c1aded (2026-08-04 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ c9a5b43c (2026-08-04 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -36,6 +36,50 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-04 (cont. 7) — Promoted to production: decouple map search scope from the active filter pill
+
+Headline: promoted the search-scoping fix below to production. Deploy only — no code changes
+made in this worktree beyond the merge itself.
+
+**Promoted (merge `c9a5b43c`, rollback point `28a33675`):**
+- `277eba2a` — a fresh search no longer inherits whichever content-type pill happens to be
+  active (including the Artists default) as a pre-scope. Searching for a friend or venue no
+  longer silently returns zero results just because a different pill was selected. Pills still
+  narrow results after a search is already running (preserved across refinements like a genre
+  pill change). Default (no-search) browsing view is completely unaffected — a different code
+  path entirely.
+- `1f38d02c`, `47a3533d` — SESSION_LOG entries for the above and its staging deploy.
+
+**Process:** confirmed via `git log main..staging` that staging was exactly these 3 commits
+ahead — matching the expected pattern (1 code + 2 log), nothing unaccounted for this time.
+`main` was not a fast-forward target (main's tip `28a33675` isn't an ancestor of `staging`), so
+merged with `git merge --no-ff`.
+
+**Merge conflict:** `SESSION_LOG.md` only, the same class as the three prior promotions.
+Resolved by interleaving in chronological order. `map-explorer.tsx` merged with no conflict and
+was confirmed byte-for-byte identical to staging's version afterward. `bun run lint` clean; no
+bare build run (per instruction) — build verified via the deploy script itself.
+
+**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting. `scripts/deploy-peerify.sh`,
+all 8 steps passed. GIT_SHA `c9a5b43c`, BUILD_ID `0tPViF_NveOXRVh_Ov1Hi`. `pm2 save` ran inside
+the script. Staging pid/uptime unchanged throughout.
+
+**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
+`pm2 status` — both processes online, prod not crash-looping, clean boot ("Ready in 212ms").
+`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
+deployment" burst seen on every prior redeploy — expected, not a fault. Homepage and `/explore`
+both curl-verified to return full real content, zero "Application error" occurrences.
+
+**Important caveat, unlike the two backend fixes promoted earlier today:** this fix is pure
+client-side React state/effects logic with no server-executed code path — there is no way to
+curl-verify the actual search-scoping behavior itself, on staging or here. These health checks
+only confirm the app is up and rendering; the fixture-based script run before the staging
+deploy (using the real `isPeerifyArtistIdentity`/`isPeerifyVenueIdentity` functions against the
+exact new logic) remains the strongest verification this fix has had. A real click-through
+(typing a query, watching results populate) in an actual browser is still outstanding.
 
 ---
 
