@@ -40,6 +40,47 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-04 (cont. 2) — Fixed map filter-pill bugs: events leaked through Artists/Venues pills; defaulted map to Artists
+
+Headline: two related bugs found while testing the just-promoted event-visibility fixes, but
+confirmed unrelated to them. One commit (`284816d2`), one file changed
+(`map-explorer.tsx`), local to `staging` only, not deployed.
+
+**Bug 1 — selecting a content-type pill didn't actually filter the map.** Root cause: the
+"Update map markers" effect (`map-explorer.tsx`, ~line 800) only exclusively displayed one
+content type when `selectedCategory === "events"`. For every other value — including
+`"users"` (Artists) and `"communities"` (Venues) — it fell through to a default branch that
+unconditionally appended `filteredEventsForMap` on top of the already-correctly-filtered
+circles. `baseCircles` (via `filterCirclesByCategory`) was always narrowed correctly; events
+just always leaked through regardless of which pill was active. Confirmed this has nothing to
+do with the visibility-gating fixes promoted earlier today (`6efd8066`/`7f8bdb14`) — those
+govern whether content should ever appear on the map at all; this bug is purely about the
+client combining two already-correct datasets incorrectly.
+
+**Bug 2 — map should default to Artists selected, not everyone.** `selectedCategory`
+initialized to `null` (no filter/"everyone"). Changed to `"users"`. This depended on Bug 1's
+fix — defaulting to Artists without it would still have shown every event alongside artists on
+load.
+
+**Fix:** only combine circles with events when no category pill is active at all
+(`selectedCategory` null/falsy) — a circle-type pill now excludes every other content type, not
+just other circle types. Both bugs share the same state variable and the same effect, so one
+commit.
+
+**Verification:** no browser tooling available in this environment, so verified via (1) a full
+manual trace of the new code against all four `selectedCategory` states (null, `"users"`,
+`"communities"`, `"events"`), and (2) a throwaway script (not committed) that imported the real
+`isPeerifyArtistIdentity`/`isPeerifyVenueIdentity` functions and mirrored the exact fixed
+combination formula against representative artist/venue/event fixtures — all four states
+produced exactly the expected content-type set. `bun run lint` and `npx tsc --noEmit -p .` both
+clean (no bare build; not deploying this session).
+
+**Carry-forward:** not deployed — local to `staging` only, per instruction. Needs a real
+click-through on staging once deployed to confirm the actual UI (pill highlighting, map
+markers) matches this logical verification.
+
+---
+
 ## 2026-08-04 — Fixed map event-visibility bug: events ignored their host circle's own privacy gate
 
 Headline: investigated and fixed a scoped map visibility bug — events shown on the map never
