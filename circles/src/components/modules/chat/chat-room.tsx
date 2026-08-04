@@ -774,20 +774,11 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
                                     <div className="w-7 flex-shrink-0" />
                                 ))}
 
-                            {/* Topic card — renders inline for topic-starter messages */}
-                            {(message as any).thread ? (
-                                <div className="w-full">
-                                    <TopicCard
-                                        message={message}
-                                        conversationId={conversationId || ""}
-                                        user={currentUser}
-                                        onTopicOpen={onTopicOpen}
-                                        onTopicLoaded={onTopicLoaded}
-                                        navigationRequest={topicNavigationRequest}
-                                    />
-                                </div>
-                            ) : null}
-                            {!(message as any).thread && (
+                            {/* Topics hidden — not needed for Peerify. Topic-starter messages
+                                (message.thread set) now render through the normal bubble path
+                                below instead of the special TopicCard; TopicCard itself is left
+                                in place, just unused, per hide-not-delete decision. */}
+                            {(
                                 <div className="relative flex min-w-[100px] max-w-[75%] flex-col">
                                     <div
                                         className={`${CHAT_STANDARD_BUBBLE_CLASS} p-2 pr-4 shadow-md ${bubbleStatusClasses}`}
@@ -3012,20 +3003,9 @@ export const ChatRoomComponent: React.FC<{
                                 </div>
                             ) : (
                                 <div className="flex w-full items-end gap-1">
-                                    {!isAnnouncementConversation && (
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className={`h-10 w-10 shrink-0 rounded-full text-gray-500 hover:bg-gray-200 ${
-                                                isMobile && isMobileComposerExpanded ? "hidden" : "inline-flex"
-                                            }`}
-                                            onClick={() => setShowNewThreadModal(true)}
-                                            disabled={false}
-                                            title="New topic"
-                                        >
-                                            <HiLightBulb className="h-5 w-5" />
-                                        </Button>
-                                    )}
+                                    {/* Topics ("New topic" composer button) hidden — not needed for
+                                        Peerify. NewThreadModal/showNewThreadModal left in place,
+                                        just unreachable, per hide-not-delete decision. */}
                                     <div className="flex-1">
                                         <ChatInput
                                             roomId={roomId}

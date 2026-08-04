@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Users, Image as ImageIcon, Settings as SettingsIcon, Info, Search, Check, X } from "lucide-react";
-import { HiLightBulb } from "react-icons/hi";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { contentPreviewAtom, sidePanelContentVisibleAtom, userAtom } from "@/lib/data/atoms";
@@ -18,8 +17,6 @@ interface GroupSettingsModalProps {
     chatRoom: ChatRoomDisplay;
     isAdmin: boolean;
 }
-
-const OPEN_TOPIC_EVENT = "kamooni:open-topic";
 
 export function GroupSettingsModal({ open, onOpenChange, chatRoom, isAdmin }: GroupSettingsModalProps) {
     const [activeTab, setActiveTab] = useState("info");
@@ -72,7 +69,9 @@ export function GroupSettingsModal({ open, onOpenChange, chatRoom, isAdmin }: Gr
                 </DialogHeader>
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-                    <TabsList className={`grid w-full ${chatRoom.isDirect ? "grid-cols-4" : "grid-cols-5"}`}>
+                    {/* Topics tab hidden — not needed for Peerify. ThreadsTab/OPEN_TOPIC_EVENT
+                        left in place, just unreachable, per hide-not-delete decision. */}
+                    <TabsList className={`grid w-full ${chatRoom.isDirect ? "grid-cols-3" : "grid-cols-4"}`}>
                         <TabsTrigger value="info" className="flex items-center gap-2">
                             <Info className="h-4 w-4" />
                             <span className="hidden sm:inline">Info</span>
@@ -83,10 +82,6 @@ export function GroupSettingsModal({ open, onOpenChange, chatRoom, isAdmin }: Gr
                                 <span className="hidden sm:inline">Members</span>
                             </TabsTrigger>
                         )}
-                        <TabsTrigger value="threads" className="flex items-center gap-2">
-                            <HiLightBulb className="h-4 w-4" />
-                            <span className="hidden sm:inline">Topics</span>
-                        </TabsTrigger>
                         <TabsTrigger value="media" className="flex items-center gap-2">
                             <ImageIcon className="h-4 w-4" />
                             <span className="hidden sm:inline">Media</span>
@@ -108,23 +103,6 @@ export function GroupSettingsModal({ open, onOpenChange, chatRoom, isAdmin }: Gr
                             </TabsContent>
                         )}
 
-                        <TabsContent value="threads" className="mt-0">
-                            <ThreadsTab
-                                chatRoom={chatRoom}
-                                isActive={activeTab === "threads"}
-                                onOpenTopic={(topicId) => {
-                                    window.dispatchEvent(
-                                        new CustomEvent(OPEN_TOPIC_EVENT, {
-                                            detail: {
-                                                conversationId: chatRoom._id as string,
-                                                topicId,
-                                            },
-                                        }),
-                                    );
-                                    onOpenChange(false);
-                                }}
-                            />
-                        </TabsContent>
                         <TabsContent value="media" className="mt-0">
                             <MediaTab chatRoom={chatRoom} isActive={activeTab === "media"} />
                         </TabsContent>
