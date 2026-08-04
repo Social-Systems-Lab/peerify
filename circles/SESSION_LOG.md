@@ -82,9 +82,16 @@ both clean — only one new, pre-existing-pattern-unrelated warning surfaced in 
 run, confirmed to be a shifted line number for an already-existing, untouched effect further
 down the file.
 
-**Carry-forward:** not deployed — local to `staging` only, per instruction. Needs a real
-click-through once deployed to confirm the actual search UX (typing a query, watching results
-populate) matches this logical verification.
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `ZjhEeMeo7E3O182RqhCl9`), prod pid/uptime unchanged. `/explore` curl-verified to
+render fully post-deploy (76KB, zero "Application error" occurrences).
+
+**Carry-forward:** this fix is pure client-side React state/effects logic with no
+server-executed code path, so unlike the event-visibility fixes there's no way to exercise the
+actual search-scoping behavior via curl even now that it's deployed — the fixture-based script
+run before deploying remains the most rigorous verification available. Still needs a real
+click-through (typing a query, watching results populate) in an actual browser to confirm the
+live UX matches this logical verification.
 
 ---
 
