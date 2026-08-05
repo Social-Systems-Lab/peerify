@@ -220,11 +220,23 @@ export const searchDiscoverableCircles = async ({
 
     const maxScore = scored[0]?.score || 1;
 
-    return scored.map(({ circle, score }) => ({
-        ...circle,
-        metrics: {
-            searchRank: score / maxScore,
-            similarity: score / maxScore,
-        },
-    }));
+    return scored.map(({ circle, score }) => {
+        // Mirrors getSwipeCircles' own mapVisible rule (circle.ts) — a personal profile that
+        // hasn't opted into map visibility must never produce a map marker. map.tsx's only gate
+        // for creating a marker at all is item.location.lngLat, so stripping location here (a
+        // real server-side exclusion, not another client-side masking layer on top of the
+        // pre-existing isSuppressedUserProfile, which only ever disguised a marker's title/image
+        // without preventing one from being created) makes that impossible — while the profile
+        // stays fully present, searchable, and viewable via Open; the intentionally separate
+        // `searchable` gate (isDiscoverableCircle, above) is untouched.
+        const isMapVisible = circle.circleType !== "user" || circle.mapVisible === true;
+        return {
+            ...circle,
+            location: isMapVisible ? circle.location : undefined,
+            metrics: {
+                searchRank: score / maxScore,
+                similarity: score / maxScore,
+            },
+        };
+    });
 };
