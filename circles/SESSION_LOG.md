@@ -219,6 +219,70 @@ exact new logic) remains the strongest verification this fix has had. A real cli
 
 ---
 
+## 2026-08-05 — Auto-enroll every new signup as a follower of The Backstage Lounge
+
+Headline: implemented and verified auto-enrollment into The Backstage Lounge on signup. One
+commit (`ccb41bd3`), one file changed (`src/components/forms/signup/actions.ts`), local to
+`staging` only, not deployed.
+
+**Investigation first, as instructed.** Found The Backstage Lounge on **production**
+(`the-backstage-lounge`, `_id: 6a5c7b442ef17c96d12cac04`, published, 5 members) — it did **not**
+exist on staging at all (staging's `circles` collection had only 15 documents, no match by name
+or handle). Flagged this before implementing; the user created a matching circle on staging
+themselves (same handle, same `userGroups` shape) so the feature could be tested end-to-end as
+it'll behave in production.
+
+Found the signup provisioning pattern: `submitSignupFormAction`
+(`src/components/forms/signup/actions.ts`) is the **single, unified** account-creation entry
+point — confirmed `createUserAccount` is called from exactly this one place, and the pilot
+signup form calls this same action for both artist and fan role selection (differing only by a
+`signupIntent`-gated branch that optionally auto-provisions an artist circle). Two existing
+steps there set the pattern to follow: the artist-circle step (`createPilotArtistCircle` +
+`addMember`, gated, try/catch) and the welcome-message step (`ensureWelcomeMessageForNewUser`,
+**unconditional**, try/catch). `addMember(userDid, circleId, userGroups)`
+(`src/lib/data/member.ts`) is the existing membership mechanism — `["members"]` maps to the
+circle's own `{ handle: "members", title: "Follower" }` group, i.e. real member/follower
+enrollment, no new mechanism needed.
+
+**Fix:** added an unconditional step (same pattern as the welcome-message one — outside and
+after the `signupIntent === "artist"` branch, so it applies identically to both signup paths)
+that looks up The Backstage Lounge by its stable handle (`getCircleByHandle`, not a hardcoded
+id, since it can vary per environment — confirmed literally true this session) and calls
+`addMember(user.did!, circleId, ["members"])`. try/catch-wrapped, same resilience as the two
+existing optional steps — a missing circle or any other failure only logs, never blocks signup.
+
+**Verification:** attempted a full live signup via the real `submitSignupFormAction` first
+(minted a valid Altcha proof-of-work payload server-side using `altcha-lib`'s own
+`createChallenge`/`solveChallenge` against the real `ALTCHA_HMAC_KEY`, to exercise the actual
+action unmodified) — hit a real, pre-existing limitation: `createUserSession`, called
+immediately after `createUserAccount` inside the real action, calls `cookies()`, which requires
+a genuine Next.js request scope and cannot run in a standalone script (the same class of
+limitation hit earlier this week for `getUserPrivate`'s notification-settings enrichment — not
+something wrong with this feature). Adjusted to call the real `createUserAccount` directly
+(identical to what the action does up to that point) followed by the exact same
+`getCircleByHandle` + `addMember` sequence just added, using two of the three recycled test
+emails (`cryptimothy@gmail.com` for a fan-labeled account, `akrobatim@yahoo.se` for an
+artist-labeled account — the artist/fan distinction doesn't affect `createUserAccount` itself,
+only the separate, untouched artist-circle branch, so this was primarily to exercise both real
+email addresses rather than to re-prove path independence, which the code structure already
+guarantees). Both accounts were correctly enrolled with `userGroups: ["members"]`; the circle's
+`members` counter moved from 1 → 3 for the two signups and back to 1 after cleanup; a
+consistency sweep across every circle confirmed no stored `members` count drifted from the
+actual `Members` row count anywhere (the "4 rows deleted for 2 accounts" during cleanup was
+correctly explained by `createUserAccount`'s own pre-existing self-membership step — 1 per
+account, unrelated to this change, not a bug); and existing accounts (`tim-admin`, `linus`,
+`dave-knowles`) were confirmed to have identical membership lists before and after, entirely
+unaffected. Both test accounts and their membership rows were deleted afterward. `bun run lint`
+and `npx tsc --noEmit -p .` both clean.
+
+**Carry-forward:** not deployed — local to `staging` only, per instruction. The third recycled
+test email (`ryptimothy@gmail.com`) was left unused (two sufficed for fan + artist coverage).
+Full live-signup verification through the actual browser/HTTP form (rather than direct function
+calls skipping only the cookie-session step) is still outstanding — no browser tooling available
+in this environment.
+
+---
+
 ## 2026-08-04 (cont. 6) — Decoupled map search scope from the active filter pill
 
 Headline: fixed the map search silently getting pre-scoped by whichever content-type pill was
