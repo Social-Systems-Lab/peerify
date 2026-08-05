@@ -14,6 +14,9 @@ import { generateLocalDidAndPublicKey } from "@/lib/auth/vibe-id";
 import { getDefaultModules } from "@/lib/data/constants";
 import { PEERIFY_DEFAULT_ARTIST_AVATAR_URL, normalizePeerifyArtistProfile } from "@/lib/peerify/artist-profile";
 
+// Every new signup is auto-enrolled as a follower of this circle — see submitSignupFormAction.
+const BACKSTAGE_LOUNGE_HANDLE = "the-backstage-lounge";
+
 // Derives a unique, valid circle handle from a free-text artist/band name, matching
 // the same handle rules the CircleWizard's managed-identity creation enforces
 // (lowercase, a-z0-9-, 3-20 chars) — falls back to "artist"/a random suffix if the
@@ -172,6 +175,19 @@ export const submitSignupFormAction = async (values: Record<string, any>): Promi
             await ensureWelcomeMessageForNewUser(user.did!, resolvedWelcome.config, resolvedWelcome.senderDid);
         } catch (error) {
             console.error("Failed to create signup welcome message:", error);
+        }
+
+        // Every new signup — artist or fan alike — is auto-enrolled as a follower of The
+        // Backstage Lounge, the Peerify community circle. Looked up by its stable handle
+        // rather than a hardcoded id; if the circle doesn't exist in this environment, or the
+        // user somehow already has a membership row, this only logs and never blocks signup.
+        try {
+            const backstageLounge = await getCircleByHandle(BACKSTAGE_LOUNGE_HANDLE);
+            if (backstageLounge?._id) {
+                await addMember(user.did!, String(backstageLounge._id), ["members"]);
+            }
+        } catch (error) {
+            console.error("Failed to auto-enroll new signup in The Backstage Lounge:", error);
         }
 
         // register user in the circles registry
