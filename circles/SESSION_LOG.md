@@ -40,6 +40,82 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-05 (cont.) — PRIVACY: fixed map leak — mapVisible:false profiles got a real pin via search
+
+Headline: **privacy-relevant fix**, same class as this week's event-visibility fixes — a
+personal profile that explicitly opted out of map visibility (`mapVisible: false`) was still
+getting a real, clickable map marker (a degraded "Unavailable" pin) whenever it turned up in
+search results, revealing its approximate location and remaining fully navigable to the real
+profile. One commit (`a9143e4b`), one file changed (`src/lib/data/search.ts`), deployed to
+**staging only** — explicitly not promoted to production without confirmation first.
+
+**Investigated independently, as instructed** — confirmed via `git log -S` that this predates
+both of this week's shipped fixes: `isSuppressedUserProfile` (`map.tsx`) traces to commit
+`a942895d`, and the "search results feed the map's marker array" architecture traces to
+`3098a311` ("Map search") — long before the event-visibility fixes (`6efd8066`/`7f8bdb14`) or
+the search-scoping fix (`277eba2a`), neither of which touched `mapVisible` filtering at all
+(the search-scoping fix only changed how category *pills* interact with already-fetched search
+results, never whether `mapVisible` was checked — it never was, for search).
+
+**Root cause:** `getSwipeCircles` (`circle.ts`) correctly excludes `mapVisible: false` personal
+profiles from the *default browsing* dataset at the query level — that part was always fine.
+Search was never gated on `mapVisible` at all — only on the intentionally separate `searchable`
+field (`search.ts`, `isDiscoverableCircle`). Once a searchable-but-not-map-visible profile
+appeared in search results, it flowed unfiltered through to the map's marker-producing content
+array (`allSearchResults` → `baseCircles`/`filteredSearchResults` → `mapData` →
+`displayedContent`, `map-explorer.tsx`). `map.tsx`'s *only* condition for creating a marker at
+all is `item?.location?.lngLat` — there is no `mapVisible` check anywhere in that path.
+`isSuppressedUserProfile` (`map.tsx`) is purely cosmetic — it degrades a marker's title to
+"Unavailable", drops its image, blanks its description — but never prevents the marker from
+being created, and the marker's Open link isn't gated by it at all, so the "hidden" pin
+remained fully clickable through to the real profile page.
+
+**Confirmed by design, not a bug:** the profile being fully viewable via search + Open.
+`searchable` and `mapVisible` are two deliberately independent, already-documented toggles
+("mapVisible for map, searchable for search") — a profile can legitimately opt out of map
+browsing while remaining directly findable by search. Left completely untouched.
+
+**Fix — query-level exclusion, matching `getSwipeCircles`' own pattern, not another
+client-side mask (explicitly required and confirmed before implementing):** `search.ts`'s
+`searchDiscoverableCircles` now strips a personal profile's `location` field from its own
+results whenever `circleType === "user" && mapVisible !== true` — the exact same rule
+`getSwipeCircles` already applies, computed server-side in the same results-shaping step that
+already existed for search metrics. This isn't a second masking layer: every consumer of
+`.location` in the map/search code already checks it optionally (`item?.location?.lngLat`),
+matching the existing "no location set" UI state, so a location-less result is *structurally*
+incapable of producing a marker at all in `map.tsx` — the identical outcome `getSwipeCircles`
+achieves by excluding the row entirely, just reached by omitting one field rather than the
+whole row (necessary here because, unlike events which already had separate map/list-serving
+functions, this single search call serves both the map and the text results list, and only the
+map side needed the extra restriction). `isSuppressedUserProfile` was deliberately left in
+place, unmodified, as a legitimate defense-in-depth layer for any future/unknown path — it's
+simply correctly unreachable now for this one.
+
+**Verification, against real staging data, not fixtures (explicitly required):** re-ran the
+exact confirmed bug case — `tim-admin` (`searchable: true`, `mapVisible: false`) — against the
+real `searchDiscoverableCircles` function: still found by search, but now has **no** location in
+the result, making a marker impossible. `linus` (`mapVisible: true`) confirmed fully unaffected
+— still found, still has its full location, still gets a normal marker. `dave-knowles`
+(`searchable: false`) confirmed still excluded from search entirely, unaffected. The
+Backstage Lounge itself (`circleType: "circle"`, `mapVisible: false`) confirmed to still have
+its location in search results, correctly matching `getSwipeCircles`' asymmetric rule that
+`mapVisible` only ever restricts `"user"`-type circles. `bun run lint` and `npx tsc --noEmit -p .`
+both clean.
+
+**Deployed to staging only**, per instruction: `deploy-staging.sh`, all 8 steps passed (BUILD_ID
+`bjagfl2vb-TfNVVrosdAF`), prod pid/uptime unchanged. `pm2 status` both processes online, no
+crash loop. Homepage and `/explore` both curl-verified to render fully (70KB/76KB, zero
+"Application error" occurrences). Grepped the deployed server bundle directly and found the
+exact shipped logic (minified: ``"user"!==a.circleType||!0===a.mapVisible`` gating
+``location:c?a.location:void 0``) — confirming the fix is actually live on staging, not just
+that the build succeeded.
+
+**Do NOT promote to production without explicit confirmation first** — flagged here in bold
+per instruction, given the privacy sensitivity (same class as the event-visibility fixes, which
+*were* already promoted earlier this week — this one is still staging-only).
+
+---
+
 ## 2026-08-05 — Auto-enroll every new signup as a follower of The Backstage Lounge
 
 Headline: implemented and verified auto-enrollment into The Backstage Lounge on signup. One
