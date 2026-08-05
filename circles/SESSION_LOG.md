@@ -96,11 +96,18 @@ account, unrelated to this change, not a bug); and existing accounts (`tim-admin
 unaffected. Both test accounts and their membership rows were deleted afterward. `bun run lint`
 and `npx tsc --noEmit -p .` both clean.
 
-**Carry-forward:** not deployed — local to `staging` only, per instruction. The third recycled
-test email (`ryptimothy@gmail.com`) was left unused (two sufficed for fan + artist coverage).
-Full live-signup verification through the actual browser/HTTP form (rather than direct function
-calls skipping only the cookie-session step) is still outstanding — no browser tooling available
-in this environment.
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `t_rx8RGwJyxSec3-Nr6Ie`), prod pid/uptime unchanged. `pm2 status` — both processes
+online, no crash loop. Homepage and `/explore` both curl-verified to render fully post-deploy
+(70KB/76KB, zero "Application error" occurrences). Since this is real server code (unlike the
+pure client-side search-scoping fix earlier), also grepped the deployed server bundle directly
+for the literal handle string `"the-backstage-lounge"` — present, confirming the fix actually
+shipped rather than trusting the build log alone.
+
+**Carry-forward:** the third recycled test email (`ryptimothy@gmail.com`) was left unused (two
+sufficed for fan + artist coverage). Full live-signup verification through the actual
+browser/HTTP form (rather than direct function calls skipping only the cookie-session step) is
+still outstanding — no browser tooling available in this environment.
 
 ---
 
