@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 661d1ce0 (2026-08-06 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 62d34468 (2026-08-06 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -36,6 +36,56 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-06 (cont.) — Promoted to production: Backstage Lounge auto-enrollment
+
+Headline: promoted the Backstage Lounge auto-enrollment feature to production. Deploy only —
+no code changes made in this worktree beyond the cherry-picks themselves.
+
+**Promoted (cherry-picked `ccb41bd3` + `e4bd48ec` + `57ee13c9` onto `main`, new HEAD
+`62d34468`, rollback point `76be618c`):**
+- `ccb41bd3` — every new signup (fan or artist alike) is now auto-enrolled as a follower of The
+  Backstage Lounge via an unconditional step in `submitSignupFormAction`
+  (`src/components/forms/signup/actions.ts`), looked up by its stable handle
+  (`the-backstage-lounge`) and enrolled through the existing `addMember(...)` mechanism
+  (`["members"]`, the circle's own Follower group). try/catch-wrapped like the adjacent
+  optional/unconditional provisioning steps already there — a missing circle or any other
+  failure only logs, never blocks signup.
+- `e4bd48ec`, `57ee13c9` — SESSION_LOG entries for the above and its staging deploy.
+
+**Process:** `git log main..staging` showed 5 commits ahead, not 3 — but confirmed the other 2
+(`a9143e4b`/`e40d53ef`) were the map privacy fix already promoted last time (cherry-picking
+creates new commit objects with different hashes, so git never considers the originals "merged"
+by ancestry even though the content is already in `main` — confirmed via `diff <(git show
+a9143e4b) <(git show 79510ae1)`, identical beyond the commit metadata line). The genuinely
+remaining work was exactly the 3 commits named. Cherry-picked all 3 directly onto `main`, in
+order.
+
+**Merge conflicts:** `SESSION_LOG.md` only, on 2 of the 3 cherry-picks — the same recurring
+positional-artifact class as every prior promotion, plus a chronological-interleaving wrinkle
+this time: staging's own file has the Backstage Lounge entry sitting *between* the privacy-fix
+entry and the search-scope-decouple entry (matching real creation order), while `main` has its
+own promotion-log entries interspersed in between those same two that don't exist on staging at
+all. Resolved by inserting the new Backstage Lounge content at the equivalent chronological
+position relative to `main`'s own entries, and discarding a duplicate/renumbered header for an
+already-shared entry each time (same resolution pattern as every prior promotion). Confirmed
+`src/components/forms/signup/actions.ts` is byte-for-byte identical to staging's version
+afterward. `bun run lint` clean.
+
+**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting. `scripts/deploy-peerify.sh`,
+all 8 steps passed. GIT_SHA `62d34468`, BUILD_ID `ro-19eRfSmvF8MDAQcUns`. `pm2 save` ran inside
+the script. Staging pid/uptime unchanged throughout.
+
+**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
+`pm2 status` — both processes online, prod not crash-looping, clean "Ready in 217ms" boot.
+`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
+deployment" burst seen on every prior redeploy — expected, not a fault. Homepage and `/explore`
+both curl-verified to return full real content (70KB/93KB, zero "Application error"
+occurrences). Grepped the deployed server bundle directly for the fix's literal handle string
+(`"the-backstage-lounge"`) — present, confirming the fix is actually live, not just that the
+build succeeded.
 
 ---
 
