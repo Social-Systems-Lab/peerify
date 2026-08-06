@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ e7981c53 (2026-08-06 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ e2b34357 (2026-08-06 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -78,9 +78,56 @@ confirm accept and decline both work, confirm messaging-based implicit access st
 (BUILD_ID `hgL8UkHCoPZuQ8r85HY2k`), prod pid/uptime unchanged, `GET /` and a static CSS asset
 both HTTP 200 post-restart.
 
-**Carry-forward:** pending manual verification on staging by Tim (send a real connection
-request between two accounts, confirm the dropdown appears and accept/decline both work,
-confirm messaging-based implicit access is unaffected). Not yet merged to `main`/prod.
+**Carry-forward:** verified on staging and promoted to production — see the dated entry below
+("Promoted to production: Respond dropdown for connection requests").
+
+---
+
+## 2026-08-06 (cont. 4) — Promoted to production: Respond dropdown for connection requests
+
+Headline: promoted the Respond dropdown accept/decline fix to production. Deploy only — no
+code changes made in this worktree beyond the cherry-picks themselves.
+
+**Scope confirmed first, as instructed.** `git log main..staging` on the staging worktree listed
+13 commits, but by content-diff (not ancestry — cherry-picks mint new hashes) only the 3 most
+recent were actually still pending; the other 10 were already promoted earlier under different
+hashes (nav bar links, sidebar auto-pinning, map privacy fix, Backstage Lounge auto-enrollment —
+confirmed via grep that `ProfileRelationshipHeaderAction` and the "Respond dropdown" log text
+were absent from `main` before this promotion, and correctly did NOT re-cherry-pick those 10):
+- `4456f397` — Surface Respond dropdown for connection requests in notifications.
+- `a0266d8a` — Log: Respond dropdown for connection requests.
+- `b127ebb6` — Log staging deploy of Respond dropdown fix.
+
+**Promotion:** cherry-picked all 3 onto `main` in order → `ce4cc900`, `d8848c03`, `e2b34357`.
+`4456f397` applied cleanly. The two log commits each hit the same recurring positional-artifact
+conflict in `SESSION_LOG.md` as every prior promotion (new dated entry vs. existing
+promotion-log entries competing for the same insertion point right after "Current Status");
+resolved by inserting the new entry chronologically ahead of the nav-bar-promotion entry it was
+authored after, keeping both intact. Confirmed `src/components/layout/notifications.tsx` is
+byte-for-byte identical to staging's version afterward. `bun run lint` clean (pre-existing
+warnings only, none in the changed file).
+
+**Deploy:** `scripts/deploy-peerify.sh` — GIT_SHA `e2b34357`, all 8 steps PASS (build, BUILD_ID
+`uKgIGyuEwvFPMhGSfbmZT`, static-asset copy/verify, PM2 restart, HTTP checks).
+
+**Post-deploy verification (beyond the script's own checks):** confirmed shell `$PORT` empty
+before the script ran; confirmed via `pm2 jlist` that the restarted `peerify` process's own env
+has `PORT=3000`; `pm2 save` completed ("Successfully saved in /home/tim/.pm2/dump.pm2`); `pm2
+status` shows `peerify` online (new pid, fresh uptime) and `peerify-staging` unchanged
+(pid/uptime identical to pre-deploy). `curl` confirmed HTTP 200 on both `/` (70354 bytes) and
+`/explore` (93081 bytes), zero "Application error" occurrences in either body. `pm2 logs
+peerify` showed only the same benign "Failed to find Server Action ... older or newer
+deployment" burst seen on every prior redeploy — expected, not a fault. Grepped the deployed
+standalone bundle directly (binary-safe, `grep -a`) to confirm the fix actually shipped in the
+built artifact, not just the source: `contact_request_received` and both
+`acceptConnectRequestAction`/`declineConnectRequestAction` server-action names all found
+together in the same client chunk (`.next/static/chunks/4367-5754e8e66f7d6613.js`) plus the
+server-reference manifest — `ProfileRelationshipHeaderAction` itself is not findable as a
+literal string, expected, since local component names (unlike server-action IDs) are minified
+away in production.
+
+**Carry-forward:** none — this was a scoped deploy-only promotion, no source changes made on
+`main` beyond the three cherry-picks.
 
 ---
 
