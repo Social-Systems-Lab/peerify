@@ -40,6 +40,62 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-06 — Nav bar: Peerify icon now links to The Backstage Lounge; added a superadmin-only Admin link
+
+Headline: two small nav bar UI changes. One commit (`e3ac57de`), one file changed
+(`src/components/layout/global-nav.tsx`), local to `staging` only, not deployed.
+
+**Investigation first, as instructed.** The top-left icon (`global-nav.tsx`) linked to
+`/explore`. The admin page (`app/admin/page.tsx`) gates itself server-side on `user.isAdmin` — a
+boolean field on the user's own circle document — used identically throughout
+`src/components/modules/admin` (every admin action file, plus a dedicated
+`super-admins-tab.tsx`). Confirmed this is structurally distinct from a circle's own admin
+membership (`Members.userGroups` including `"admins"`, a separate collection keyed by
+user+circleId) — the permission model already cleanly distinguishes "platform superadmin" from
+"circle admin" via completely different data, so no ambiguity to report; reused `isAdmin`
+directly rather than inventing a new gate.
+
+**Fix 1:** the icon's `Link` now points to `/circles/the-backstage-lounge` (the same circle used
+for signup auto-enrollment), matching the existing pinned-tray convention of
+`/circles/{handle}` with no `/home` suffix.
+
+**Fix 2:** added a new `Link` to `/admin`, gated on `user?.isAdmin` (from the existing
+`userAtom`, populated via `checkAuth` → `getUserPrivate`, an unprojected fetch that already
+includes `isAdmin` — confirmed via `git log -S`/code reading, not assumed). Hidden on mobile and
+pinned to the bottom of the desktop sidebar via `hidden md:absolute md:bottom-4`, positioned
+against the nav's own already-`fixed` container rather than altering any existing element's
+layout classes — nothing else in the nav bar was touched. No existing "Admin" nav entry existed
+anywhere in the app chrome to mirror styling from (confirmed via search — the only `/admin`
+references in `.tsx` files are internal to the admin dashboard itself), so it follows the same
+icon+label visual pattern (colors, sizing) already used by the other nav items in
+`global-nav-items.tsx`, using lucide-react's `Shield` icon (already an in-use icon library here).
+
+**Verification, against real staging accounts, not just fixtures:**
+- `tim-admin`/`linus` (`isAdmin: true`) vs. `akro-timothy` (fan signup, no `isAdmin` field) vs.
+  `dave-knowles` (artist signup, no `isAdmin` field, but *is* admin of their own personal
+  circle's `Members` row) — confirmed via direct DB query that circle-admin membership never
+  grants the platform link, since the two are governed by entirely separate data structures.
+- A fixture-based script (not committed) mirroring the exact gating expression
+  (`Boolean(user?.isAdmin)`) confirmed all three required scenarios: true superadmin sees the
+  link, a user with no `isAdmin` field doesn't, a logged-out user doesn't.
+- `/circles/the-backstage-lounge` itself confirmed to render correctly (curl, real minted
+  sessions, zero errors, correct `<title>`) for both an artist-signup account (`dave-knowles`)
+  and a fan-signup account (`akro-timothy`) — classified via each account's own
+  `metadata.signupIntent` field.
+- The mobile-hidden behavior reuses the identical `hidden ... md:flex` pattern already proven
+  elsewhere in this same file (the logo icon itself) and in `global-nav-items.tsx`'s pinned
+  tray — not independently re-verified in an actual browser, since none is available in this
+  environment, but not a new/unproven pattern either.
+
+`bun run lint` and `npx tsc --noEmit -p .` both clean.
+
+**Carry-forward:** not deployed — local to `staging` only, per instruction. No real
+click-through in an actual browser (icon click, admin link appearance/absence per account,
+mobile-width check) — no browser tooling available in this environment; the above is the
+strongest verification available without one.
+
+---
+
 ## 2026-08-05 (cont.) — PRIVACY: fixed map leak — mapVisible:false profiles got a real pin via search
 
 Headline: **privacy-relevant fix**, same class as this week's event-visibility fixes — a
