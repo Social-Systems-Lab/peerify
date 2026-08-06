@@ -28,6 +28,7 @@ import { Hammer, AlertCircle } from "lucide-react"; // Gavel icon for proposals,
 import { AiFillHeart } from "react-icons/ai";
 import { Button } from "../ui/button";
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
+import { ProfileRelationshipHeaderAction } from "../modules/home/message-button";
 
 type Notification = {
     id: string;
@@ -877,16 +878,31 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                                 </p>
                             </div>
 
-                            {getNotificationActionLabel(groupedNotification) && (
-                                <button
+                            {groupedNotification.latestNotification.notificationType === "contact_request_received" &&
+                            groupedNotification.latestNotification.user ? (
+                                <div
+                                    className="ml-2"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        void handleNotificationClick(groupedNotification);
+                                        void markNotificationGroupAsRead(groupedNotification);
                                     }}
-                                    className={getNotificationActionClassName(groupedNotification)}
                                 >
-                                    {getNotificationActionLabel(groupedNotification)}
-                                </button>
+                                    <ProfileRelationshipHeaderAction
+                                        circle={groupedNotification.latestNotification.user}
+                                    />
+                                </div>
+                            ) : (
+                                getNotificationActionLabel(groupedNotification) && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            void handleNotificationClick(groupedNotification);
+                                        }}
+                                        className={getNotificationActionClassName(groupedNotification)}
+                                    >
+                                        {getNotificationActionLabel(groupedNotification)}
+                                    </button>
+                                )
                             )}
                             {groupedNotification.unreadNotificationIds.length > 0 && (
                                 <div className="ml-2 h-2 w-2 rounded-full bg-blue-500" />
