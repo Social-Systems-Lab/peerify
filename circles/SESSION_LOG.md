@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ c9a5b43c (2026-08-04 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 661d1ce0 (2026-08-06 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -36,6 +36,66 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-06 — PRIVACY: promoted to production — map leak, mapVisible:false profiles got a real pin via search
+
+Headline: **privacy-relevant fix**, promoted to production. Deploy only — no code changes made
+in this worktree beyond the cherry-picks themselves.
+
+**Promoted (cherry-picked `a9143e4b` + `e40d53ef` onto `main`, new HEAD `661d1ce0`, rollback
+point `8dee10df`):**
+- `a9143e4b` — `searchDiscoverableCircles` (`search.ts`) now strips a personal profile's
+  `location` field whenever `circleType === "user" && mapVisible !== true`, the exact same rule
+  `getSwipeCircles` already applies at the query level for default map browsing. Since
+  `map.tsx`'s only condition for creating a marker at all is `item?.location?.lngLat`, this
+  makes a marker structurally impossible for these profiles — closing the gap where a
+  searchable-but-not-map-visible profile could still get a real, clickable "Unavailable" pin
+  revealing its approximate location, purely because search never checked `mapVisible` at all
+  (only the separate `searchable` field). Not another client-side mask — the pre-existing
+  `isSuppressedUserProfile` cosmetic-degradation helper in `map.tsx` is untouched, left as a
+  legitimate defense-in-depth layer, now correctly unreachable for this path. `searchable`
+  itself is untouched — profiles remain fully findable by search and viewable via Open exactly
+  as before, by design.
+- `e40d53ef` — SESSION_LOG entry for the above.
+
+**Process — explicitly scoped, not a plain merge:** `git log main..staging` showed staging was
+**5** commits ahead, not 2 — the other 3 (`ccb41bd3`/`e4bd48ec`/`57ee13c9`, the unrelated
+Backstage Lounge auto-enrollment feature) were **not** part of this promotion's scope. A plain
+`git merge staging` would have incorrectly bundled them in, so cherry-picked only the 2 relevant
+commits directly onto `main` instead. Confirmed afterward via `git merge-base --is-ancestor
+ccb41bd3 HEAD` that the excluded commits are genuinely absent, and that `search.ts` is
+byte-for-byte identical to staging's version.
+
+**Merge conflict:** `SESSION_LOG.md` only, on the second cherry-pick (`e40d53ef`) — a positional
+artifact: the new entry's diff context included an adjacent, pre-existing staging header (the
+excluded Backstage Lounge entry's own heading) that had to be explicitly excluded rather than
+pulled in along with the real new content. Resolved by keeping only the genuinely new
+privacy-fix entry text and restoring `main`'s own next entry unchanged. `bun run lint` clean.
+
+**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting. `scripts/deploy-peerify.sh`,
+all 8 steps passed. GIT_SHA `661d1ce0`, BUILD_ID `sz1n1-CZoNzZv9TplAcr7`. `pm2 save` ran inside
+the script. Staging pid/uptime unchanged throughout.
+
+**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
+`pm2 status` — both processes online, prod not crash-looping, clean "Ready in 186ms" boot.
+`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
+deployment" burst seen on every prior redeploy — expected, not a fault. Homepage and `/explore`
+both curl-verified to return full real content (70KB/93KB, zero "Application error"
+occurrences). Grepped the deployed server bundle directly and found the exact shipped logic
+(minified: ``"user"!==a.circleType||!0===a.mapVisible`` gating ``location:c?a.location:void
+0``) in `app/api/circles/search/route.js` — confirming the fix is actually live, not just that
+the build succeeded.
+
+**Confirmed against the real production account, not staging's synthetic test account
+(explicitly required):** staging's `tim-admin` doesn't exist on production; the real equivalent
+— same person, same precondition (`searchable: true, mapVisible: false`) — is `tim` (Tim
+Olsson, `handle: "tim"`, the same account behind the Backstage Lounge and "Peerify
+Announcements" conversation). Called the real `searchDiscoverableCircles` function directly
+against production's live database: `tim` is still found by search, but now has no location in
+the result — a map marker is no longer possible. The leak is confirmed fixed on the actual
+production account that would have been affected, not a fixture or a staging stand-in.
 
 ---
 
