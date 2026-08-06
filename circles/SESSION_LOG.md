@@ -40,6 +40,47 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-06 (cont.) — Pin The Backstage Lounge to new signups' sidebar by default
+
+Headline: added a related but separate step to the existing Backstage Lounge auto-enrollment —
+new signups now also get it pinned to their sidebar by default. One commit (`09d7a151`), one
+file changed (`src/components/forms/signup/actions.ts`), local to `staging` only, not deployed.
+
+**Investigation first, as instructed.** Found the existing pinning mechanism:
+`pinCircle`/`unpinCircle` (`src/lib/data/user.ts`) are plain, unprivileged functions operating on
+a user's own `pinnedCircles` array — `pinCircle` prepends the id (deduping, capped at 5) and
+`$addToSet`s to `bookmarkedCircles`; `unpinCircle` is a plain `$pull`. Confirmed there is no
+"locked"/"default" flag anywhere in this data model, and confirmed the UI already exposes a real
+pin/unpin toggle (`user-toolbox.tsx`, calling `pinCircleAction`/`unpinCircleAction` — thin
+wrappers around these exact same functions) — so a pin applied programmatically is
+indistinguishable from, and exactly as removable as, one the user creates themselves. Also used
+by `/api/pins` (the nav's own pinned-tray `PinPicker`), confirming this is the one established
+mechanism app-wide, not one of several.
+
+**Fix:** added `pinCircle(user.did!, backstageLoungeCircleId)` to the exact same step that
+already auto-enrolls every new signup as a member (`ccb41bd3`) — right after the existing
+`addMember()` call, inside the same try/catch (so a missing circle or any failure still only
+logs, never blocks signup). New signups only — this only runs inside
+`submitSignupFormAction`, never touching any existing account.
+
+**Verification**, using the same `createUserAccount`-based methodology as the original
+enrollment fix (`createUserSession`'s `cookies()` call can't run in a standalone script): a
+fresh signup ends up with the Backstage Lounge's real `_id` as the first (and only) entry in
+`pinnedCircles`; calling `unpinCircle` afterward (the identical function the UI's own toggle
+calls) cleanly removes it (`pinnedCircles: []`); and four existing staging accounts
+(`tim-admin`, `linus`, `dave-knowles`, `akro-timothy`) had their `pinnedCircles` confirmed
+byte-for-byte identical before and after — entirely unaffected (`tim-admin`'s own pre-existing
+pins, including one for the Backstage Lounge from having created it, were untouched throughout).
+`bun run lint` and `npx tsc --noEmit -p .` both clean.
+
+**Carry-forward:** not deployed — local to `staging` only, per instruction. Retroactively
+pinning for existing users was explicitly out of scope for this task, left as a separate future
+decision. No real click-through in an actual browser (seeing the pin actually render in the
+sidebar immediately post-signup, or using the UI's own unpin control rather than calling the
+underlying function directly) — no browser tooling available in this environment.
+
+---
+
 ## 2026-08-06 — Nav bar: Peerify icon now links to The Backstage Lounge; added a superadmin-only Admin link
 
 Headline: two small nav bar UI changes. One commit (`e3ac57de`), one file changed
