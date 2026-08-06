@@ -40,6 +40,45 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-06 (cont. 2) — Respond dropdown for connection requests (accept/decline in-place)
+
+Headline: connection requests had no explicit accept/decline control — a request could only be
+implicitly accepted by messaging the requester. One commit (`4456f397`), one file changed
+(`src/components/layout/notifications.tsx`), deploying to staging now for testing.
+
+**Investigation first, as instructed.** Found the Kamooni-era "Respond" dropdown pattern already
+fully built and working, just never wired into any UI: `ProfileRelationshipHeaderAction`
+(`src/components/modules/home/message-button.tsx`) renders an amber "Respond now" pill that opens
+a dropdown with "Accept connection" / "Decline request", backed by real, already-correct server
+actions (`acceptConnectRequestAction` / `declineConnectRequestAction` /
+`getProfileRelationshipStateAction`, `src/components/modules/home/actions.ts`) that flip both
+sides of the `UserRelationships` edge and are the same ones a `sendConnectRequestAction` request
+targets. Confirmed via grep that `ProfileRelationshipHeaderAction` had zero call sites anywhere
+in the app — dead code, not a hidden/hard-to-find pattern. Separately, the notifications panel's
+`contact_request_received` entry only ever rendered a plain "Respond" button whose click just
+navigated to the requester's profile (`getCircleDefaultPath`) — no inline accept/decline existed
+there at all. The "implicit accept via messaging" behavior mentioned in the task turned out not
+to touch `connectStatus`: `getDmEligibility` separately allows messaging when a DM conversation
+already exists (`dm_permission_legacy_dm`), independent of connection state — untouched by this
+fix.
+
+**Fix:** in `notifications.tsx`, for notifications of type `contact_request_received`, render
+`<ProfileRelationshipHeaderAction circle={...requester...} />` in place of the old "Respond"
+button — reused as-is, zero changes to `message-button.tsx`. Wrapped it in a `div` that
+stops click propagation and marks the notification read on interaction, so opening/using the
+dropdown doesn't trigger the row's own click-to-navigate handler. All other notification types
+are untouched — the old button/label/className logic still renders unchanged for every other
+case.
+
+**Verification:** `npx tsc --noEmit` and `bun run lint` both clean (no new warnings/errors in
+the changed file). No live browser click-through in this environment — deploying to staging now
+so it can be tested there with two real accounts (send a request, confirm the dropdown appears,
+confirm accept and decline both work, confirm messaging-based implicit access still works).
+
+**Carry-forward:** pending manual verification on staging by Tim. Not yet merged to `main`/prod.
+
+---
+
 ## 2026-08-06 (cont.) — Pin The Backstage Lounge to new signups' sidebar by default
 
 Headline: added a related but separate step to the existing Backstage Lounge auto-enrollment —
