@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { Shield } from "lucide-react";
 import GlobalNavItems from "./global-nav-items";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
@@ -51,7 +52,7 @@ export default function GlobalNav() {
                 }
             >
                 <div className={`flex h-[56px] flex-row items-center justify-center md:h-auto md:w-[72px] md:flex-col`}>
-                    <Link href="/explore" aria-label="Peerify home">
+                    <Link href="/circles/the-backstage-lounge" aria-label="The Backstage Lounge">
                         <div className="group relative ml-4 mr-4 hidden flex-shrink-0 flex-col items-center justify-center md:mb-4 md:ml-0 md:mr-0 md:mt-4 md:flex">
                             <div className="relative">
                                 <div className="relative h-[50px] w-[50px] transform cursor-pointer">
@@ -70,6 +71,22 @@ export default function GlobalNav() {
 
                     <GlobalNavItems />
                 </div>
+
+                {/* Platform-superadmin only (user.isAdmin — the same gate as /admin's own
+                    server-side check and every admin action in src/components/modules/admin,
+                    distinct from a circle's own admins userGroups membership), desktop only. */}
+                {user?.isAdmin && (
+                    <Link
+                        href="/admin"
+                        aria-label="Admin dashboard"
+                        className="hidden md:absolute md:bottom-4 md:left-0 md:right-0 md:flex md:flex-col md:items-center md:justify-center"
+                    >
+                        <div className="flex flex-shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg text-[#b9afa2] transition-colors hover:bg-[#241f1a] hover:text-[#ff8c2a] md:w-[64px] md:pb-2 md:pt-2">
+                            <Shield size={24} />
+                            <span className="mt-[2px] text-[11px]">Admin</span>
+                        </div>
+                    </Link>
+                )}
             </div>
         </>
     );
