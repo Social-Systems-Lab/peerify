@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 62d34468 (2026-08-06 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ e7981c53 (2026-08-06 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -38,6 +38,44 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - See OPERATIONS.md for full architecture and deploy procedure.
 
 ---
+
+## 2026-08-06 (cont. 2) — Promoted to production: nav bar (Backstage Lounge icon link + superadmin Admin link) and sidebar auto-pinning of The Backstage Lounge
+
+Headline: promoted two more staging features to production together, per explicit request.
+Deploy only — no code changes made in this worktree beyond the cherry-picks themselves.
+
+**Scope confirmed first, as instructed.** `git log main..staging` on the staging worktree
+listed 10 commits, but by content-diff (not ancestry — cherry-picks mint new hashes) only two
+were actually still pending:
+- `e3ac57de` — Nav bar: link the Peerify icon to The Backstage Lounge; add a superadmin-only
+  Admin link (gated on `user.isAdmin`, the same field every other admin surface uses).
+- `09d7a151` — Pin The Backstage Lounge to new signups' sidebar by default (added to the same
+  signup step that already auto-enrolls new users as members, via the existing, unprivileged
+  `pinCircle` mechanism — not a locked default; users can unpin it normally).
+
+The other two commits in that `main..staging` list (`ccb41bd3` Backstage Lounge auto-enrollment,
+`a9143e4b` map privacy fix) were already promoted earlier under different hashes (`0355c61f`,
+`79510ae1` respectively, see prior dated entries) — confirmed via `grep` that main's
+`global-nav.tsx` and `signup/actions.ts` were missing the nav/pin changes before this promotion,
+and correctly did NOT re-cherry-pick those two.
+
+**Promotion:** cherry-picked `e3ac57de` → `fea0a177` and `09d7a151` → `e7981c53` onto `main`,
+both applying cleanly with no conflicts. `bun run lint` clean (pre-existing warnings only, no
+errors) before deploying.
+
+**Deploy:** `scripts/deploy-peerify.sh` — GIT_SHA `e7981c53`, all 8 script steps PASS
+(build, BUILD_ID `C_NPsP4SJ7H901ylbu0l6`, static-asset copy/verify, PM2 restart, HTTP checks).
+Confirmed `PORT=3000` via `pm2 env` for the `peerify` process pre/post-restart; `pm2 save`
+completed ("Successfully saved in /home/tim/.pm2/dump.pm2"); `pm2 status` shows `peerify` online
+(new pid) and `peerify-staging` untouched (unchanged pid/uptime). `curl` confirmed HTTP 200 on
+both `/` and `/explore`. Grepped the deployed standalone bundle directly to confirm both features
+actually shipped in the built artifact (not just source): `the-backstage-lounge` found in server
+chunks `915.js`/`6509.js` and the client `app/layout` static chunk; `isAdmin` and the literal
+`Admin dashboard` aria-label found in that same nav static chunk; `pinCircle` found in the
+signup server-action chunk (`6509.js`) and the server-reference manifest.
+
+**Carry-forward:** none — this was a scoped deploy-only promotion, no source changes made on
+`main` beyond the two cherry-picks.
 
 ## 2026-08-06 (cont.) — Promoted to production: Backstage Lounge auto-enrollment
 
