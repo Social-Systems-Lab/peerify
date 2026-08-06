@@ -5,7 +5,7 @@ import { FormSubmitResponse, UserPrivate } from "../../../models/models";
 import { AuthenticationError, createUserSession, createUserAccount } from "@/lib/auth/auth";
 import { updateCircle, createCircle, getCircleByHandle } from "@/lib/data/circle";
 import { addMember } from "@/lib/data/member";
-import { getUserPrivate } from "@/lib/data/user";
+import { getUserPrivate, pinCircle } from "@/lib/data/user";
 import { ensureWelcomeMessageForNewUser } from "@/lib/data/mongo-chat";
 import { getResolvedWelcomeTemplate } from "@/lib/data/system-message-templates";
 import { verifyAltchaPayload } from "@/lib/auth/altcha";
@@ -178,13 +178,18 @@ export const submitSignupFormAction = async (values: Record<string, any>): Promi
         }
 
         // Every new signup — artist or fan alike — is auto-enrolled as a follower of The
-        // Backstage Lounge, the Peerify community circle. Looked up by its stable handle
-        // rather than a hardcoded id; if the circle doesn't exist in this environment, or the
-        // user somehow already has a membership row, this only logs and never blocks signup.
+        // Backstage Lounge, the Peerify community circle, and pinned to their sidebar so they
+        // see it immediately and discover the pinning feature itself. Looked up by its stable
+        // handle rather than a hardcoded id; if the circle doesn't exist in this environment, or
+        // the user somehow already has a membership row, this only logs and never blocks signup.
+        // pinCircle is the same plain, unprivileged mechanism the user's own pin/unpin toggle
+        // (user-toolbox.tsx) already uses — this is an ordinary pin, not a locked default, and
+        // is only ever applied here, at signup, never retroactively for existing accounts.
         try {
             const backstageLounge = await getCircleByHandle(BACKSTAGE_LOUNGE_HANDLE);
             if (backstageLounge?._id) {
                 await addMember(user.did!, String(backstageLounge._id), ["members"]);
+                await pinCircle(user.did!, String(backstageLounge._id));
             }
         } catch (error) {
             console.error("Failed to auto-enroll new signup in The Backstage Lounge:", error);
