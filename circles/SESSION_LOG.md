@@ -74,7 +74,13 @@ the changed file). No live browser click-through in this environment — deployi
 so it can be tested there with two real accounts (send a request, confirm the dropdown appears,
 confirm accept and decline both work, confirm messaging-based implicit access still works).
 
-**Carry-forward:** pending manual verification on staging by Tim. Not yet merged to `main`/prod.
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `hgL8UkHCoPZuQ8r85HY2k`), prod pid/uptime unchanged, `GET /` and a static CSS asset
+both HTTP 200 post-restart.
+
+**Carry-forward:** pending manual verification on staging by Tim (send a real connection
+request between two accounts, confirm the dropdown appears and accept/decline both work,
+confirm messaging-based implicit access is unaffected). Not yet merged to `main`/prod.
 
 ---
 
