@@ -89,9 +89,16 @@ icon+label visual pattern (colors, sizing) already used by the other nav items i
 
 `bun run lint` and `npx tsc --noEmit -p .` both clean.
 
-**Carry-forward:** not deployed — local to `staging` only, per instruction. No real
-click-through in an actual browser (icon click, admin link appearance/absence per account,
-mobile-width check) — no browser tooling available in this environment; the above is the
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `_jKF8a7ah8lh5uCrgTumt`), prod pid/uptime unchanged. Homepage curl-verified to render
+fully post-deploy (70KB, zero "Application error" occurrences). Grepped the deployed client
+bundle directly for both changes' literal strings (`"the-backstage-lounge"`, `"Admin
+dashboard"`) — both present in the root layout chunk (`GlobalNav` renders there), confirming
+the changes actually shipped rather than trusting the build log alone.
+
+**Carry-forward:** no real click-through in an actual browser (icon click, admin link
+appearance/absence per account, mobile-width check) — no browser tooling available in this
+environment; the above is the
 strongest verification available without one.
 
 ---
