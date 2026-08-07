@@ -192,6 +192,8 @@ const buildNotificationBody = (type: string, payload: any): string => {
             return `${actorName} sent you a direct message`;
         case "contact_request_received":
             return `${actorName} sent you a contact request`;
+        case "contact_request_accepted":
+            return `${actorName} accepted your contact request`;
         default:
             return payload?.messageBody || "New notification";
     }

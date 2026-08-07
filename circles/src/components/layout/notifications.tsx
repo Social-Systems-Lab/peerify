@@ -471,6 +471,7 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                 case "pm_received":
                     return notification.roomId ? `/chat/${notification.roomId}` : null;
                 case "contact_request_received":
+                case "contact_request_accepted":
                     return notification.user?.handle ? getCircleDefaultPath(notification.user) : null;
                 case "post_comment":
                 case "comment_reply":
@@ -570,6 +571,7 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
             case "proposal_moved_to_voting":
             case "proposal_approved_for_voting":
             case "proposal_resolved":
+            case "contact_request_accepted":
                 return "View";
             default:
                 return null;

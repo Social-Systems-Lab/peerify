@@ -1254,6 +1254,7 @@ export type NotificationType =
     | "proof_of_humanity_verified" // A user received a public proof of humanity verification
     | "pm_received" // A private message has been received
     | "contact_request_received" // A user received a contact request
+    | "contact_request_accepted" // A user's contact request was accepted - sent to the requester
     // Consolidated Summary Notification Types
     | "COMMUNITY_FOLLOW_REQUEST" // Replaces follow_request
     | "COMMUNITY_NEW_FOLLOWER" // Replaces new_follower
@@ -1324,6 +1325,7 @@ export const notificationTypeValues = [
     "proof_of_humanity_verified",
     "pm_received",
     "contact_request_received",
+    "contact_request_accepted",
     // Summary Types (for user configuration)
     "COMMUNITY_FOLLOW_REQUEST",
     "COMMUNITY_NEW_FOLLOWER",

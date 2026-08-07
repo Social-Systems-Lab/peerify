@@ -610,6 +610,17 @@ export const acceptConnectRequestAction = async (
             { upsert: true },
         );
 
+        try {
+            const accepter = await getCircleByDid(viewerDid);
+            if (accepter?.circleType === "user") {
+                await sendNotifications("contact_request_accepted", [targetUser], {
+                    user: accepter,
+                });
+            }
+        } catch (notificationError) {
+            console.error("Failed to create contact request accepted notification", notificationError);
+        }
+
         return { success: true, message: "Contact request accepted" };
     } catch (error) {
         console.error("Failed to accept connect request", error);
