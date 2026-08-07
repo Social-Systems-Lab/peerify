@@ -174,6 +174,14 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
                     </Button>
                 ) : null
             )}
+            {resolvedRelationshipState.connectStatus === "accepted" && (
+                <Badge
+                    data-connect-reason={resolvedRelationshipState.connectLabelReason}
+                    className="inline-flex h-8 items-center rounded-full border border-[#c7d8cb] bg-[#f3f7f4] px-3 py-1 text-[#45604d] hover:bg-[#f3f7f4]"
+                >
+                    Connected
+                </Badge>
+            )}
         </div>
     );
 };
