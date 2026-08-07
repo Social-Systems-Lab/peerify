@@ -40,6 +40,77 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-07 — Notify requester on contact-request acceptance + Connected badge on MessageButton
+
+Headline: two follow-on gaps found while testing the 2026-08-06 Respond-dropdown fix on staging —
+accepting a contact request never notified the requester, and there was no on-profile signal of
+pending/connected state once the notification had been dismissed. Both fixed, tested end-to-end
+with three throwaway accounts, and committed as two separate commits.
+
+**Investigation first, as instructed.** `acceptConnectRequestAction`
+(`src/components/modules/home/actions.ts`) only ever flipped both `UserRelationships` edges to
+`connectStatus: "accepted"` — no notification type or dispatch existed for acceptance at all
+(confirmed: no `contact_request_accepted` type anywhere in `models.ts`, no `sendNotifications`
+call in the accept path). Separately, `MessageButton` (`message-button.tsx`) showed a disabled
+"Requested" pill while pending, correct per the existing pattern, but the pill simply vanished
+once `dmAllowed` flipped true on acceptance — no positive "Connected" signal anywhere on the
+profile page itself outside the one-time notification. The RELATIONSHIP panel in `AboutPage.tsx`
+already has fuller Connected/Requested/Following logic, but it's gated behind
+`!isPeerifyArtistProfile` — deliberately left untouched per instruction, since that suppression
+may be intentional for reasons not yet audited and was out of scope for this task.
+
+**Fix 1** (`f6b8ebe0`): added `contact_request_accepted` to the `NotificationType` union and
+`notificationTypeValues` (`models.ts`), a body-copy case in `buildNotificationBody`
+(`lib/data/notifications.ts`: `"${actorName} accepted your contact request"`), a
+`sendNotifications("contact_request_accepted", [requester], { user: accepter })` call at the end
+of `acceptConnectRequestAction`, and href/action-label render cases in `notifications.tsx`
+(links to the accepter's profile, "View" action). Follows the existing
+`sendConnectRequestAction` → `contact_request_received` pattern exactly.
+
+**Fix 2** (`b19c0f54`): `MessageButton` now renders a "Connected" `Badge` when
+`connectStatus === "accepted"`, reusing the exact style already used by
+`ProfileRelationshipHeaderAction`'s own Connected badge for visual consistency.
+
+**Verification:** full live browser E2E on staging — got Playwright's cached Chromium working
+this session (`sudo npx playwright install-deps chromium`, run by Tim; previously blocked on
+missing `libnss3.so`/`libnspr4.so` etc., see 2026-07-29 entry). Three throwaway `circleType:
+"user"` docs (`qa-test-connect-a/b/c`, cloned from a real user template, `metadata.peerify`
+empty so the artist-profile gate doesn't apply) created directly in the staging DB, logged into
+via the `loginLinkToken`/`/login-link` magic-link path (no real email needed). Ran the full
+cycle: A sends a request to B → "Requested" pill visible on B's profile → B accepts via the
+Respond dropdown → B's notification row shows "Connected" → A's `MessageButton` on B's profile
+shows the new "Connected" badge → A receives a `contact_request_accepted` notification reading
+"QA Test Connect B accepted your contact request". Cross-checked directly in Mongo: both
+`UserRelationships` edges `accepted`/`dmPermission: allowed`, exactly one notification doc for A.
+Separately, A → C request declined by C: relationship reset to `none` on both sides, zero
+notifications created for the decline (confirmed no stray `contact_request_accepted` doc). All
+three throwaway accounts and their `members`/`userRelationships`/`notifications` rows deleted
+after.
+
+One real bug found in the test harness itself, not the app: Playwright's normal/force click on
+the Respond-now dropdown trigger was being intercepted by `peerify-landing-page.tsx`'s
+`.heroOverlay` div when the notifications panel was opened from `/` (the marketing homepage) —
+its `position:relative; min-height:100vh` hero occupies the full first viewport and wins the
+hit-test at that point even though the fixed notification panel paints on top. Not an app bug:
+switched the test to open notifications from the user's own profile page instead (any other
+page works fine) and used real keyboard activation (`focus()` + `Enter`) for the dropdown to
+sidestep it entirely.
+
+**Deployed to staging:** `deploy-staging.sh` run before testing, all 8 steps passed (BUILD_ID
+`jRCIMQZTcYZv6J82mdAup`), prod pid/uptime unchanged. **Not yet promoted to prod** — holding per
+instruction pending Tim's review.
+
+**Carry-forward:**
+1. RELATIONSHIP panel's `!isPeerifyArtistProfile` gate (`AboutPage.tsx` `shouldShowProfileStatus`)
+   still suppresses Connected/Requested/Following entirely for any profile with
+   `metadata.peerify.intent === "artist"` — likely most pilot signups. Not touched this session;
+   worth a deliberate audit of whether that suppression should exempt connection/relationship
+   state specifically.
+2. `sudo apt`-level Chromium deps are now installed on this box — future sessions can use
+   Playwright directly against staging without the install-deps step.
+
+---
+
 ## 2026-08-06 (cont. 2) — Respond dropdown for connection requests (accept/decline in-place)
 
 Headline: connection requests had no explicit accept/decline control — a request could only be
