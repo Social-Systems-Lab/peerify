@@ -40,6 +40,65 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-08-08 — "Respond now" accept/decline on the profile page itself
+
+Headline: connection requests could only be accepted/declined from the notifications panel;
+visiting the requester's profile page directly gave no way to respond, forcing a trip back to
+notifications. Fixed with a one-prop extension of the existing dropdown, reused as-is. One
+commit (`de7acf09`), two files changed (`home-content.tsx`, `message-button.tsx`).
+
+**Investigation first, as instructed.** Found this already substantially implemented but
+uncommitted in the working tree at session start — `ProfileRelationshipHeaderAction`
+(`message-button.tsx`) had gained a `pendingOnly?: boolean` prop, and `home-content.tsx` already
+rendered `<ProfileRelationshipHeaderAction circle={circle} pendingOnly />` next to
+`MessageButton` in both the compact and non-compact profile-header layouts (gated on the
+existing `isUser` check, i.e. `circle.circleType === "user"`). There was also a leftover
+zombie `tsx` process (started the previous day, still running >12h later) stuck trying to
+exercise this via a throwaway-DB test script that imported the app's own `src/lib/data/db.ts`
+directly — that module's top-level Mongo client/index-creation side effects don't resolve
+cleanly outside the real Next.js runtime; killed both the stale process and a second one this
+session reproduced, and abandoned that approach rather than debugging it further, since a real
+browser E2E was more faithful anyway (this box now has Playwright's Chromium deps installed,
+per 2026-08-07). Confirmed via grep that the notifications.tsx call site (`ProfileRelationshipHeaderAction`
+without `pendingOnly`, unaffected) and the `AboutPage.tsx` RELATIONSHIP-panel `!isPeerifyArtistProfile`
+gate were both untouched by the diff.
+
+**What the diff does:** `pendingOnly` only changes one branch — `!pendingOnly &&
+connectStatus === "accepted"` — which is now skipped when `pendingOnly` is true, so the
+component renders nothing once accepted (`MessageButton` already shows its own "Connected"
+badge, avoiding a duplicate). The `pending_received` dropdown branch (amber "Respond now" →
+"Accept connection" / "Decline request") is unchanged and renders identically on both the
+profile page and the notifications panel.
+
+**Verification:** `npx tsc --noEmit` and `bun run lint` clean on both changed files.
+`deploy-staging.sh` run (BUILD_ID `4YcbTGwr6OEOhNoJ1zuke`, all 8 steps passed, prod pid/uptime
+unchanged) — staging was still serving a pre-diff build (`jRCIMQZTcYZv6J82mdAup`) before this,
+which is why the button didn't appear in the first pass of testing. Full live Playwright E2E
+against staging with two throwaway `circleType: "user"` docs (cloned from a real template,
+logged in via generated `loginLinkToken`s, no real email needed): A→B pending request set up
+directly in Mongo, B visits A's profile **directly** (typed URL, not via notifications) →
+amber "Respond now" visible in the profile header exactly where Message/Follow are → Accept →
+both `UserRelationships` edges flip to `accepted`, dropdown disappears, `MessageButton` shows
+exactly one "Connected" badge (scoped the assertion to elements with message-button.tsx's own
+`data-connect-reason` attribute after an early pass over-counted — there's a second, unrelated,
+pre-existing "Connected" chip on the same page from `AboutPage.tsx:1240`'s RELATIONSHIP panel,
+untouched by this change), and A's own view of B's profile symmetrically shows Connected too.
+Reset to pending, repeated on the profile page with Decline → both edges reset to `none`,
+dropdown disappears. Reset to pending again with a real `contact_request_received` notification
+doc inserted → opened the notification bell from B's own profile (not A's) → confirmed the
+existing notifications-panel "Respond now" still renders and Accept still works there,
+unaffected by the new profile-page path. All 8 assertions passed. Throwaway accounts,
+relationship edges, and the notification doc deleted after.
+
+**Deployed to staging**, live and tested as above. **Not promoted to prod** — holding per
+instruction pending Tim's review.
+
+**Carry-forward:** none new. The RELATIONSHIP-panel artist-profile suppression gate
+(`AboutPage.tsx` `shouldShowProfileStatus`) carry-forward from 2026-08-07 is still open and
+still deliberately untouched.
+
+---
+
 ## 2026-08-07 — Notify requester on contact-request acceptance + Connected badge on MessageButton
 
 Headline: two follow-on gaps found while testing the 2026-08-06 Respond-dropdown fix on staging —
