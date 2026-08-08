@@ -13,7 +13,7 @@ import BookmarkButton from "./bookmark-button";
 import GalleryTrigger from "./gallery-trigger";
 import { useIsCompact } from "@/components/utils/use-is-compact";
 import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
-import { MessageButton } from "./message-button";
+import { MessageButton, ProfileRelationshipHeaderAction } from "./message-button";
 import { userAtom, PILOT_ONBOARDING_COMPLETED_STORAGE_KEY } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import { NotificationSettingsDialog } from "@/components/notifications/NotificationSettingsDialog";
@@ -376,6 +376,7 @@ export default function HomeContent({
                             <>
                                 <div className="absolute left-0 top-0 flex flex-row gap-1 pt-2">
                                     <MessageButton circle={circle} renderCompact={false} />
+                                    <ProfileRelationshipHeaderAction circle={circle} pendingOnly />
                                 </div>
 
                                 <div className="absolute right-0 top-0 flex flex-row items-center gap-1 pt-2">
@@ -439,6 +440,7 @@ export default function HomeContent({
                                             <SocialLinks circle={circle} />
                                         </div>
                                         {isUser && <MessageButton circle={circle} renderCompact={false} />}
+                                        {isUser && <ProfileRelationshipHeaderAction circle={circle} pendingOnly />}
                                         {user && circle.circleType === "circle" && isMember && (
                                             <ChatButton circle={circle} />
                                         )}

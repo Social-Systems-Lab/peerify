@@ -186,7 +186,16 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
     );
 };
 
-export const ProfileRelationshipHeaderAction = ({ circle }: { circle: Circle }) => {
+export const ProfileRelationshipHeaderAction = ({
+    circle,
+    pendingOnly,
+}: {
+    circle: Circle;
+    // When true, only render the "Respond now" accept/decline control (pending_received).
+    // Skips the "Connected" badge so this can sit alongside MessageButton, which already
+    // renders its own "Connected" badge for the accepted state.
+    pendingOnly?: boolean;
+}) => {
     const [user] = useAtom(userAtom);
     const router = useRouter();
     const { toast } = useToast();
@@ -296,7 +305,7 @@ export const ProfileRelationshipHeaderAction = ({ circle }: { circle: Circle }) 
         );
     }
 
-    if (relationshipState.connectStatus === "accepted") {
+    if (!pendingOnly && relationshipState.connectStatus === "accepted") {
         return (
             <Badge className="inline-flex h-8 items-center rounded-full border border-[#c7d8cb] bg-[#f3f7f4] px-3 py-1 text-[#45604d] hover:bg-[#f3f7f4]">
                 Connected
