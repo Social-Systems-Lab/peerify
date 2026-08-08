@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ e2b34357 (2026-08-06 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 62792eb4 (2026-08-08 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -36,6 +36,52 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-08 (cont.) — Promoted to production: notify-on-accept, Connected badge, profile-page Respond dropdown
+
+Headline: promoted the remaining three connection-request fixes to production together. Deploy
+only — no code changes made in this worktree beyond the cherry-picks themselves.
+
+**Scope confirmed first, as instructed.** `git log main..staging` on the staging worktree listed
+20 commits, but by content-diff (not ancestry — cherry-picks mint new hashes) only 3 were
+actually still pending; the other 17 were already promoted earlier under different hashes
+(notifications-panel Respond dropdown from the 2026-08-06 promotion below, plus Backstage Lounge
+auto-enrollment/pinning, nav bar links, and the map-privacy fix — confirmed via grep that
+`contact_request_accepted` and `pendingOnly` were absent from `main` before this promotion, and
+correctly did NOT re-cherry-pick those 17):
+- `f6b8ebe0` — Notify the requester when their contact request is accepted.
+- `b19c0f54` — Show a Connected badge on MessageButton after a contact request is accepted.
+- `de7acf09` — Add Respond now to profile page for pending connection requests.
+
+A 4th related commit, `4456f397` (notifications-panel Respond dropdown), was flagged to Tim as
+found-but-not-in-the-original-3-named-fixes; confirmed already live on `main` as `ce4cc900` from
+the 2026-08-06 promotion, so nothing further to do there.
+
+**Promotion:** cherry-picked all 3 onto `main` in order → `9df424cf`, `c6d537a0`, `62792eb4`. All
+three applied cleanly, no conflicts (each touches only connection-request-family files, disjoint
+from the already-promoted Backstage Lounge/nav-bar/map-privacy commits). `npx tsc --noEmit`
+clean.
+
+**Deploy:** `scripts/deploy-peerify.sh` — GIT_SHA `62792eb4`, all 8 steps PASS (build, BUILD_ID
+`AgnCqfXwYK1Tvze4FJ0f3`, static-asset copy/verify, PM2 restart, HTTP checks).
+
+**Post-deploy verification (beyond the script's own checks):** `pm2 jlist` confirmed `peerify`
+restarted (new pid `1479560`, fresh uptime) and `peerify-staging` untouched (pid `1476796`,
+uptime unchanged at 77m); `pm2 save` completed. `curl` confirmed HTTP 200 on both `/` and
+`/explore`. Grepped the deployed standalone bundle to confirm the fixes actually shipped in the
+built artifact, not just the source: `contact_request_accepted` found in
+`.next/server/chunks/{4477,2909,6509}.js` and `.next/server/app/circles/[handle]/access-denied/page.js`;
+`pendingOnly` found in `.next/server/chunks/{7203,6509}.js` and client static chunks
+`.next/static/chunks/{798-16cfc94d71d6fb15,7114-6ee93f2c88c55e6f}.js` and
+`.next/static/chunks/app/circles/[handle]/layout-d23b8457b64f3dc2.js`; the literal string
+"Respond now" also present in both of those client chunks.
+
+**Carry-forward:** none — this was a scoped deploy-only promotion, no source changes made on
+`main` beyond the three cherry-picks. All three connection-request fixes (notifications-panel
+dropdown, notify-on-accept, Connected badge, profile-page dropdown) are now fully live in
+production.
 
 ---
 
