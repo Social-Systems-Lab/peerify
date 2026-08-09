@@ -608,39 +608,21 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
     --pc-orange-soft: #f1a674;
     --pc-orange-tint: #f8e2ce;
 
-    /* shadcn/ui tokens (see the @layer base :root block above), remapped only in this
-       scope — retints every Card/Button/Badge/Tabs etc. that relies on them for free. */
-    --background: 43 58% 95%;
-    --foreground: 30 18% 9%;
-    --card: 42 71% 97%;
-    --card-foreground: 30 18% 9%;
-    --popover: 42 71% 97%;
-    --popover-foreground: 30 18% 9%;
+    /* Option A: restrained accent. Page/card backgrounds and text stay on the site's
+       normal white/neutral shadcn tokens (see the @layer base :root block above) — NOT
+       overridden here, unlike pass 1. Orange is the only accent threaded through
+       (--primary/--ring), so every Button/Tabs/link that already relies on --primary
+       retints for free with no component edits. */
     --primary: 23 80% 54%;
-    --primary-foreground: 42 47% 90%;
-    --secondary: 43 46% 86%;
-    --secondary-foreground: 30 18% 9%;
-    --muted: 43 46% 86%;
-    --muted-foreground: 31 11% 44%;
-    --accent: 29 75% 89%;
-    --accent-foreground: 23 73% 46%;
-    --border: 41 33% 81%;
-    --input: 41 33% 81%;
+    --primary-foreground: 0 0% 100%;
     --ring: 23 80% 54%;
 
     font-family: var(--font-manrope), sans-serif;
 }
 
-/* The page-content wrapper (HomeCover/HomeContent/CircleTabs/AboutPage) is the only one
-   of the three .pilot-chrome-classed roots that should paint a page canvas — the global
-   nav and profile-menu roots only wrap icon buttons that already carry their own explicit
-   background classes (remapped below), and painting a solid box behind them would show
-   as a stray colored rectangle over the cover photo. */
-.pilot-chrome-page {
-    background-color: var(--pc-paper);
-    color: var(--pc-ink);
-}
-
+/* Headings only — body text, buttons, and UI labels stay in Manrope via the base rule
+   above. PresenceCard (About/Offers/etc. section titles) renders its title as an <h1>,
+   so this covers exactly the profile-name and section-title headings, nothing else. */
 .pilot-chrome h1,
 .pilot-chrome h2,
 .pilot-chrome h3,
@@ -650,40 +632,66 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
     font-family: var(--font-cormorant), serif;
 }
 
-/* Literal (non-token) utility classes used across the pilot page's components that don't
-   route through the shadcn vars above — remapped 1:1 to the new palette by targeting the
-   exact compiled Tailwind class, scoped to .pilot-chrome so it's inert everywhere else. */
-.pilot-chrome .bg-white {
-    background-color: var(--pc-paper-light);
+/* Badges/pills/tags: a restrained orange tint, per Option A — deliberately NOT a blanket
+   gray/white remap (pass 1's warmer approach, which also caused the social-icon-row
+   regression fixed below). Cards, page background, and general body text all stay
+   exactly the site's normal white/neutral; only these specific chip classes retint. */
+
+/* "Offering" badge variant (tour-team-offerings-card.tsx) — was near-black/gold. */
+.pilot-chrome .bg-\[\#2C2C2A\] {
+    background-color: var(--pc-orange-tint);
 }
-.pilot-chrome .border-white {
-    border-color: var(--pc-paper-light);
+.pilot-chrome .text-\[\#FAC775\] {
+    color: var(--pc-orange-deep);
 }
-.pilot-chrome .text-gray-800,
-.pilot-chrome .text-gray-900 {
-    color: var(--pc-ink);
-}
-.pilot-chrome .text-gray-500,
-.pilot-chrome .text-gray-600,
-.pilot-chrome .text-gray-700,
-.pilot-chrome .text-slate-600,
-.pilot-chrome .text-slate-700 {
-    color: var(--pc-muted);
-}
-.pilot-chrome .bg-gray-100,
-.pilot-chrome .bg-slate-50,
-.pilot-chrome .bg-slate-100 {
-    background-color: var(--pc-line-soft);
-}
-.pilot-chrome .bg-gray-200,
-.pilot-chrome .hover\:bg-gray-200:hover {
-    background-color: var(--pc-line);
-}
-.pilot-chrome .border-gray-300 {
-    border-color: var(--pc-line);
+.pilot-chrome .hover\:bg-\[\#2C2C2A\]\/90:hover {
+    background-color: var(--pc-orange-soft);
 }
 
-/* Global nav (dark sidebar) + profile menu — these render outside this page's DOM
+/* Generic status/count chips (profile-status chips in AboutPage.tsx: "Requested"/
+   "Member"/follower-count) and the "+N more" skill/need overflow badges in AboutPage.tsx
+   — both used plain slate/gray. Deliberately NOT touching the semantic-green "Connected"
+   relationship chip (bg-[#f3f7f4]/text-[#45604d]) or the founding-member badge (its own
+   dedicated --founding-member-* vars) — those carry real status meaning, not default
+   chip styling. */
+.pilot-chrome .bg-slate-50,
+.pilot-chrome .bg-slate-100,
+.pilot-chrome .bg-gray-100 {
+    background-color: var(--pc-orange-tint);
+}
+.pilot-chrome .text-slate-600,
+.pilot-chrome .text-slate-700,
+.pilot-chrome .text-gray-700 {
+    color: var(--pc-orange-deep);
+}
+.pilot-chrome .border-gray-300 {
+    border-color: var(--pc-orange-soft);
+}
+.pilot-chrome .hover\:bg-gray-200:hover {
+    background-color: var(--pc-orange-soft);
+}
+
+/* Settings-gear button (home-content.tsx settingsButtonClassName) — was solid emerald
+   green with a green hover, the one green interactive/hover state this pilot page had.
+   Orange is the only interactive/hover accent color in the shell chrome; green is
+   reserved for actions that commit money or intent (e.g. a Pledge-style action), which
+   this button is not. */
+.pilot-chrome .border-emerald-950 {
+    border-color: var(--pc-orange);
+}
+.pilot-chrome .bg-emerald-950 {
+    background-color: var(--pc-orange);
+}
+.pilot-chrome .hover\:bg-emerald-900:hover {
+    background-color: var(--pc-orange-deep);
+}
+.pilot-chrome .focus-visible\:ring-emerald-950:focus-visible {
+    --tw-ring-color: var(--pc-orange);
+}
+
+/* Left sidebar nav + top-right profile menu: explicitly out of scope for this refinement
+   pass (color/typography only, no IA change) — left exactly as pass 1 set them up below,
+   untouched. Global nav (dark sidebar) + profile menu render outside this page's DOM
    subtree, so they get ".pilot-chrome" added directly to their own root element only
    while this route is active (see global-nav.tsx/profile-menu.tsx). */
 .pilot-chrome.bg-\[\#181512\],
