@@ -2605,3 +2605,70 @@ Commit `14198857`, on top of `49ea07da`. Still staging-only, not promoted to pro
 **Carry-forward:** the authenticated-non-member blank-content behavior on tasks/issues/proposals
 not-found pages (see above) looks like a real, pre-existing gap worth a dedicated look — separate
 task, not a styling one.
+
+## 2026-08-09 — New "chrome" visual-identity pilot, scoped to Tim Admin's personal profile
+
+Distinct from the Kamooni→Peerify rebrand entries above (which matched the *existing* shipped
+`#e8720c`/`#181512` palette): this is the "newer direction" flagged as a carry-forward there —
+three mockups (artist/fan/venue profile) confirming a new shared palette (ink `#1A1612`, cream
+`#F2EBDB`, paper `#FAF6EC`/paper-light `#FDFAF3`, line `#DFD5BF`/line-soft `#ECE3CC`, muted
+`#7D7164`/muted-soft `#A89B89`, orange `#E8732C`/deep `#C95F1F`/soft `#F1A674`/tint `#F8E2CE`) and
+fonts (Cormorant Garamond display, Manrope body — Playfair/Raleway from the plan doc referenced in
+the ask were, again, never actually wired up anywhere, confirming the earlier finding). Piloted on
+one real page — Tim Admin's own profile, `/circles/tim-admin/home` — for side-by-side comparison
+before deciding on a wider rollout. Not per-artist customizable theming (that's a separate, later,
+paid-tier feature — explicitly out of scope here).
+
+**Scoping approach.** `circles/[handle]/layout.tsx` (which renders `HomeCover`/`HomeContent`/
+`CircleTabs`/`{children}` for every circle) only wraps its output in the new `PilotChromeScope`
+client component when `circle.handle === "tim-admin"` (`PILOT_CHROME_HANDLE`, in the new
+`lib/peerify/pilot-chrome.ts`) — zero cost/risk for every other circle. That wrapper double-checks
+`usePathname()` against the exact `PILOT_CHROME_PATH` (`/circles/tim-admin/home`) before adding a
+`.pilot-chrome` class, so tim-admin's own other tabs (settings, followers, etc.) fall back to the
+current look too — confirmed by screenshot. `GlobalNav` and the top-right `ProfileMenu` render
+*outside* that page's DOM subtree (siblings in the root layout), so each does its own
+`isPilotChromePath(pathname)` check and adds `.pilot-chrome` to its own root element only on that
+route — no new prop drilling, both already had `pathname` via existing hooks.
+
+All new palette/token work lives in one new `globals.css` block, entirely scoped under
+`.pilot-chrome`/`.pilot-chrome-page` selectors: (a) redefines the existing shadcn CSS vars
+(`--background`, `--foreground`, `--primary`, `--muted`, `--border`, etc.) so every Card/Badge/
+Button/Tabs element that already relies on them retints for free with no component edits, and (b)
+remaps each literal Tailwind utility class actually found in this render tree (`bg-white`,
+`text-gray-600`, `bg-[#181512]`, `hover:bg-[#241f1a]`, etc.) to the new tokens by targeting the
+exact compiled class selector, scoped under `.pilot-chrome` so it's inert everywhere else.
+Deliberately left untouched: semantic/status colors that aren't page chrome (the green
+"Connected"/founding-member/relationship badges, the venue booking-enquiry card's colors) — those
+carry meaning independent of brand palette, matching how the earlier rebrand entries above treated
+functional color-coding.
+
+Fonts loaded via `next/font/google` in `layout.tsx` exactly like the existing four fonts there
+(Cormorant Garamond weights 400–700 + italic, Manrope 400–700), exposed as `--font-cormorant`/
+`--font-manrope` on `<html>` globally (like `--font-yeseva` etc. already are) — inert until
+referenced, only ever applied inside `.pilot-chrome`.
+
+**Bug caught during verification:** the first pass set `background-color`/`color` directly on the
+shared `.pilot-chrome` base rule. Since `GlobalNav`, `ProfileMenu`, and the page wrapper all use
+that same class, this painted an unwanted solid paper-colored box behind the profile-menu's icon
+buttons (which don't have their own outer background) — visible as a stray rectangle over the
+cover photo. Fixed by moving the page-canvas `background-color`/`color` to a second, page-only
+class (`.pilot-chrome-page`, added only by `PilotChromeScope`), leaving the shared `.pilot-chrome`
+class to carry only the CSS variables/font-family. Re-verified via screenshot — gone.
+
+**Verified without touching staging or prod.** Built the branch (`bun run build`, clean, only
+pre-existing lint warnings) and ran the resulting `.next/standalone` output as a fully separate
+`node server.js` process on port 3002 (symlinked `node_modules`/server chunks from the real
+standalone output, copied over a fresh `.next/static`, pointed at the same `peerify_staging`
+Mongo/MinIO so real data — including tim-admin's actual profile — was visible) — this never
+touched the pm2-managed `peerify`/`peerify-staging` processes or their standalone directories, and
+`pm2 jlist` confirmed both kept their original pid/uptime throughout. Used the login-link-token
+technique from [[project_peerify_staging_environment]] to get a real authenticated session (as
+tim-admin) without a password, then Playwright-screenshotted: the pilot page itself (new palette/
+fonts confirmed via computed-style checks — `background-color`/`color`/`font-family` on all three
+`.pilot-chrome` roots matched the new tokens exactly), a different circle's home page, tim-admin's
+own settings tab, and `/explore` — all three confirmed to still render the original, unmodified
+look (`.pilot-chrome` absent from their HTML entirely). Cleaned up the test login token from
+tim-admin's circle doc and the temporary standalone directory afterward.
+
+Commit `886ce805`, on top of `13024f51`. **Staging-only, not deployed** — per instruction, awaiting
+go-ahead before running `deploy-staging.sh`.
