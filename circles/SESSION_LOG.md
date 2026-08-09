@@ -2450,3 +2450,82 @@ Headline: UI cleanup sprint for the personal-profile settings page — removed t
 - Remove Featured Link placeholder (its future is the Peerify-hosted main track/video player; check nothing else references it before removing).
 - Move "Open To" (Shows/Festivals/Fans) into the sidebar (inside Listen & Follow card or its own small card beneath it — TBD).
 - New "Support / Get Involved" card below Listen & Follow: fan-participation invite (help make a show happen, join tour team, volunteer). This is the on-profile expression of the fan-hosted touring USP + pledge-to-bring mechanic; needs design thought on actions offered and who-sees-what.
+
+## 2026-08-09 — Kamooni→Peerify visual rebrand: last open item, system/error graphics (Phase 0 of the rebrand plan — unrelated to the orphaned-circles Phase 0 above)
+
+Headline: closed out the last known Kamooni-branding holdout — the app's system/error pages and
+the map's "Unavailable" pin-card fallback image — after an investigation turned up more Kamooni-
+era graphics than the two examples in the ask. Graphics/copy only; no logic, routing, or
+error-handling behavior touched. Deployed to staging, prod untouched. Not yet promoted to prod.
+
+**Investigation first, per instruction.** The referenced `peerify-visual-branding-plan.md` doesn't
+exist on this box, so cross-checked the ask's palette/fonts against what's actually shipped:
+- The root `not-found.tsx` and `(auth)/error` pages were *already* rebranded (some earlier,
+  undocumented pass) using `#f7f2ea` warm paper / `#181512` charcoal / `#e8720c` orange accent —
+  consistently the same palette used across ~10 live pages (holding page, onboarding, signup,
+  feed empty states). That's a different accent than the mustard `#c9901a` in the ask.
+- Playfair Display / Raleway are **not actually loaded anywhere** — no `next/font`, no Google
+  Fonts `<link>`, no `@font-face`. They only appear as unbacked `font-family` names in the
+  landing-page CSS (which would silently fall back to system serif/sans). Real body font is Wix
+  Madefor Display (`--font-wix-display`, `layout.tsx`).
+- Asked the user to choose; both times they picked "match what's already shipped" — `#e8720c`
+  accent, no Playfair/Raleway. Applying either the mustard palette or unwired fonts here would
+  have made these pages look like a *different*, newer rebrand pass sitting next to the older one
+  — a bigger, separate initiative if that's ever wanted, not a small graphics fix.
+
+**Found (beyond the two examples named in the ask):**
+1. `src/app/(auth)/not-found/page.tsx` — separate 404 (distinct from the root one, used on the
+   auth-flow path) — Kamooni-era storybook-watercolor illustration (`page-not-found.png`).
+2. `src/app/(auth)/unauthorized/page.tsx` — same illustration family (`access-denied.png`).
+3. `src/app/(auth)/unauthenticated/page.tsx` — generic stock-style illustration
+   (`unauthenticated.png`) + "Oops!" copy.
+4. `src/app/(auth)/logged-out/page.tsx` — matching generic illustration (`logged-out.png`).
+5. Map "Unavailable" pin-card hero (`public/images/default-user-cover.png`) — the item named in
+   the ask, generic navy/orange "abstract tech network" graphic, used in `map.tsx`'s
+   `createMarkerPopupHtml` fallback.
+6. `public/images/default-post-picture.png` — same Kamooni-era style, used as the map popup's
+   post-without-image fallback, but also reused in task-detail/image-carousel. User opted to
+   include it in this pass.
+- Explicitly NOT touched (flagged, left for a separate call): the 7 generic (non-Kamooni,
+  just unbranded/gray) circle- and module-scoped not-found pages
+  (`circles/[handle]/not-found` + tasks/issues/proposals/discussions/events/goals variants) —
+  user didn't opt into rebranding these this round.
+
+**Fix:**
+- Restyled all 4 `(auth)/*` pages to match the already-shipped root `not-found.tsx`/`error`
+  treatment (warm paper bg, charcoal text, orange "PEERIFY" eyebrow + heading + copy, existing
+  `RedirectButtons` component reused as-is — its `redirectTo` query-param logic is unchanged).
+  Dropped the "Oops!" clichéd copy per the ask's "avoid generic startup clichés" instruction.
+- Deleted the 4 now-fully-unused illustration files (`page-not-found.png`, `access-denied.png`,
+  `unauthenticated.png`, `logged-out.png`) after confirming zero remaining references.
+- Replaced `default-user-cover.png` and `default-post-picture.png` with new flat-vector artwork
+  in Peerify's *actual* established illustration language (matched against `public/peerify/
+  logo-mark.png` and the `default-*-avatar.svg` files, not invented from scratch): the pin+person
+  glyph from the logo mark, on warm paper, with a few scattered accent dots (orange/plum/rust).
+  Built via a one-off Node script using the `sharp` package already in `node_modules` (SVG →
+  PNG rasterization; no image-gen tool was available). Same pixel dimensions as the originals
+  (1456×816 cover, 1024×1024 post) so no call-site changes were needed. Side benefit: file size
+  dropped from ~1.5–2.5MB each to ~18–20KB (simple flat vectors vs. the old detailed raster art).
+
+**Verified on staging** (`https://staging.peerify.one`, deployed via `deploy-staging.sh`, prod
+pid/uptime confirmed unchanged):
+- `curl` + Playwright screenshots of `/this-page-does-not-exist-xyz` (genuine 404), `/unauthorized`,
+  `/unauthenticated`, `/logged-out` — all show Peerify branding, correct palette, no residual
+  Kamooni illustration references in the HTML.
+- `curl` confirmed `/images/default-user-cover.png` and `/images/default-post-picture.png` now
+  serve the new artwork at the same URLs `map.tsx` unconditionally requests — didn't stage a live
+  "Unavailable" map marker (would've needed a suppressed/private profile with map coordinates as
+  test data); the code path (`getMarkerImageUrl` fallback) is unconditional on that exact file, so
+  the asset swap is sufficient confirmation. Flagging in case a real-marker check is wanted later.
+
+**Carry-forward:**
+1. Mustard/plum palette and Playfair/Raleway are apparently a *newer* intended direction (per the
+   task's ask) that hasn't been rolled out anywhere yet, incl. the pages already "rebranded" with
+   the older `#e8720c` orange. If mustard is meant to supersede orange app-wide, that's a real,
+   separate rebrand pass (palette + font loading + every already-shipped page) — worth a decision
+   before more pages get built against the old orange convention.
+2. The 7 circle/module-scoped `not-found` pages (generic gray cards, not Kamooni-illustrated but
+   also not on-brand) — deferred, not rebranded this round.
+3. `public/images/not-found.png` — confirmed zero references anywhere in the codebase, dead
+   Kamooni-era asset; left in place (not opted into cleanup this round).
+4. Not promoted to prod — staging-only per instruction, awaiting go-ahead.
