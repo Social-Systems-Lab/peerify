@@ -33,6 +33,8 @@ import {
     useSetActingIdentity,
 } from "@/lib/utils/acting-identity";
 import { ACTING_IDENTITY_STORAGE_KEY } from "@/lib/data/atoms";
+import { isPilotChromePath } from "@/lib/peerify/pilot-chrome";
+import { cn } from "@/lib/utils";
 
 const ProfileMenuBar = () => {
     const router = useRouter();
@@ -196,8 +198,12 @@ const ProfileMenuBar = () => {
         );
     };
 
+    // Visual-identity pilot (see pilot-chrome.ts): only on this one page does the profile
+    // menu's icon buttons pick up the new palette, via globals.css's ".pilot-chrome" rules.
+    const isPilotRoute = isPilotChromePath(pathname);
+
     return (
-        <div className="flex items-center justify-center gap-1 overflow-visible">
+        <div className={cn("flex items-center justify-center gap-1 overflow-visible", isPilotRoute && "pilot-chrome")}>
             <>
                 <div className="flex items-center space-x-2">
                     {authInfo.authStatus === "unauthenticated" && (

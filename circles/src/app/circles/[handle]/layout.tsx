@@ -16,6 +16,8 @@ import { CircleTabs } from "@/components/layout/circle-tabs";
 import { getHumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
 import { appConfig } from "@/config/app";
 import { getPeerifyMetadata } from "@/lib/peerify/artist-profile";
+import { PILOT_CHROME_HANDLE } from "@/lib/peerify/pilot-chrome";
+import { PilotChromeScope } from "@/components/layout/pilot-chrome-scope";
 
 type Props = { params: Promise<{ handle: string }>; children: React.ReactNode };
 
@@ -77,7 +79,7 @@ export default async function RootLayout(props: Props) {
         ? await isPilotArtistCircleReadyToPublish(circle)
         : true;
 
-    return (
+    const pageContent = (
         <>
             <>
                 <HomeCover circle={plainCircle} />
@@ -97,6 +99,12 @@ export default async function RootLayout(props: Props) {
             {children}
         </>
     );
+
+    if (circle.handle === PILOT_CHROME_HANDLE) {
+        return <PilotChromeScope>{pageContent}</PilotChromeScope>;
+    }
+
+    return pageContent;
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
