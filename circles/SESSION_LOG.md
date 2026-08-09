@@ -2529,3 +2529,24 @@ pid/uptime confirmed unchanged):
 3. `public/images/not-found.png` — confirmed zero references anywhere in the codebase, dead
    Kamooni-era asset; left in place (not opted into cleanup this round).
 4. Not promoted to prod — staging-only per instruction, awaiting go-ahead.
+
+### Follow-up same day — palette correction: warm-white cards, not flat warm-paper
+
+User caught that the pages above (plus the two pre-existing ones, root `not-found.tsx` and
+`(auth)/error`) used a single flat `#f7f2ea` (warm paper) for the whole page — missing the
+established two-shade pattern already live elsewhere (`pilot-signup-form.tsx`, the pilot
+check-email page, `onboarding/peerify/page.tsx`): warm paper `#f7f2ea` for the page background,
+warm white `#faf6ef` for card/panel surfaces sitting on top of it (border `#e3d5c2`, `shadow-sm`).
+That contrast is what gives those pages their subtle depth; the flat single-shade version reads
+noticeably flatter side-by-side.
+
+**Fix:** wrapped all 6 system/error pages' content in a `<Card className="border-[#e3d5c2]
+bg-[#faf6ef] shadow-sm">` sitting on the `bg-[#f7f2ea]` page background, matching the existing
+pattern exactly rather than inventing a new one. Also shifted `default-user-cover.png` and
+`default-post-picture.png`'s background fill from paper to warm white, since those images
+function as card content (the map popup's hero image) rather than page background — regenerated
+via the same `sharp`-based script, same dimensions, no call-site changes.
+
+Verified on staging: all 6 pages screenshotted, card visibly distinct from the page background;
+`curl` confirmed both updated PNGs serve correctly. Commit `495c3c1e`, on top of `cc63605c`. Still
+staging-only, not promoted to prod.
