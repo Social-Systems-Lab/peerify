@@ -7,14 +7,14 @@ export default function NotFound() {
 
     return (
         <div className="mx-auto max-w-3xl px-4 py-10">
-            <div className="rounded-lg border border-gray-200 bg-white/60 p-6 shadow-sm backdrop-blur">
-                <h1 className="mb-2 text-2xl font-semibold">{title}</h1>
-                <p className="mt-1 text-gray-600">{description}</p>
+            <div className="rounded-lg border border-[#e8dfd2] bg-[#f7f2ea] p-6 shadow-sm">
+                <h1 className="mb-2 text-2xl font-semibold text-[#181512]">{title}</h1>
+                <p className="mt-1 text-[#6b5f52]">{description}</p>
 
                 <div className="mt-6 flex flex-wrap gap-3">
                     <Link
                         href="."
-                        className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-gray-800 hover:bg-gray-50"
+                        className="inline-flex items-center justify-center rounded-full bg-[#e8720c] px-5 py-3 text-sm font-semibold text-[#181512] hover:bg-[#ff8c2a]"
                     >
                         Back to goals
                     </Link>
