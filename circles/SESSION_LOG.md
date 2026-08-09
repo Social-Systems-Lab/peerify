@@ -2550,3 +2550,58 @@ via the same `sharp`-based script, same dimensions, no call-site changes.
 Verified on staging: all 6 pages screenshotted, card visibly distinct from the page background;
 `curl` confirmed both updated PNGs serve correctly. Commit `495c3c1e`, on top of `cc63605c`. Still
 staging-only, not promoted to prod.
+
+### Follow-up same day — extended two-tone branding to the 7 circle/module not-found pages (deferred item, now closed)
+
+Closed out the last deferred item from the two entries above: the 7 circle- and module-scoped
+not-found pages (circle-level, tasks, issues, proposals, discussions, events, goals under
+`src/app/circles/[handle]/`), which still used a generic `border-gray-200 bg-white/60
+backdrop-blur` card and a plain gray-outline button.
+
+**Investigation first, per instruction.** All 7 share near-identical markup (safe to apply one
+pattern across all), but they differ structurally from the 6 pages fixed above: `src/app/
+circles/[handle]/layout.tsx` renders `<HomeCover>`/`<HomeContent>`/`<CircleTabs>` *above*
+`{children}`, so each not-found block is a constrained (`max-w-3xl`) content island embedded
+partway down an already-rendered circle page, sitting on the app's plain white background
+(`--background: 0% 100%` in `globals.css`) — not a full-viewport takeover we control end-to-end.
+Painting a warm-paper "page" background here would either be invisible outside the narrow column
+or read as an odd colored rectangle floating mid-page. Flagged this to the user rather than
+forcing the literal two-tone pattern from the other 6 pages.
+
+Found a closer, already-established precedent for this exact situation: the "No feed posts yet" /
+"No community updates yet" empty states in `post-grid.tsx`/`feed.tsx`, which render in the same
+embedded-in-circle-content context and use warm paper `#f7f2ea` (border `#e8dfd2`) as the *card*
+color directly on the page's white background — no separate page-bg layer, since there isn't one
+to set. User confirmed: match that precedent, and restyle the "Back to X" button (a plain `<Link>`,
+not the shared `RedirectButtons` logic component the other 6 pages use) as the orange pill CTA.
+
+**Fix:** all 7 files — card class changed from `border-gray-200 bg-white/60 ... backdrop-blur` to
+`border-[#e8dfd2] bg-[#f7f2ea]`; heading/body text recolored to `#181512`/`#6b5f52`; button
+restyled from the gray outline to `rounded-full bg-[#e8720c] ... hover:bg-[#ff8c2a]`. Copy and all
+data-fetching/`notFound()` logic untouched.
+
+**Verified on staging:** none of the 6 real modules (tasks/issues/proposals/discussions/events/
+goals) were enabled on any circle here — confirmed via `circles.distinct("enabledModules")`
+(only `communities, discussions, events, feed, followers, home, music, settings, shifts, tasks`
+exist DB-wide, and issues/proposals/goals appear on zero circles). Temporarily added
+`issues`/`proposals`/`goals` to the `tim-solo` test circle's `enabledModules` via a raw
+`MongoClient` script (no app code path touched), curled and Playwright-screenshotted all 7 routes,
+then reverted the circle doc immediately after (confirmed restored to its original
+`enabledModules` list). Circle-level, discussions, events, and goals rendered and screenshotted
+cleanly as an anonymous visitor — correct card, correct CTA, consistent with the other 6 pages.
+Tasks/issues/proposals redirect anonymous visitors to `/login` client-side before the not-found
+content ever paints (a pre-existing `Authenticator`-driven gate on those specific modules,
+unrelated to this styling change) — confirmed via `curl` that the server-rendered HTML for those
+three still contains the identical corrected markup (same shared JSX regardless of auth state).
+Attempted a logged-in-as-non-member check via the login-link-token technique documented in
+[[project_peerify_staging_environment]]; that surfaced a separate, pre-existing access-control
+quirk (authenticated non-members get a blank content area on tasks/issues/proposals rather than
+the not-found card or a login redirect) — noted as a carry-forward, explicitly NOT touched, since
+it's an authorization-logic question, not a graphics one. Cleaned up the throwaway test account
+afterward.
+
+Commit `14198857`, on top of `49ea07da`. Still staging-only, not promoted to prod.
+
+**Carry-forward:** the authenticated-non-member blank-content behavior on tasks/issues/proposals
+not-found pages (see above) looks like a real, pre-existing gap worth a dedicated look — separate
+task, not a styling one.
