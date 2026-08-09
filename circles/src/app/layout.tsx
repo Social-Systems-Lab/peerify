@@ -1,6 +1,13 @@
 // layout.tsx - global app layout with the main navigation bar
 import { ReactScan } from "../components/utils/react-scan";
-import { Wix_Madefor_Display, Libre_Franklin, Bebas_Neue, Yeseva_One } from "next/font/google";
+import {
+    Wix_Madefor_Display,
+    Libre_Franklin,
+    Bebas_Neue,
+    Yeseva_One,
+    Cormorant_Garamond,
+    Manrope,
+} from "next/font/google";
 import "@app/globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Provider } from "jotai";
@@ -40,6 +47,21 @@ const yesevaOne = Yeseva_One({
     variable: "--font-yeseva",
 });
 
+// Peerify "chrome" visual-identity pilot (staging-only, /circles/tim-admin/home) — see
+// PILOT_CHROME_PATH in pilot-chrome.ts. Loaded globally like the other fonts above so the
+// CSS variables exist on <html>, but only ever applied within the .pilot-chrome scope.
+const cormorantGaramond = Cormorant_Garamond({
+    weight: ["400", "500", "600", "700"],
+    style: ["normal", "italic"],
+    subsets: ["latin"],
+    variable: "--font-cormorant",
+});
+const manrope = Manrope({
+    weight: ["400", "500", "600", "700"],
+    subsets: ["latin"],
+    variable: "--font-manrope",
+});
+
 type RootLayoutProps = {
     children: React.ReactNode;
 };
@@ -48,7 +70,10 @@ const RootLayout = async ({ children }: RootLayoutProps) => {
     let serverConfig = await getServerSettings();
 
     return (
-        <html lang="en" className={`${wix.variable} ${libre.variable} ${bebasNeue.variable} ${yesevaOne.variable}`}>
+        <html
+            lang="en"
+            className={`${wix.variable} ${libre.variable} ${bebasNeue.variable} ${yesevaOne.variable} ${cormorantGaramond.variable} ${manrope.variable}`}
+        >
             <head>
                 <meta name="app-version" content={process.env.version} />
             </head>
