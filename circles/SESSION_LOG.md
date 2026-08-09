@@ -2670,5 +2670,99 @@ own settings tab, and `/explore` — all three confirmed to still render the ori
 look (`.pilot-chrome` absent from their HTML entirely). Cleaned up the test login token from
 tim-admin's circle doc and the temporary standalone directory afterward.
 
-Commit `886ce805`, on top of `13024f51`. **Staging-only, not deployed** — per instruction, awaiting
-go-ahead before running `deploy-staging.sh`.
+Commit `886ce805`, on top of `13024f51`. Staging-only per instruction; not deployed in this entry.
+
+### Follow-up same day — deployed to staging
+
+User gave the explicit go-ahead. Ran `./deploy-staging.sh` (all 8 steps passed — BUILD_ID
+`K56T-Mnt3Pkofi-ix93Gd`, static assets copied, HTTP checks green); `pm2 jlist` confirmed `peerify`
+(prod) kept its original pid/uptime throughout. Re-verified live on the real domain (not
+localhost) per [[project_peerify_staging_environment]] — login-link-token as tim-admin,
+Playwright-screenshotted `https://staging.peerify.one/circles/tim-admin/home` (new palette/fonts
+present, matches the local preview exactly) and `https://staging.peerify.one/explore` (unaffected,
+`.pilot-chrome` absent). Cleaned up the test login token afterward.
+
+### Follow-up same day — refined to "Option A: restrained accent" per review feedback
+
+Review of the deployed pilot came back with specific fixes, all still scoped to
+`/circles/tim-admin/home` only:
+
+1. The social icon row (LinkedIn/Instagram/GitHub/YouTube in `social-links.tsx`) had picked up
+   the pass-1 muted-brown text token via a blanket `text-gray-500/600/700`/`text-slate-600/700`
+   remap — needed to stay neutral regardless of what's below it.
+2. The settings-gear button (`home-content.tsx`'s `settingsButtonClassName`) was — and always had
+   been, independent of this pilot — solid emerald green with a green hover. New rule for this
+   page: orange is the only interactive/hover accent in the shell chrome; green is reserved for
+   money/intent-committing actions (a Pledge-style action), which this button isn't.
+3. Cards (About/Offers/sidebar cards) needed to stay white with their existing thin neutral
+   border, not pass 1's warm/cream surface.
+4. Headings-only Cormorant Garamond, body/buttons/labels stay Manrope — already correct from pass
+   1, reconfirmed rather than changed.
+5. Badge/pill/tag elements (offer tags, relationship/status chips) should use a restrained
+   orange-tint rather than defaulting to ink/muted.
+
+Explicitly out of scope, stated up front: don't move or restructure the left sidebar nav — this
+is a color/typography pass only.
+
+**Root cause, once traced:** pass 1's approach was "shift the whole page to a warm cream/paper
+theme," done via (a) remapping the shadcn CSS vars (`--background`/`--foreground`/`--muted`/
+`--border`/etc.) to warm HSL values, and (b) a blanket remap of literal `bg-white`/`text-gray-*`/
+`bg-slate-*` classes to warm tokens, both scoped under `.pilot-chrome`. That blanket literal-class
+remap is exactly what caught the social icons (item 1) — they use plain `text-gray-500`, no
+different from any other gray text on the page — and is exactly why cards read as warm/cream
+instead of white (item 3). The settings-gear button (item 2) was never part of either remap; it's
+been emerald green outside the pilot too, just newly visible/flagged now that the page around it
+changed.
+
+**Fix — reworked to Option A (restrained accent):**
+- Removed the `--background`/`--foreground`/`--card`/`--card-foreground`/`--popover`/
+  `--popover-foreground`/`--secondary`/`--secondary-foreground`/`--muted`/`--muted-foreground`/
+  `--accent`/`--accent-foreground`/`--border`/`--input` overrides entirely — these now inherit the
+  site's normal white/neutral defaults inside `.pilot-chrome` too. Kept only `--primary`/
+  `--primary-foreground`/`--ring` overridden to the new orange — the one accent color threaded
+  through every Button/Tabs/link that already relies on it, no component edits needed.
+- Removed the blanket `bg-white`/`border-white`/`text-gray-800/900`/`text-gray-500/600/700`/
+  `text-slate-600/700`/`bg-gray-100/200`/`bg-slate-50/100`/`border-gray-300` remap entirely — this
+  is what fixes item 1 (social icons) and item 3 (cards) simultaneously, since neither is touched
+  by anything anymore.
+- Added new, narrowly-targeted rules instead: the `variant="offering"` badge (near-black/gold, in
+  `tour-team-offerings-card.tsx`) and the generic status/count chips + "+N more" skill/need
+  overflow badges (previously slate/gray) now get `--pc-orange-tint` background + `--pc-orange-
+  deep` text — restrained, not saturated. Deliberately left alone: the semantic-green "Connected"
+  relationship chip (`bg-[#f3f7f4]`/`text-[#45604d]`) and the founding-member badge (its own
+  `--founding-member-*` vars) — real status meaning, not default chip styling, same principle as
+  the earlier Kamooni→Peerify rebrand entries' treatment of functional color-coding.
+- Settings-gear button: added `border-emerald-950`/`bg-emerald-950`/`hover:bg-emerald-900`/
+  `focus-visible:ring-emerald-950` overrides to orange/orange-deep/orange (resting/hover/ring).
+- `PilotChromeScope` no longer adds a second `.pilot-chrome-page` class — with the page canvas no
+  longer painted, the page/nav/profile-menu wrappers can safely share one class again.
+- Left sidebar nav (`global-nav.tsx`/`global-nav-items.tsx`) and the top-right profile menu:
+  untouched, confirmed by `git diff --stat` touching only `globals.css` and
+  `pilot-chrome-scope.tsx` — byte-for-byte identical CSS rules to the prior commit.
+
+**Judgment calls, not itemized in the ask, flagged here:** left two other pre-existing greens
+alone — `VerifiedContributionsPanel`'s verified-checkmark icon (`text-emerald-600`) and the
+`upcoming-shifts-panel.tsx` capacity label (`text-emerald-700`, though this panel doesn't render on
+a personal/`circleType: "user"` profile anyway). Neither is a hover/focus state or shell chrome;
+both are static semantic status indicators, same category as the "Connected" chip. Also confirmed
+no Pledge/money-style action actually renders on this personal profile (that's gated on
+`isPeerifyArtistProfile`, false for `circleType: "user"`) — so currently zero green renders
+anywhere on this page outside the two status-icon cases just named.
+
+**Verified without touching staging or prod**, same technique as the deploy-day entry above: built
+the branch clean (`bun run build`, no new lint warnings), ran the `.next/standalone` output as an
+isolated `node server.js` on port 3002 (fresh symlinked copy, not the pm2-served directory),
+login-link-token as tim-admin. Confirmed via computed-style checks: settings-gear
+`background-color` is `rgb(232, 115, 44)` (`#E8732C`) resting → `rgb(201, 95, 31)` (`#C95F1F`) on
+`:hover`, `--tw-ring-color` is `#e8732c` on `:focus-visible` (no emerald anywhere); social-icon
+`color` is `rgb(107, 114, 128)` (Tailwind's unmodified `gray-500`); offering-badge and
+relationship-chip `background-color`/`color` are `rgb(248, 226, 206)`/`rgb(201, 95, 31)`
+(orange-tint/orange-deep); profile-name and "About"/"Offers" headings compute to `"Cormorant
+Garamond", ... serif`, "Edit" buttons compute to `Manrope, ... sans-serif`. Screenshot-compared
+the pilot page (cards now genuinely white, not cream) against a different circle's home, tim-admin's
+own settings tab, and `/explore` — all three still `.pilot-chrome`-absent and visually untouched.
+`pm2 jlist` confirmed `peerify`/`peerify-staging` pids/uptimes unchanged throughout. Cleaned up the
+test login token and temporary standalone directory afterward.
+
+Commit `c726df9f`, on top of `886ce805`/`095090b3`. **Staging-only, not deployed** — per
+instruction, awaiting go-ahead before running `deploy-staging.sh` again.
