@@ -339,6 +339,16 @@ h1,
         --ring: 222.2 84% 4.9%;
 
         --radius: 0.55rem;
+
+        /* Visual-identity pilot (see pilot-chrome.ts) — global so the .pilot-action-icon
+           rule further down (used by the settings-gear/star/megaphone action icons in
+           home-content.tsx) resolves correctly wherever it's applied, which is keyed off
+           the logged-in viewer rather than the current page/circle, and so isn't confined
+           to a single .pilot-chrome-scoped subtree. Unused outside that one class. */
+        --pc-orange: #e8732c;
+        --pc-orange-deep: #c95f1f;
+        --pc-orange-soft: #f1a674;
+        --pc-orange-tint: #f8e2ce;
     }
 }
 
@@ -587,79 +597,81 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
 }
 
 /* ==========================================================================
-   Visual-identity pilot — "chrome" palette + Cormorant Garamond/Manrope.
-   Scoped entirely under .pilot-chrome (applied only on /circles/tim-admin/home,
-   see pilot-chrome.ts) so nothing outside that one page is affected. Remove this
-   block, pilot-chrome.ts, pilot-chrome-scope.tsx, and the .pilot-chrome class
-   references in global-nav.tsx/profile-menu.tsx/circles/[handle]/layout.tsx to
-   fully revert the pilot.
+   Visual-identity pilot — "chrome" palette pilot, restrained to accents only.
+   .pilot-chrome is shared by three DOM roots that render outside each other's
+   subtree — the left nav, the top-right profile menu, and (as .pilot-chrome
+   .pilot-chrome-page together) the page content itself — see pilot-chrome.ts
+   and pilot-chrome-scope.tsx. All three are only ever applied on
+   /circles/tim-admin/home. Rules that are only ever relevant to the page
+   content (badges, heading weight) are scoped under .pilot-chrome-page
+   specifically, NOT bare .pilot-chrome — early on this used a single shared
+   class for everything, and a same-named Tailwind class used by both page
+   content (AboutPage's badges) and the nav (the empty pinned-favorite slot's
+   dashed border) bled the badge tint onto the nav control. Splitting the
+   scope in two is what fixes that.
+
+   The settings-gear/star/megaphone action-icon tint is a separate, THIRD
+   scope: home-content.tsx gates it by the logged-in VIEWER (tim-admin)
+   rather than the page/circle being viewed, so it's reachable both on his
+   own profile and on any circle he administers — see isPilotActionIconsContext
+   there. Its .pilot-action-icon marker class is therefore a plain top-level
+   rule below, not nested under .pilot-chrome-page, and its color tokens are
+   defined on :root (see the shadcn :root block above) rather than on
+   .pilot-chrome, so they resolve correctly outside that pathname-scoped
+   subtree too.
+
+   Remove this block, pilot-chrome.ts, pilot-chrome-scope.tsx, the --pc-* vars
+   on :root, and the .pilot-chrome/.pilot-chrome-page/.pilot-action-icon class
+   references in global-nav.tsx/profile-menu.tsx/circles/[handle]/layout.tsx/
+   home-content.tsx to fully revert the pilot.
    ========================================================================== */
 .pilot-chrome {
     --pc-ink: #1a1612;
-    --pc-cream: #f2ebdb;
-    --pc-paper: #faf6ec;
-    --pc-paper-light: #fdfaf3;
-    --pc-line: #dfd5bf;
-    --pc-line-soft: #ece3cc;
-    --pc-muted: #7d7164;
     --pc-muted-soft: #a89b89;
-    --pc-orange: #e8732c;
-    --pc-orange-deep: #c95f1f;
-    --pc-orange-soft: #f1a674;
-    --pc-orange-tint: #f8e2ce;
 
-    /* Option A: restrained accent. Page/card backgrounds and text stay on the site's
-       normal white/neutral shadcn tokens (see the @layer base :root block above) — NOT
-       overridden here, unlike pass 1. Orange is the only accent threaded through
-       (--primary/--ring), so every Button/Tabs/link that already relies on --primary
-       retints for free with no component edits. */
+    /* Restrained accent: page/card backgrounds and text stay on the site's normal
+       white/neutral shadcn tokens (see the @layer base :root block above) — NOT
+       overridden here. Orange is the only accent threaded through (--primary/
+       --ring), so every Button/Tabs/link that already relies on --primary retints
+       for free with no component edits. No font-family override — see below,
+       typography now matches production exactly (only heading weight differs). */
     --primary: 23 80% 54%;
     --primary-foreground: 0 0% 100%;
     --ring: 23 80% 54%;
-
-    font-family: var(--font-manrope), sans-serif;
 }
 
-/* Headings only — body text, buttons, and UI labels stay in Manrope via the base rule
-   above. PresenceCard (About/Offers/etc. section titles) renders its title as an <h1>,
-   so this covers exactly the profile-name and section-title headings, nothing else.
-
-   Typography experiment (not yet decided): the site's own unscoped `h1,h2,...{font-weight:
-   600}` rule (see above) is what these headings rendered at before. Trying 500 for a
-   lighter feel — defaulted on here, with `?heading-weight=600` as a live A/B toggle (see
-   PilotChromeScope) so both are directly comparable on the same page before committing to
-   either, rather than picking one unilaterally. */
-.pilot-chrome h1,
-.pilot-chrome h2,
-.pilot-chrome h3,
-.pilot-chrome h4,
-.pilot-chrome .heading,
-.pilot-chrome .header {
-    font-family: var(--font-cormorant), serif;
+/* Headings (profile name, "About"/"Offers" section titles — PresenceCard renders
+   its title as an <h1>): production's own font-family (var(--font-wix-display),
+   i.e. Wix Madefor Display — see the unscoped h1..h6 rule above and layout.tsx;
+   NOT Arial) is kept as-is, deliberately not overridden. Only the weight changes,
+   for a lighter feel than production's default 600 — a font-family swap (tried
+   Cormorant Garamond in an earlier pass) turned out not to be needed once weight
+   alone was tried. Body text/buttons/labels also stay production's default
+   (Libre Franklin) — Manrope (also tried in an earlier pass) wasn't kept either,
+   so there's exactly one typographic change on this whole page: heading weight. */
+.pilot-chrome-page h1,
+.pilot-chrome-page h2,
+.pilot-chrome-page h3,
+.pilot-chrome-page h4,
+.pilot-chrome-page .heading,
+.pilot-chrome-page .header {
     font-weight: 500;
 }
-.pilot-chrome.heading-weight-600 h1,
-.pilot-chrome.heading-weight-600 h2,
-.pilot-chrome.heading-weight-600 h3,
-.pilot-chrome.heading-weight-600 h4,
-.pilot-chrome.heading-weight-600 .heading,
-.pilot-chrome.heading-weight-600 .header {
-    font-weight: 600;
-}
 
-/* Badges/pills/tags: a restrained orange tint, per Option A — deliberately NOT a blanket
-   gray/white remap (pass 1's warmer approach, which also caused the social-icon-row
-   regression fixed below). Cards, page background, and general body text all stay
-   exactly the site's normal white/neutral; only these specific chip classes retint. */
+/* Badges/pills/tags: a restrained orange tint — deliberately NOT a blanket
+   gray/white remap (an earlier pass's warmer approach caused a social-icon-row
+   regression by doing exactly that). Cards, page background, and general body
+   text all stay exactly the site's normal white/neutral; only these specific
+   chip classes retint. */
 
 /* "Offering" badge variant (tour-team-offerings-card.tsx) — was near-black/gold. */
-.pilot-chrome .bg-\[\#2C2C2A\] {
+.pilot-chrome-page .bg-\[\#2C2C2A\] {
     background-color: var(--pc-orange-tint);
 }
-.pilot-chrome .text-\[\#FAC775\] {
+.pilot-chrome-page .text-\[\#FAC775\] {
     color: var(--pc-orange-deep);
 }
-.pilot-chrome .hover\:bg-\[\#2C2C2A\]\/90:hover {
+.pilot-chrome-page .hover\:bg-\[\#2C2C2A\]\/90:hover {
     background-color: var(--pc-orange-soft);
 }
 
@@ -669,96 +681,63 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
    relationship chip (bg-[#f3f7f4]/text-[#45604d]) or the founding-member badge (its own
    dedicated --founding-member-* vars) — those carry real status meaning, not default
    chip styling. */
-.pilot-chrome .bg-slate-50,
-.pilot-chrome .bg-slate-100,
-.pilot-chrome .bg-gray-100 {
+.pilot-chrome-page .bg-slate-50,
+.pilot-chrome-page .bg-slate-100,
+.pilot-chrome-page .bg-gray-100 {
     background-color: var(--pc-orange-tint);
 }
-.pilot-chrome .text-slate-600,
-.pilot-chrome .text-slate-700,
-.pilot-chrome .text-gray-700 {
+.pilot-chrome-page .text-slate-600,
+.pilot-chrome-page .text-slate-700,
+.pilot-chrome-page .text-gray-700 {
     color: var(--pc-orange-deep);
 }
-.pilot-chrome .border-gray-300 {
+.pilot-chrome-page .border-gray-300 {
     border-color: var(--pc-orange-soft);
 }
-.pilot-chrome .hover\:bg-gray-200:hover {
+.pilot-chrome-page .hover\:bg-gray-200:hover {
     background-color: var(--pc-orange-soft);
 }
 
-/* Settings-gear button (home-content.tsx settingsButtonClassName) — was solid emerald
-   green with a green hover, the one green interactive/hover state this pilot page had.
-   Orange is the only interactive/hover accent color in the shell chrome; green is
-   reserved for actions that commit money or intent (e.g. a Pledge-style action), which
-   this button is not.
-
-   First pass made this a solid orange fill — sitting next to neutral outline icons, that
-   read as "the odd one out" rather than "gently highlighted." Matches the pills now
-   instead: a tint fill + deep-orange icon, no solid color, no visible border (border-
-   transparent, same as the badge component's own default/secondary/etc. variants) —
-   tint-and-outline only, consistent with every other accent on this page. The
-   `.border-emerald-950.text-white` compound selector targets just this button's own icon
-   color without touching `text-white` anywhere else on the page. */
-.pilot-chrome .border-emerald-950 {
-    border-color: transparent;
-}
-.pilot-chrome .bg-emerald-950 {
+/* Settings gear + star (bookmark) + megaphone (notification settings) action icons:
+   share one consistent tint treatment — a tint fill + deep-orange icon, no solid color,
+   no visible border — applied via a single .pilot-action-icon marker class that
+   home-content.tsx adds to all three when isPilotActionIconsContext is true (see that
+   file for the full explanation of why this is viewer-scoped, not page-scoped). Orange
+   is the only interactive/hover accent color in the shell chrome; green (the gear's
+   production default, border-emerald-950/bg-emerald-950 — still used as-is for every
+   other viewer) is reserved for actions that commit money or intent (e.g. a Pledge-style
+   action), which this button is not. Visually distinct from the plain-outline external
+   social-media icons next to them. Not nested under .pilot-chrome/.pilot-chrome-page —
+   see the block comment above for why. */
+.pilot-action-icon {
     background-color: var(--pc-orange-tint);
-}
-.pilot-chrome .border-emerald-950.text-white {
     color: var(--pc-orange-deep);
 }
-.pilot-chrome .hover\:bg-emerald-900:hover {
+.pilot-action-icon:hover {
     background-color: var(--pc-orange-soft);
 }
-.pilot-chrome .focus-visible\:ring-emerald-950:focus-visible {
-    --tw-ring-color: var(--pc-orange);
+.pilot-action-icon:focus-visible {
+    outline: 2px solid var(--pc-orange);
+    outline-offset: 2px;
 }
 
-/* Left sidebar nav + top-right profile menu: color/typography only, no IA change.
-   Global nav (dark sidebar) + profile menu render outside this page's DOM subtree, so
-   they get ".pilot-chrome" added directly to their own root element only while this
-   route is active (see global-nav.tsx/profile-menu.tsx). */
-.pilot-chrome.bg-\[\#181512\],
-.pilot-chrome .bg-\[\#181512\] {
-    background-color: var(--pc-ink);
-}
-.pilot-chrome.text-\[\#faf6ef\] {
-    color: var(--pc-cream);
-}
-.pilot-chrome.md\:border-\[\#2b251f\] {
-    border-color: var(--pc-muted);
-}
-.pilot-chrome .text-\[\#b9afa2\] {
-    color: var(--pc-muted-soft);
-}
-/* Active nav item: production's own treatment is text-color + a framer-motion icon-scale
-   on hover/tap (global-nav-items.tsx, untouched) — text color only, no fill. A first pass
-   also gave `:hover` a solid orange-deep background here, which combined with the active
-   item's text color to read as a "solid-fill highlight block" rather than production's
-   subtle treatment. Removed — hover now falls back to the component's own original
-   `hover:bg-[#241f1a]` (untouched, not overridden below). */
-.pilot-chrome .text-\[\#e8720c\] {
-    color: var(--pc-orange);
-}
-.pilot-chrome .hover\:text-\[\#ff8c2a\]:hover {
-    color: var(--pc-orange);
-}
-.pilot-chrome .bg-\[\#231f1a\] {
-    background-color: var(--pc-ink);
-}
-/* Divider below "Create": keep the more-visible-than-production treatment (confirmed as
-   an improvement), but as a soft-edged fade rather than a flat solid bar — reads as a
-   more intentional divider without getting any louder. */
+/* Left sidebar nav: reverted to production, no pilot changes at all, except keeping
+   the divider below "Create" — confirmed as a real improvement over production's
+   original divider — reworked from a flat solid bar to a soft-edged gradient fade for
+   a more intentional feel without getting any louder. Every other nav override from
+   earlier passes (background, text colors, hover states) is gone; the nav's own
+   `.pilot-chrome` class now does nothing but carry the CSS variables above (used by
+   this one rule) and stays only so this divider rule has somewhere to hook into. */
 .pilot-chrome .bg-\[\#3a3129\] {
     background-color: transparent;
     background-image: linear-gradient(to right, transparent, var(--pc-muted-soft) 25%, var(--pc-muted-soft) 75%, transparent);
 }
-/* Action icons (mail/clipboard/bell) + social icon row: both revert to production's plain
-   treatment — no tint fill on the action icons, no tint on the social icons either, so
-   the two rows read as one consistent design language rather than two different ones.
-   (Social icons never picked up a tint here — see the pass-2 fix above — nothing to
-   change on that side; this removes the action icons' tint to match.) */
+
+/* Top-right profile menu: unchanged from the prior pass, not touched this pass either —
+   the small identity-switcher badge dot and the unauthenticated login-button overlay. */
+.pilot-chrome .bg-\[\#231f1a\] {
+    background-color: var(--pc-ink);
+}
 .pilot-chrome .bg-\[\#00000077\] {
     background-color: rgba(26, 22, 18, 0.47);
 }

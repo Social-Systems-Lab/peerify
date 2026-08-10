@@ -44,6 +44,8 @@ import {
     isPeerifyArtistIdentity,
     isPeerifyManagedIdentity,
 } from "@/lib/peerify/artist-profile";
+import { PILOT_CHROME_HANDLE } from "@/lib/peerify/pilot-chrome";
+import { cn } from "@/lib/utils";
 
 type HomeContentProps = {
     circle: Circle;
@@ -96,8 +98,41 @@ export default function HomeContent({
     const [showWelcomeDialog, setShowWelcomeDialog] = useState(false);
     const showSettingsButton = authorizedToEdit && circle.handle && (!isUser || isOwnUserProfile);
     const settingsButtonTitle = isUser || isPeerifyManagedIdentity(circle) ? "Profile settings" : "Circle settings";
-    const settingsButtonClassName =
-        "h-9 w-9 shrink-0 rounded-full border border-emerald-950 bg-emerald-950 text-white shadow-sm transition-colors hover:bg-emerald-900 focus-visible:ring-2 focus-visible:ring-emerald-950 focus-visible:ring-offset-2";
+    // Visual-identity pilot (see pilot-chrome.ts): the star (bookmark)/megaphone
+    // (notification settings)/gear action-icon tint below is keyed off the VIEWER
+    // (tim-admin), not the circle being viewed — so it's reachable both on his own
+    // profile and on a circle he administers, but stays exactly production's behavior
+    // for every other viewer on every page, including tim-admin's own circles when
+    // viewed by someone else. Reuses showSettingsButton/isOwnUserProfile — the same
+    // own-profile-vs-administered-circle permission check already computed above for the
+    // settings button itself — rather than inventing a new one.
+    const isPilotViewer = user?.handle === PILOT_CHROME_HANDLE;
+    const isPilotActionIconsContext = isPilotViewer && showSettingsButton;
+    const hidePilotBookmarkAndNotifications = isPilotActionIconsContext && isOwnUserProfile;
+    // Sizing/shape classes match production's h-9 w-9 rounded-full exactly, so star/
+    // megaphone read as the same size/shape as the gear once tinted — both BookmarkButton
+    // and NotificationSettingsDialog render at a wider default size otherwise (only
+    // invisible while ghost/transparent, which is why this wasn't noticeable before they
+    // had a background to show it). border-transparent overrides the outline-variant
+    // gear's default border color; harmless on the ghost-variant star/megaphone, which
+    // don't set a border class to conflict with.
+    const pilotActionIconClassName = isPilotActionIconsContext
+        ? "h-9 w-9 rounded-full border-transparent p-0 pilot-action-icon"
+        : undefined;
+    const settingsButtonClassName = isPilotActionIconsContext
+        ? cn("shrink-0 shadow-sm transition-colors", pilotActionIconClassName)
+        : "h-9 w-9 shrink-0 rounded-full border border-emerald-950 bg-emerald-950 text-white shadow-sm transition-colors hover:bg-emerald-900 focus-visible:ring-2 focus-visible:ring-emerald-950 focus-visible:ring-offset-2";
+    const settingsButtonElement = showSettingsButton ? (
+        <Button asChild variant="outline" size="icon" className={settingsButtonClassName}>
+            <Link
+                href={`/circles/${circle.handle}/settings/about`}
+                aria-label={`Open ${circle.name ?? "circle"} settings`}
+                title={settingsButtonTitle}
+            >
+                <Settings className="h-5 w-5" />
+            </Link>
+        </Button>
+    ) : null;
     const isPeerifyArtistProfile = isPeerifyArtistIdentity(circle);
     const isPeerifyManagedArtistIdentity = isPeerifyManagedIdentity(circle);
     const peerifyArtistProfile = getPeerifyArtistProfile(circle);
@@ -385,30 +420,18 @@ export default function HomeContent({
                                     )}
                                     {!isUser && !isPeerifyManagedArtistIdentity && <InviteButton circle={circle} />}
                                     {user && <FollowButton circle={circle} />}
-                                    {user && <BookmarkButton circle={circle} iconOnly />}
-                                    {showSettingsButton && (
-                                        <Button
-                                            asChild
-                                            variant="outline"
-                                            size="icon"
-                                            className={settingsButtonClassName}
-                                        >
-                                            <Link
-                                                href={`/circles/${circle.handle}/settings/about`}
-                                                aria-label={`Open ${circle.name ?? "circle"} settings`}
-                                                title={settingsButtonTitle}
-                                            >
-                                                <Settings className="h-5 w-5" />
-                                            </Link>
-                                        </Button>
+                                    {user && !hidePilotBookmarkAndNotifications && (
+                                        <BookmarkButton circle={circle} iconOnly className={pilotActionIconClassName} />
                                     )}
-                                    {circle._id && user && (
+                                    {!isPilotActionIconsContext && settingsButtonElement}
+                                    {circle._id && user && !hidePilotBookmarkAndNotifications && (
                                         <NotificationSettingsDialog
                                             entityType="CIRCLE"
                                             entityId={circle._id.toString()}
-                                            className="h-8 w-8 p-0"
+                                            className={cn("h-8 w-8 p-0", pilotActionIconClassName)}
                                         />
                                     )}
+                                    {isPilotActionIconsContext && settingsButtonElement}
                                 </div>
                             </>
                         )}
@@ -436,7 +459,7 @@ export default function HomeContent({
 
                                 {!isCompact && (
                                     <div className="flex shrink-0 flex-row items-center gap-1">
-                                        <div className="pr-4 pt-2">
+                                        <div className="pr-4">
                                             <SocialLinks circle={circle} />
                                         </div>
                                         {isUser && <MessageButton circle={circle} renderCompact={false} />}
@@ -446,30 +469,18 @@ export default function HomeContent({
                                         )}
                                         {!isUser && !isPeerifyManagedArtistIdentity && <InviteButton circle={circle} />}
                                         {user && <FollowButton circle={circle} />}
-                                        {user && <BookmarkButton circle={circle} iconOnly />}
-                                        {showSettingsButton && (
-                                            <Button
-                                                asChild
-                                                variant="outline"
-                                                size="icon"
-                                                className={settingsButtonClassName}
-                                            >
-                                                <Link
-                                                    href={`/circles/${circle.handle}/settings/about`}
-                                                    aria-label={`Open ${circle.name ?? "circle"} settings`}
-                                                    title={settingsButtonTitle}
-                                                >
-                                                    <Settings className="h-5 w-5" />
-                                                </Link>
-                                            </Button>
+                                        {user && !hidePilotBookmarkAndNotifications && (
+                                            <BookmarkButton circle={circle} iconOnly className={pilotActionIconClassName} />
                                         )}
-                                        {circle._id && user && (
+                                        {!isPilotActionIconsContext && settingsButtonElement}
+                                        {circle._id && user && !hidePilotBookmarkAndNotifications && (
                                             <NotificationSettingsDialog
                                                 entityType="CIRCLE"
                                                 entityId={circle._id.toString()}
-                                                className="ml-1"
+                                                className={cn("ml-1", pilotActionIconClassName)}
                                             />
                                         )}
+                                        {isPilotActionIconsContext && settingsButtonElement}
                                     </div>
                                 )}
                             </div>
@@ -481,30 +492,18 @@ export default function HomeContent({
                                     )}
                                     {!isPeerifyManagedArtistIdentity && <InviteButton circle={circle} />}
                                     {user && <FollowButton circle={circle} />}
-                                    {user && <BookmarkButton circle={circle} iconOnly />}
-                                    {showSettingsButton && (
-                                        <Button
-                                            asChild
-                                            variant="outline"
-                                            size="icon"
-                                            className={settingsButtonClassName}
-                                        >
-                                            <Link
-                                                href={`/circles/${circle.handle}/settings/about`}
-                                                aria-label={`Open ${circle.name ?? "circle"} settings`}
-                                                title={settingsButtonTitle}
-                                            >
-                                                <Settings className="h-5 w-5" />
-                                            </Link>
-                                        </Button>
+                                    {user && !hidePilotBookmarkAndNotifications && (
+                                        <BookmarkButton circle={circle} iconOnly className={pilotActionIconClassName} />
                                     )}
-                                    {circle._id && user && (
+                                    {!isPilotActionIconsContext && settingsButtonElement}
+                                    {circle._id && user && !hidePilotBookmarkAndNotifications && (
                                         <NotificationSettingsDialog
                                             entityType="CIRCLE"
                                             entityId={circle._id.toString()}
-                                            className="h-8 w-8 p-0"
+                                            className={cn("h-8 w-8 p-0", pilotActionIconClassName)}
                                         />
                                     )}
+                                    {isPilotActionIconsContext && settingsButtonElement}
                                 </div>
                             )}
 
