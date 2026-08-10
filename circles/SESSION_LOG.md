@@ -2836,5 +2836,118 @@ circle's home page, tim-admin's own settings tab, and `/explore` are all still `
 `pm2 jlist` confirmed `peerify`/`peerify-staging` pids/uptimes unchanged throughout. Cleaned up the
 test login token and temporary standalone directory afterward.
 
-Commit `4633b70e`, on top of `c726df9f`/`ef9dca6e`. **Staging-only, not deployed** — per
-instruction, awaiting go-ahead before running `deploy-staging.sh` again.
+Commit `4633b70e`, on top of `c726df9f`/`ef9dca6e`. Staging-only per instruction; not deployed in
+this entry.
+
+### Follow-up same day — deployed to staging
+
+User gave the go-ahead again. `./deploy-staging.sh` — all 8 steps passed (BUILD_ID
+`2jgUL809lnsZNiccMEQXu`); `pm2 jlist` confirmed `peerify` (prod) pid/uptime unchanged. Re-verified
+live on `https://staging.peerify.one/circles/tim-admin/home` (login-link-token as tim-admin, real
+domain not localhost, per [[project_peerify_staging_environment]]) — matches the local preview.
+`/explore` confirmed unaffected. Cleaned up the test login token afterward.
+
+## 2026-08-10 — Second correction pass: typography reversal, sidebar full revert, action-icon consistency
+
+Same pilot page, another round of specific fixes from review — this time the review compared the
+deployed pilot against real production directly (not just internal consistency), which surfaced a
+different class of issue than the first correction pass: two outright wrong claims from earlier
+entries (Cormorant Garamond as a considered typeface, and an implied "Arial" baseline that was
+never actually checked) and one real cross-contamination bug in the CSS scoping itself.
+
+**1. Typography — reversed course.** The ask was blunt: remove Cormorant Garamond entirely, find
+out what production's heading font *actually* is rather than assuming, and only touch weight.
+Checked `layout.tsx` and the unscoped `h1,h2,h3,h4,h5,h6 { font-family: var(--font-wix-display);
+font-weight: 600; ... }` rule in `globals.css`: production's heading font is **Wix Madefor
+Display** (loaded via `next/font/google` as `wix`, same as the rest of the app's headings) — not
+Arial, and not something that needed replacing. Kept it, dropped `font-weight` from 600 to 500.
+Also dropped Manrope from body text (it was Option A's only other font substitution) rather than
+keep a mismatched pairing — with headings back on production's own font, a second custom font for
+body text alone would have re-created exactly the "two design languages" problem the social-icon-
+row fix in the previous correction pass was about. Removed both `Cormorant_Garamond`/`Manrope`
+`next/font/google` calls and their `<html>` variable classes from `layout.tsx` entirely, since
+nothing references either anymore.
+
+**2. Left sidebar — reverted fully to production, kept only the divider.** Removed every remaining
+nav color override (background, text, hover states) from earlier passes; verified via computed
+style that the nav's background/text now resolve to the *exact* original production hex values
+(`rgb(24, 21, 18)` = `#181512`, `rgb(250, 246, 239)` = `#faf6ef`), not the pilot's near-identical
+but distinct `--pc-ink`/`--pc-cream`. Kept the soft-edged gradient divider below "Create" from the
+prior pass (explicitly confirmed as worth keeping) unchanged.
+
+Investigating the ask's second sidebar complaint — "the empty pinned-favorite slot picked up an
+orange tinted outline" — turned up a real scoping bug, not just a color to revert: the dashed
+pin-placeholder button in `global-nav-items.tsx` uses the literal Tailwind class `border-gray-300`
+— the *exact same class* AboutPage's "+N more" skill/need overflow badges use, which an earlier
+pass had retinted to `--pc-orange-soft`. Both were scoped under the same shared `.pilot-chrome`
+class, and since the nav's own wrapper also carries that class (for the divider rule), the badge
+override bled straight onto the nav control despite being nowhere near it in the DOM. Root-caused
+via a raw `MongoClient` query trail (see the sidebar-active-state investigation two entries above)
+that turned out to be a red herring for *this* bug too — the actual fix was purely a CSS scoping
+one. **Fix:** split the shared class in two — `.pilot-chrome` (nav + profile-menu, now inert
+except the divider rule) and `.pilot-chrome-page` (page-content wrapper only, added by
+`PilotChromeScope`) — and moved every page-only rule (badges, heading weight) onto the latter.
+Confirmed fixed: the pin-placeholder's computed `border-color` is now `rgb(209, 213, 219)`,
+Tailwind's unmodified `gray-300`.
+
+**3. Action icons — investigated first, per instruction.** Traced how `home-content.tsx` already
+distinguishes "own profile" from "administered circle": `showSettingsButton = authorizedToEdit &&
+circle.handle && (!isUser || isOwnUserProfile)` and `isOwnUserProfile = isUser && (user?.did ===
+circle.did || viewerDid === circle.did)` — both already computed, both reused as-is (no new
+permission check written). Reported this back before implementing anything, per instruction.
+
+Realized partway through that gating the new behavior by *page* (the established pattern for
+every other change in this pilot) can't actually satisfy the ask: tim-admin's own profile is
+always `circleType: "user"`, so it can never itself be "a circle the user administers" — the
+second scenario the ask describes is structurally unreachable if scoped to a single fixed
+pathname. Resolved by gating on the *viewer* instead: `isPilotViewer = user?.handle ===
+PILOT_CHROME_HANDLE`, combined with the existing `showSettingsButton`/`isOwnUserProfile` above.
+This makes the feature reachable on any circle tim-admin administers (confirmed candidates via a
+raw `MongoClient` query on `circles.createdBy`: `tim-solo`, `the-band`, `the-venue`, `proddy`,
+`peerify-main`, `the-backstage-lounge`), while staying invisible to every other viewer on every
+page, including tim-admin's own circles when viewed by someone else — arguably a more faithful
+"pilot for one person" than a hardcoded single URL would have been.
+
+This forced the `.pilot-action-icon` tint rule itself to move outside the `.pilot-chrome-page`
+scope from item 2 above (that scope is pathname-gated and would never reach a second page like
+`tim-solo`) — it's now a plain top-level CSS rule, with its `--pc-orange*` tokens promoted to the
+site's global `:root` block (harmless; unused unless that one class is present) instead of living
+inside `.pilot-chrome`.
+
+**Fix:** on the viewer's own personal profile, star (bookmark) and megaphone (notification
+settings) now hide entirely, leaving only the settings gear. On a circle the viewer administers,
+all three show, reordered so the gear is last/rightmost (implemented by hoisting a single
+`settingsButtonElement` and conditionally rendering it either in its original middle position, for
+every non-pilot-viewer context — unchanged — or last, for the pilot-viewer context). All three now
+share one visual treatment — tint fill, deep-orange icon, no border — via the shared
+`.pilot-action-icon` class, replacing the settings-gear's previous CSS-override-on-emerald-classes
+approach (which only worked because `border-emerald-950`/`bg-emerald-950` happen to be unique
+strings) with a `className` passed straight through `BookmarkButton`/`NotificationSettingsDialog`'s
+existing prop — no changes to either shared component, so it's inert everywhere else in the app.
+The gear's production styling (solid emerald green) is otherwise completely unchanged for every
+non-pilot-viewer context.
+
+**4. Alignment.** The social-icon-row wrapper had a stray `pt-2` nobody else in the same flex row
+had, pushing it visibly below the action-icon row despite `items-center` on the shared parent.
+Removed it — confirmed via `getBoundingClientRect()` that both rows now share the exact same
+vertical center (`384`/`384`).
+
+**Verified without touching staging or prod**, same isolated-standalone-server technique as every
+entry above (fresh `bun run build`/lint, both clean with no new warnings; symlinked
+`.next/standalone` copy on an unrelated port; login-link-token as tim-admin). Confirmed via
+computed-style checks: heading `font-family` is unquoted `"Wix Madefor Display", "Wix Madefor
+Display Fallback"` at `font-weight: 500` on tim-admin's own page; the *same* heading on `tim-solo`
+(administered-circle branch) computes to `700`/`600` — production's untouched defaults, proving
+the typography change didn't leak into the second scope. On tim-admin's own page: settings gear
+present with no star/megaphone; on `tim-solo`: all three present, tinted identically
+(`rgb(248, 226, 206)` background on all three), at x-positions confirming star → megaphone → gear
+left-to-right. Confirmed `tim-solo` and `the-backstage-lounge` (both circles tim-admin administers)
+have no `.pilot-chrome`/`.pilot-chrome-page` in their HTML at all — only the viewer-gated action-
+icon classes reach those pages, nothing else from this pilot does. Re-confirmed the usual
+scoping guarantees on `tim-admin`'s own settings tab and `/explore`. Offering-badge/relationship-
+chip colors confirmed byte-identical to the prior commit. `pm2 jlist` confirmed
+`peerify`/`peerify-staging` pids/uptimes unchanged throughout. Cleaned up the test login token and
+temporary standalone directory afterward.
+
+Commit `d369ef3a`, on top of `4633b70e`. **Staging-only, not deployed** — per instruction, awaiting
+go-ahead before running `deploy-staging.sh` again.
