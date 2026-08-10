@@ -622,7 +622,13 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
 
 /* Headings only — body text, buttons, and UI labels stay in Manrope via the base rule
    above. PresenceCard (About/Offers/etc. section titles) renders its title as an <h1>,
-   so this covers exactly the profile-name and section-title headings, nothing else. */
+   so this covers exactly the profile-name and section-title headings, nothing else.
+
+   Typography experiment (not yet decided): the site's own unscoped `h1,h2,...{font-weight:
+   600}` rule (see above) is what these headings rendered at before. Trying 500 for a
+   lighter feel — defaulted on here, with `?heading-weight=600` as a live A/B toggle (see
+   PilotChromeScope) so both are directly comparable on the same page before committing to
+   either, rather than picking one unilaterally. */
 .pilot-chrome h1,
 .pilot-chrome h2,
 .pilot-chrome h3,
@@ -630,6 +636,15 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
 .pilot-chrome .heading,
 .pilot-chrome .header {
     font-family: var(--font-cormorant), serif;
+    font-weight: 500;
+}
+.pilot-chrome.heading-weight-600 h1,
+.pilot-chrome.heading-weight-600 h2,
+.pilot-chrome.heading-weight-600 h3,
+.pilot-chrome.heading-weight-600 h4,
+.pilot-chrome.heading-weight-600 .heading,
+.pilot-chrome.heading-weight-600 .header {
+    font-weight: 600;
 }
 
 /* Badges/pills/tags: a restrained orange tint, per Option A — deliberately NOT a blanket
@@ -675,25 +690,35 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
    green with a green hover, the one green interactive/hover state this pilot page had.
    Orange is the only interactive/hover accent color in the shell chrome; green is
    reserved for actions that commit money or intent (e.g. a Pledge-style action), which
-   this button is not. */
+   this button is not.
+
+   First pass made this a solid orange fill — sitting next to neutral outline icons, that
+   read as "the odd one out" rather than "gently highlighted." Matches the pills now
+   instead: a tint fill + deep-orange icon, no solid color, no visible border (border-
+   transparent, same as the badge component's own default/secondary/etc. variants) —
+   tint-and-outline only, consistent with every other accent on this page. The
+   `.border-emerald-950.text-white` compound selector targets just this button's own icon
+   color without touching `text-white` anywhere else on the page. */
 .pilot-chrome .border-emerald-950 {
-    border-color: var(--pc-orange);
+    border-color: transparent;
 }
 .pilot-chrome .bg-emerald-950 {
-    background-color: var(--pc-orange);
+    background-color: var(--pc-orange-tint);
+}
+.pilot-chrome .border-emerald-950.text-white {
+    color: var(--pc-orange-deep);
 }
 .pilot-chrome .hover\:bg-emerald-900:hover {
-    background-color: var(--pc-orange-deep);
+    background-color: var(--pc-orange-soft);
 }
 .pilot-chrome .focus-visible\:ring-emerald-950:focus-visible {
     --tw-ring-color: var(--pc-orange);
 }
 
-/* Left sidebar nav + top-right profile menu: explicitly out of scope for this refinement
-   pass (color/typography only, no IA change) — left exactly as pass 1 set them up below,
-   untouched. Global nav (dark sidebar) + profile menu render outside this page's DOM
-   subtree, so they get ".pilot-chrome" added directly to their own root element only
-   while this route is active (see global-nav.tsx/profile-menu.tsx). */
+/* Left sidebar nav + top-right profile menu: color/typography only, no IA change.
+   Global nav (dark sidebar) + profile menu render outside this page's DOM subtree, so
+   they get ".pilot-chrome" added directly to their own root element only while this
+   route is active (see global-nav.tsx/profile-menu.tsx). */
 .pilot-chrome.bg-\[\#181512\],
 .pilot-chrome .bg-\[\#181512\] {
     background-color: var(--pc-ink);
@@ -707,27 +732,33 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
 .pilot-chrome .text-\[\#b9afa2\] {
     color: var(--pc-muted-soft);
 }
+/* Active nav item: production's own treatment is text-color + a framer-motion icon-scale
+   on hover/tap (global-nav-items.tsx, untouched) — text color only, no fill. A first pass
+   also gave `:hover` a solid orange-deep background here, which combined with the active
+   item's text color to read as a "solid-fill highlight block" rather than production's
+   subtle treatment. Removed — hover now falls back to the component's own original
+   `hover:bg-[#241f1a]` (untouched, not overridden below). */
 .pilot-chrome .text-\[\#e8720c\] {
     color: var(--pc-orange);
 }
 .pilot-chrome .hover\:text-\[\#ff8c2a\]:hover {
     color: var(--pc-orange);
 }
-.pilot-chrome .hover\:bg-\[\#241f1a\]:hover {
-    background-color: var(--pc-orange-deep);
-}
 .pilot-chrome .bg-\[\#231f1a\] {
     background-color: var(--pc-ink);
 }
+/* Divider below "Create": keep the more-visible-than-production treatment (confirmed as
+   an improvement), but as a soft-edged fade rather than a flat solid bar — reads as a
+   more intentional divider without getting any louder. */
 .pilot-chrome .bg-\[\#3a3129\] {
-    background-color: var(--pc-muted-soft);
+    background-color: transparent;
+    background-image: linear-gradient(to right, transparent, var(--pc-muted-soft) 25%, var(--pc-muted-soft) 75%, transparent);
 }
-.pilot-chrome .bg-\[\#f1f1f1\] {
-    background-color: var(--pc-orange-tint);
-}
-.pilot-chrome .hover\:bg-\[\#cecece\]:hover {
-    background-color: var(--pc-orange-soft);
-}
+/* Action icons (mail/clipboard/bell) + social icon row: both revert to production's plain
+   treatment — no tint fill on the action icons, no tint on the social icons either, so
+   the two rows read as one consistent design language rather than two different ones.
+   (Social icons never picked up a tint here — see the pass-2 fix above — nothing to
+   change on that side; this removes the action icons' tint to match.) */
 .pilot-chrome .bg-\[\#00000077\] {
     background-color: rgba(26, 22, 18, 0.47);
 }
