@@ -2969,3 +2969,62 @@ corrected twice against side-by-side production review) — the deployed state a
 requested yet; per the pilot's original scope this stays a single-page comparison
 (`/circles/tim-admin/home`, plus the viewer-gated action-icon treatment reachable on circles
 tim-admin administers) rather than something applied elsewhere in the app.
+
+## 2026-08-10 — Extended three shell-only fixes app-wide (not the full visual-identity rollout)
+
+Follow-up the same day: font-weight explicitly confirmed final (no further comparison), then a
+narrower ask than "roll out the pilot everywhere" — take exactly three of the pilot's shared-
+component fixes (nav divider, settings-gear/star/megaphone gating+tint, heading font-weight) and
+stop scoping them to the one page they were built against, since they're shared components
+rendered identically everywhere. Everything else from the pilot (badges, the `--primary`/`--ring`
+tab-accent color on `CircleTabs`, the profile-menu's small ink recolors) explicitly stays exactly
+as narrow as before — `/circles/tim-admin/home` only — none of those three were named in this
+round's ask.
+
+**Per-item scope, and why each ended up where it did:**
+
+1. **Nav divider.** No scoping mechanism needed at all anymore — `global-nav.tsx` no longer
+   references `.pilot-chrome`, reverted to its exact original unconditional `className`. The
+   divider rule (`.bg-[#3a3129]`, the gradient fade from the first correction pass) became a plain
+   top-level CSS rule, since the nav renders identically on every page regardless of pilot status.
+2. **Settings-gear/star/megaphone action icons.** `home-content.tsx`'s `isPilotActionIconsContext`
+   was `isPilotViewer && showSettingsButton` (viewer-gated, from the prior "extend to circles
+   tim-admin administers" fix); dropped the `isPilotViewer` half entirely, so it's now just
+   `showSettingsButton` — the same own-profile-vs-administered-circle logic, for every viewer. The
+   settings-gear's old solid-emerald-green branch of `settingsButtonClassName`'s ternary became
+   dead code the moment the condition turned unconditional (it can never be false when
+   `showSettingsButton` is true anymore) — removed rather than left unreachable.
+3. **Heading font-weight.** This one couldn't just drop its scope check — `HomeContent`'s name
+   heading renders on *every* tab of a circle (it's the shared header), but "Feed/Noticeboard post
+   cards... Admin screens... out of scope" meant the weight change must NOT follow it onto those
+   other tabs. Added `isCircleHomePath` to `pilot-chrome.ts` (`/^\/circles\/[^/]+\/home\/?$/` —
+   any handle, but only the `/home` tab specifically) and a second, independent boolean in
+   `PilotChromeScope` alongside the original `isPilotChromePath` check — the page-content wrapper
+   now carries two classes computed separately (`.pilot-chrome`/`.pilot-chrome-page`, still exact-
+   match-only, and the new `.circle-home-headings`, broad-match) rather than one. This means a
+   circle's name heading is intentionally lighter on its `/home` tab and production-weight on
+   every other tab of the *same* circle — a real, visible inconsistency, but the accepted
+   trade-off of "only extend what was actually visually tested," not a bug; called out explicitly
+   below rather than quietly patched.
+
+**Verified against the four page types named in the ask** (isolated standalone build on an
+unrelated port, as in every prior entry, real login-link-token sessions — never staging/prod):
+own profile (`tim-admin`) — gear only, no star/megaphone, heading weight 500. Administered circle
+(`tim-solo`, one of the circles found via the earlier `createdBy` query) — all three action icons
+present and tinted, gear rightmost, heading weight 500. A circle tim-admin does *not* administer
+(`default`/Kamooni, found via a `members` collection query for circles where his DID isn't in the
+member list) — no gear (not authorized), star/megaphone present but *not* tinted
+(`background-color: rgba(0,0,0,0)`, confirming regular-visitor production behavior is untouched),
+heading weight still 500 (this is also a `/home` tab, correctly widened). `/explore` — shell
+elements absent entirely, as expected for a non-circle page. Two extra checks beyond what was
+asked, specifically to probe the "shell renders every tab, heading-weight is /home-only" tension
+named above: `tim-solo`'s Noticeboard and Settings tabs both show the *same* tinted, correctly-
+ordered action-icon shell as `/home` (confirms item 2 is genuinely shell-wide), while the name
+heading on both computes back to weight `700` (its own explicit `font-bold`, unaffected by the
+pilot) rather than `500` (confirms item 3 stayed exactly as narrow as intended). Screenshotted all
+six pages — nothing looked broken or inconsistent enough to warrant stopping and reporting back,
+per the instruction's escape hatch. Build and lint clean, no new warnings; `git diff --stat`
+confirms `global-nav-items.tsx` and `profile-menu.tsx` are untouched.
+
+Commit `73544ddc`, on top of `98ac567f`. **Staging-only, not deployed** — per instruction,
+awaiting go-ahead before running `deploy-staging.sh`.
