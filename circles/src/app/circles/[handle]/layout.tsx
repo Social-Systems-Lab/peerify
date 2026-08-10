@@ -16,7 +16,6 @@ import { CircleTabs } from "@/components/layout/circle-tabs";
 import { getHumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
 import { appConfig } from "@/config/app";
 import { getPeerifyMetadata } from "@/lib/peerify/artist-profile";
-import { PILOT_CHROME_HANDLE } from "@/lib/peerify/pilot-chrome";
 import { PilotChromeScope } from "@/components/layout/pilot-chrome-scope";
 
 type Props = { params: Promise<{ handle: string }>; children: React.ReactNode };
@@ -100,11 +99,12 @@ export default async function RootLayout(props: Props) {
         </>
     );
 
-    if (circle.handle === PILOT_CHROME_HANDLE) {
-        return <PilotChromeScope>{pageContent}</PilotChromeScope>;
-    }
-
-    return pageContent;
+    // PilotChromeScope decides internally, per-pathname, which (if any) pilot rules apply
+    // — see pilot-chrome-scope.tsx. Wrapping unconditionally here means every circle's
+    // page gets exactly what it should: nothing extra for most, the heading-weight scope
+    // on any circle's /home tab, and the original narrow badge/tab-accent scope only for
+    // tim-admin's own profile.
+    return <PilotChromeScope>{pageContent}</PilotChromeScope>;
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {

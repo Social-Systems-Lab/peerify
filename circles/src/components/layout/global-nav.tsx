@@ -11,8 +11,6 @@ import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 
 import { usePathname } from "next/navigation";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
-import { isPilotChromePath } from "@/lib/peerify/pilot-chrome";
-import { cn } from "@/lib/utils";
 
 export default function GlobalNav() {
     const [user, setUser] = useAtom(userAtom);
@@ -30,10 +28,6 @@ export default function GlobalNav() {
         return null;
     }
 
-    // Visual-identity pilot (see pilot-chrome.ts): only the nav on this one page picks up
-    // the new palette, via the ".pilot-chrome" scoped overrides in globals.css.
-    const isPilotRoute = isPilotChromePath(pathname);
-
     const mobileNavHeight = 56; // px
 
     return (
@@ -47,10 +41,7 @@ export default function GlobalNav() {
                 }
             ></div>
             <div
-                className={cn(
-                    "fixed bottom-0 z-[300] w-full bg-[#181512] text-[#faf6ef] shadow-md md:top-0 md:h-full md:w-[72px] md:border-r md:border-[#2b251f] md:shadow-none",
-                    isPilotRoute && "pilot-chrome",
-                )}
+                className={`fixed bottom-0 z-[300] w-full bg-[#181512] text-[#faf6ef] shadow-md md:top-0 md:h-full md:w-[72px] md:border-r md:border-[#2b251f] md:shadow-none`}
                 style={
                     isMobile
                         ? {
