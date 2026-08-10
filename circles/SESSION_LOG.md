@@ -2764,5 +2764,77 @@ own settings tab, and `/explore` — all three still `.pilot-chrome`-absent and 
 `pm2 jlist` confirmed `peerify`/`peerify-staging` pids/uptimes unchanged throughout. Cleaned up the
 test login token and temporary standalone directory afterward.
 
-Commit `c726df9f`, on top of `886ce805`/`095090b3`. **Staging-only, not deployed** — per
+Commit `c726df9f`, on top of `886ce805`/`095090b3`. Staging-only per instruction; not deployed in
+this entry.
+
+### Follow-up same day — deployed to staging
+
+User gave the go-ahead again. `./deploy-staging.sh` — all 8 steps passed (BUILD_ID
+`o6d1pEDfcLAHdHcXpvusd`); `pm2 jlist` confirmed `peerify` (prod) pid/uptime unchanged. Re-verified
+live on `https://staging.peerify.one/circles/tim-admin/home` via the login-link-token technique
+(real domain, not localhost, per [[project_peerify_staging_environment]]) — matches the local
+preview exactly. `/explore` confirmed unaffected. Cleaned up the test login token afterward.
+
+## 2026-08-10 — Visual pilot correction pass, per side-by-side review against production
+
+Same pilot page (`/circles/tim-admin/home`), same "Option A: restrained accent" direction from the
+prior entries — this is a targeted correction pass after the user compared the deployed pilot
+side-by-side against real production and flagged six specific things, all still scoped to this one
+page, no component files touched (every fix is a `globals.css` selector or the new heading-weight
+toggle described below):
+
+1. **Left sidebar active-state.** Production's own treatment for an active nav item is text-color
+   + a framer-motion icon-scale on hover/tap (`global-nav-items.tsx`, never touched by any pass).
+   Pass 1 had *also* given every nav item's `:hover` a solid `--pc-orange-deep` background fill —
+   combined with an active item's orange text, that reads as a "solid-fill highlight block," not
+   production's subtle one. Fix: removed the `.hover\:bg-\[\#241f1a\]:hover` override entirely, so
+   hover now falls through to the component's own original, unmodified `hover:bg-[#241f1a]`.
+   (Side investigation before landing on this: initially suspected the two solid-looking circles
+   in the sidebar's pinned-circle tray below the divider were the culprit — traced them via a raw
+   `MongoClient` query on `tim-admin`'s `pinnedCircles` array (values are real `ObjectId`s, not the
+   strings `JSON.stringify` makes them look like — a `findOne({_id: "<hex>"})` string-vs-ObjectId
+   mismatch returned false negatives at first) to two real, pre-existing uploaded circle pictures
+   ("Peerify Main", "The Backstage Lounge") — unrelated to the pilot, ruled out.)
+2. **Action icons (mail/clipboard/bell).** Reverted the `bg-[#f1f1f1]`/`hover:bg-[#cecece]`
+   overrides — these render at their original plain light-gray now, no tint.
+3. **Divider below "Create."** User confirmed the more-visible-than-production divider is a real
+   improvement — kept, but reworked from a flat solid `background-color` bar to a soft-edged
+   `linear-gradient` fade (transparent → muted-soft → transparent), for a more intentional feel
+   without increasing loudness.
+4. **Settings-gear button.** Was a solid saturated-orange fill (pass 2's fix for the *original*
+   solid-emerald-green button) — visually "the odd one out" next to neutral outline icons. Now
+   matches the pills' own tint treatment: `--pc-orange-tint` background, `--pc-orange-deep` icon,
+   transparent border (no visible border line, same as the badge component's own variants). The
+   icon-color override uses a compound selector, `.border-emerald-950.text-white`, so it only ever
+   matches this one button — `text-white` alone is far too generic a hook to touch safely.
+5. **Social icon row.** Already plain since the prior pass's fix (item 1 there) — nothing to
+   change; noted as now consistent with item 2's action-icon revert, so the two rows read as one
+   design language rather than two.
+6. **Typography experiment (Cormorant Garamond 500 vs. 600).** Not a decision — the ask was to make
+   both weights comparable, not to pick one. Headings now default to weight 500 (they'd
+   previously inherited the site's own unscoped `h1,h2,...{font-weight:600}` rule, since pass 1/2
+   only ever set `font-family` on headings, never `font-weight`). Added
+   `PilotChromeScope`'s only new behavior this pass: reads `useSearchParams().get("heading-weight")`
+   and adds a second `.heading-weight-600` class when it's `"600"`, which a scoped override rule
+   flips back to 600 — so `?heading-weight=600` on the pilot URL is a live, on-page toggle for
+   direct comparison, no separate build or deploy needed to see either option.
+
+**Verified without touching staging or prod**, same isolated-standalone-server technique as the
+prior two entries (fresh `bun run build`, symlinked `.next/standalone` copy on port 3002, never the
+pm2-served directory, login-link-token as tim-admin). Confirmed via computed-style + hover-simulation
+checks: nav item background is `transparent` at rest and `rgb(36, 31, 26)` (`#241F1A`, the original
+value) on `:hover` — no orange anywhere in nav hover; the three action-icon buttons compute to
+`rgb(241, 241, 241)` (`#F1F1F1`, unchanged); settings-gear computes to `rgb(248, 226, 206)` bg /
+`transparent` border / `rgb(201, 95, 31)` icon color at rest, `rgb(241, 166, 116)` (orange-soft) on
+hover; the divider's `background-image` computes to the expected `linear-gradient(...)` with
+transparent ends; offering-badge and "Member" chip compute to the *same* `rgb(248, 226, 206)`/
+`rgb(201, 95, 31)` as the previous commit (pill colors confirmed unchanged); social-icon color is
+still unmodified `rgb(107, 114, 128)` (Tailwind `gray-500`); `h4`/`h1` heading `font-weight` computes
+to `500` by default and `600` with `?heading-weight=600` appended — both screenshotted side by side
+for the visible comparison the ask required. Re-confirmed the usual scoping guarantees: a different
+circle's home page, tim-admin's own settings tab, and `/explore` are all still `.pilot-chrome`-absent.
+`pm2 jlist` confirmed `peerify`/`peerify-staging` pids/uptimes unchanged throughout. Cleaned up the
+test login token and temporary standalone directory afterward.
+
+Commit `4633b70e`, on top of `c726df9f`/`ef9dca6e`. **Staging-only, not deployed** — per
 instruction, awaiting go-ahead before running `deploy-staging.sh` again.
