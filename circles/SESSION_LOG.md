@@ -2949,5 +2949,23 @@ chip colors confirmed byte-identical to the prior commit. `pm2 jlist` confirmed
 `peerify`/`peerify-staging` pids/uptimes unchanged throughout. Cleaned up the test login token and
 temporary standalone directory afterward.
 
-Commit `d369ef3a`, on top of `4633b70e`. **Staging-only, not deployed** — per instruction, awaiting
-go-ahead before running `deploy-staging.sh` again.
+Commit `d369ef3a`, on top of `4633b70e`. Staging-only per instruction; not deployed in this entry.
+
+### Follow-up same day — deployed to staging, then accepted as final
+
+User gave the go-ahead again. `./deploy-staging.sh` — all 8 steps passed (BUILD_ID
+`v8LfjQMObKQB1LdW2Bh4k`); `pm2 jlist` confirmed `peerify` (prod) pid/uptime unchanged. Re-verified
+live on the real domain (login-link-token as tim-admin, per
+[[project_peerify_staging_environment]]): `https://staging.peerify.one/circles/tim-admin/home`
+(own profile — gear only, no star/megaphone) and `https://staging.peerify.one/circles/tim-solo/home`
+(administered circle — all three, gear rightmost, matching the local preview and each other).
+`/explore` confirmed unaffected. Cleaned up the test login token afterward.
+
+User then confirmed: **keep what's currently deployed, no further comparison against production
+needed.** This closes out the visual-identity pilot (started two entries above as "chrome" palette
++ typography on `/circles/tim-admin/home`, refined to Option A's restrained-accent treatment, then
+corrected twice against side-by-side production review) — the deployed state as of commit
+`d369ef3a` (BUILD_ID `v8LfjQMObKQB1LdW2Bh4k`) is the accepted result. No wider-rollout decision
+requested yet; per the pilot's original scope this stays a single-page comparison
+(`/circles/tim-admin/home`, plus the viewer-gated action-icon treatment reachable on circles
+tim-admin administers) rather than something applied elsewhere in the app.
