@@ -44,7 +44,6 @@ import {
     isPeerifyArtistIdentity,
     isPeerifyManagedIdentity,
 } from "@/lib/peerify/artist-profile";
-import { PILOT_CHROME_HANDLE } from "@/lib/peerify/pilot-chrome";
 import { cn } from "@/lib/utils";
 
 type HomeContentProps = {
@@ -99,15 +98,14 @@ export default function HomeContent({
     const showSettingsButton = authorizedToEdit && circle.handle && (!isUser || isOwnUserProfile);
     const settingsButtonTitle = isUser || isPeerifyManagedIdentity(circle) ? "Profile settings" : "Circle settings";
     // Visual-identity pilot (see pilot-chrome.ts): the star (bookmark)/megaphone
-    // (notification settings)/gear action-icon tint below is keyed off the VIEWER
-    // (tim-admin), not the circle being viewed — so it's reachable both on his own
-    // profile and on a circle he administers, but stays exactly production's behavior
-    // for every other viewer on every page, including tim-admin's own circles when
-    // viewed by someone else. Reuses showSettingsButton/isOwnUserProfile — the same
-    // own-profile-vs-administered-circle permission check already computed above for the
-    // settings button itself — rather than inventing a new one.
-    const isPilotViewer = user?.handle === PILOT_CHROME_HANDLE;
-    const isPilotActionIconsContext = isPilotViewer && showSettingsButton;
+    // (notification settings)/gear action-icon gating+tint below applies for every
+    // viewer now (originally trialled only for the pilot user, tim-admin, before being
+    // extended app-wide — see SESSION_LOG.md). Reuses showSettingsButton/isOwnUserProfile
+    // — the same own-profile-vs-administered-circle permission check already computed
+    // above for the settings button itself — rather than inventing a new one: on the
+    // viewer's own personal profile, star/megaphone hide entirely, leaving just the
+    // gear; on a circle the viewer administers, all three show with the gear last.
+    const isPilotActionIconsContext = showSettingsButton;
     const hidePilotBookmarkAndNotifications = isPilotActionIconsContext && isOwnUserProfile;
     // Sizing/shape classes match production's h-9 w-9 rounded-full exactly, so star/
     // megaphone read as the same size/shape as the gear once tinted — both BookmarkButton
@@ -115,13 +113,13 @@ export default function HomeContent({
     // invisible while ghost/transparent, which is why this wasn't noticeable before they
     // had a background to show it). border-transparent overrides the outline-variant
     // gear's default border color; harmless on the ghost-variant star/megaphone, which
-    // don't set a border class to conflict with.
+    // don't set a border class to conflict with. isPilotActionIconsContext is always true
+    // whenever showSettingsButton is (see above), so the gear is always this tint now —
+    // the previous solid-emerald-green styling no longer renders for anyone.
     const pilotActionIconClassName = isPilotActionIconsContext
         ? "h-9 w-9 rounded-full border-transparent p-0 pilot-action-icon"
         : undefined;
-    const settingsButtonClassName = isPilotActionIconsContext
-        ? cn("shrink-0 shadow-sm transition-colors", pilotActionIconClassName)
-        : "h-9 w-9 shrink-0 rounded-full border border-emerald-950 bg-emerald-950 text-white shadow-sm transition-colors hover:bg-emerald-900 focus-visible:ring-2 focus-visible:ring-emerald-950 focus-visible:ring-offset-2";
+    const settingsButtonClassName = cn("shrink-0 shadow-sm transition-colors", pilotActionIconClassName);
     const settingsButtonElement = showSettingsButton ? (
         <Button asChild variant="outline" size="icon" className={settingsButtonClassName}>
             <Link

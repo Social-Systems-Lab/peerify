@@ -341,14 +341,14 @@ h1,
         --radius: 0.55rem;
 
         /* Visual-identity pilot (see pilot-chrome.ts) — global so the .pilot-action-icon
-           rule further down (used by the settings-gear/star/megaphone action icons in
-           home-content.tsx) resolves correctly wherever it's applied, which is keyed off
-           the logged-in viewer rather than the current page/circle, and so isn't confined
-           to a single .pilot-chrome-scoped subtree. Unused outside that one class. */
+           and nav-divider rules further down (both now app-wide, not confined to a single
+           .pilot-chrome-scoped subtree — see that file for the pilot's history) resolve
+           correctly wherever they're applied. Unused outside those two rules. */
         --pc-orange: #e8732c;
         --pc-orange-deep: #c95f1f;
         --pc-orange-soft: #f1a674;
         --pc-orange-tint: #f8e2ce;
+        --pc-muted-soft: #a89b89;
     }
 }
 
@@ -597,44 +597,53 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
 }
 
 /* ==========================================================================
-   Visual-identity pilot — "chrome" palette pilot, restrained to accents only.
-   .pilot-chrome is shared by three DOM roots that render outside each other's
-   subtree — the left nav, the top-right profile menu, and (as .pilot-chrome
-   .pilot-chrome-page together) the page content itself — see pilot-chrome.ts
-   and pilot-chrome-scope.tsx. All three are only ever applied on
-   /circles/tim-admin/home. Rules that are only ever relevant to the page
-   content (badges, heading weight) are scoped under .pilot-chrome-page
-   specifically, NOT bare .pilot-chrome — early on this used a single shared
-   class for everything, and a same-named Tailwind class used by both page
-   content (AboutPage's badges) and the nav (the empty pinned-favorite slot's
-   dashed border) bled the badge tint onto the nav control. Splitting the
-   scope in two is what fixes that.
+   Visual-identity pilot. Started as a single-page comparison (Tim Admin's own
+   profile) against production; two correction passes against side-by-side
+   production review followed. This round extends three specific shell fixes
+   app-wide — the nav divider, the settings-gear/star/megaphone action-icon
+   gating+tint, and heading font-weight — since they're shared components
+   used identically everywhere. Everything else from the pilot (badges, the
+   --primary/--ring tab-accent color, the profile-menu's small ink recolors)
+   stays exactly as narrow as before: tim-admin's own profile only. See
+   pilot-chrome.ts/SESSION_LOG.md for the full history and the "why" behind
+   which pieces widened and which didn't.
 
-   The settings-gear/star/megaphone action-icon tint is a separate, THIRD
-   scope: home-content.tsx gates it by the logged-in VIEWER (tim-admin)
-   rather than the page/circle being viewed, so it's reachable both on his
-   own profile and on any circle he administers — see isPilotActionIconsContext
-   there. Its .pilot-action-icon marker class is therefore a plain top-level
-   rule below, not nested under .pilot-chrome-page, and its color tokens are
-   defined on :root (see the shadcn :root block above) rather than on
-   .pilot-chrome, so they resolve correctly outside that pathname-scoped
-   subtree too.
+   Four independent scopes now, not one shared class:
+   - .pilot-chrome/.pilot-chrome-page (badges, --primary/--ring): unchanged,
+     still exactly /circles/tim-admin/home only — see pilot-chrome-scope.tsx.
+     (Early on this was ONE shared class covering everything below too, and a
+     same-named Tailwind class used by both page content — AboutPage's badges
+     — and the nav — the empty pinned-favorite slot's dashed border — bled the
+     badge tint onto the nav control. Splitting page-content rules onto their
+     own class fixed that; the app-wide rules below stay split out for the
+     same reason, now scoped by their own mechanism instead of a page class.)
+   - .circle-home-headings (heading weight): any circle's /home tab, via
+     isCircleHomePath in pilot-chrome.ts — not the nav/badges' exact-match
+     scope, and not every tab of a circle (settings/tasks/feed use entirely
+     different content that was never part of what got visually tested).
+   - .pilot-action-icon (settings-gear/star/megaphone tint): no page scope at
+     all now — home-content.tsx applies it for every viewer, since the
+     gating+tint is meant to hold everywhere it renders. Its --pc-orange*
+     tokens live on :root (see the shadcn :root block above), not on
+     .pilot-chrome, so they resolve correctly outside that subtree.
+   - The nav divider rule: also no page scope — plain top-level rule, since
+     the nav (and its divider) renders identically on every page already.
 
    Remove this block, pilot-chrome.ts, pilot-chrome-scope.tsx, the --pc-* vars
-   on :root, and the .pilot-chrome/.pilot-chrome-page/.pilot-action-icon class
-   references in global-nav.tsx/profile-menu.tsx/circles/[handle]/layout.tsx/
-   home-content.tsx to fully revert the pilot.
+   on :root, and the .pilot-chrome/.pilot-chrome-page/.circle-home-headings/
+   .pilot-action-icon class references in global-nav.tsx/global-nav-items.tsx/
+   profile-menu.tsx/circles/[handle]/layout.tsx/home-content.tsx to fully
+   revert the pilot.
    ========================================================================== */
 .pilot-chrome {
     --pc-ink: #1a1612;
-    --pc-muted-soft: #a89b89;
 
     /* Restrained accent: page/card backgrounds and text stay on the site's normal
        white/neutral shadcn tokens (see the @layer base :root block above) — NOT
        overridden here. Orange is the only accent threaded through (--primary/
        --ring), so every Button/Tabs/link that already relies on --primary retints
-       for free with no component edits. No font-family override — see below,
-       typography now matches production exactly (only heading weight differs). */
+       for free with no component edits. No font-family override — typography
+       matches production exactly (only heading weight differs, see below). */
     --primary: 23 80% 54%;
     --primary-foreground: 0 0% 100%;
     --ring: 23 80% 54%;
@@ -648,13 +657,15 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
    Cormorant Garamond in an earlier pass) turned out not to be needed once weight
    alone was tried. Body text/buttons/labels also stay production's default
    (Libre Franklin) — Manrope (also tried in an earlier pass) wasn't kept either,
-   so there's exactly one typographic change on this whole page: heading weight. */
-.pilot-chrome-page h1,
-.pilot-chrome-page h2,
-.pilot-chrome-page h3,
-.pilot-chrome-page h4,
-.pilot-chrome-page .heading,
-.pilot-chrome-page .header {
+   so there's exactly one typographic change: heading weight. Scoped to any
+   circle's /home tab (.circle-home-headings, see pilot-chrome-scope.tsx) — not
+   .pilot-chrome-page, and not the whole app; see the block comment above. */
+.circle-home-headings h1,
+.circle-home-headings h2,
+.circle-home-headings h3,
+.circle-home-headings h4,
+.circle-home-headings .heading,
+.circle-home-headings .header {
     font-weight: 500;
 }
 
@@ -662,7 +673,8 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
    gray/white remap (an earlier pass's warmer approach caused a social-icon-row
    regression by doing exactly that). Cards, page background, and general body
    text all stay exactly the site's normal white/neutral; only these specific
-   chip classes retint. */
+   chip classes retint. Still scoped to .pilot-chrome-page (tim-admin's own
+   profile only) — badges were never part of this round's app-wide extension. */
 
 /* "Offering" badge variant (tour-team-offerings-card.tsx) — was near-black/gold. */
 .pilot-chrome-page .bg-\[\#2C2C2A\] {
@@ -701,14 +713,14 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
 /* Settings gear + star (bookmark) + megaphone (notification settings) action icons:
    share one consistent tint treatment — a tint fill + deep-orange icon, no solid color,
    no visible border — applied via a single .pilot-action-icon marker class that
-   home-content.tsx adds to all three when isPilotActionIconsContext is true (see that
-   file for the full explanation of why this is viewer-scoped, not page-scoped). Orange
-   is the only interactive/hover accent color in the shell chrome; green (the gear's
-   production default, border-emerald-950/bg-emerald-950 — still used as-is for every
-   other viewer) is reserved for actions that commit money or intent (e.g. a Pledge-style
-   action), which this button is not. Visually distinct from the plain-outline external
-   social-media icons next to them. Not nested under .pilot-chrome/.pilot-chrome-page —
-   see the block comment above for why. */
+   home-content.tsx now adds to all three for every viewer (originally trialled only for
+   the pilot user before being extended app-wide — see SESSION_LOG.md). Orange is the
+   only interactive/hover accent color in the shell chrome; green (the gear's previous
+   production default, border-emerald-950/bg-emerald-950 — no longer reachable anywhere,
+   see home-content.tsx) is reserved for actions that commit money or intent (e.g. a
+   Pledge-style action), which this button is not. Visually distinct from the
+   plain-outline external social-media icons next to them. No page scope at all — plain
+   top-level rule, applies wherever home-content.tsx adds the class. */
 .pilot-action-icon {
     background-color: var(--pc-orange-tint);
     color: var(--pc-orange-deep);
@@ -721,20 +733,22 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
     outline-offset: 2px;
 }
 
-/* Left sidebar nav: reverted to production, no pilot changes at all, except keeping
-   the divider below "Create" — confirmed as a real improvement over production's
-   original divider — reworked from a flat solid bar to a soft-edged gradient fade for
-   a more intentional feel without getting any louder. Every other nav override from
-   earlier passes (background, text colors, hover states) is gone; the nav's own
-   `.pilot-chrome` class now does nothing but carry the CSS variables above (used by
-   this one rule) and stays only so this divider rule has somewhere to hook into. */
-.pilot-chrome .bg-\[\#3a3129\] {
+/* Left sidebar nav: matches production everywhere except the divider below "Create" —
+   confirmed as a real improvement over production's original divider — reworked from a
+   flat solid bar to a soft-edged gradient fade for a more intentional feel without
+   getting any louder. Every other nav override from earlier passes (background, text
+   colors, hover states) is gone. No page scope — plain top-level rule, since the nav
+   (and this divider) renders identically on every page already; global-nav.tsx no
+   longer references .pilot-chrome at all. */
+.bg-\[\#3a3129\] {
     background-color: transparent;
     background-image: linear-gradient(to right, transparent, var(--pc-muted-soft) 25%, var(--pc-muted-soft) 75%, transparent);
 }
 
-/* Top-right profile menu: unchanged from the prior pass, not touched this pass either —
-   the small identity-switcher badge dot and the unauthenticated login-button overlay. */
+/* Top-right profile menu: unchanged from the prior two passes, not touched this pass
+   either — the small identity-switcher badge dot and the unauthenticated login-button
+   overlay. Still exactly /circles/tim-admin/home only, same as badges/tab-accent above —
+   was never part of this round's three named items. */
 .pilot-chrome .bg-\[\#231f1a\] {
     background-color: var(--pc-ink);
 }
