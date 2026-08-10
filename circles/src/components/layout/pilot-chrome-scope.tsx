@@ -1,7 +1,8 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { isPilotChromePath } from "@/lib/peerify/pilot-chrome";
+import { cn } from "@/lib/utils";
 
 // Wraps HomeCover/HomeContent/CircleTabs/{children} and applies the new visual-identity
 // pilot accents (see globals.css ".pilot-chrome" rules — Option A: restrained accent,
@@ -11,7 +12,17 @@ import { isPilotChromePath } from "@/lib/peerify/pilot-chrome";
 // circles/[handle]/layout.tsx), so it's a no-op for every other circle.
 export function PilotChromeScope({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
+    const searchParams = useSearchParams();
     const active = isPilotChromePath(pathname);
 
-    return <div className={active ? "pilot-chrome" : undefined}>{children}</div>;
+    // Typography experiment, not a decision: headings default to Cormorant Garamond 500
+    // (see globals.css); appending ?heading-weight=600 flips every heading on the page to
+    // 600 for a live side-by-side comparison ahead of picking one.
+    const headingWeight600 = searchParams.get("heading-weight") === "600";
+
+    return (
+        <div className={cn(active && "pilot-chrome", active && headingWeight600 && "heading-weight-600")}>
+            {children}
+        </div>
+    );
 }
