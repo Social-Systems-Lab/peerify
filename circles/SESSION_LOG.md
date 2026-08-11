@@ -3026,5 +3026,60 @@ six pages — nothing looked broken or inconsistent enough to warrant stopping a
 per the instruction's escape hatch. Build and lint clean, no new warnings; `git diff --stat`
 confirms `global-nav-items.tsx` and `profile-menu.tsx` are untouched.
 
-Commit `73544ddc`, on top of `98ac567f`. **Staging-only, not deployed** — per instruction,
+Commit `73544ddc`, on top of `98ac567f`. Staging-only per instruction; not deployed in this entry.
+
+### Follow-up same day — deployed to staging
+
+User gave the go-ahead. `./deploy-staging.sh` — all 8 steps passed (BUILD_ID
+`sWDpBdUZ8wZhIItBl8pJ5`; the build step logged several transient "Retrying 1/3..." lines partway
+through — a Google Fonts metadata fetch hiccup, unrelated to any pilot change, resolved on its own
+and the build still compiled cleanly). `pm2 jlist` confirmed `peerify` (prod) pid/uptime unchanged.
+Re-verified live on the real domain across all four page types from the prior entry (own profile,
+`tim-solo` administered circle, `default`/Kamooni non-admin circle, `/explore`) — all matched the
+local preview exactly. Cleaned up the test login token afterward.
+
+## 2026-08-11 — Heading weight: extended from /home-only to every tab of a circle
+
+Follow-up fix, same shell-extension effort as the entry above: the lighter heading weight only
+ever applied on a circle's `/home` tab (`.circle-home-headings`, scoped by `isCircleHomePath` —
+an exact `/circles/[handle]/home` match). Settings, Noticeboard, Followers, Circles, Events, and
+any other tab still rendered the circle's name heading at production's original weight, since
+`HomeContent`'s name `<h4>` is shell — it renders once per circle layout, above `{children}`,
+*identically regardless of which tab is active* — but the CSS scope it depended on was keyed to
+the current route, not to "is this the shell." Visiting a circle's Settings tab right after its
+Home tab made the inconsistency obvious: same heading, same position, different weight.
+
+**Investigation, per instruction:** confirmed via grep that `.circle-home-headings` covers
+`h1,h2,h3,h4,.heading,.header`, but only ONE of those (`HomeContent`'s `<h4>`) is actually shared
+shell — the `h1`/`h2`/`h3` elements the same rule was hitting are all `PresenceCard`-rendered
+("About"/"Offers"/"Venue overview" titles), which only ever exist inside `{children}` on the
+`/home` tab in the first place (`AboutPage`/`OffersCard`/`TourTeamOfferingsCard`) — they can't
+render on Settings/Followers/etc. regardless of CSS scope, so they never needed a scope change.
+
+**Cleanest fix, reported before implementing:** rather than widening the pathname regex to try to
+cover "every tab of a circle" (which risks catching {children}'s own tab-specific content
+headings too — Settings' own section titles, etc. — never part of what was asked), gave the name
+heading a direct, unconditional `font-medium` class in `home-content.tsx` (replacing `font-bold`)
+instead of a route-scoped CSS rule. Since `HomeContent` is already one shared component instance
+rendered identically for every tab, this direct edit **is** the "one shared rule" the investigation
+was asked to find — simpler and more precise than any CSS-scope widening would have been. Removed
+`h4` from the `.circle-home-headings` selector (now redundant, and dead — nothing else uses that
+class on an `h4`) and updated the rule's comment to clarify it's `PresenceCard`'s home-tab-only
+titles specifically, not the name heading.
+
+**Verified across every tab named in the ask** — Home, Noticeboard, Followers, Circles/Community,
+Events, Settings — on all three profile types: `tim-admin`'s own profile (all 6 tabs: heading
+weight `500`, `Wix Madefor Display` unchanged, gear present/tinted, star/megaphone absent — icon
+gating exactly as before), `tim-solo` administered circle (all 5 tabs checked: heading weight
+`500`, all three action icons present and tinted, gear last), `default`/Kamooni non-admin circle
+(3 tabs checked: heading weight `500`, no gear, star present but untinted — regular-visitor
+behavior unaffected). 14 tab checks total, all consistent. Screenshotted the Kamooni Followers tab
+specifically to confirm visually, not just via computed style — the lighter heading reads
+correctly there now, nothing else on the page shifted. `git diff --stat` shows only `globals.css`
+and `home-content.tsx` touched — the icon-gating logic, nav divider, and alignment fix from the
+prior entry are untouched by construction, not just by re-verification. Build and lint clean, no
+new warnings. Same isolated-standalone-server technique as every entry above; never touched
+staging or prod during verification.
+
+Commit `b65fbd13`, on top of `6304cb33`. **Staging-only, not deployed** — per instruction,
 awaiting go-ahead before running `deploy-staging.sh`.
