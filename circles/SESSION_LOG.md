@@ -2734,3 +2734,93 @@ Headline: UI cleanup sprint for the personal-profile settings page — removed t
 - Remove Featured Link placeholder (its future is the Peerify-hosted main track/video player; check nothing else references it before removing).
 - Move "Open To" (Shows/Festivals/Fans) into the sidebar (inside Listen & Follow card or its own small card beneath it — TBD).
 - New "Support / Get Involved" card below Listen & Follow: fan-participation invite (help make a show happen, join tour team, volunteer). This is the on-profile expression of the fan-hosted touring USP + pledge-to-bring mechanic; needs design thought on actions offered and who-sees-what.
+
+## 2026-08-11 — Visual-identity pilot promoted to production
+
+Promoted the shell portion of the visual-identity pilot (developed and iterated on the
+`peerify-staging` box's `staging` branch across five rounds: initial pilot on Tim Admin's own
+profile → Option A restrained-accent refinement → two side-by-side-against-production correction
+passes → app-wide shell extension → heading-weight tab-consistency fix) to `main`/production.
+Covers: the new orange palette on pills/badges, the settings-gear/star/megaphone action-icon
+gating (own-profile vs. administered-circle) and tint treatment, the left-sidebar divider fix, and
+the lighter heading font-weight — now consistent across every tab of a circle, not just Home. Does
+**not** cover a broader visual-identity rollout beyond this shell; page/card backgrounds and body
+text remain the site's existing white/neutral defaults everywhere, per the pilot's own scope.
+
+**Commit audit, per instruction, before touching `main` at all.** `git log main..staging` showed
+36 commits total — most of them unrelated prior work already promoted to `main` separately under
+different hashes (the Respond-dropdown/notify-on-accept/Connected-badge and Backstage-Lounge-
+auto-enrollment/nav-bar-link features, matching commit messages, different SHAs), plus the older
+Kamooni→Peerify rebrand pass (not part of this promotion either way). Of the 36, exactly 13
+belonged to the pilot (`886ce805^..793979cf` on staging) — 6 carrying actual code, 7 pure
+`SESSION_LOG.md` entries:
+
+- `886ce805` Pilot new "chrome" visual identity on Tim Admin's personal profile — **code**
+- `095090b3` Update SESSION_LOG.md for the new visual-identity pilot — log
+- `c726df9f` Refine visual-identity pilot to Option A: restrained accent — **code**
+- `ef9dca6e` Update SESSION_LOG.md for staging deploy + restrained-accent refinement — log
+- `4633b70e` Correct visual pilot per side-by-side review against production — **code**
+- `3273d58a` Update SESSION_LOG.md for the visual pilot correction pass — log
+- `d369ef3a` Second correction pass: typography reversal, sidebar full revert, action-icon consistency — **code**
+- `2728f28b` Update SESSION_LOG.md for the second visual pilot correction pass — log
+- `98ac567f` Log visual pilot deploy + final acceptance of current deployed state — log
+- `73544ddc` Extend pilot's shell-only fixes app-wide: nav divider, action-icon gating+tint, heading weight — **code**
+- `6304cb33` Update SESSION_LOG.md for the app-wide shell-fix extension — log
+- `b65fbd13` Extend lighter heading weight to every tab of a circle, not just /home — **code**
+- `793979cf` Update SESSION_LOG.md for staging deploy + heading-weight tab-consistency fix — log
+
+Listed all 13 for the user before touching `main`, per instruction, along with which 6 actually
+carry code — confirmed nothing unrelated would be bundled in.
+
+**Method.** Tested first in a disposable `git worktree` off `main`'s then-tip (`eb032786`), removed
+after: cherry-picking all 13 hit a conflict on `SESSION_LOG.md` at the very first log-only commit
+(the two branches' logs have diverged too far to replay cleanly) — but cherry-picking just the 6
+code commits applied with **zero conflicts**, and the resulting 8 touched files
+(`globals.css`, `layout.tsx`, `circles/[handle]/layout.tsx`, `global-nav.tsx`, `profile-menu.tsx`,
+`pilot-chrome-scope.tsx` + `pilot-chrome.ts` [new], `home-content.tsx`) came out **byte-identical**
+to staging's current tip. Given that, cherry-picked only the 6 code commits onto `main` for real
+(`accbd797`, `7f27f9cd`, `f3666b11`, `65ae38a6`, `f8c33c84`, `a6668a6f`) and wrote this single
+consolidated log entry instead of replaying the 7 log-only ones — re-confirmed the same
+byte-identical-to-staging result on the real `main` afterward.
+
+**Deploy.** `echo $PORT` confirmed empty in the shell before touching anything (the exact class of
+bug `deploy-peerify.sh`'s own header comment warns about). `./scripts/deploy-peerify.sh` — all 8
+steps passed: `bun install --frozen-lockfile` + a full `bun run build` (script-internal; no bare
+build command run separately), `BUILD_ID` `b-aCANQlb1n7fE87jafhL` verified nested/matching,
+`pm2 restart peerify` (staging's pid/uptime confirmed unchanged before and after), `pm2 save`,
+HTTP 200 on `/` and a static asset. Ran `pm2 status` and an explicit extra `pm2 save` again myself
+after the script, per instruction. `curl`'d `/`, `/explore`, and a real circle page directly —
+all HTTP 200 with substantial real HTML (titles, circle names present, not error/blank pages).
+
+**Bundle verification — not just "the build succeeded."** Grepped the actual deployed standalone
+output on disk: `pilot-action-icon` and `circle-home-headings` both present in the compiled server
+chunk (`.next/server/chunks/7803.js`); `pc-orange-tint` and the `#3a3129` divider hex both present
+in the compiled static CSS. Cross-checked that the exact CSS file referencing those strings
+(`db73b59984fafc3d.css`) is the one the live served HTML actually links to, and `curl`'d it
+directly — 200, real content, contains all three markers. This is what's actually running, not
+just what built.
+
+**Production spot-check, real accounts and real data (no test/throwaway accounts created on
+prod).** `tim-admin` (the staging test handle) doesn't exist on production, so asked the user
+first rather than assuming — used their real production account (`tim` / Tim Olsson) for "own
+profile," `a-friendly-few` (a circle `tim` created/administers) for "administered circle," and
+`shamanzi` (a published artist circle `tim` has no membership or creator relationship to,
+confirmed via a read-only `members`/`circles` query before picking it) for "non-admin circle" —
+all per the user's explicit choices. Login via the login-link-token technique
+(see [[project_peerify_staging_environment]]) against `tim`'s real account on prod specifically —
+token generated, used once, cleared immediately after (`loginLinkToken`/`loginLinkTokenExpiry`
+unset via a raw `MongoClient` update, confirmed `matchedCount: 1`). All three scenarios matched
+staging's already-verified behavior exactly: `tim/home` and `tim/settings/about` both show the
+settings gear only (tinted, no star/megaphone), heading weight `500` on both tabs (the fix this
+promotion was largely about — confirmed consistent across tabs on a real account, not just a
+staging test one); `a-friendly-few/home` shows all three action icons tinted with the gear
+rightmost; `shamanzi/home` shows no gear (not authorized) and a plain, untinted star/megaphone
+(regular-visitor production behavior untouched). Screenshotted all three — real profile photos,
+real bios, real audio tracks, real "Pledge Interest"/"Follow" buttons still their original green
+(money/intent actions, deliberately untouched by this pilot) — nothing looked broken or
+inconsistent.
+
+**Commits on `main`:** `accbd797`, `7f27f9cd`, `f3666b11`, `65ae38a6`, `f8c33c84`, `a6668a6f` (the
+6 pilot code commits, cherry-picked in original order) + this log entry. `peerify-staging`
+confirmed untouched throughout (pid/uptime unchanged in the deploy script's own check). **Live in
+production** as of this entry. Pushing `main` to `origin` immediately after this commit.
