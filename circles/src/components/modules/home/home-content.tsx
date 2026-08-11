@@ -563,7 +563,7 @@ export default function HomeContent({
                             )}
                             {isPeerifyArtistProfile && (
                                 <div
-                                    className={`flex w-full flex-col gap-3 ${isCompact ? "items-center" : "items-start"} py-2`}
+                                    className={`flex w-full flex-col ${isCompact ? "items-center gap-2 py-1" : "items-start gap-3 py-2"}`}
                                 >
                                     <div className="flex flex-wrap gap-2">
                                         <Button
