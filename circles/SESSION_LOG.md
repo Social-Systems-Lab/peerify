@@ -2824,3 +2824,67 @@ inconsistent.
 6 pilot code commits, cherry-picked in original order) + this log entry. `peerify-staging`
 confirmed untouched throughout (pid/uptime unchanged in the deploy script's own check). **Live in
 production** as of this entry. Pushing `main` to `origin` immediately after this commit.
+
+## 2026-08-11 — Kamooni→Peerify system/error-page rebrand promoted to production
+
+Promoted the Kamooni→Peerify branding fixes for system/error pages (tested and confirmed on
+staging on 2026-08-09, but never previously promoted): the root `not-found`/`error` pages, the
+`(auth)/` `not-found`/`unauthorized`/`unauthenticated`/`logged-out` pages, the 7 circle/module-
+scoped `not-found` pages (circle-level + discussions/events/goals/issues/proposals/tasks), and the
+map-pin "Unavailable" card fallback images (`default-user-cover.png`/`default-post-picture.png`).
+Distinct, separate work from the visual-identity pilot promoted earlier today — predates it
+entirely (`13024f51`, the last of these commits, is the direct parent of the pilot's first commit
+on `staging`).
+
+**Commit audit, per instruction, before touching `main`.** `git log main..staging` (36 commits,
+same full list as this morning's pilot-promotion audit, since cherry-picking doesn't remove
+commits from that view) — isolated exactly 5 as this rebrand's:
+
+- `cc63605c` Rebrand remaining system/error graphics from Kamooni to Peerify — **code**, but mixed
+  with a `SESSION_LOG.md` update in the same commit (unlike every other commit in either
+  promotion today, which kept code and log entries in separate commits)
+- `495c3c1e` Palette correction: warm-white cards on warm-paper page background — **code**
+- `49ea07da` Update SESSION_LOG.md for palette correction follow-up — log
+- `14198857` Extend two-tone Peerify branding to circle/module not-found pages — **code**
+- `13024f51` Update SESSION_LOG.md for circle/module not-found rebrand — log
+
+Listed all 5 for the user before touching `main`, flagging the `cc63605c` code/log mix explicitly
+since it meant the conflict-resolution approach from this morning's promotion needed to handle a
+conflict *inside* an otherwise-wanted commit, not just skip a purely-unwanted one.
+
+**Method.** Tested in a disposable `git worktree` off `main`'s tip first (removed after):
+cherry-picking `cc63605c` conflicts on `SESSION_LOG.md` only — the code/asset portion (new
+`default-user-cover.png`/`default-post-picture.png`, deletes 4 old Kamooni illustration PNGs,
+touches the 4 `(auth)/*` pages) applies clean. Resolved by `git checkout --ours SESSION_LOG.md`
+(keep `main`'s log, discard the incoming hunk) before `cherry-pick --continue` — same principle as
+skipping a pure-log commit, just applied mid-commit instead of by omission. `495c3c1e` and
+`14198857` then cherry-picked with zero conflicts. Skipped `49ea07da`/`13024f51` entirely (pure
+log). All 15 resulting code/asset paths, including binary `cmp` on both PNGs, came out
+**byte-identical** to staging's current state. Repeated cherry-pick + same conflict resolution for
+real on `main` — identical result, reconfirmed byte-identical to staging afterward.
+
+**Deploy.** `echo $PORT` confirmed empty before touching anything. `./scripts/deploy-peerify.sh` —
+all 8 steps passed (GIT_SHA `216423a8`, BUILD_ID `ZKfxIinb37jZy6hwn8oql`, nested BUILD_ID matched,
+`pm2 restart peerify`, staging pid/uptime unchanged, HTTP 200 on `/` and a static asset). Ran
+`pm2 status` and an explicit extra `pm2 save` myself after, per instruction.
+
+**Production checks.** Genuine 404 (`/this-page-does-not-exist-xyz-check`) → HTTP 404, title
+"Peerify — The Next Stage of Music", zero occurrences of "Kamooni" in the response body. A
+nonexistent circle handle redirects to the root `not-found` page (also confirmed Peerify-branded).
+For the 7 circle/module not-found pages: visiting a disabled module on a real published circle
+(`shamanzi`, which only has `home`/`feed`/`followers`/`settings`/`music` enabled) redirects to
+`/circles/shamanzi/not-found?module=<name>` — checked `discussions`, `events`, and `goals` this
+way; the resulting page shows "Peerify" branding and the two-tone rebrand's specific hex markers
+(`#f7f2ea`/`#e8dfd2`/`#e8720c`) in its HTML. Map-pin fallback images: confirmed on disk in the
+live standalone bundle at the new small size (18,378 / 20,403 bytes — matching the ~18-20KB the
+original staging entry described, versus the old Kamooni assets' 1.5-2.5MB), confirmed served
+live via direct `curl` of `/images/default-user-cover.png` and `/images/default-post-picture.png`
+(200, matching sizes), and visually confirmed by rendering the actual downloaded PNG — the pin+
+person glyph in Peerify's orange, on warm paper with scattered accent dots, not the old Kamooni
+illustration. Old illustration files (`access-denied.png`, `page-not-found.png`,
+`logged-out.png`, `unauthenticated.png`) confirmed absent from the live bundle.
+
+**Commits on `main`:** `8f2ae039`, `6976a3ee`, `216423a8` (the 3 rebrand code commits, cherry-
+picked in original order, `8f2ae039`'s conflict resolved as described above) + this log entry.
+`peerify-staging` confirmed untouched throughout. **Live in production** as of this entry.
+Pushing `main` to `origin` immediately after this commit.
