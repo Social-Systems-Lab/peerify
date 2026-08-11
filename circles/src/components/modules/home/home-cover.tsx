@@ -32,7 +32,12 @@ export default function HomeCover({ circle }: HomeContentProps) {
                 <div
                     className={
                         isMobile
-                            ? "relative h-[270px] w-full overflow-hidden"
+                            ? // Trimmed from 270px: on mobile, circles with fuller headers (bio,
+                              // pledge button, genre badges) push CircleTabs down far enough to sit
+                              // partially behind the fixed bottom nav on initial load. This alone
+                              // doesn't guarantee clearance for every circle's header content, but
+                              // meaningfully reduces the overlap across the board.
+                              "relative h-[220px] w-full overflow-hidden"
                             : "relative h-[350px] w-full overflow-hidden"
                     }
                 >
