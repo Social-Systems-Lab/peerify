@@ -443,7 +443,15 @@ export default function HomeContent({
                                 className={`flex w-full ${isCompact ? "justify-center" : "items-start justify-between gap-4"}`}
                             >
                                 <div className="flex min-w-0 flex-wrap items-center gap-4">
-                                    <h4 className="m-0 p-0 text-4xl font-bold text-gray-800">
+                                    {/* Visual-identity pilot: font-medium (weight 500, lighter than
+                                        production's font-bold/700) is a direct, unconditional class
+                                        change rather than a route-scoped CSS rule — this heading is
+                                        the circle's shell (rendered once per circle-layout, above
+                                        {children}, identically on every tab: Home, Settings,
+                                        Noticeboard, Followers, Circles, Events, etc.), so it needed
+                                        to be light everywhere rather than only where a pathname check
+                                        happened to match. See pilot-chrome.ts/SESSION_LOG.md. */}
+                                    <h4 className="m-0 p-0 text-4xl font-medium text-gray-800">
                                         {authorizedToEdit ? (
                                             <EditableField id="name" value={circle.name ?? ""} circleId={circle._id!} />
                                         ) : (

@@ -617,10 +617,17 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
      badge tint onto the nav control. Splitting page-content rules onto their
      own class fixed that; the app-wide rules below stay split out for the
      same reason, now scoped by their own mechanism instead of a page class.)
-   - .circle-home-headings (heading weight): any circle's /home tab, via
-     isCircleHomePath in pilot-chrome.ts — not the nav/badges' exact-match
-     scope, and not every tab of a circle (settings/tasks/feed use entirely
-     different content that was never part of what got visually tested).
+   - .circle-home-headings (heading weight for PresenceCard's About/Offers/etc.
+     titles): any circle's /home tab, via isCircleHomePath in pilot-chrome.ts —
+     not the nav/badges' exact-match scope. PresenceCard only ever renders on
+     /home, so this doesn't need to reach other tabs. The circle-NAME heading
+     is different: it's shell (renders once per circle layout, above every
+     tab's content, identically regardless of which tab is active), so it's a
+     direct, unconditional font-medium class in home-content.tsx instead of a
+     route-scoped rule — see that file. (Originally this class covered the
+     name heading too, restricted to /home like everything else here; that
+     left the name heading visibly inconsistent in weight across a circle's
+     other tabs, which is what prompted splitting it out.)
    - .pilot-action-icon (settings-gear/star/megaphone tint): no page scope at
      all now — home-content.tsx applies it for every viewer, since the
      gating+tint is meant to hold everywhere it renders. Its --pc-orange*
@@ -649,21 +656,23 @@ div.ReactTags__suggestions ul li.ReactTags__activeSuggestion {
     --ring: 23 80% 54%;
 }
 
-/* Headings (profile name, "About"/"Offers" section titles — PresenceCard renders
-   its title as an <h1>): production's own font-family (var(--font-wix-display),
-   i.e. Wix Madefor Display — see the unscoped h1..h6 rule above and layout.tsx;
-   NOT Arial) is kept as-is, deliberately not overridden. Only the weight changes,
-   for a lighter feel than production's default 600 — a font-family swap (tried
-   Cormorant Garamond in an earlier pass) turned out not to be needed once weight
-   alone was tried. Body text/buttons/labels also stay production's default
-   (Libre Franklin) — Manrope (also tried in an earlier pass) wasn't kept either,
-   so there's exactly one typographic change: heading weight. Scoped to any
-   circle's /home tab (.circle-home-headings, see pilot-chrome-scope.tsx) — not
-   .pilot-chrome-page, and not the whole app; see the block comment above. */
+/* Headings ("About"/"Offers" section titles — PresenceCard renders its title as an
+   <h1>; the circle-name heading is handled separately, see home-content.tsx):
+   production's own font-family (var(--font-wix-display), i.e. Wix Madefor Display —
+   see the unscoped h1..h6 rule above and layout.tsx; NOT Arial) is kept as-is,
+   deliberately not overridden. Only the weight changes, for a lighter feel than
+   production's default 600 — a font-family swap (tried Cormorant Garamond in an
+   earlier pass) turned out not to be needed once weight alone was tried. Body
+   text/buttons/labels also stay production's default (Libre Franklin) — Manrope
+   (also tried in an earlier pass) wasn't kept either, so there's exactly one
+   typographic change: heading weight. Scoped to any circle's /home tab
+   (.circle-home-headings, see pilot-chrome-scope.tsx) — PresenceCard (About/Offers/
+   etc.) only ever renders there, so unlike the circle-name heading this one doesn't
+   need a shell-wide fix; not .pilot-chrome-page, and not the whole app; see the
+   block comment above. */
 .circle-home-headings h1,
 .circle-home-headings h2,
 .circle-home-headings h3,
-.circle-home-headings h4,
 .circle-home-headings .heading,
 .circle-home-headings .header {
     font-weight: 500;
