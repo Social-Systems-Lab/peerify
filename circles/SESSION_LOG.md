@@ -3083,3 +3083,52 @@ staging or prod during verification.
 
 Commit `b65fbd13`, on top of `6304cb33`. **Staging-only, not deployed** — per instruction,
 awaiting go-ahead before running `deploy-staging.sh`.
+
+## 2026-08-11 — Two mobile-viewport bugs found and fixed: Explore search-bar overlap, CircleTabs vs bottom nav
+
+Asked to check the live site (`https://peerify.one`) on mobile as a diagnostic (Playwright,
+`devices["iPhone 13"]`, 390×664). Found two pre-existing, unrelated bugs — neither touched by the
+pilot/rebrand work already in prod — and was told to fix both.
+
+**Bug 1 — Explore page:** the search/filter controls (`map-explorer.tsx`) and the top-right
+profile-menu buttons both use fixed-offset positioning, reserving `mobileTopControlsRight = 128px`
+of clearance. That constant was sized for the *authenticated* state (single avatar button), but
+never accounted for the wider *unauthenticated* "Log in"/"Sign up" button pair — measured at 169px
+wide, sitting at `right-6` (24px from the edge), i.e. needing ~193px of clearance, not 128px. On
+mobile with a logged-out viewer, the search bar's icons rendered directly under those buttons.
+Fix: bumped the constant to 205px (small buffer above the measured 193px). Single-line change.
+
+**Bug 2 — Circle profile pages:** the `CircleTabs` row ("Home / Noticeboard / More") could render
+partially behind the fixed bottom nav (`GlobalNav`, `z-[300]`, opaque) on the initial unscrolled
+load. Root cause: the bottom-nav clearance in `GlobalNav` is a flex `order-last` spacer, which only
+reserves space at the very *end* of the page's scroll length — it does nothing for content that
+happens to land near the viewport's bottom edge on first paint. How far CircleTabs sits down the
+page is entirely a function of how much header content precedes it (bio, "Pledge Interest" button,
+genre badges), so the overlap's severity varies a lot by circle: measured 16px on a simple profile,
+84px-worth-too-tall (tabs partly below the viewport entirely) on `tim-solo`, whose header has 7
+wrapped genre badges across 3 rows.
+
+Considered and rejected `position: sticky; bottom: <navHeight>` on `CircleTabs` — it would fix the
+initial-load case but, since `CircleTabs` is the persistent shell for every module tab (Settings,
+Noticeboard, Tasks, etc.), a bottom-sticky rule would cause it to visually detach and float near
+the screen bottom while scrolling through content *below* it — a worse regression than the bug
+being fixed. Went with a scoped, structural trim instead: mobile cover height `270px → 220px`
+(`home-cover.tsx`), plus tightened vertical spacing in the artist-profile header block on mobile
+(`gap-3`/`py-2` → `gap-2`/`py-1`, `home-content.tsx`, mobile-only — desktop classes untouched).
+
+**Result, measured before/after via the isolated-standalone-server technique against staging's DB
+(never touched the live `peerify-staging` pm2 process or DB during iteration):**
+- `the-band` ("A Friendly Few", staging's analogue to the originally-reported production circle):
+  overlap fully eliminated — tabs bottom now 592px vs nav top 608px, 16px clear.
+- `tim-admin` (personal profile, short header): no overlap, large margin.
+- `tim-solo` (7 wrapped genre badges, the worst case found): reduced from ~84px too-tall to an
+  18px residual overlap — a real improvement (~78% reduction) but not fully eliminated. Flagging
+  this as a known limitation rather than claiming full resolution: profiles with unusually long
+  badge/tag lists can still see a small overlap. A more thorough fix (e.g. capping visible badges
+  with a "+N more" affordance, or a larger restructure of the bottom-nav clearance system) would
+  be a separate, bigger-scoped follow-up if wanted.
+- Explore page: 12px clear gap between search controls and Log in/Sign up in the logged-out state,
+  confirmed via `getBoundingClientRect()` and screenshot.
+
+Commit `84b46b00`, on top of `793979cf`. **Staging-only, not deployed** — per instruction, awaiting
+go-ahead before running `deploy-staging.sh`.
