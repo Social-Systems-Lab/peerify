@@ -29,6 +29,7 @@ type SearchCirclesOptions = {
     limit?: number;
     circleTypes?: CircleType[];
     primaryGenres?: string[];
+    viewerDid?: string;
 };
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -47,8 +48,11 @@ const tokenizeQuery = (query: string) =>
 
 const toStringArray = (values?: string[]) => (values || []).map((value) => normalizeValue(value)).filter(Boolean);
 
-const isDiscoverableCircle = (circle: Circle) =>
-    circle.circleType !== "user" || Boolean(circle.searchable);
+// viewerIsAdmin (resolved by the caller from a trusted DB lookup, never a caller-supplied
+// boolean — see searchDiscoverableCircles) lets superadmins see personal profiles the owner
+// hasn't opted into searchable for. Mirrors getSwipeCircles' mapVisible bypass in circle.ts.
+const isDiscoverableCircle = (circle: Circle, viewerIsAdmin: boolean) =>
+    viewerIsAdmin || circle.circleType !== "user" || Boolean(circle.searchable);
 
 const matchesCircleTypes = (circle: Circle, circleTypes: CircleType[]) =>
     !!circle.circleType && circleTypes.includes(circle.circleType);
@@ -135,7 +139,12 @@ const scoreCircleSearchMatch = (circle: Circle, query: string, tokens: string[])
     return score;
 };
 
-const buildCandidateQuery = (query: string, circleTypes: CircleType[], primaryGenres: string[]) => {
+const buildCandidateQuery = (
+    query: string,
+    circleTypes: CircleType[],
+    primaryGenres: string[],
+    viewerIsAdmin: boolean,
+) => {
     const discoverableTypeClauses: Record<string, unknown>[] = [];
     const nonUserTypes = circleTypes.filter((type) => type !== "user");
 
@@ -144,9 +153,9 @@ const buildCandidateQuery = (query: string, circleTypes: CircleType[], primaryGe
     }
 
     if (circleTypes.includes("user")) {
-        discoverableTypeClauses.push({
-            $and: [{ circleType: "user" }, { searchable: true }],
-        });
+        discoverableTypeClauses.push(
+            viewerIsAdmin ? { circleType: "user" } : { $and: [{ circleType: "user" }, { searchable: true }] },
+        );
     }
 
     const clauses: Record<string, unknown>[] = [
@@ -178,12 +187,21 @@ export const searchDiscoverableCircles = async ({
     limit = 20,
     circleTypes = SEARCHABLE_TYPES,
     primaryGenres = [],
+    viewerDid,
 }: SearchCirclesOptions): Promise<WithMetric<Circle>[]> => {
+    // Trusted lookup, not a caller-supplied flag — see isDiscoverableCircle's comment above and
+    // getSwipeCircles in circle.ts, which resolves its own admin bypass the same way.
+    let viewerIsAdmin = false;
+    if (viewerDid) {
+        const viewer = await Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } });
+        viewerIsAdmin = viewer?.isAdmin === true;
+    }
+
     const normalizedQuery = normalizeValue(query);
     const normalizedTypes = circleTypes.length > 0 ? circleTypes : SEARCHABLE_TYPES;
     const normalizedGenres = primaryGenres.filter(Boolean);
     const candidateLimit = Math.max(limit * 6, 120);
-    const candidateQuery = buildCandidateQuery(normalizedQuery, normalizedTypes, normalizedGenres);
+    const candidateQuery = buildCandidateQuery(normalizedQuery, normalizedTypes, normalizedGenres, viewerIsAdmin);
 
     const circles = (await Circles.find(candidateQuery, { projection: SAFE_CIRCLE_PROJECTION }).limit(candidateLimit).toArray()) as Circle[];
     const tokens = tokenizeQuery(normalizedQuery);
@@ -198,7 +216,12 @@ export const searchDiscoverableCircles = async ({
             return { circle, score };
         })
         .filter(({ circle, score }) => {
-            if (!circle._id || !isCirclePublished(circle) || !isDiscoverableCircle(circle) || !matchesCircleTypes(circle, normalizedTypes)) {
+            if (
+                !circle._id ||
+                !isCirclePublished(circle) ||
+                !isDiscoverableCircle(circle, viewerIsAdmin) ||
+                !matchesCircleTypes(circle, normalizedTypes)
+            ) {
                 return false;
             }
 
@@ -228,8 +251,10 @@ export const searchDiscoverableCircles = async ({
         // pre-existing isSuppressedUserProfile, which only ever disguised a marker's title/image
         // without preventing one from being created) makes that impossible — while the profile
         // stays fully present, searchable, and viewable via Open; the intentionally separate
-        // `searchable` gate (isDiscoverableCircle, above) is untouched.
-        const isMapVisible = circle.circleType !== "user" || circle.mapVisible === true;
+        // `searchable` gate (isDiscoverableCircle, above) is untouched. viewerIsAdmin bypasses
+        // this the same way it bypasses the searchable gate, so an admin's search result for a
+        // private profile still carries a location instead of a half-fix with no pin.
+        const isMapVisible = viewerIsAdmin || circle.circleType !== "user" || circle.mapVisible === true;
         return {
             ...circle,
             location: isMapVisible ? circle.location : undefined,

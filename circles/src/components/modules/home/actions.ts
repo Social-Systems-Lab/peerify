@@ -22,7 +22,7 @@ import {
     listToolboxConnectionsForUserDid,
     ToolboxConnectionsSummary,
 } from "@/lib/data/relationships";
-import { UserRelationships } from "@/lib/data/db";
+import { Circles, UserRelationships } from "@/lib/data/db";
 import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
 
 type CircleActionResponse = {
@@ -59,12 +59,17 @@ export const getProfilePreviewAccessAction = async (
         return { hasAccess: true };
     }
 
-    const [membership, isContact] = await Promise.all([
+    // Superadmins (user.isAdmin) see the real preview for any profile, regardless of the
+    // owner's mapVisible/searchable settings — resolved here from a trusted DB lookup on the
+    // cookie-derived viewerDid, not a client-supplied flag. Mirrors the bypass already added to
+    // getSwipeCircles/searchDiscoverableCircles.
+    const [viewer, membership, isContact] = await Promise.all([
+        Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } }),
         getMember(viewerDid, targetCircleId),
         isAcceptedConnectionForUserDid(viewerDid, targetDid),
     ]);
 
-    return { hasAccess: Boolean(membership) || isContact };
+    return { hasAccess: viewer?.isAdmin === true || Boolean(membership) || isContact };
 };
 
 export const followCircle = async (circle: Circle, answers?: Record<string, string>): Promise<CircleActionResponse> => {

@@ -20,6 +20,7 @@ import {
     sidePanelContentVisibleAtom,
     sidePanelModeAtom,
     feedPanelDockedAtom,
+    userAtom,
 } from "@/lib/data/atoms";
 import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
@@ -42,8 +43,12 @@ const isEventDisplay = (content: any): content is EventDisplay => !!(content && 
 // (getSwipeCircles). This guard exists in case a personal profile ever
 // reaches this component via some other path. Search results are gated
 // on the separate `searchable` field — see search-results-panel.tsx.
-const isSuppressedUserProfile = (content: any): boolean =>
-    content?.circleType === "user" && content?.mapVisible !== true;
+// viewerIsAdmin (sourced from userAtom.isAdmin, the same trusted-on-login client state the
+// admin nav link already reads in global-nav.tsx) lets superadmins see the real marker for
+// profiles the owner hasn't opted into mapVisible for, mirroring the query-level bypass already
+// in getSwipeCircles/searchDiscoverableCircles.
+const isSuppressedUserProfile = (content: any, viewerIsAdmin: boolean): boolean =>
+    !viewerIsAdmin && content?.circleType === "user" && content?.mapVisible !== true;
 
 const getLngLatParts = (lngLat: any): { lng: number; lat: number } | undefined => {
     const lng = Array.isArray(lngLat) ? lngLat[0] : lngLat?.lng;
@@ -62,21 +67,21 @@ const getAngularDistance = (a: { lng: number; lat: number }, b: { lng: number; l
     return 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 };
 
-const getMarkerTitle = (content: Content): string => {
+const getMarkerTitle = (content: Content, viewerIsAdmin: boolean): string => {
     if (isEventDisplay(content)) {
         return content.title ?? "Event";
     }
     if ((content as any)?.circleType === "post") {
         return (content as any)?.content?.slice(0, 80) ?? "Noticeboard post";
     }
-    if (isSuppressedUserProfile(content)) {
+    if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return "Unavailable";
     }
     return (content as any)?.name ?? "Map item";
 };
 
-const getMarkerInitials = (content: Content): string => {
-    const title = getMarkerTitle(content).trim();
+const getMarkerInitials = (content: Content, viewerIsAdmin: boolean): string => {
+    const title = getMarkerTitle(content, viewerIsAdmin).trim();
     if (!title) {
         return "";
     }
@@ -120,7 +125,7 @@ const MAP_STYLES: Record<MapStylePreference, { label: string; url: string; hidde
     },
 };
 
-const getMarkerImageUrl = (content: Content): string | undefined => {
+const getMarkerImageUrl = (content: Content, viewerIsAdmin: boolean): string | undefined => {
     const item = content as any;
     if (isEventDisplay(content)) {
         return item.images?.[0]?.fileInfo?.url ?? item.cover?.url ?? item.picture?.url;
@@ -128,7 +133,7 @@ const getMarkerImageUrl = (content: Content): string | undefined => {
     if (item.circleType === "post") {
         return item.media?.[0]?.fileInfo?.url ?? "/images/default-post-picture.png";
     }
-    if (isSuppressedUserProfile(content)) {
+    if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return undefined;
     }
     return item.picture?.url ?? item.images?.[0]?.fileInfo?.url;
@@ -203,7 +208,7 @@ const buildCirclePolygonCoordinates = (
     return coordinates;
 };
 
-const buildPeerifyAreaFeatureCollection = (contents: Content[]) => ({
+const buildPeerifyAreaFeatureCollection = (contents: Content[], viewerIsAdmin: boolean) => ({
     type: "FeatureCollection" as const,
     features: contents.flatMap((content) => {
         const lngLat = getLngLatParts(content.location?.lngLat);
@@ -216,7 +221,7 @@ const buildPeerifyAreaFeatureCollection = (contents: Content[]) => ({
                 type: "Feature" as const,
                 properties: {
                     id: content._id,
-                    title: getMarkerTitle(content),
+                    title: getMarkerTitle(content, viewerIsAdmin),
                     radiusKm: getPeerifyAreaRadiusKm(content),
                 },
                 geometry: {
@@ -232,7 +237,7 @@ const ensurePeerifyAreaLayers = (currentMap: mapboxgl.Map) => {
     if (!currentMap.getSource(PEERIFY_AREA_SOURCE_ID)) {
         currentMap.addSource(PEERIFY_AREA_SOURCE_ID, {
             type: "geojson",
-            data: buildPeerifyAreaFeatureCollection([]),
+            data: buildPeerifyAreaFeatureCollection([], false),
         });
     }
 
@@ -262,14 +267,14 @@ const ensurePeerifyAreaLayers = (currentMap: mapboxgl.Map) => {
     }
 };
 
-const getMarkerDescription = (content: Content): string => {
+const getMarkerDescription = (content: Content, viewerIsAdmin: boolean): string => {
     if (isEventDisplay(content)) {
         return (content as any)?.description ?? "";
     }
     if ((content as any)?.circleType === "post") {
         return (content as any)?.content ?? "";
     }
-    if (isSuppressedUserProfile(content)) {
+    if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return "";
     }
     return (content as any)?.mission ?? (content as any)?.description ?? "";
@@ -297,12 +302,12 @@ const escapeHtml = (value: string): string =>
 const POPUP_CARD_HEIGHT = 234;
 const POPUP_MARKER_GAP = 14;
 
-const createMarkerPopupHtml = (content: Content): string => {
-    const title = escapeHtml(getMarkerTitle(content));
-    const description = escapeHtml(getMarkerDescription(content)).slice(0, 180);
+const createMarkerPopupHtml = (content: Content, viewerIsAdmin: boolean): string => {
+    const title = escapeHtml(getMarkerTitle(content, viewerIsAdmin));
+    const description = escapeHtml(getMarkerDescription(content, viewerIsAdmin)).slice(0, 180);
     const imageUrl =
         getOptimizedImageUrl(
-            getMarkerImageUrl(content) ??
+            getMarkerImageUrl(content, viewerIsAdmin) ??
                 ((content as any)?.circleType === "post"
                     ? "/images/default-post-picture.png"
                     : "/images/default-user-cover.png"),
@@ -374,9 +379,11 @@ const setMarkerSelected = (element: HTMLElement, selected: boolean) => {
     }
 };
 
-const applyMarkerDisclosureStyle = (element: HTMLElement, content: Content) => {
+const applyMarkerDisclosureStyle = (element: HTMLElement, content: Content, viewerIsAdmin: boolean) => {
     const isAreaMarker = isPeerifyAreaMapContent(content);
-    const title = isAreaMarker ? `${getMarkerTitle(content)} - Approximate area` : getMarkerTitle(content);
+    const title = isAreaMarker
+        ? `${getMarkerTitle(content, viewerIsAdmin)} - Approximate area`
+        : getMarkerTitle(content, viewerIsAdmin);
     element.title = title;
     element.setAttribute("aria-label", title);
     const face = element.querySelector<HTMLElement>("[data-marker-face]");
@@ -390,12 +397,15 @@ const createMarkerElement = (
     onClick: (content: Content) => void,
     onHover: (content: Content, element: HTMLElement) => void,
     onLeave: () => void,
+    viewerIsAdmin: boolean,
 ): HTMLDivElement => {
     const theme = getMarkerTheme(content);
-    const imageUrl = getOptimizedImageUrl(getMarkerImageUrl(content), 64, 60);
+    const imageUrl = getOptimizedImageUrl(getMarkerImageUrl(content, viewerIsAdmin), 64, 60);
     const isAreaMarker = isPeerifyAreaMapContent(content);
     const markerElement = document.createElement("div");
-    markerElement.title = isAreaMarker ? `${getMarkerTitle(content)} - Approximate area` : getMarkerTitle(content);
+    markerElement.title = isAreaMarker
+        ? `${getMarkerTitle(content, viewerIsAdmin)} - Approximate area`
+        : getMarkerTitle(content, viewerIsAdmin);
     markerElement.setAttribute("aria-label", markerElement.title);
     markerElement.style.width = `${theme.size}px`;
     markerElement.style.height = `${theme.size + 8}px`;
@@ -411,7 +421,7 @@ const createMarkerElement = (
     if (!imageUrl || isEventDisplay(content)) {
         face.textContent = isEventDisplay(content)
             ? new Date(content.startAt).getDate().toString()
-            : getMarkerInitials(content);
+            : getMarkerInitials(content, viewerIsAdmin);
     }
     face.style.position = "absolute";
     face.style.left = "0";
@@ -470,7 +480,7 @@ const createMarkerElement = (
 
     markerElement.appendChild(face);
     markerElement.appendChild(pointer);
-    applyMarkerDisclosureStyle(markerElement, content);
+    applyMarkerDisclosureStyle(markerElement, content, viewerIsAdmin);
     return markerElement;
 };
 
@@ -503,6 +513,8 @@ const MapBox = ({
     const [sidePanelContentVisible] = useAtom(sidePanelContentVisibleAtom);
     const isMobile = useIsMobile();
     const pathname = usePathname();
+    const [user] = useAtom(userAtom);
+    const viewerIsAdmin = user?.isAdmin === true;
 
     // Marker DOM elements attach their mouseenter/click listeners once, at creation time, and are
     // reused (not recreated) on subsequent renders — so openMarkerPopup/closeMarkerPopup must read
@@ -626,7 +638,7 @@ const MapBox = ({
 
             popupContentRef.current = content;
             markerOverlay.current.appendChild(popupRef.current);
-            popupRef.current.innerHTML = createMarkerPopupHtml(content);
+            popupRef.current.innerHTML = createMarkerPopupHtml(content, viewerIsAdmin);
             popupRef.current
                 .querySelector<HTMLElement>('[data-marker-popup-action="open"]')
                 ?.addEventListener("click", (event) => {
@@ -655,7 +667,7 @@ const MapBox = ({
             const point = map.current.project(content.location.lngLat as any);
             popupRef.current.style.transform = getMarkerPopupTransform(point, content);
         },
-        [closeMarkerPopup, onMarkerClick, zoomToMarkerContent],
+        [closeMarkerPopup, onMarkerClick, zoomToMarkerContent, viewerIsAdmin],
     );
 
     const syncMarkerPositions = useCallback(() => {
@@ -726,11 +738,11 @@ const MapBox = ({
         try {
             ensurePeerifyAreaLayers(currentMap);
             const source = currentMap.getSource(PEERIFY_AREA_SOURCE_ID) as mapboxgl.GeoJSONSource | undefined;
-            source?.setData(buildPeerifyAreaFeatureCollection(displayedContent || []));
+            source?.setData(buildPeerifyAreaFeatureCollection(displayedContent || [], viewerIsAdmin));
         } catch (error) {
             console.warn("Failed to update Peerify area marker layer:", error);
         }
-    }, [displayedContent]);
+    }, [displayedContent, viewerIsAdmin]);
 
     useEffect(() => {
         if (!mapContainer.current) {
@@ -819,13 +831,19 @@ const MapBox = ({
                     currentMarkerIds.delete(markerId);
                     focusedMarkerIdsRef.current.delete(markerId);
                     markerContentRef.current.set(markerId, item);
-                    applyMarkerDisclosureStyle(existingMarker, item);
+                    applyMarkerDisclosureStyle(existingMarker, item, viewerIsAdmin);
                     const lngLat = getLngLatParts(item.location.lngLat);
                     if (lngLat) {
                         existingMarker.dataset.zIndex = `${getStableMarkerZIndex(lngLat, markerId)}`;
                     }
                 } else {
-                    const markerElement = createMarkerElement(item, onMarkerClick, openMarkerPopup, closeMarkerPopup);
+                    const markerElement = createMarkerElement(
+                        item,
+                        onMarkerClick,
+                        openMarkerPopup,
+                        closeMarkerPopup,
+                        viewerIsAdmin,
+                    );
                     const lngLat = getLngLatParts(item.location.lngLat);
                     if (lngLat) {
                         markerElement.dataset.zIndex = `${getStableMarkerZIndex(lngLat, markerId)}`;
@@ -857,6 +875,7 @@ const MapBox = ({
         closeMarkerPopup,
         syncMarkerPositions,
         updatePeerifyAreaLayers,
+        viewerIsAdmin,
     ]);
 
     useEffect(() => {
@@ -892,6 +911,7 @@ const MapBox = ({
                         onMarkerClick,
                         openMarkerPopup,
                         closeMarkerPopup,
+                        viewerIsAdmin,
                     );
 
                     markerOverlay.current.appendChild(markerElement);
@@ -960,7 +980,16 @@ const MapBox = ({
             });
         }
         setZoomContent(undefined);
-    }, [zoomContent, onMarkerClick, openMarkerPopup, closeMarkerPopup, contentPreview, isMobile, setZoomContent]);
+    }, [
+        zoomContent,
+        onMarkerClick,
+        openMarkerPopup,
+        closeMarkerPopup,
+        contentPreview,
+        isMobile,
+        setZoomContent,
+        viewerIsAdmin,
+    ]);
 
     // Bring selected marker to front
     const elevatedMarkerIdRef = useRef<string | null>(null);

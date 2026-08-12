@@ -214,21 +214,29 @@ export const getPublishedCircleQuery = (): any => ({
     $or: [{ publishStatus: "published" as const }, { publishStatus: { $exists: false } }],
 });
 
-export const getSwipeCircles = async (): Promise<Circle[]> => {
+// Superadmins (user.isAdmin — see src/lib/auth/verification.ts) see every personal profile on
+// the map, including ones the owner hasn't opted into mapVisible for. isAdmin is resolved here
+// from a trusted DB lookup on viewerDid, never accepted as a caller-supplied boolean, so a client
+// can't just claim to be an admin. getPublishedCircleQuery() is applied identically either way.
+export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => {
     let circles: Circle[] = [];
 
+    let isAdmin = false;
+    if (viewerDid) {
+        const viewer = await Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } });
+        isAdmin = viewer?.isAdmin === true;
+    }
+
+    const mapVisibilityClause = isAdmin
+        ? undefined
+        : {
+              $or: [{ circleType: { $ne: "user" } }, { $and: [{ circleType: "user" }, { mapVisible: true }] }],
+          };
+
     circles = await Circles.find(
-        {
-            $and: [
-                getPublishedCircleQuery(),
-                {
-                    $or: [
-                        { circleType: { $ne: "user" } },
-                        { $and: [{ circleType: "user" }, { mapVisible: true }] },
-                    ],
-                },
-            ],
-        },
+        mapVisibilityClause
+            ? { $and: [getPublishedCircleQuery(), mapVisibilityClause] }
+            : getPublishedCircleQuery(),
         { projection: DISCOVERY_CIRCLE_PROJECTION },
     ).toArray();
 
