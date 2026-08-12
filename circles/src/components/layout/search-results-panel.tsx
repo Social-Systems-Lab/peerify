@@ -2,7 +2,7 @@
 
 import React, { useMemo } from "react";
 import { useAtom } from "jotai";
-import { sidePanelSearchStateAtom, contentPreviewAtom, zoomContentAtom } from "@/lib/data/atoms";
+import { sidePanelSearchStateAtom, contentPreviewAtom, zoomContentAtom, userAtom } from "@/lib/data/atoms";
 import { Calendar as CalendarIcon } from "lucide-react";
 import Indicators from "@/components/utils/indicators";
 import { CirclePicture } from "@/components/modules/circles/circle-picture";
@@ -19,13 +19,18 @@ const SEARCH_CATEGORY_LABELS: Record<string, string> = {
 // (searchDiscoverableCircles). This guard exists in case a personal profile
 // ever reaches this component via some other path. Mirrors map.tsx's
 // isSuppressedUserProfile, but keyed to `searchable` instead of `mapVisible`.
-const isSuppressedSearchProfile = (item: any): boolean =>
-    item?.circleType === "user" && item?.searchable !== true;
+// viewerIsAdmin (sourced from userAtom.isAdmin, same trusted client state the admin nav link
+// already reads in global-nav.tsx) lets superadmins see the real result, mirroring the
+// query-level bypass already in searchDiscoverableCircles.
+const isSuppressedSearchProfile = (item: any, viewerIsAdmin: boolean): boolean =>
+    !viewerIsAdmin && item?.circleType === "user" && item?.searchable !== true;
 
 export default function SearchResultsPanel() {
     const [searchState] = useAtom(sidePanelSearchStateAtom);
     const [, setContentPreview] = useAtom(contentPreviewAtom);
     const [, setZoomContent] = useAtom(zoomContentAtom);
+    const [user] = useAtom(userAtom);
+    const viewerIsAdmin = user?.isAdmin === true;
 
     const items = searchState.items || [];
     const filterSummary = useMemo(() => {
@@ -124,7 +129,7 @@ export default function SearchResultsPanel() {
                 {!searchState.isSearching && items.length > 0 && (
                     <ul className="space-y-1">
                         {items.map((item: any) => {
-                            const suppressed = isSuppressedSearchProfile(item);
+                            const suppressed = isSuppressedSearchProfile(item, viewerIsAdmin);
                             const pictureItem = suppressed ? { ...item, name: "Unavailable", picture: undefined, images: undefined } : item;
 
                             return (
