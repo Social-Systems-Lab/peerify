@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 62792eb4 (2026-08-08 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 65480cfe (2026-08-13 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -36,6 +36,48 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
   post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
 - See OPERATIONS.md for full architecture and deploy procedure.
+
+---
+
+## 2026-08-13 — Promoted to production: superadmin visibility into private profiles
+
+Headline: promoted the superadmin visibility fix to production. Deploy only — no code changes
+made in this worktree beyond the cherry-pick itself.
+
+**Scope confirmed first, as instructed.** `git log main..origin/staging` listed 39 commits, but
+by content-diff (not ancestry — cherry-picks mint new hashes) only 1 was actually still
+pending: `88c9bcf9` — "Give superadmins full visibility into private profiles." Confirmed via
+`git cherry -v main origin/staging` (patch-id equivalence) that the other 38 already have
+content-equivalent commits on `main` from earlier promotions (Backstage Lounge auto-enrollment,
+nav bar links, map-privacy fix, connection-request fixes, visual-identity pilot + corrections,
+Kamooni→Peerify rebrand, palette correction, mobile-overlap fix), and confirmed directly via
+`git diff --stat main origin/staging -- . ':!circles/SESSION_LOG.md' ':!circles/PEERIFY_CONTEXT.md'`
+that excluding each branch's own independent narrative-log/doc drift, the entire real code gap
+was exactly this one commit's 7 files. (`PEERIFY_CONTEXT.md` differs too, but in main's favor —
+main's copy is newer than staging's stale one — so left untouched.)
+
+**The fix:** an `isAdmin` bypass (resolved server-side from a trusted DB lookup on the viewer's
+did, never a client-supplied flag) added to `getSwipeCircles`/`searchDiscoverableCircles` at the
+query layer, `getProfilePreviewAccessAction` for the profile-preview lock card, and the
+client-side display-masking helpers in `map.tsx`/`search-results-panel.tsx` — so a superadmin
+can now see, search for, and open personal profiles that opted out of `mapVisible`/`searchable`.
+`publishStatus`/draft-content filtering is untouched throughout.
+
+**Promotion:** cherry-picked `88c9bcf9` onto `main` → `65480cfe`. Applied cleanly, no conflicts.
+`npx tsc --noEmit` clean.
+
+**Deploy:** `scripts/deploy-peerify.sh` — GIT_SHA `65480cfe`, all 8 steps PASS (build, BUILD_ID
+`ClBfZYpBKQz7duTL5F0Pj`, static-asset copy/verify, PM2 restart, HTTP checks).
+
+**Post-deploy verification (beyond the script's own checks):** `pm2 jlist` confirmed `peerify`
+restarted (new pid `1730937`, fresh uptime) and `peerify-staging` untouched (pid `1657393`,
+uptime unchanged); `pm2 save` completed. `curl` confirmed HTTP 200 on both `https://peerify.one/`
+and `https://peerify.one/explore`. Grepped the deployed standalone bundle to confirm the fix
+actually shipped in the built artifact, not just the source: the literal string "This profile is
+private" found in `.next/server/chunks/6509.js`.
+
+**Carry-forward:** none — this was a scoped deploy-only promotion, no source changes made on
+`main` beyond the one cherry-pick.
 
 ---
 
