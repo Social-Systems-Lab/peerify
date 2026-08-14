@@ -210,6 +210,9 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                     case "event_invitation":
                         groupKey = `event_invitation_${content.eventId}`;
                         break;
+                    case "event_artist_added":
+                        groupKey = `event_artist_added_${content.eventId}_${content.artistCircle?._id}`;
+                        break;
                     case "pm_received":
                         groupKey = `pm_received_${content.roomId || record._id}`;
                         break;
@@ -512,6 +515,7 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                 case "goal_status_changed":
                     return notification.goalId ? `/circles/${circleHandle}/goals/${notification.goalId}` : null;
                 case "event_invitation":
+                case "event_artist_added":
                     return notification.eventId ? `/circles/${circleHandle}/events/${notification.eventId}` : null;
                 default:
                     return null;
