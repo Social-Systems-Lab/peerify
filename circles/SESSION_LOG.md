@@ -2930,3 +2930,32 @@ illustration. Old illustration files (`access-denied.png`, `page-not-found.png`,
 picked in original order, `8f2ae039`'s conflict resolved as described above) + this log entry.
 `peerify-staging` confirmed untouched throughout. **Live in production** as of this entry.
 Pushing `main` to `origin` immediately after this commit.
+
+### 2026-08-14 (late) — Bug found: Favorites navigation 404s for circles without "feed" module enabled
+
+**Symptom:** Favoriting a circle (e.g. Peerify Management Circle) and navigating to it via
+the Favorites list in the sidebar redirects to a "not found" page:
+`/circles/{handle}/not-found?redirectTo=%2Fcircles%2F{handle}&module=feed`
+with the message: `We couldn't find "feed" in {Circle Name}. The "feed" is not available
+in this circle. It may be disabled.`
+
+Direct navigation to `/circles/{handle}/home` works fine — the circle itself is not broken,
+only the Favorites-list navigation path.
+
+**Likely cause:** Favorites navigation appears to default/resolve to the circle's `feed`
+module rather than whatever module is actually enabled/default for that specific circle.
+Circles without `feed` in `enabledModules` would 404 via this path while working normally
+via direct nav.
+
+**Investigation so far:**
+- Grepped `module=feed|favorites` across src/ — hits in `bookmark-button.tsx`,
+  `post/[postId]/page.tsx`, and `user-toolbox.tsx`.
+- Checked `user-toolbox.tsx` specifically for "feed" — no match. RULED OUT as the
+  source of the hardcoded module param. Root cause not yet located.
+- Not yet checked: `bookmark-button.tsx` (bookmarking logic itself) and whatever
+  component actually renders the sidebar Favorites *list* and constructs its links
+  (may be a different file than any of the three above — worth a broader search).
+
+**Status:** Not fixed, root cause not yet found. Low urgency (edge case, not a main-flow
+break). Pick up fresh next session — needs read-only investigation prompt for CC before
+any fix, same process as other work this week.
