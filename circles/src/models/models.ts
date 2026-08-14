@@ -1241,6 +1241,7 @@ export type NotificationType =
     | "event_approved"
     | "event_status_changed"
     | "event_invitation"
+    | "event_artist_added" // A circle was added as an additional artist/band on an event
     // Ranking Notifications
     | "ranking_stale_reminder" // User's ranking list is stale, reminder sent
     | "ranking_grace_period_ended" // User's ranking list is past grace period
@@ -1314,6 +1315,7 @@ export const notificationTypeValues = [
     "event_approved",
     "event_status_changed",
     "event_invitation",
+    "event_artist_added",
     "ranking_stale_reminder",
     "ranking_grace_period_ended",
     "user_verified",

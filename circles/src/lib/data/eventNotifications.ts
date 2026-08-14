@@ -2,6 +2,7 @@ import { Circle, Event as EventModel, EventDisplay, EventStage, UserPrivate } fr
 import { sendNotifications } from "./notifications";
 import { getUserPrivate } from "./user";
 import { getCircleById } from "./circle";
+import { getMembers } from "./member";
 import { features } from "./constants";
 import { getAuthorizedMembers } from "../auth/auth";
 import { sanitizeObjectForJSON } from "../utils/sanitize";
@@ -118,5 +119,49 @@ export async function notifyEventStatusChanged(
         );
     } catch (err) {
         console.error("Error in notifyEventStatusChanged:", err);
+    }
+}
+
+/**
+ * Notify admins of a circle that it was added as an additional artist/band on an event.
+ * Unlike the other notify* helpers here, the recipients are admins of the ARTIST circle
+ * (circleId), not getEventCircle() — which only resolves the single host circleId and would
+ * notify the wrong circle's admins entirely.
+ */
+export async function notifyAddedAsEventArtist(
+    event: Pick<EventModel, "_id" | "title" | "circleId">,
+    artistCircleId: string,
+) {
+    try {
+        const artistCircle = await getCircleById(artistCircleId);
+        if (!artistCircle) return;
+
+        const hostCircle = await getEventCircle(event);
+
+        const artistCircleMembers = await getMembers(artistCircleId);
+        const adminDids = artistCircleMembers
+            .filter((member) => member.userGroups?.includes("admins"))
+            .map((member) => member.userDid)
+            .filter((did): did is string => !!did);
+
+        if (adminDids.length === 0) return;
+
+        const adminPrivates = (await Promise.all(adminDids.map((did) => getUserPrivate(did)))).filter(
+            (up): up is UserPrivate => up !== null,
+        );
+        if (adminPrivates.length === 0) return;
+
+        await sendNotifications(
+            "event_artist_added",
+            adminPrivates,
+            sanitizeObjectForJSON({
+                circle: hostCircle, // host circle, so notification links resolve under its route
+                artistCircle,
+                eventId: (event as any)._id?.toString?.() || String((event as any)._id),
+                eventName: event.title,
+            }),
+        );
+    } catch (err) {
+        console.error("Error in notifyAddedAsEventArtist:", err);
     }
 }

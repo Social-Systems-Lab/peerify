@@ -83,6 +83,7 @@ const buildNotificationBody = (type: string, payload: any): string => {
     const taskTitle = payload?.taskTitle || payload?.task?.title || "a task";
     const goalTitle = payload?.goalTitle || payload?.goal?.title || "a goal";
     const eventName = payload?.eventName || payload?.eventTitle || "an event";
+    const artistCircleName = payload?.artistCircle?.name || "Your artist profile";
 
     switch (type) {
         case "follow_request":
@@ -168,6 +169,8 @@ const buildNotificationBody = (type: string, payload: any): string => {
             return `${actorName} updated ${eventName}`;
         case "event_invitation":
             return `${actorName} invited you to ${eventName}`;
+        case "event_artist_added":
+            return `${artistCircleName} was added to the lineup for ${eventName}`;
         case "ranking_stale_reminder":
             return "Your ranking needs attention";
         case "ranking_grace_period_ended":

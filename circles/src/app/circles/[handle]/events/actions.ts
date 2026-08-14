@@ -52,6 +52,7 @@ import {
     notifyEventSubmittedForReview,
     notifyEventApproved,
     notifyEventStatusChanged,
+    notifyAddedAsEventArtist,
 } from "@/lib/data/eventNotifications";
 import { inviteUsersToEvent } from "@/lib/data/event";
 import { getMembers, isCircleAdmin, isCircleAdminOfAny } from "@/lib/data/member";
@@ -880,6 +881,8 @@ export async function addArtistToEvent(
 
         const success = await updateEventDb(eventId, { additionalArtistCircleIds: [...existingIds, circleId] }, user);
         if (!success) return { success: false, message: "Failed to add artist to event" };
+
+        await notifyAddedAsEventArtist(event, circleId);
 
         revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
         return { success: true, message: "Artist added to event" };
