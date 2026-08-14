@@ -1822,6 +1822,12 @@ export type Recurrence = z.infer<typeof recurrenceSchema>;
 export const eventSchema = z.object({
     _id: z.any().optional(),
     circleId: z.string(),
+    // Additional artist/band circles performing at this event (multi-artist support). circleId
+    // above remains the primary/owning circle; these are supplemental.
+    additionalArtistCircleIds: z.array(z.string()).optional(),
+    // Subset of additionalArtistCircleIds whose circle admins have been granted full edit rights
+    // on this event.
+    artistAdminCircleIds: z.array(z.string()).optional(),
     createdBy: didSchema,
     createdAt: z.date(),
     updatedAt: z.date().optional(), // Track updates
