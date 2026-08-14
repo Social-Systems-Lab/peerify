@@ -52,6 +52,7 @@ type Props = {
     canReview?: boolean;
     canModerate?: boolean;
     isAuthor?: boolean;
+    canRemoveSelfAsArtist?: boolean;
     isPreview?: boolean;
     onOpen?: () => void;
     onClose?: () => void;

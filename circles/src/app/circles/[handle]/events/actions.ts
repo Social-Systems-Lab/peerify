@@ -48,7 +48,7 @@ import {
     notifyEventStatusChanged,
 } from "@/lib/data/eventNotifications";
 import { inviteUsersToEvent } from "@/lib/data/event";
-import { getMembers } from "@/lib/data/member";
+import { getMembers, isCircleAdminOfAny } from "@/lib/data/member";
 import { addCommentToDiscussion, getDiscussionWithComments } from "@/lib/data/discussion";
 import { Comment } from "@/models/models";
 import { getTasksByEventId } from "@/lib/data/task";
@@ -621,7 +621,8 @@ export async function updateEventAction(
 
         const isAuthor = userDid === event.createdBy;
         const canModerate = await isAuthorized(userDid, circle._id as string, features.events.moderate);
-        const canEdit = isAuthor || canModerate;
+        const isArtistAdmin = await isCircleAdminOfAny(userDid, event.artistAdminCircleIds);
+        const canEdit = isAuthor || canModerate || isArtistAdmin;
         if (!canEdit) return { success: false, message: "Not authorized to update this event" };
 
         const validated = updateEventSchema.safeParse({
