@@ -22,7 +22,13 @@ import {
     TaskDisplay,
     postSchema,
 } from "@/models/models";
-import { getCircleByHandle, ensureModuleIsEnabledOnCircle, getCirclesBySearchQuery } from "@/lib/data/circle";
+import {
+    getCircleByHandle,
+    ensureModuleIsEnabledOnCircle,
+    getCirclesBySearchQuery,
+    getCircleById,
+    getCirclesByIds,
+} from "@/lib/data/circle";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate, getPrivateUserByDid, updateUser } from "@/lib/data/user";
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
@@ -48,12 +54,12 @@ import {
     notifyEventStatusChanged,
 } from "@/lib/data/eventNotifications";
 import { inviteUsersToEvent } from "@/lib/data/event";
-import { getMembers, isCircleAdminOfAny } from "@/lib/data/member";
+import { getMembers, isCircleAdmin, isCircleAdminOfAny } from "@/lib/data/member";
 import { addCommentToDiscussion, getDiscussionWithComments } from "@/lib/data/discussion";
 import { Comment } from "@/models/models";
 import { getTasksByEventId } from "@/lib/data/task";
 import { listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
-import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyManagedIdentity, isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 
 // ----- Types -----
 
@@ -823,6 +829,270 @@ export async function deleteEventAction(
     } catch (error) {
         console.error("Error deleting event:", error);
         return { success: false, message: "Failed to delete event" };
+    }
+}
+
+// ----- Multi-artist support -----
+
+export type EventArtistBand = {
+    circle: Circle;
+    isAdminDelegated: boolean;
+    currentUserIsAdmin: boolean;
+};
+
+/**
+ * Add an artist/band circle to an event's lineup. Gated the same as event edits (author or
+ * moderator) — being an artist admin does not by itself grant the ability to add other artists.
+ */
+export async function addArtistToEvent(
+    circleHandle: string,
+    eventId: string,
+    circleId: string,
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return { success: false, message: "User not authenticated" };
+
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle) return { success: false, message: "Circle not found" };
+
+        const event = await getEventById(eventId, userDid);
+        if (!event) return { success: false, message: "Event not found" };
+
+        const isAuthor = userDid === event.createdBy;
+        const canModerate = await isAuthorized(userDid, circle._id as string, features.events.moderate);
+        if (!isAuthor && !canModerate) {
+            return { success: false, message: "Not authorized to add artists to this event" };
+        }
+
+        const artistCircle = await getCircleById(circleId);
+        if (!artistCircle || !isPeerifyArtistIdentity(artistCircle)) {
+            return { success: false, message: "Selected circle is not an artist profile" };
+        }
+
+        const existingIds = event.additionalArtistCircleIds || [];
+        if (existingIds.includes(circleId)) {
+            return { success: true, message: "Artist already added to this event" };
+        }
+
+        const user = await getUserByDid(userDid);
+        if (!user) return { success: false, message: "User not found" };
+
+        const success = await updateEventDb(eventId, { additionalArtistCircleIds: [...existingIds, circleId] }, user);
+        if (!success) return { success: false, message: "Failed to add artist to event" };
+
+        revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
+        return { success: true, message: "Artist added to event" };
+    } catch (error) {
+        console.error("Error adding artist to event:", error);
+        return { success: false, message: "Failed to add artist to event" };
+    }
+}
+
+/**
+ * Remove an artist/band circle from an event's lineup (and clears any admin delegation for it).
+ * Gated the same as event edits (author or moderator).
+ */
+export async function removeArtistFromEvent(
+    circleHandle: string,
+    eventId: string,
+    circleId: string,
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return { success: false, message: "User not authenticated" };
+
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle) return { success: false, message: "Circle not found" };
+
+        const event = await getEventById(eventId, userDid);
+        if (!event) return { success: false, message: "Event not found" };
+
+        const isAuthor = userDid === event.createdBy;
+        const canModerate = await isAuthorized(userDid, circle._id as string, features.events.moderate);
+        if (!isAuthor && !canModerate) {
+            return { success: false, message: "Not authorized to remove artists from this event" };
+        }
+
+        const user = await getUserByDid(userDid);
+        if (!user) return { success: false, message: "User not found" };
+
+        const success = await updateEventDb(
+            eventId,
+            {
+                additionalArtistCircleIds: (event.additionalArtistCircleIds || []).filter((id) => id !== circleId),
+                artistAdminCircleIds: (event.artistAdminCircleIds || []).filter((id) => id !== circleId),
+            },
+            user,
+        );
+        if (!success) return { success: false, message: "Failed to remove artist from event" };
+
+        revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
+        return { success: true, message: "Artist removed from event" };
+    } catch (error) {
+        console.error("Error removing artist from event:", error);
+        return { success: false, message: "Failed to remove artist from event" };
+    }
+}
+
+/**
+ * Grant/revoke full event edit rights to a listed band's circle admins. Gated the same as event
+ * edits (author or moderator) — an existing artist admin cannot delegate admin to another band.
+ */
+export async function setArtistAdminStatus(
+    circleHandle: string,
+    eventId: string,
+    circleId: string,
+    isAdmin: boolean,
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return { success: false, message: "User not authenticated" };
+
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle) return { success: false, message: "Circle not found" };
+
+        const event = await getEventById(eventId, userDid);
+        if (!event) return { success: false, message: "Event not found" };
+
+        const isAuthor = userDid === event.createdBy;
+        const canModerate = await isAuthorized(userDid, circle._id as string, features.events.moderate);
+        if (!isAuthor && !canModerate) {
+            return { success: false, message: "Not authorized to manage artist admin status for this event" };
+        }
+
+        if (!(event.additionalArtistCircleIds || []).includes(circleId)) {
+            return { success: false, message: "That circle has not been added as an artist for this event" };
+        }
+
+        const existingAdminIds = event.artistAdminCircleIds || [];
+        const artistAdminCircleIds = isAdmin
+            ? existingAdminIds.includes(circleId)
+                ? existingAdminIds
+                : [...existingAdminIds, circleId]
+            : existingAdminIds.filter((id) => id !== circleId);
+
+        const user = await getUserByDid(userDid);
+        if (!user) return { success: false, message: "User not found" };
+
+        const success = await updateEventDb(eventId, { artistAdminCircleIds }, user);
+        if (!success) return { success: false, message: "Failed to update artist admin status" };
+
+        revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
+        return { success: true, message: isAdmin ? "Band admins granted edit access" : "Band admin access revoked" };
+    } catch (error) {
+        console.error("Error setting artist admin status:", error);
+        return { success: false, message: "Failed to update artist admin status" };
+    }
+}
+
+/**
+ * Let an admin of a listed (non-delegated) band remove that band from the event themselves.
+ * Intentionally a separate, narrower permission path from removeArtistFromEvent — does not
+ * require canModerate/isAuthor, only admin of the specific band circle being removed.
+ */
+export async function removeSelfAsEventArtist(
+    circleHandle: string,
+    eventId: string,
+    circleId: string,
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return { success: false, message: "User not authenticated" };
+
+        const event = await getEventById(eventId, userDid);
+        if (!event) return { success: false, message: "Event not found" };
+
+        if (!(event.additionalArtistCircleIds || []).includes(circleId)) {
+            return { success: false, message: "This circle is not listed as an artist for this event" };
+        }
+
+        const isAdminOfCircle = await isCircleAdmin(userDid, circleId);
+        if (!isAdminOfCircle) {
+            return { success: false, message: "Not authorized to remove this artist" };
+        }
+
+        const user = await getUserByDid(userDid);
+        if (!user) return { success: false, message: "User not found" };
+
+        const success = await updateEventDb(
+            eventId,
+            {
+                additionalArtistCircleIds: (event.additionalArtistCircleIds || []).filter((id) => id !== circleId),
+                artistAdminCircleIds: (event.artistAdminCircleIds || []).filter((id) => id !== circleId),
+            },
+            user,
+        );
+        if (!success) return { success: false, message: "Failed to remove artist from event" };
+
+        revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
+        return { success: true, message: "Removed band from event" };
+    } catch (error) {
+        console.error("Error removing self as event artist:", error);
+        return { success: false, message: "Failed to remove artist from event" };
+    }
+}
+
+/**
+ * Get the artist/band circles attached to an event, with admin-delegation and current-user-admin
+ * status for each, for rendering the band list and its per-band controls.
+ */
+export async function getEventArtistsAction(
+    circleHandle: string,
+    eventId: string,
+): Promise<{ bands: EventArtistBand[] }> {
+    const defaultResult = { bands: [] as EventArtistBand[] };
+
+    try {
+        const userDid = await getAuthenticatedUserDid();
+
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle) return defaultResult;
+
+        const event = await getEventById(eventId, userDid || "");
+        const artistCircleIds = event?.additionalArtistCircleIds || [];
+        if (artistCircleIds.length === 0) return defaultResult;
+
+        const artistCircles = await getCirclesByIds(artistCircleIds);
+        const adminDelegatedIds = event?.artistAdminCircleIds || [];
+
+        const bands = await Promise.all(
+            artistCircleIds.map(async (circleId): Promise<EventArtistBand | null> => {
+                const artistCircle = artistCircles.find((c) => c._id === circleId);
+                if (!artistCircle) return null;
+
+                const currentUserIsAdmin = userDid ? await isCircleAdmin(userDid, circleId) : false;
+                return {
+                    circle: artistCircle,
+                    isAdminDelegated: adminDelegatedIds.includes(circleId),
+                    currentUserIsAdmin,
+                };
+            }),
+        );
+
+        return { bands: bands.filter((band): band is EventArtistBand => band !== null) };
+    } catch (error) {
+        console.error("Error in getEventArtistsAction:", error);
+        return defaultResult;
+    }
+}
+
+/**
+ * Search artist-typed circles (bands, artists, DJs, producers) to populate the additional-artist
+ * picker in the event form.
+ */
+export async function searchArtistCirclesAction(
+    query: string,
+    limit: number = 10,
+): Promise<GetCirclesBySearchQueryActionResult> {
+    const defaultResult: GetCirclesBySearchQueryActionResult = { circles: [] };
+
+    try {
+        const circles = await getCirclesBySearchQuery(query, limit * 2, "user");
+        return { circles: circles.filter(isPeerifyArtistIdentity).slice(0, limit) };
+    } catch (error) {
+        console.error("Error in searchArtistCirclesAction:", error);
+        return defaultResult;
     }
 }
 
