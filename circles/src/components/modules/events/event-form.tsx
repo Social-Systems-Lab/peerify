@@ -2,7 +2,14 @@
 
 import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createEventAction, updateEventAction } from "@/app/circles/[handle]/events/actions";
+import {
+    createEventAction,
+    updateEventAction,
+    addArtistToEvent,
+    removeArtistFromEvent,
+    setArtistAdminStatus,
+    getEventArtistsAction,
+} from "@/app/circles/[handle]/events/actions";
 import {
     Circle,
     EventDisplay,
@@ -58,6 +65,7 @@ function toUtcEndOfDayIso(dateOnly: string) {
 
 import CircleSelector from "@/components/global-create/circle-selector";
 import { CreatableItemDetail, creatableItemsList } from "@/components/global-create/global-create-dialog-content";
+import EventArtistPicker, { SelectedArtistBand } from "@/components/modules/events/event-artist-picker";
 
 const VENUE_DISCLOSURE_OPTIONS: Array<{
     value: PeerifyEventVenueDisclosure;
@@ -162,6 +170,8 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
     const [isPrivate, setIsPrivate] = useState<boolean>(event?.visibility === "private");
     const [location, setLocation] = useState<Location | undefined>(event?.location);
     const [images, setImages] = useState<ImageItem[]>([]);
+    const [artistBands, setArtistBands] = useState<SelectedArtistBand[]>([]);
+    const originalArtistBandsRef = useRef<{ ids: string[]; adminIds: string[] }>({ ids: [], adminIds: [] });
     const [publishToNoticeboard, setPublishToNoticeboard] = useState<boolean>(Boolean(event?.noticeboardPostId));
     const peerifyMetadata = event?.metadata?.peerify;
     const [venueDisclosure, setVenueDisclosure] = useState<PeerifyEventVenueDisclosure>(
@@ -281,10 +291,66 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
         setPublishToNoticeboard(Boolean(event?.noticeboardPostId));
     }, [event?.noticeboardPostId]);
 
+    // Seed additional artists for edit
+    useEffect(() => {
+        const eventId = event?._id as string | undefined;
+        if (!eventId || !circleHandle) return;
+
+        let cancelled = false;
+        (async () => {
+            const { bands } = await getEventArtistsAction(circleHandle, eventId);
+            if (cancelled) return;
+            originalArtistBandsRef.current = {
+                ids: bands.map((band) => band.circle._id!),
+                adminIds: bands.filter((band) => band.isAdminDelegated).map((band) => band.circle._id!),
+            };
+            setArtistBands(
+                bands.map((band) => ({
+                    circleId: band.circle._id!,
+                    circle: band.circle,
+                    isAdminDelegated: band.isAdminDelegated,
+                })),
+            );
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [event?._id, circleHandle]);
+
     const handleImagesChange = (items: ImageItem[]) => setImages(items);
     const handleCircleSelected = useCallback((circle: Circle | null) => {
         setSelectedCircle(circle?.handle);
     }, []);
+
+    // Diff the staged artistBands selection against what was loaded for this event and call the
+    // dedicated add/remove/admin-status actions to bring the server in sync.
+    const reconcileArtistBands = async (targetCircleHandle: string, targetEventId: string) => {
+        const original = originalArtistBandsRef.current;
+        const currentIds = artistBands.map((band) => band.circleId);
+
+        const toAdd = artistBands.filter((band) => !original.ids.includes(band.circleId));
+        const toRemove = original.ids.filter((id) => !currentIds.includes(id));
+
+        for (const band of toAdd) {
+            await addArtistToEvent(targetCircleHandle, targetEventId, band.circleId);
+            if (band.isAdminDelegated) {
+                await setArtistAdminStatus(targetCircleHandle, targetEventId, band.circleId, true);
+            }
+        }
+
+        for (const circleId of toRemove) {
+            await removeArtistFromEvent(targetCircleHandle, targetEventId, circleId);
+        }
+
+        for (const band of artistBands) {
+            if (!original.ids.includes(band.circleId)) continue; // handled above via toAdd
+            const wasAdminDelegated = original.adminIds.includes(band.circleId);
+            if (wasAdminDelegated !== band.isAdminDelegated) {
+                await setArtistAdminStatus(targetCircleHandle, targetEventId, band.circleId, band.isAdminDelegated);
+            }
+        }
+    };
 
     const onSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -382,6 +448,11 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                 }
 
                 if (result.success) {
+                    const resolvedEventId = (event?._id as string | undefined) || result.eventId;
+                    if (resolvedEventId) {
+                        await reconcileArtistBands(selectedCircle, resolvedEventId);
+                    }
+
                     toast({
                         title: "Success",
                         description: result.message || (event ? "Event updated." : "Event created."),
@@ -726,6 +797,10 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                             value={capacity}
                             onChange={(e) => setCapacity(e.target.value)}
                         />
+                    </div>
+
+                    <div className="rounded-lg border p-4">
+                        <EventArtistPicker value={artistBands} onChange={setArtistBands} />
                     </div>
 
                     <div className="flex items-center gap-2">

@@ -33,6 +33,7 @@ const getDistanceString = (distance: number) => {
     return `${(distance / 10).toFixed(0)} mil`;
 };
 import InvitedUserList from "./invited-user-list";
+import EventArtistList from "./event-artist-list";
 import InviteModal from "./invite-modal";
 import AttendeesList from "./attendees-list";
 import RsvpDialog from "./rsvp-dialog";
@@ -86,6 +87,7 @@ export default function EventDetail({
     onOpen, // Callback when opening the event
     onClose,
     isAuthor,
+    canRemoveSelfAsArtist,
 }: Props) {
     const { toast } = useToast();
     const [user, setUser] = useAtom(userAtom);
@@ -754,6 +756,13 @@ export default function EventDetail({
                             <div className="mt-1 text-sm">Your status: {event.userRsvpStatus}</div>
                         )}
                     </div>
+                    <EventArtistList
+                        circleHandle={circleHandle}
+                        eventId={event._id!.toString()}
+                        additionalArtistCircleIds={event.additionalArtistCircleIds}
+                        canEdit={canEdit}
+                        canRemoveSelfAsArtist={canRemoveSelfAsArtist}
+                    />
                     <AttendeesList circleHandle={circleHandle} eventId={event._id!.toString()} />
                     {event.invitations && event.invitations.length > 0 && (
                         <InvitedUserList
