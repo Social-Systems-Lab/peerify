@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
+import { isCircleAdminOfAny } from "@/lib/data/member";
 
 type PageProps = {
     params: Promise<{ handle: string; eventId: string }>;
@@ -47,7 +48,11 @@ export default async function EventDetailPage(props: PageProps) {
     const canModerate = userDid ? await isAuthorized(userDid, circle._id as string, features.events.moderate) : false;
     const canReview = userDid ? await isAuthorized(userDid, circle._id as string, features.events.review) : false;
     const isAuthor = !!userDid && userDid === event.createdBy;
-    const canEdit = canModerate || isAuthor;
+    const isArtistAdmin = userDid ? await isCircleAdminOfAny(userDid, event.artistAdminCircleIds) : false;
+    const canEdit = canModerate || isAuthor || isArtistAdmin;
+    // Narrower than canEdit: lets an admin of a listed (non-delegated) band remove that band from
+    // this event, without granting them any other edit rights.
+    const canRemoveSelfAsArtist = userDid ? await isCircleAdminOfAny(userDid, event.additionalArtistCircleIds) : false;
 
     return (
         <div className="formatted flex w-full flex-col">
@@ -70,6 +75,7 @@ export default async function EventDetailPage(props: PageProps) {
                         canReview={!!canReview}
                         canModerate={!!canModerate}
                         isAuthor={isAuthor}
+                        canRemoveSelfAsArtist={canRemoveSelfAsArtist}
                     />
                 </div>
             </div>

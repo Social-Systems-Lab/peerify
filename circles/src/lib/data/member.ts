@@ -12,6 +12,20 @@ export const getMember = async (userDid: string, circleId: string): Promise<Memb
     return await Members.findOne({ userDid: userDid, circleId: circleId });
 };
 
+export const isCircleAdmin = async (userDid: string, circleId: string): Promise<boolean> => {
+    const member = await getMember(userDid, circleId);
+    return !!member?.userGroups?.includes("admins");
+};
+
+// True if userDid administers at least one of the given circles. Used for permission checks that
+// should pass if the user is an admin of ANY of a set of circles (e.g. any additional artist
+// circle attached to an event), not a specific one.
+export const isCircleAdminOfAny = async (userDid: string, circleIds?: string[]): Promise<boolean> => {
+    if (!circleIds || circleIds.length === 0) return false;
+    const results = await Promise.all(circleIds.map((circleId) => isCircleAdmin(userDid, circleId)));
+    return results.some(Boolean);
+};
+
 export const getMembersWithMetrics = async (
     userDid: string | undefined,
     circleId?: string,

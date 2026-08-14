@@ -30,6 +30,8 @@ import { isAcceptedConnectionForUserDid } from "./relationships";
 export const SAFE_EVENT_PROJECTION = {
     _id: 1,
     circleId: 1,
+    additionalArtistCircleIds: 1,
+    artistAdminCircleIds: 1,
     createdBy: 1,
     createdAt: 1,
     updatedAt: 1,
@@ -59,6 +61,8 @@ export const SAFE_EVENT_PROJECTION = {
 const PUBLIC_EVENT_PROJECTION = {
     _id: 1,
     circleId: 1,
+    additionalArtistCircleIds: 1,
+    artistAdminCircleIds: 1,
     createdBy: 1,
     createdAt: 1,
     updatedAt: 1,
