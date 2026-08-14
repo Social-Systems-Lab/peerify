@@ -1091,7 +1091,11 @@ export async function searchArtistCirclesAction(
     const defaultResult: GetCirclesBySearchQueryActionResult = { circles: [] };
 
     try {
-        const circles = await getCirclesBySearchQuery(query, limit * 2, "user");
+        // Artist/band/venue-adjacent managed identities can be circleType "circle" (e.g. a band
+        // with its own delegated admins) or circleType "user" (a solo artist using their personal
+        // account), so search across all circle types and filter by identity afterward — mirrors
+        // how map-explorer's search fetches broadly then filters client-side.
+        const circles = await getCirclesBySearchQuery(query, limit * 3);
         return { circles: circles.filter(isPeerifyArtistIdentity).slice(0, limit) };
     } catch (error) {
         console.error("Error in searchArtistCirclesAction:", error);
