@@ -8,6 +8,7 @@ import EventForm from "@/components/modules/events/event-form";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
+import { isCircleAdminOfAny } from "@/lib/data/member";
 
 type PageProps = {
     params: Promise<{ handle: string; eventId: string }>;
@@ -32,7 +33,8 @@ export default async function EditEventPage(props: PageProps) {
 
     const isAuthor = userDid === event.createdBy;
     const canModerate = await isAuthorized(userDid, circle._id as string, features.events.moderate);
-    const canEdit = isAuthor || canModerate;
+    const isArtistAdmin = await isCircleAdminOfAny(userDid, event.artistAdminCircleIds);
+    const canEdit = isAuthor || canModerate || isArtistAdmin;
     if (!canEdit) {
         return (
             <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
