@@ -54,13 +54,16 @@ export const getAccessibleFeedIdsForUser = async (userDid: string, circleHandle?
 
         const circleId = circle._id.toString();
         const membership = await Members.findOne({ userDid, circleId }, { projection: { _id: 0, userGroups: 1 } });
-        if (!membership) {
-            return [];
-        }
+        const memberGroups = membership?.userGroups ?? [];
 
         const feeds = await getFeedsByCircleId(circleId);
+        // A feed tagged "everyone" is public and must be accessible regardless of
+        // membership, same as post-level "everyone" bypasses membership in canUserViewPost/getPosts.
         return feeds
-            .filter((feed) => feed.userGroups.some((group) => membership.userGroups?.includes(group)))
+            .filter(
+                (feed) =>
+                    feed.userGroups.includes("everyone") || feed.userGroups.some((group) => memberGroups.includes(group)),
+            )
             .map((feed) => feed._id?.toString())
             .filter((feedId): feedId is string => Boolean(feedId));
     }
@@ -69,15 +72,15 @@ export const getAccessibleFeedIdsForUser = async (userDid: string, circleHandle?
         { userDid },
         { projection: { _id: 0, circleId: 1, userGroups: 1 } },
     ).toArray();
-    if (memberships.length === 0) {
-        return [];
-    }
 
     const circleIds = [...new Set(memberships.map((membership) => membership.circleId).filter(Boolean))];
     const objectIds = circleIds
         .filter((circleId) => ObjectId.isValid(circleId))
         .map((circleId) => new ObjectId(circleId));
-    const circles = await Circles.find({ _id: { $in: objectIds } }, { projection: { _id: 1, handle: 1 } }).toArray();
+    const circles =
+        objectIds.length > 0
+            ? await Circles.find({ _id: { $in: objectIds } }, { projection: { _id: 1, handle: 1 } }).toArray()
+            : [];
     const accessibleCircleIds = new Set(
         circles.filter((circle) => circle.handle !== "default").map((circle) => circle._id.toString()),
     );
@@ -89,11 +92,29 @@ export const getAccessibleFeedIdsForUser = async (userDid: string, circleHandle?
         }
     }
 
-    const feeds = await getFeedsByCircleIds([...membershipsByCircleId.keys()]);
-    return feeds
-        .filter((feed) => membershipsByCircleId.get(feed.circleId)?.some((group) => feed.userGroups.includes(group)))
-        .map((feed) => feed._id?.toString())
-        .filter((feedId): feedId is string => Boolean(feedId));
+    const memberFeeds = await getFeedsByCircleIds([...membershipsByCircleId.keys()]);
+    const accessibleFeedIds = new Set(
+        memberFeeds
+            .filter(
+                (feed) =>
+                    feed.userGroups.includes("everyone") ||
+                    membershipsByCircleId.get(feed.circleId)?.some((group) => feed.userGroups.includes(group)),
+            )
+            .map((feed) => feed._id?.toString())
+            .filter((feedId): feedId is string => Boolean(feedId)),
+    );
+
+    // "everyone"-tagged feeds are public and must be included even for circles the
+    // viewer doesn't follow/isn't a member of — membership must never gate public content.
+    const publicFeeds = await getPublicFeeds();
+    for (const feed of publicFeeds) {
+        const feedId = feed._id?.toString();
+        if (feedId) {
+            accessibleFeedIds.add(feedId);
+        }
+    }
+
+    return [...accessibleFeedIds];
 };
 
 export async function getPublicFeeds(): Promise<Feed[]> {
