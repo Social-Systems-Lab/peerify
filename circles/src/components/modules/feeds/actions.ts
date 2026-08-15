@@ -609,6 +609,9 @@ export async function updatePostAction(
         const locationStr = formData.get("location") as string;
         const location = locationStr ? JSON.parse(locationStr) : undefined;
 
+        // Get user groups from form data
+        const userGroups = formData.getAll("userGroups") as string[];
+
         // --- Add Link Preview Data Extraction ---
         const linkPreviewUrl = formData.get("linkPreviewUrl") as string | undefined;
         const linkPreviewTitle = formData.get("linkPreviewTitle") as string | undefined;
@@ -647,6 +650,7 @@ export async function updatePostAction(
             content,
             editedAt: new Date(),
             location,
+            userGroups: userGroups.length > 0 ? userGroups : ["everyone"],
             // --- Add Link Preview Fields ---
             linkPreviewUrl: linkPreviewUrl || undefined,
             linkPreviewTitle: linkPreviewTitle || undefined,
