@@ -324,32 +324,55 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
     }, []);
 
     // Diff the staged artistBands selection against what was loaded for this event and call the
-    // dedicated add/remove/admin-status actions to bring the server in sync.
-    const reconcileArtistBands = async (targetCircleHandle: string, targetEventId: string) => {
+    // dedicated add/remove/admin-status actions to bring the server in sync. Returns any failure
+    // messages (e.g. a delegated admin trying to manage a band they're not authorized for) so the
+    // caller can surface them instead of assuming success.
+    const reconcileArtistBands = async (targetCircleHandle: string, targetEventId: string): Promise<string[]> => {
         const original = originalArtistBandsRef.current;
         const currentIds = artistBands.map((band) => band.circleId);
 
         const toAdd = artistBands.filter((band) => !original.ids.includes(band.circleId));
         const toRemove = original.ids.filter((id) => !currentIds.includes(id));
 
+        const failures: string[] = [];
+        const collect = (res: { success: boolean; message?: string }, fallback: string) => {
+            if (!res.success) {
+                failures.push(res.message || fallback);
+            }
+        };
+
         for (const band of toAdd) {
-            await addArtistToEvent(targetCircleHandle, targetEventId, band.circleId);
+            collect(
+                await addArtistToEvent(targetCircleHandle, targetEventId, band.circleId),
+                "Failed to add an artist to the event.",
+            );
             if (band.isAdminDelegated) {
-                await setArtistAdminStatus(targetCircleHandle, targetEventId, band.circleId, true);
+                collect(
+                    await setArtistAdminStatus(targetCircleHandle, targetEventId, band.circleId, true),
+                    "Failed to grant edit access to a band's admins.",
+                );
             }
         }
 
         for (const circleId of toRemove) {
-            await removeArtistFromEvent(targetCircleHandle, targetEventId, circleId);
+            collect(
+                await removeArtistFromEvent(targetCircleHandle, targetEventId, circleId),
+                "Failed to remove an artist from the event.",
+            );
         }
 
         for (const band of artistBands) {
             if (!original.ids.includes(band.circleId)) continue; // handled above via toAdd
             const wasAdminDelegated = original.adminIds.includes(band.circleId);
             if (wasAdminDelegated !== band.isAdminDelegated) {
-                await setArtistAdminStatus(targetCircleHandle, targetEventId, band.circleId, band.isAdminDelegated);
+                collect(
+                    await setArtistAdminStatus(targetCircleHandle, targetEventId, band.circleId, band.isAdminDelegated),
+                    "Failed to update a band's edit access.",
+                );
             }
         }
+
+        return failures;
     };
 
     const onSubmit = (e: React.FormEvent) => {
@@ -449,14 +472,22 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
 
                 if (result.success) {
                     const resolvedEventId = (event?._id as string | undefined) || result.eventId;
-                    if (resolvedEventId) {
-                        await reconcileArtistBands(selectedCircle, resolvedEventId);
-                    }
+                    const artistFailures = resolvedEventId
+                        ? await reconcileArtistBands(selectedCircle, resolvedEventId)
+                        : [];
 
-                    toast({
-                        title: "Success",
-                        description: result.message || (event ? "Event updated." : "Event created."),
-                    });
+                    if (artistFailures.length > 0) {
+                        toast({
+                            title: "Event saved, but artist changes failed",
+                            description: artistFailures.join(" "),
+                            variant: "destructive",
+                        });
+                    } else {
+                        toast({
+                            title: "Success",
+                            description: result.message || (event ? "Event updated." : "Event created."),
+                        });
+                    }
                     if (!event && result.eventId) {
                         router.push(`/circles/${selectedCircle}/events/${result.eventId}`);
                     } else {
