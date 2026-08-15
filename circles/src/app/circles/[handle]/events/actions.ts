@@ -990,9 +990,10 @@ export async function setArtistAdminStatus(
 }
 
 /**
- * Let an admin of a listed (non-delegated) band remove that band from the event themselves.
- * Intentionally a separate, narrower permission path from removeArtistFromEvent — does not
- * require canModerate/isAuthor, only admin of the specific band circle being removed.
+ * Let an admin of a listed band remove that band from the event themselves — whether or not it
+ * currently has artistAdminCircleIds delegation. Intentionally a separate, narrower permission
+ * path from removeArtistFromEvent — does not require canModerate/isAuthor, only admin of the
+ * specific band circle being removed.
  */
 export async function removeSelfAsEventArtist(
     circleHandle: string,
