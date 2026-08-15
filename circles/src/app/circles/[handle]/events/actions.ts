@@ -274,7 +274,7 @@ const upsertEventNoticeboardPost = async ({
 }: {
     circle: Circle;
     circleHandle: string;
-    event: Pick<EventModel, "_id" | "title" | "description" | "createdBy" | "noticeboardPostId">;
+    event: Pick<EventModel, "_id" | "title" | "description" | "createdBy" | "noticeboardPostId" | "userGroups">;
 }): Promise<string | null> => {
     if (!circle._id || !event._id) {
         return null;
@@ -298,7 +298,7 @@ const upsertEventNoticeboardPost = async ({
         editedAt: new Date(),
         reactions: {},
         comments: 0,
-        userGroups: ["admins", "moderators", "members"],
+        userGroups: event.userGroups ?? [],
         postType: "post",
         internalPreviewType: "event",
         internalPreviewId: eventId,
@@ -307,12 +307,15 @@ const upsertEventNoticeboardPost = async ({
 
     if (event.noticeboardPostId) {
         try {
+            // Deliberately omit userGroups here: once the post exists, its audience is a
+            // per-post setting the host curates directly via the post's own edit dialog
+            // (see post-form.tsx). Re-syncing title/content on every event edit must not
+            // clobber that back to the post's original audience on every resync.
             await updatePost({
                 _id: event.noticeboardPostId,
                 title: postData.title,
                 content: postData.content,
                 editedAt: new Date(),
-                userGroups: postData.userGroups,
                 postType: postData.postType,
                 internalPreviewType: postData.internalPreviewType,
                 internalPreviewId: postData.internalPreviewId,
