@@ -20,6 +20,7 @@ type Props = {
     circleHandle: string;
     eventId: string;
     additionalArtistCircleIds?: string[];
+    artistAdminCircleIds?: string[];
     // True host-level edit rights (event author or circle moderator) — deliberately NOT the
     // broader event canEdit flag, which also includes delegated artist admins. Delegated admins
     // must not get moderator-style controls over OTHER bands; per-band self-removal below is
@@ -32,6 +33,7 @@ export default function EventArtistList({
     circleHandle,
     eventId,
     additionalArtistCircleIds,
+    artistAdminCircleIds,
     canManageAllArtists,
     canRemoveSelfAsArtist,
 }: Props) {
@@ -40,7 +42,12 @@ export default function EventArtistList({
     const [isPending, startTransition] = useTransition();
     const { toast } = useToast();
     const router = useRouter();
-    const artistIdsKey = (additionalArtistCircleIds || []).join(",");
+    // Includes artistAdminCircleIds too, not just additionalArtistCircleIds — toggling an existing
+    // band's delegation status (via the inline "Edit access" switch below) doesn't change which
+    // bands are listed, only which are delegated, so the key must reflect that too or a successful
+    // toggle's router.refresh() re-renders the parent with fresh props while this component's own
+    // fetched `bands` state (and the switch's checked state bound to it) never refreshes.
+    const artistIdsKey = `${(additionalArtistCircleIds || []).join(",")}|${(artistAdminCircleIds || []).join(",")}`;
 
     useEffect(() => {
         let cancelled = false;
