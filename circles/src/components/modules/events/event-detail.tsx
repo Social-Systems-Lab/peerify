@@ -763,6 +763,7 @@ export default function EventDetail({
                         circleHandle={circleHandle}
                         eventId={event._id!.toString()}
                         additionalArtistCircleIds={event.additionalArtistCircleIds}
+                        artistAdminCircleIds={event.artistAdminCircleIds}
                         canManageAllArtists={canManageAllArtists}
                         canRemoveSelfAsArtist={canRemoveSelfAsArtist}
                     />
