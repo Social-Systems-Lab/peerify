@@ -863,6 +863,32 @@ export const getEventById = async (eventId: string, userDid: string): Promise<Ev
                 },
             },
 
+            // Current user's admin status on any listed additional-artist circle — lets a band's
+            // own admin load an event they're not otherwise the creator of, RSVP'd to, or invited
+            // to (e.g. a private/invite-only show), so artist-management actions like
+            // removeSelfAsEventArtist can actually reach the event for them.
+            {
+                $lookup: {
+                    from: "members",
+                    let: { artistIds: { $ifNull: ["$additionalArtistCircleIds", []] } },
+                    pipeline: [
+                        {
+                            $match: {
+                                $expr: {
+                                    $and: [
+                                        { $eq: ["$userDid", userDid] },
+                                        { $in: ["$circleId", "$$artistIds"] },
+                                        { $in: ["admins", { $ifNull: ["$userGroups", []] }] },
+                                    ],
+                                },
+                            },
+                        },
+                        { $project: { _id: 0 } },
+                    ],
+                    as: "viewerArtistAdminDocs",
+                },
+            },
+
             // Visibility gating
             {
                 $match: {
@@ -872,6 +898,7 @@ export const getEventById = async (eventId: string, userDid: string): Promise<Ev
                             { $eq: ["$createdBy", userDid] },
                             { $gt: [{ $size: "$userRsvpDocs" }, 0] },
                             { $gt: [{ $size: "$userInvDocs" }, 0] },
+                            { $gt: [{ $size: "$viewerArtistAdminDocs" }, 0] },
                         ],
                     },
                 },

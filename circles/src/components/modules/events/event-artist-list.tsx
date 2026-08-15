@@ -20,7 +20,11 @@ type Props = {
     circleHandle: string;
     eventId: string;
     additionalArtistCircleIds?: string[];
-    canEdit?: boolean;
+    // True host-level edit rights (event author or circle moderator) — deliberately NOT the
+    // broader event canEdit flag, which also includes delegated artist admins. Delegated admins
+    // must not get moderator-style controls over OTHER bands; per-band self-removal below is
+    // evaluated independently of this.
+    canManageAllArtists?: boolean;
     canRemoveSelfAsArtist?: boolean;
 };
 
@@ -28,7 +32,7 @@ export default function EventArtistList({
     circleHandle,
     eventId,
     additionalArtistCircleIds,
-    canEdit,
+    canManageAllArtists,
     canRemoveSelfAsArtist,
 }: Props) {
     const [bands, setBands] = useState<EventArtistBand[]>([]);
@@ -73,72 +77,84 @@ export default function EventArtistList({
         <div className="rounded-md border p-4">
             <div className="mb-2 text-sm text-muted-foreground">Artists</div>
             <div className="space-y-3">
-                {bands.map((band) => (
-                    <div key={band.circle._id} className="flex flex-wrap items-center justify-between gap-3">
-                        <Link
-                            href={`/circles/${band.circle.handle}`}
-                            className="flex items-center gap-3 hover:underline"
-                        >
-                            <Avatar>
-                                <AvatarImage src={band.circle.picture?.url} />
-                                <AvatarFallback>{band.circle.name?.[0]}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                                <p className="font-semibold">{band.circle.name}</p>
-                                <p className="text-sm text-muted-foreground">@{band.circle.handle}</p>
-                            </div>
-                        </Link>
+                {bands.map((band) => {
+                    // Evaluated per band, independently of each other — a delegated admin of a
+                    // DIFFERENT band on this event has canManageAllArtists=false here (that flag
+                    // reflects only true author/moderator rights), and canSelfRemove doesn't care
+                    // about the user's overall event permissions at all, only this specific band.
+                    const canSelfRemove =
+                        !!canRemoveSelfAsArtist && band.currentUserIsAdmin && !band.isAdminDelegated;
 
-                        {canEdit ? (
-                            <div className="flex items-center gap-3">
-                                <div className="flex items-center gap-2">
-                                    <Switch
-                                        id={`artist-admin-toggle-${band.circle._id}`}
-                                        checked={band.isAdminDelegated}
+                    return (
+                        <div key={band.circle._id} className="flex flex-wrap items-center justify-between gap-3">
+                            <Link
+                                href={`/circles/${band.circle.handle}`}
+                                className="flex items-center gap-3 hover:underline"
+                            >
+                                <Avatar>
+                                    <AvatarImage src={band.circle.picture?.url} />
+                                    <AvatarFallback>{band.circle.name?.[0]}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                    <p className="font-semibold">{band.circle.name}</p>
+                                    <p className="text-sm text-muted-foreground">@{band.circle.handle}</p>
+                                </div>
+                            </Link>
+
+                            {canManageAllArtists ? (
+                                <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-2">
+                                        <Switch
+                                            id={`artist-admin-toggle-${band.circle._id}`}
+                                            checked={band.isAdminDelegated}
+                                            disabled={isPending}
+                                            onCheckedChange={(checked) =>
+                                                runAction(() =>
+                                                    setArtistAdminStatus(
+                                                        circleHandle,
+                                                        eventId,
+                                                        band.circle._id!,
+                                                        checked,
+                                                    ),
+                                                )
+                                            }
+                                        />
+                                        <Label htmlFor={`artist-admin-toggle-${band.circle._id}`} className="text-xs">
+                                            Edit access
+                                        </Label>
+                                    </div>
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
                                         disabled={isPending}
-                                        onCheckedChange={(checked) =>
+                                        onClick={() =>
                                             runAction(() =>
-                                                setArtistAdminStatus(circleHandle, eventId, band.circle._id!, checked),
+                                                removeArtistFromEvent(circleHandle, eventId, band.circle._id!),
                                             )
                                         }
-                                    />
-                                    <Label htmlFor={`artist-admin-toggle-${band.circle._id}`} className="text-xs">
-                                        Edit access
-                                    </Label>
+                                    >
+                                        Remove
+                                    </Button>
                                 </div>
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={isPending}
-                                    onClick={() =>
-                                        runAction(() =>
-                                            removeArtistFromEvent(circleHandle, eventId, band.circle._id!),
-                                        )
-                                    }
-                                >
-                                    Remove
-                                </Button>
-                            </div>
-                        ) : (
-                            canRemoveSelfAsArtist &&
-                            band.currentUserIsAdmin &&
-                            !band.isAdminDelegated && (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={isPending}
-                                    onClick={() =>
-                                        runAction(() =>
-                                            removeSelfAsEventArtist(circleHandle, eventId, band.circle._id!),
-                                        )
-                                    }
-                                >
-                                    Remove yourself
-                                </Button>
-                            )
-                        )}
-                    </div>
-                ))}
+                            ) : (
+                                canSelfRemove && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={isPending}
+                                        onClick={() =>
+                                            runAction(() =>
+                                                removeSelfAsEventArtist(circleHandle, eventId, band.circle._id!),
+                                            )
+                                        }
+                                    >
+                                        Remove yourself
+                                    </Button>
+                                )
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
