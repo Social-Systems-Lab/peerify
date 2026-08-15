@@ -2986,3 +2986,34 @@ while in Draft, not just inline text.
 **Status:** Not scoped, not a regression — pre-existing UI pattern, unrelated 
 to multi-artist work. Needs its own design/UX pass before a CC prompt is 
 drafted.
+
+### 2026-08-15 (afternoon) — Three items found during multi-artist staging verification, unrelated to that feature
+
+**1. Broken/unloading circle logo images on prod admin circle list**
+Observed on peerify.one/admin: some circle profile images (e.g. "Blurry
+Images") show as broken image icons with alt text, not the actual uploaded
+photo. NOT CONFIRMED to be the same root cause as the Aug 14 standalone-build
+public/ asset issue — that was specifically about static files under
+public/peerify/ not being copied into the standalone build correctly.
+User-uploaded circle logos are a different code path (uploaded via saveFile,
+stored separately, not part of the static public/ folder). Needs its own
+investigation before assuming it's already fixed or related.
+
+**2. Feature request: circle admins/owners should be visible in Circle
+Settings**
+Currently not shown in a circle's own Settings tab. Would help with
+transparency/moderation clarity, especially relevant now that events can
+have delegated admins across multiple circles. Not scoped yet.
+
+**3. Bug (higher priority): Noticeboard posts set to "Everyone" audience are
+not visible to non-followers**
+Reproduced on staging: The Venue Festival post, audience explicitly set to
+"Everyone" (not Admins/Moderators/Followers), still not visible in Feed/
+Noticeboard when viewed as a logged-in user who does not follow The Venue.
+This defeats the purpose of the "Everyone" audience setting for public event
+promotion — a core use case for the September campaign. Needs investigation
+into the actual query/visibility logic behind Noticeboard "New"/"Top" feeds,
+likely a similar visibility-gate bug to ones found in event data this week
+(gates added independently of intended-audience settings). Not yet
+investigated or scoped for a fix.
+

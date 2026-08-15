@@ -183,7 +183,17 @@ echo "=== Step 5: Verify the copy actually landed ==="
 if [ ! -d "${STANDALONE_ROOT}/.next/static" ] || [ -z "$(ls -A "${STANDALONE_ROOT}/.next/static" 2>/dev/null)" ]; then
     fail "${STANDALONE_ROOT}/.next/static is missing or empty after copy."
 fi
+if [ ! -d "${STANDALONE_ROOT}/public" ] || [ -z "$(ls -A "${STANDALONE_ROOT}/public" 2>/dev/null)" ]; then
+    fail "${STANDALONE_ROOT}/public is missing or empty after copy."
+fi
 
+if [ ! -f "${STANDALONE_ROOT}/public/peerify/fans.jpg" ]; then
+    if [ -f "${STANDALONE_ROOT}/public/fans.jpg" ]; then
+        fail "public/peerify assets were copied FLATTENED to public/ root instead of public/peerify/. Copy step is broken."
+    else
+        fail "${STANDALONE_ROOT}/public/peerify/fans.jpg not found after copy — public/peerify assets missing entirely."
+    fi
+fi
 NESTED_BUILD_ID_FILE="${STANDALONE_ROOT}/.next/BUILD_ID"
 if [ ! -f "$NESTED_BUILD_ID_FILE" ]; then
     fail "${NESTED_BUILD_ID_FILE} does not exist."
