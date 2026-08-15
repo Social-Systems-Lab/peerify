@@ -488,8 +488,14 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                             description: result.message || (event ? "Event updated." : "Event created."),
                         });
                     }
-                    if (!event && result.eventId) {
-                        router.push(`/circles/${selectedCircle}/events/${result.eventId}`);
+                    // Navigate straight back to the event's own detail page (not the events list)
+                    // so router.refresh() below re-renders THAT page fresh. Editing previously
+                    // redirected to the list, and router.refresh() only ever refreshes the current
+                    // route after a push resolves — it never touched the detail page the artist
+                    // changes above actually apply to, which could otherwise still show a stale
+                    // "Artists" box (delegation toggle, remove controls) until a manual reload.
+                    if (resolvedEventId) {
+                        router.push(`/circles/${selectedCircle}/events/${resolvedEventId}`);
                     } else {
                         router.push(`/circles/${selectedCircle}/events`);
                     }
