@@ -104,6 +104,9 @@ export default function EventDetail({
     const hiddenCancelledIds = user?.hiddenCancelledEventIds || [];
     const isEventHidden = eventId ? hiddenCancelledIds.includes(eventId) : false;
     const canManageJoinLink = Boolean(canEdit || canModerate || isAuthor || user?.did === event.createdBy);
+    // True host-level rights only (not the broader canEdit, which also includes delegated artist
+    // admins) — used to gate moderator-style controls in the Artists list per band.
+    const canManageAllArtists = Boolean(canModerate || isAuthor);
 
     const start = event.startAt ? new Date(event.startAt as any) : null;
     const end = event.endAt ? new Date(event.endAt as any) : null;
@@ -760,7 +763,7 @@ export default function EventDetail({
                         circleHandle={circleHandle}
                         eventId={event._id!.toString()}
                         additionalArtistCircleIds={event.additionalArtistCircleIds}
-                        canEdit={canEdit}
+                        canManageAllArtists={canManageAllArtists}
                         canRemoveSelfAsArtist={canRemoveSelfAsArtist}
                     />
                     <AttendeesList circleHandle={circleHandle} eventId={event._id!.toString()} />
