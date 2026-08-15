@@ -82,8 +82,12 @@ export default function EventArtistList({
                     // DIFFERENT band on this event has canManageAllArtists=false here (that flag
                     // reflects only true author/moderator rights), and canSelfRemove doesn't care
                     // about the user's overall event permissions at all, only this specific band.
-                    const canSelfRemove =
-                        !!canRemoveSelfAsArtist && band.currentUserIsAdmin && !band.isAdminDelegated;
+                    // Delegation does NOT block self-removal: removeSelfAsEventArtist already clears
+                    // both additionalArtistCircleIds and artistAdminCircleIds for this circleId, and
+                    // without this, a delegated band's own admin (who isn't also the host author or
+                    // moderator) had no way to remove their band at all — canManageAllArtists was
+                    // false for them, and the old `!band.isAdminDelegated` check hid this button too.
+                    const canSelfRemove = !!canRemoveSelfAsArtist && band.currentUserIsAdmin;
 
                     return (
                         <div key={band.circle._id} className="flex flex-wrap items-center justify-between gap-3">
