@@ -2959,3 +2959,30 @@ via direct nav.
 **Status:** Not fixed, root cause not yet found. Low urgency (edge case, not a main-flow
 break). Pick up fresh next session — needs read-only investigation prompt for CC before
 any fix, same process as other work this week.
+
+### 2026-08-15 — Feature idea: inline band audio preview from event artist list
+
+**Idea:** When clicking a band name in the "Artists" list on an event detail 
+page, open an inline slider/player showing that band's MP3s, rather than 
+navigating away to the band's own circle page. Lets a fan browse an event's 
+lineup and preview music without losing their place on the event page.
+
+**Status:** Not scoped. Genuine feature addition, not a bug — needs its own 
+investigation/scoping pass (current data model, where the band's music 
+lives, how the existing full player works) before a CC prompt is drafted. 
+Unrelated to the multi-artist permissions work; do not fold into that branch.
+
+### 2026-08-15 — UX issue: Draft status not visually prominent enough
+
+**Symptom:** On the event edit/detail page, when an event is in Draft status, 
+the "Open" button is shown in solid green and is visually prominent, while 
+"Status: Draft" is comparatively de-emphasized text nearby. At a glance this 
+gives the impression the event may already be live/public when it is not.
+
+**Suggestion (from person, not yet agreed as final):** Make Draft status 
+more visually apparent — possibly a banner across the event's hero image 
+while in Draft, not just inline text.
+
+**Status:** Not scoped, not a regression — pre-existing UI pattern, unrelated 
+to multi-artist work. Needs its own design/UX pass before a CC prompt is 
+drafted.
