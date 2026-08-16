@@ -15,7 +15,7 @@ import {
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import ImageCarousel from "@/components/ui/image-carousel";
-import { Calendar, MapPin, Clock, X } from "lucide-react";
+import { Calendar, MapPin, Clock, X, EyeOff } from "lucide-react";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { MapDisplay } from "@/components/map/map";
 import type { Circle, Media } from "@/models/models";
@@ -501,6 +501,14 @@ export default function EventDetail({
                         showDots={images.length > 1}
                         dotsPosition="bottom-right"
                     />
+                    {event.stage === "draft" && (
+                        <div className="absolute left-3 top-3 z-10 flex items-center gap-1.5 rounded-md border border-[#E8732C]/40 bg-[#FAF6EC]/95 px-3 py-1.5 shadow-sm backdrop-blur-sm">
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#E8732C]" />
+                            <span className="text-xs font-semibold uppercase tracking-wide text-[#1A1612]">
+                                Draft — not visible to the public
+                            </span>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -575,10 +583,22 @@ export default function EventDetail({
             </div>
 
             {/* Stage controls */}
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-white/70 p-4 shadow-sm">
-                <div className="text-sm text-muted-foreground">
-                    Status: <span className="font-medium capitalize">{event.stage}</span>
-                </div>
+            <div
+                className={cn(
+                    "flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 shadow-sm",
+                    event.stage === "draft" ? "border-[#E8732C]/50 bg-[#F8E2CE]" : "bg-white/70",
+                )}
+            >
+                {event.stage === "draft" ? (
+                    <div className="flex items-center gap-2 text-sm text-[#1A1612]">
+                        <EyeOff className="h-4 w-4 text-[#E8732C]" />
+                        <span className="font-bold uppercase tracking-wide">Draft — not visible to the public</span>
+                    </div>
+                ) : (
+                    <div className="text-sm text-muted-foreground">
+                        Status: <span className="font-medium capitalize">{event.stage}</span>
+                    </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                     {event.stage === "draft" && (isAuthor || canReview) && (
                         <Button disabled={isPending} variant="secondary" onClick={onSubmitForReview}>
