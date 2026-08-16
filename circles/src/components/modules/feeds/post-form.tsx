@@ -234,11 +234,20 @@ export function PostForm({
         [itemKey],
     );
 
+    // CircleSelector reports its initial (default) selection via this same callback on mount,
+    // not just on genuine user-driven changes. Resetting audience unconditionally on that first
+    // call would clobber the real persisted userGroups an edit dialog just seeded from
+    // initialPost - only reset on subsequent, user-initiated circle changes.
+    const hasReceivedInitialCircleSelection = useRef(false);
     const handleCircleSelected = useCallback(
         (circle: Circle | null) => {
             setSelectedCircleId(circle?._id || null);
             setSelectedCircle(circle);
-            setUserGroups(["everyone"]);
+            if (hasReceivedInitialCircleSelection.current) {
+                setUserGroups(["everyone"]);
+            } else {
+                hasReceivedInitialCircleSelection.current = true;
+            }
         },
         [setSelectedCircleId, setSelectedCircle, setUserGroups], // State setters are stable, can be []
     );
