@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getPrivateUserByDid, getUserPrivate, updateUser } from "@/lib/data/user";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { redirect } from "next/navigation";
+import { savePushSubscription, removePushSubscription, getPushSubscriptionCountForUser } from "@/lib/data/push";
 
 const DONORBOX_API_KEY = process.env.DONORBOX_API_KEY;
 const DONORBOX_API_URL = "https://donorbox.org/api/v1";
@@ -15,6 +16,15 @@ const emailPreferenceLabels = {
 } as const;
 
 type EmailPreferenceKey = keyof typeof emailPreferenceLabels;
+
+const pushPreferenceLabels = {
+    pushMessages: "Message push notifications",
+    pushEvents: "Event push notifications",
+    pushVerification: "Verification push notifications",
+    pushCommunity: "Follow activity push notifications",
+} as const;
+
+type PushPreferenceKey = keyof typeof pushPreferenceLabels;
 
 export async function createSubscription(circleId: string, planId: string) {
     const userDid = await getAuthenticatedUserDid();
@@ -112,5 +122,109 @@ export async function updateEmailPreferenceSetting(preference: EmailPreferenceKe
             success: false,
             message: error instanceof Error ? error.message : "Failed to update email preference setting.",
         };
+    }
+}
+
+export async function updatePushPreferenceSetting(preference: PushPreferenceKey, enabled: boolean) {
+    if (!(preference in pushPreferenceLabels) || typeof enabled !== "boolean") {
+        return {
+            success: false,
+            message: "Invalid push preference setting.",
+        };
+    }
+
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) {
+            return {
+                success: false,
+                message: "You need to be logged in to update this setting.",
+            };
+        }
+
+        const user = await getPrivateUserByDid(userDid);
+        if (!user?._id) {
+            return {
+                success: false,
+                message: "User not found.",
+            };
+        }
+
+        await updateUser(
+            {
+                _id: user._id,
+                [preference]: enabled,
+            },
+            userDid,
+        );
+
+        if (user.handle) {
+            revalidatePath(`/circles/${user.handle}/settings/subscription`);
+        }
+
+        return {
+            success: true,
+            message: `${pushPreferenceLabels[preference]} ${enabled ? "enabled" : "disabled"}.`,
+            preference,
+            enabled,
+        };
+    } catch (error) {
+        console.error("Error updating push preference setting:", error);
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : "Failed to update push preference setting.",
+        };
+    }
+}
+
+export async function subscribeToPushNotifications(subscription: {
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+}, userAgent?: string) {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) {
+            return { success: false, message: "You need to be logged in to enable push notifications." };
+        }
+
+        if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) {
+            return { success: false, message: "Invalid push subscription." };
+        }
+
+        await savePushSubscription(userDid, subscription, userAgent);
+        return { success: true };
+    } catch (error) {
+        console.error("Error saving push subscription:", error);
+        return { success: false, message: "Failed to save push subscription." };
+    }
+}
+
+export async function unsubscribeFromPushNotifications(endpoint: string) {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) {
+            return { success: false, message: "You need to be logged in." };
+        }
+
+        await removePushSubscription(userDid, endpoint);
+        return { success: true };
+    } catch (error) {
+        console.error("Error removing push subscription:", error);
+        return { success: false, message: "Failed to remove push subscription." };
+    }
+}
+
+export async function getPushSubscriptionStatus() {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) {
+            return { subscribed: false };
+        }
+
+        const count = await getPushSubscriptionCountForUser(userDid);
+        return { subscribed: count > 0 };
+    } catch (error) {
+        console.error("Error checking push subscription status:", error);
+        return { subscribed: false };
     }
 }

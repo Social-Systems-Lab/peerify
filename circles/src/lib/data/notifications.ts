@@ -32,6 +32,7 @@ import { getGoalById } from "./goal"; // Import getGoalById
 import { getEventById } from "./event";
 import { features } from "./constants";
 import { getAuthorizedMembers } from "../auth/auth"; // Import the function to get authorized members
+import { getPushCategoryForType, isPushEnabledForRecipient, resolvePushUrl, sendPushToUser } from "./push";
 
 Notifications?.createIndex({ userId: 1, isRead: 1, createdAt: -1 });
 Notifications?.createIndex({ userId: 1, type: 1, "content.roomId": 1, isRead: 1, createdAt: -1 });
@@ -260,11 +261,26 @@ export async function sendNotifications(type: string, recipients: any[], payload
         });
     }
 
-    if (!docs.length) {
-        return;
+    if (docs.length) {
+        await Notifications.insertMany(docs as any[]);
     }
 
-    await Notifications.insertMany(docs as any[]);
+    // Push fires immediately here, at creation time - a separate, narrower gate from the
+    // bell-notification preference check above (only messages/events/verification/community
+    // are push-eligible; see PUSH_NOTIFICATION_CATEGORIES in ./push). Fire-and-forget so a
+    // slow/failing push provider never blocks notification creation.
+    if (getPushCategoryForType(type)) {
+        const pushBody = notificationContent.body;
+        const pushUrl = resolvePushUrl(type, payload);
+        for (const recipient of uniqueRecipients) {
+            isPushEnabledForRecipient(type, recipient.did)
+                .then((enabled) => {
+                    if (!enabled) return;
+                    return sendPushToUser(recipient.did, { title: "Peerify", body: pushBody, url: pushUrl });
+                })
+                .catch((error) => console.error("🔔 [PUSH] Failed to deliver push notification:", error));
+        }
+    }
 }
 
 type NotificationQueryOptions = {
