@@ -134,6 +134,7 @@ export default function SubscriptionFormSettings({
                 verification is reintroduced.
             <VerificationSettingsCard user={user} />
             */}
+            <PushPreferencesSettingsCard initialValues={initialPushPreferences} />
             <EmailPreferencesSettingsCard initialValues={initialEmailPreferences} />
             {/* Hidden pending a redesign of the membership/deferred-payment model.
                 Not deleted so it's easy to reinstate once the new design lands.
