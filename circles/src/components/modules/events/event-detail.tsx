@@ -625,7 +625,7 @@ export default function EventDetail({
                     )}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                    {event.stage === "draft" && (isAuthor || canReview) && (
+                    {event.stage === "draft" && isAuthor && !canReview && (
                         <Button disabled={isPending} variant="secondary" onClick={onSubmitForReview}>
                             Submit for review
                         </Button>
