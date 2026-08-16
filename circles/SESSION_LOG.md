@@ -3017,3 +3017,726 @@ likely a similar visibility-gate bug to ones found in event data this week
 (gates added independently of intended-audience settings). Not yet
 investigated or scoped for a fix.
 
+## 2026-08-09 — Kamooni→Peerify visual rebrand: last open item, system/error graphics (Phase 0 of the rebrand plan — unrelated to the orphaned-circles Phase 0 above)
+
+Headline: closed out the last known Kamooni-branding holdout — the app's system/error pages and
+the map's "Unavailable" pin-card fallback image — after an investigation turned up more Kamooni-
+era graphics than the two examples in the ask. Graphics/copy only; no logic, routing, or
+error-handling behavior touched. Deployed to staging, prod untouched. Not yet promoted to prod.
+
+**Investigation first, per instruction.** The referenced `peerify-visual-branding-plan.md` doesn't
+exist on this box, so cross-checked the ask's palette/fonts against what's actually shipped:
+- The root `not-found.tsx` and `(auth)/error` pages were *already* rebranded (some earlier,
+  undocumented pass) using `#f7f2ea` warm paper / `#181512` charcoal / `#e8720c` orange accent —
+  consistently the same palette used across ~10 live pages (holding page, onboarding, signup,
+  feed empty states). That's a different accent than the mustard `#c9901a` in the ask.
+- Playfair Display / Raleway are **not actually loaded anywhere** — no `next/font`, no Google
+  Fonts `<link>`, no `@font-face`. They only appear as unbacked `font-family` names in the
+  landing-page CSS (which would silently fall back to system serif/sans). Real body font is Wix
+  Madefor Display (`--font-wix-display`, `layout.tsx`).
+- Asked the user to choose; both times they picked "match what's already shipped" — `#e8720c`
+  accent, no Playfair/Raleway. Applying either the mustard palette or unwired fonts here would
+  have made these pages look like a *different*, newer rebrand pass sitting next to the older one
+  — a bigger, separate initiative if that's ever wanted, not a small graphics fix.
+
+**Found (beyond the two examples named in the ask):**
+1. `src/app/(auth)/not-found/page.tsx` — separate 404 (distinct from the root one, used on the
+   auth-flow path) — Kamooni-era storybook-watercolor illustration (`page-not-found.png`).
+2. `src/app/(auth)/unauthorized/page.tsx` — same illustration family (`access-denied.png`).
+3. `src/app/(auth)/unauthenticated/page.tsx` — generic stock-style illustration
+   (`unauthenticated.png`) + "Oops!" copy.
+4. `src/app/(auth)/logged-out/page.tsx` — matching generic illustration (`logged-out.png`).
+5. Map "Unavailable" pin-card hero (`public/images/default-user-cover.png`) — the item named in
+   the ask, generic navy/orange "abstract tech network" graphic, used in `map.tsx`'s
+   `createMarkerPopupHtml` fallback.
+6. `public/images/default-post-picture.png` — same Kamooni-era style, used as the map popup's
+   post-without-image fallback, but also reused in task-detail/image-carousel. User opted to
+   include it in this pass.
+- Explicitly NOT touched (flagged, left for a separate call): the 7 generic (non-Kamooni,
+  just unbranded/gray) circle- and module-scoped not-found pages
+  (`circles/[handle]/not-found` + tasks/issues/proposals/discussions/events/goals variants) —
+  user didn't opt into rebranding these this round.
+
+**Fix:**
+- Restyled all 4 `(auth)/*` pages to match the already-shipped root `not-found.tsx`/`error`
+  treatment (warm paper bg, charcoal text, orange "PEERIFY" eyebrow + heading + copy, existing
+  `RedirectButtons` component reused as-is — its `redirectTo` query-param logic is unchanged).
+  Dropped the "Oops!" clichéd copy per the ask's "avoid generic startup clichés" instruction.
+- Deleted the 4 now-fully-unused illustration files (`page-not-found.png`, `access-denied.png`,
+  `unauthenticated.png`, `logged-out.png`) after confirming zero remaining references.
+- Replaced `default-user-cover.png` and `default-post-picture.png` with new flat-vector artwork
+  in Peerify's *actual* established illustration language (matched against `public/peerify/
+  logo-mark.png` and the `default-*-avatar.svg` files, not invented from scratch): the pin+person
+  glyph from the logo mark, on warm paper, with a few scattered accent dots (orange/plum/rust).
+  Built via a one-off Node script using the `sharp` package already in `node_modules` (SVG →
+  PNG rasterization; no image-gen tool was available). Same pixel dimensions as the originals
+  (1456×816 cover, 1024×1024 post) so no call-site changes were needed. Side benefit: file size
+  dropped from ~1.5–2.5MB each to ~18–20KB (simple flat vectors vs. the old detailed raster art).
+
+**Verified on staging** (`https://staging.peerify.one`, deployed via `deploy-staging.sh`, prod
+pid/uptime confirmed unchanged):
+- `curl` + Playwright screenshots of `/this-page-does-not-exist-xyz` (genuine 404), `/unauthorized`,
+  `/unauthenticated`, `/logged-out` — all show Peerify branding, correct palette, no residual
+  Kamooni illustration references in the HTML.
+- `curl` confirmed `/images/default-user-cover.png` and `/images/default-post-picture.png` now
+  serve the new artwork at the same URLs `map.tsx` unconditionally requests — didn't stage a live
+  "Unavailable" map marker (would've needed a suppressed/private profile with map coordinates as
+  test data); the code path (`getMarkerImageUrl` fallback) is unconditional on that exact file, so
+  the asset swap is sufficient confirmation. Flagging in case a real-marker check is wanted later.
+
+**Carry-forward:**
+1. Mustard/plum palette and Playfair/Raleway are apparently a *newer* intended direction (per the
+   task's ask) that hasn't been rolled out anywhere yet, incl. the pages already "rebranded" with
+   the older `#e8720c` orange. If mustard is meant to supersede orange app-wide, that's a real,
+   separate rebrand pass (palette + font loading + every already-shipped page) — worth a decision
+   before more pages get built against the old orange convention.
+2. The 7 circle/module-scoped `not-found` pages (generic gray cards, not Kamooni-illustrated but
+   also not on-brand) — deferred, not rebranded this round.
+3. `public/images/not-found.png` — confirmed zero references anywhere in the codebase, dead
+   Kamooni-era asset; left in place (not opted into cleanup this round).
+4. Not promoted to prod — staging-only per instruction, awaiting go-ahead.
+
+### Follow-up same day — palette correction: warm-white cards, not flat warm-paper
+
+User caught that the pages above (plus the two pre-existing ones, root `not-found.tsx` and
+`(auth)/error`) used a single flat `#f7f2ea` (warm paper) for the whole page — missing the
+established two-shade pattern already live elsewhere (`pilot-signup-form.tsx`, the pilot
+check-email page, `onboarding/peerify/page.tsx`): warm paper `#f7f2ea` for the page background,
+warm white `#faf6ef` for card/panel surfaces sitting on top of it (border `#e3d5c2`, `shadow-sm`).
+That contrast is what gives those pages their subtle depth; the flat single-shade version reads
+noticeably flatter side-by-side.
+
+**Fix:** wrapped all 6 system/error pages' content in a `<Card className="border-[#e3d5c2]
+bg-[#faf6ef] shadow-sm">` sitting on the `bg-[#f7f2ea]` page background, matching the existing
+pattern exactly rather than inventing a new one. Also shifted `default-user-cover.png` and
+`default-post-picture.png`'s background fill from paper to warm white, since those images
+function as card content (the map popup's hero image) rather than page background — regenerated
+via the same `sharp`-based script, same dimensions, no call-site changes.
+
+Verified on staging: all 6 pages screenshotted, card visibly distinct from the page background;
+`curl` confirmed both updated PNGs serve correctly. Commit `495c3c1e`, on top of `cc63605c`. Still
+staging-only, not promoted to prod.
+
+### Follow-up same day — extended two-tone branding to the 7 circle/module not-found pages (deferred item, now closed)
+
+Closed out the last deferred item from the two entries above: the 7 circle- and module-scoped
+not-found pages (circle-level, tasks, issues, proposals, discussions, events, goals under
+`src/app/circles/[handle]/`), which still used a generic `border-gray-200 bg-white/60
+backdrop-blur` card and a plain gray-outline button.
+
+**Investigation first, per instruction.** All 7 share near-identical markup (safe to apply one
+pattern across all), but they differ structurally from the 6 pages fixed above: `src/app/
+circles/[handle]/layout.tsx` renders `<HomeCover>`/`<HomeContent>`/`<CircleTabs>` *above*
+`{children}`, so each not-found block is a constrained (`max-w-3xl`) content island embedded
+partway down an already-rendered circle page, sitting on the app's plain white background
+(`--background: 0% 100%` in `globals.css`) — not a full-viewport takeover we control end-to-end.
+Painting a warm-paper "page" background here would either be invisible outside the narrow column
+or read as an odd colored rectangle floating mid-page. Flagged this to the user rather than
+forcing the literal two-tone pattern from the other 6 pages.
+
+Found a closer, already-established precedent for this exact situation: the "No feed posts yet" /
+"No community updates yet" empty states in `post-grid.tsx`/`feed.tsx`, which render in the same
+embedded-in-circle-content context and use warm paper `#f7f2ea` (border `#e8dfd2`) as the *card*
+color directly on the page's white background — no separate page-bg layer, since there isn't one
+to set. User confirmed: match that precedent, and restyle the "Back to X" button (a plain `<Link>`,
+not the shared `RedirectButtons` logic component the other 6 pages use) as the orange pill CTA.
+
+**Fix:** all 7 files — card class changed from `border-gray-200 bg-white/60 ... backdrop-blur` to
+`border-[#e8dfd2] bg-[#f7f2ea]`; heading/body text recolored to `#181512`/`#6b5f52`; button
+restyled from the gray outline to `rounded-full bg-[#e8720c] ... hover:bg-[#ff8c2a]`. Copy and all
+data-fetching/`notFound()` logic untouched.
+
+**Verified on staging:** none of the 6 real modules (tasks/issues/proposals/discussions/events/
+goals) were enabled on any circle here — confirmed via `circles.distinct("enabledModules")`
+(only `communities, discussions, events, feed, followers, home, music, settings, shifts, tasks`
+exist DB-wide, and issues/proposals/goals appear on zero circles). Temporarily added
+`issues`/`proposals`/`goals` to the `tim-solo` test circle's `enabledModules` via a raw
+`MongoClient` script (no app code path touched), curled and Playwright-screenshotted all 7 routes,
+then reverted the circle doc immediately after (confirmed restored to its original
+`enabledModules` list). Circle-level, discussions, events, and goals rendered and screenshotted
+cleanly as an anonymous visitor — correct card, correct CTA, consistent with the other 6 pages.
+Tasks/issues/proposals redirect anonymous visitors to `/login` client-side before the not-found
+content ever paints (a pre-existing `Authenticator`-driven gate on those specific modules,
+unrelated to this styling change) — confirmed via `curl` that the server-rendered HTML for those
+three still contains the identical corrected markup (same shared JSX regardless of auth state).
+Attempted a logged-in-as-non-member check via the login-link-token technique documented in
+[[project_peerify_staging_environment]]; that surfaced a separate, pre-existing access-control
+quirk (authenticated non-members get a blank content area on tasks/issues/proposals rather than
+the not-found card or a login redirect) — noted as a carry-forward, explicitly NOT touched, since
+it's an authorization-logic question, not a graphics one. Cleaned up the throwaway test account
+afterward.
+
+Commit `14198857`, on top of `49ea07da`. Still staging-only, not promoted to prod.
+
+**Carry-forward:** the authenticated-non-member blank-content behavior on tasks/issues/proposals
+not-found pages (see above) looks like a real, pre-existing gap worth a dedicated look — separate
+task, not a styling one.
+
+## 2026-08-09 — New "chrome" visual-identity pilot, scoped to Tim Admin's personal profile
+
+Distinct from the Kamooni→Peerify rebrand entries above (which matched the *existing* shipped
+`#e8720c`/`#181512` palette): this is the "newer direction" flagged as a carry-forward there —
+three mockups (artist/fan/venue profile) confirming a new shared palette (ink `#1A1612`, cream
+`#F2EBDB`, paper `#FAF6EC`/paper-light `#FDFAF3`, line `#DFD5BF`/line-soft `#ECE3CC`, muted
+`#7D7164`/muted-soft `#A89B89`, orange `#E8732C`/deep `#C95F1F`/soft `#F1A674`/tint `#F8E2CE`) and
+fonts (Cormorant Garamond display, Manrope body — Playfair/Raleway from the plan doc referenced in
+the ask were, again, never actually wired up anywhere, confirming the earlier finding). Piloted on
+one real page — Tim Admin's own profile, `/circles/tim-admin/home` — for side-by-side comparison
+before deciding on a wider rollout. Not per-artist customizable theming (that's a separate, later,
+paid-tier feature — explicitly out of scope here).
+
+**Scoping approach.** `circles/[handle]/layout.tsx` (which renders `HomeCover`/`HomeContent`/
+`CircleTabs`/`{children}` for every circle) only wraps its output in the new `PilotChromeScope`
+client component when `circle.handle === "tim-admin"` (`PILOT_CHROME_HANDLE`, in the new
+`lib/peerify/pilot-chrome.ts`) — zero cost/risk for every other circle. That wrapper double-checks
+`usePathname()` against the exact `PILOT_CHROME_PATH` (`/circles/tim-admin/home`) before adding a
+`.pilot-chrome` class, so tim-admin's own other tabs (settings, followers, etc.) fall back to the
+current look too — confirmed by screenshot. `GlobalNav` and the top-right `ProfileMenu` render
+*outside* that page's DOM subtree (siblings in the root layout), so each does its own
+`isPilotChromePath(pathname)` check and adds `.pilot-chrome` to its own root element only on that
+route — no new prop drilling, both already had `pathname` via existing hooks.
+
+All new palette/token work lives in one new `globals.css` block, entirely scoped under
+`.pilot-chrome`/`.pilot-chrome-page` selectors: (a) redefines the existing shadcn CSS vars
+(`--background`, `--foreground`, `--primary`, `--muted`, `--border`, etc.) so every Card/Badge/
+Button/Tabs element that already relies on them retints for free with no component edits, and (b)
+remaps each literal Tailwind utility class actually found in this render tree (`bg-white`,
+`text-gray-600`, `bg-[#181512]`, `hover:bg-[#241f1a]`, etc.) to the new tokens by targeting the
+exact compiled class selector, scoped under `.pilot-chrome` so it's inert everywhere else.
+Deliberately left untouched: semantic/status colors that aren't page chrome (the green
+"Connected"/founding-member/relationship badges, the venue booking-enquiry card's colors) — those
+carry meaning independent of brand palette, matching how the earlier rebrand entries above treated
+functional color-coding.
+
+Fonts loaded via `next/font/google` in `layout.tsx` exactly like the existing four fonts there
+(Cormorant Garamond weights 400–700 + italic, Manrope 400–700), exposed as `--font-cormorant`/
+`--font-manrope` on `<html>` globally (like `--font-yeseva` etc. already are) — inert until
+referenced, only ever applied inside `.pilot-chrome`.
+
+**Bug caught during verification:** the first pass set `background-color`/`color` directly on the
+shared `.pilot-chrome` base rule. Since `GlobalNav`, `ProfileMenu`, and the page wrapper all use
+that same class, this painted an unwanted solid paper-colored box behind the profile-menu's icon
+buttons (which don't have their own outer background) — visible as a stray rectangle over the
+cover photo. Fixed by moving the page-canvas `background-color`/`color` to a second, page-only
+class (`.pilot-chrome-page`, added only by `PilotChromeScope`), leaving the shared `.pilot-chrome`
+class to carry only the CSS variables/font-family. Re-verified via screenshot — gone.
+
+**Verified without touching staging or prod.** Built the branch (`bun run build`, clean, only
+pre-existing lint warnings) and ran the resulting `.next/standalone` output as a fully separate
+`node server.js` process on port 3002 (symlinked `node_modules`/server chunks from the real
+standalone output, copied over a fresh `.next/static`, pointed at the same `peerify_staging`
+Mongo/MinIO so real data — including tim-admin's actual profile — was visible) — this never
+touched the pm2-managed `peerify`/`peerify-staging` processes or their standalone directories, and
+`pm2 jlist` confirmed both kept their original pid/uptime throughout. Used the login-link-token
+technique from [[project_peerify_staging_environment]] to get a real authenticated session (as
+tim-admin) without a password, then Playwright-screenshotted: the pilot page itself (new palette/
+fonts confirmed via computed-style checks — `background-color`/`color`/`font-family` on all three
+`.pilot-chrome` roots matched the new tokens exactly), a different circle's home page, tim-admin's
+own settings tab, and `/explore` — all three confirmed to still render the original, unmodified
+look (`.pilot-chrome` absent from their HTML entirely). Cleaned up the test login token from
+tim-admin's circle doc and the temporary standalone directory afterward.
+
+Commit `886ce805`, on top of `13024f51`. Staging-only per instruction; not deployed in this entry.
+
+### Follow-up same day — deployed to staging
+
+User gave the explicit go-ahead. Ran `./deploy-staging.sh` (all 8 steps passed — BUILD_ID
+`K56T-Mnt3Pkofi-ix93Gd`, static assets copied, HTTP checks green); `pm2 jlist` confirmed `peerify`
+(prod) kept its original pid/uptime throughout. Re-verified live on the real domain (not
+localhost) per [[project_peerify_staging_environment]] — login-link-token as tim-admin,
+Playwright-screenshotted `https://staging.peerify.one/circles/tim-admin/home` (new palette/fonts
+present, matches the local preview exactly) and `https://staging.peerify.one/explore` (unaffected,
+`.pilot-chrome` absent). Cleaned up the test login token afterward.
+
+### Follow-up same day — refined to "Option A: restrained accent" per review feedback
+
+Review of the deployed pilot came back with specific fixes, all still scoped to
+`/circles/tim-admin/home` only:
+
+1. The social icon row (LinkedIn/Instagram/GitHub/YouTube in `social-links.tsx`) had picked up
+   the pass-1 muted-brown text token via a blanket `text-gray-500/600/700`/`text-slate-600/700`
+   remap — needed to stay neutral regardless of what's below it.
+2. The settings-gear button (`home-content.tsx`'s `settingsButtonClassName`) was — and always had
+   been, independent of this pilot — solid emerald green with a green hover. New rule for this
+   page: orange is the only interactive/hover accent in the shell chrome; green is reserved for
+   money/intent-committing actions (a Pledge-style action), which this button isn't.
+3. Cards (About/Offers/sidebar cards) needed to stay white with their existing thin neutral
+   border, not pass 1's warm/cream surface.
+4. Headings-only Cormorant Garamond, body/buttons/labels stay Manrope — already correct from pass
+   1, reconfirmed rather than changed.
+5. Badge/pill/tag elements (offer tags, relationship/status chips) should use a restrained
+   orange-tint rather than defaulting to ink/muted.
+
+Explicitly out of scope, stated up front: don't move or restructure the left sidebar nav — this
+is a color/typography pass only.
+
+**Root cause, once traced:** pass 1's approach was "shift the whole page to a warm cream/paper
+theme," done via (a) remapping the shadcn CSS vars (`--background`/`--foreground`/`--muted`/
+`--border`/etc.) to warm HSL values, and (b) a blanket remap of literal `bg-white`/`text-gray-*`/
+`bg-slate-*` classes to warm tokens, both scoped under `.pilot-chrome`. That blanket literal-class
+remap is exactly what caught the social icons (item 1) — they use plain `text-gray-500`, no
+different from any other gray text on the page — and is exactly why cards read as warm/cream
+instead of white (item 3). The settings-gear button (item 2) was never part of either remap; it's
+been emerald green outside the pilot too, just newly visible/flagged now that the page around it
+changed.
+
+**Fix — reworked to Option A (restrained accent):**
+- Removed the `--background`/`--foreground`/`--card`/`--card-foreground`/`--popover`/
+  `--popover-foreground`/`--secondary`/`--secondary-foreground`/`--muted`/`--muted-foreground`/
+  `--accent`/`--accent-foreground`/`--border`/`--input` overrides entirely — these now inherit the
+  site's normal white/neutral defaults inside `.pilot-chrome` too. Kept only `--primary`/
+  `--primary-foreground`/`--ring` overridden to the new orange — the one accent color threaded
+  through every Button/Tabs/link that already relies on it, no component edits needed.
+- Removed the blanket `bg-white`/`border-white`/`text-gray-800/900`/`text-gray-500/600/700`/
+  `text-slate-600/700`/`bg-gray-100/200`/`bg-slate-50/100`/`border-gray-300` remap entirely — this
+  is what fixes item 1 (social icons) and item 3 (cards) simultaneously, since neither is touched
+  by anything anymore.
+- Added new, narrowly-targeted rules instead: the `variant="offering"` badge (near-black/gold, in
+  `tour-team-offerings-card.tsx`) and the generic status/count chips + "+N more" skill/need
+  overflow badges (previously slate/gray) now get `--pc-orange-tint` background + `--pc-orange-
+  deep` text — restrained, not saturated. Deliberately left alone: the semantic-green "Connected"
+  relationship chip (`bg-[#f3f7f4]`/`text-[#45604d]`) and the founding-member badge (its own
+  `--founding-member-*` vars) — real status meaning, not default chip styling, same principle as
+  the earlier Kamooni→Peerify rebrand entries' treatment of functional color-coding.
+- Settings-gear button: added `border-emerald-950`/`bg-emerald-950`/`hover:bg-emerald-900`/
+  `focus-visible:ring-emerald-950` overrides to orange/orange-deep/orange (resting/hover/ring).
+- `PilotChromeScope` no longer adds a second `.pilot-chrome-page` class — with the page canvas no
+  longer painted, the page/nav/profile-menu wrappers can safely share one class again.
+- Left sidebar nav (`global-nav.tsx`/`global-nav-items.tsx`) and the top-right profile menu:
+  untouched, confirmed by `git diff --stat` touching only `globals.css` and
+  `pilot-chrome-scope.tsx` — byte-for-byte identical CSS rules to the prior commit.
+
+**Judgment calls, not itemized in the ask, flagged here:** left two other pre-existing greens
+alone — `VerifiedContributionsPanel`'s verified-checkmark icon (`text-emerald-600`) and the
+`upcoming-shifts-panel.tsx` capacity label (`text-emerald-700`, though this panel doesn't render on
+a personal/`circleType: "user"` profile anyway). Neither is a hover/focus state or shell chrome;
+both are static semantic status indicators, same category as the "Connected" chip. Also confirmed
+no Pledge/money-style action actually renders on this personal profile (that's gated on
+`isPeerifyArtistProfile`, false for `circleType: "user"`) — so currently zero green renders
+anywhere on this page outside the two status-icon cases just named.
+
+**Verified without touching staging or prod**, same technique as the deploy-day entry above: built
+the branch clean (`bun run build`, no new lint warnings), ran the `.next/standalone` output as an
+isolated `node server.js` on port 3002 (fresh symlinked copy, not the pm2-served directory),
+login-link-token as tim-admin. Confirmed via computed-style checks: settings-gear
+`background-color` is `rgb(232, 115, 44)` (`#E8732C`) resting → `rgb(201, 95, 31)` (`#C95F1F`) on
+`:hover`, `--tw-ring-color` is `#e8732c` on `:focus-visible` (no emerald anywhere); social-icon
+`color` is `rgb(107, 114, 128)` (Tailwind's unmodified `gray-500`); offering-badge and
+relationship-chip `background-color`/`color` are `rgb(248, 226, 206)`/`rgb(201, 95, 31)`
+(orange-tint/orange-deep); profile-name and "About"/"Offers" headings compute to `"Cormorant
+Garamond", ... serif`, "Edit" buttons compute to `Manrope, ... sans-serif`. Screenshot-compared
+the pilot page (cards now genuinely white, not cream) against a different circle's home, tim-admin's
+own settings tab, and `/explore` — all three still `.pilot-chrome`-absent and visually untouched.
+`pm2 jlist` confirmed `peerify`/`peerify-staging` pids/uptimes unchanged throughout. Cleaned up the
+test login token and temporary standalone directory afterward.
+
+Commit `c726df9f`, on top of `886ce805`/`095090b3`. Staging-only per instruction; not deployed in
+this entry.
+
+### Follow-up same day — deployed to staging
+
+User gave the go-ahead again. `./deploy-staging.sh` — all 8 steps passed (BUILD_ID
+`o6d1pEDfcLAHdHcXpvusd`); `pm2 jlist` confirmed `peerify` (prod) pid/uptime unchanged. Re-verified
+live on `https://staging.peerify.one/circles/tim-admin/home` via the login-link-token technique
+(real domain, not localhost, per [[project_peerify_staging_environment]]) — matches the local
+preview exactly. `/explore` confirmed unaffected. Cleaned up the test login token afterward.
+
+## 2026-08-10 — Visual pilot correction pass, per side-by-side review against production
+
+Same pilot page (`/circles/tim-admin/home`), same "Option A: restrained accent" direction from the
+prior entries — this is a targeted correction pass after the user compared the deployed pilot
+side-by-side against real production and flagged six specific things, all still scoped to this one
+page, no component files touched (every fix is a `globals.css` selector or the new heading-weight
+toggle described below):
+
+1. **Left sidebar active-state.** Production's own treatment for an active nav item is text-color
+   + a framer-motion icon-scale on hover/tap (`global-nav-items.tsx`, never touched by any pass).
+   Pass 1 had *also* given every nav item's `:hover` a solid `--pc-orange-deep` background fill —
+   combined with an active item's orange text, that reads as a "solid-fill highlight block," not
+   production's subtle one. Fix: removed the `.hover\:bg-\[\#241f1a\]:hover` override entirely, so
+   hover now falls through to the component's own original, unmodified `hover:bg-[#241f1a]`.
+   (Side investigation before landing on this: initially suspected the two solid-looking circles
+   in the sidebar's pinned-circle tray below the divider were the culprit — traced them via a raw
+   `MongoClient` query on `tim-admin`'s `pinnedCircles` array (values are real `ObjectId`s, not the
+   strings `JSON.stringify` makes them look like — a `findOne({_id: "<hex>"})` string-vs-ObjectId
+   mismatch returned false negatives at first) to two real, pre-existing uploaded circle pictures
+   ("Peerify Main", "The Backstage Lounge") — unrelated to the pilot, ruled out.)
+2. **Action icons (mail/clipboard/bell).** Reverted the `bg-[#f1f1f1]`/`hover:bg-[#cecece]`
+   overrides — these render at their original plain light-gray now, no tint.
+3. **Divider below "Create."** User confirmed the more-visible-than-production divider is a real
+   improvement — kept, but reworked from a flat solid `background-color` bar to a soft-edged
+   `linear-gradient` fade (transparent → muted-soft → transparent), for a more intentional feel
+   without increasing loudness.
+4. **Settings-gear button.** Was a solid saturated-orange fill (pass 2's fix for the *original*
+   solid-emerald-green button) — visually "the odd one out" next to neutral outline icons. Now
+   matches the pills' own tint treatment: `--pc-orange-tint` background, `--pc-orange-deep` icon,
+   transparent border (no visible border line, same as the badge component's own variants). The
+   icon-color override uses a compound selector, `.border-emerald-950.text-white`, so it only ever
+   matches this one button — `text-white` alone is far too generic a hook to touch safely.
+5. **Social icon row.** Already plain since the prior pass's fix (item 1 there) — nothing to
+   change; noted as now consistent with item 2's action-icon revert, so the two rows read as one
+   design language rather than two.
+6. **Typography experiment (Cormorant Garamond 500 vs. 600).** Not a decision — the ask was to make
+   both weights comparable, not to pick one. Headings now default to weight 500 (they'd
+   previously inherited the site's own unscoped `h1,h2,...{font-weight:600}` rule, since pass 1/2
+   only ever set `font-family` on headings, never `font-weight`). Added
+   `PilotChromeScope`'s only new behavior this pass: reads `useSearchParams().get("heading-weight")`
+   and adds a second `.heading-weight-600` class when it's `"600"`, which a scoped override rule
+   flips back to 600 — so `?heading-weight=600` on the pilot URL is a live, on-page toggle for
+   direct comparison, no separate build or deploy needed to see either option.
+
+**Verified without touching staging or prod**, same isolated-standalone-server technique as the
+prior two entries (fresh `bun run build`, symlinked `.next/standalone` copy on port 3002, never the
+pm2-served directory, login-link-token as tim-admin). Confirmed via computed-style + hover-simulation
+checks: nav item background is `transparent` at rest and `rgb(36, 31, 26)` (`#241F1A`, the original
+value) on `:hover` — no orange anywhere in nav hover; the three action-icon buttons compute to
+`rgb(241, 241, 241)` (`#F1F1F1`, unchanged); settings-gear computes to `rgb(248, 226, 206)` bg /
+`transparent` border / `rgb(201, 95, 31)` icon color at rest, `rgb(241, 166, 116)` (orange-soft) on
+hover; the divider's `background-image` computes to the expected `linear-gradient(...)` with
+transparent ends; offering-badge and "Member" chip compute to the *same* `rgb(248, 226, 206)`/
+`rgb(201, 95, 31)` as the previous commit (pill colors confirmed unchanged); social-icon color is
+still unmodified `rgb(107, 114, 128)` (Tailwind `gray-500`); `h4`/`h1` heading `font-weight` computes
+to `500` by default and `600` with `?heading-weight=600` appended — both screenshotted side by side
+for the visible comparison the ask required. Re-confirmed the usual scoping guarantees: a different
+circle's home page, tim-admin's own settings tab, and `/explore` are all still `.pilot-chrome`-absent.
+`pm2 jlist` confirmed `peerify`/`peerify-staging` pids/uptimes unchanged throughout. Cleaned up the
+test login token and temporary standalone directory afterward.
+
+Commit `4633b70e`, on top of `c726df9f`/`ef9dca6e`. Staging-only per instruction; not deployed in
+this entry.
+
+### Follow-up same day — deployed to staging
+
+User gave the go-ahead again. `./deploy-staging.sh` — all 8 steps passed (BUILD_ID
+`2jgUL809lnsZNiccMEQXu`); `pm2 jlist` confirmed `peerify` (prod) pid/uptime unchanged. Re-verified
+live on `https://staging.peerify.one/circles/tim-admin/home` (login-link-token as tim-admin, real
+domain not localhost, per [[project_peerify_staging_environment]]) — matches the local preview.
+`/explore` confirmed unaffected. Cleaned up the test login token afterward.
+
+## 2026-08-10 — Second correction pass: typography reversal, sidebar full revert, action-icon consistency
+
+Same pilot page, another round of specific fixes from review — this time the review compared the
+deployed pilot against real production directly (not just internal consistency), which surfaced a
+different class of issue than the first correction pass: two outright wrong claims from earlier
+entries (Cormorant Garamond as a considered typeface, and an implied "Arial" baseline that was
+never actually checked) and one real cross-contamination bug in the CSS scoping itself.
+
+**1. Typography — reversed course.** The ask was blunt: remove Cormorant Garamond entirely, find
+out what production's heading font *actually* is rather than assuming, and only touch weight.
+Checked `layout.tsx` and the unscoped `h1,h2,h3,h4,h5,h6 { font-family: var(--font-wix-display);
+font-weight: 600; ... }` rule in `globals.css`: production's heading font is **Wix Madefor
+Display** (loaded via `next/font/google` as `wix`, same as the rest of the app's headings) — not
+Arial, and not something that needed replacing. Kept it, dropped `font-weight` from 600 to 500.
+Also dropped Manrope from body text (it was Option A's only other font substitution) rather than
+keep a mismatched pairing — with headings back on production's own font, a second custom font for
+body text alone would have re-created exactly the "two design languages" problem the social-icon-
+row fix in the previous correction pass was about. Removed both `Cormorant_Garamond`/`Manrope`
+`next/font/google` calls and their `<html>` variable classes from `layout.tsx` entirely, since
+nothing references either anymore.
+
+**2. Left sidebar — reverted fully to production, kept only the divider.** Removed every remaining
+nav color override (background, text, hover states) from earlier passes; verified via computed
+style that the nav's background/text now resolve to the *exact* original production hex values
+(`rgb(24, 21, 18)` = `#181512`, `rgb(250, 246, 239)` = `#faf6ef`), not the pilot's near-identical
+but distinct `--pc-ink`/`--pc-cream`. Kept the soft-edged gradient divider below "Create" from the
+prior pass (explicitly confirmed as worth keeping) unchanged.
+
+Investigating the ask's second sidebar complaint — "the empty pinned-favorite slot picked up an
+orange tinted outline" — turned up a real scoping bug, not just a color to revert: the dashed
+pin-placeholder button in `global-nav-items.tsx` uses the literal Tailwind class `border-gray-300`
+— the *exact same class* AboutPage's "+N more" skill/need overflow badges use, which an earlier
+pass had retinted to `--pc-orange-soft`. Both were scoped under the same shared `.pilot-chrome`
+class, and since the nav's own wrapper also carries that class (for the divider rule), the badge
+override bled straight onto the nav control despite being nowhere near it in the DOM. Root-caused
+via a raw `MongoClient` query trail (see the sidebar-active-state investigation two entries above)
+that turned out to be a red herring for *this* bug too — the actual fix was purely a CSS scoping
+one. **Fix:** split the shared class in two — `.pilot-chrome` (nav + profile-menu, now inert
+except the divider rule) and `.pilot-chrome-page` (page-content wrapper only, added by
+`PilotChromeScope`) — and moved every page-only rule (badges, heading weight) onto the latter.
+Confirmed fixed: the pin-placeholder's computed `border-color` is now `rgb(209, 213, 219)`,
+Tailwind's unmodified `gray-300`.
+
+**3. Action icons — investigated first, per instruction.** Traced how `home-content.tsx` already
+distinguishes "own profile" from "administered circle": `showSettingsButton = authorizedToEdit &&
+circle.handle && (!isUser || isOwnUserProfile)` and `isOwnUserProfile = isUser && (user?.did ===
+circle.did || viewerDid === circle.did)` — both already computed, both reused as-is (no new
+permission check written). Reported this back before implementing anything, per instruction.
+
+Realized partway through that gating the new behavior by *page* (the established pattern for
+every other change in this pilot) can't actually satisfy the ask: tim-admin's own profile is
+always `circleType: "user"`, so it can never itself be "a circle the user administers" — the
+second scenario the ask describes is structurally unreachable if scoped to a single fixed
+pathname. Resolved by gating on the *viewer* instead: `isPilotViewer = user?.handle ===
+PILOT_CHROME_HANDLE`, combined with the existing `showSettingsButton`/`isOwnUserProfile` above.
+This makes the feature reachable on any circle tim-admin administers (confirmed candidates via a
+raw `MongoClient` query on `circles.createdBy`: `tim-solo`, `the-band`, `the-venue`, `proddy`,
+`peerify-main`, `the-backstage-lounge`), while staying invisible to every other viewer on every
+page, including tim-admin's own circles when viewed by someone else — arguably a more faithful
+"pilot for one person" than a hardcoded single URL would have been.
+
+This forced the `.pilot-action-icon` tint rule itself to move outside the `.pilot-chrome-page`
+scope from item 2 above (that scope is pathname-gated and would never reach a second page like
+`tim-solo`) — it's now a plain top-level CSS rule, with its `--pc-orange*` tokens promoted to the
+site's global `:root` block (harmless; unused unless that one class is present) instead of living
+inside `.pilot-chrome`.
+
+**Fix:** on the viewer's own personal profile, star (bookmark) and megaphone (notification
+settings) now hide entirely, leaving only the settings gear. On a circle the viewer administers,
+all three show, reordered so the gear is last/rightmost (implemented by hoisting a single
+`settingsButtonElement` and conditionally rendering it either in its original middle position, for
+every non-pilot-viewer context — unchanged — or last, for the pilot-viewer context). All three now
+share one visual treatment — tint fill, deep-orange icon, no border — via the shared
+`.pilot-action-icon` class, replacing the settings-gear's previous CSS-override-on-emerald-classes
+approach (which only worked because `border-emerald-950`/`bg-emerald-950` happen to be unique
+strings) with a `className` passed straight through `BookmarkButton`/`NotificationSettingsDialog`'s
+existing prop — no changes to either shared component, so it's inert everywhere else in the app.
+The gear's production styling (solid emerald green) is otherwise completely unchanged for every
+non-pilot-viewer context.
+
+**4. Alignment.** The social-icon-row wrapper had a stray `pt-2` nobody else in the same flex row
+had, pushing it visibly below the action-icon row despite `items-center` on the shared parent.
+Removed it — confirmed via `getBoundingClientRect()` that both rows now share the exact same
+vertical center (`384`/`384`).
+
+**Verified without touching staging or prod**, same isolated-standalone-server technique as every
+entry above (fresh `bun run build`/lint, both clean with no new warnings; symlinked
+`.next/standalone` copy on an unrelated port; login-link-token as tim-admin). Confirmed via
+computed-style checks: heading `font-family` is unquoted `"Wix Madefor Display", "Wix Madefor
+Display Fallback"` at `font-weight: 500` on tim-admin's own page; the *same* heading on `tim-solo`
+(administered-circle branch) computes to `700`/`600` — production's untouched defaults, proving
+the typography change didn't leak into the second scope. On tim-admin's own page: settings gear
+present with no star/megaphone; on `tim-solo`: all three present, tinted identically
+(`rgb(248, 226, 206)` background on all three), at x-positions confirming star → megaphone → gear
+left-to-right. Confirmed `tim-solo` and `the-backstage-lounge` (both circles tim-admin administers)
+have no `.pilot-chrome`/`.pilot-chrome-page` in their HTML at all — only the viewer-gated action-
+icon classes reach those pages, nothing else from this pilot does. Re-confirmed the usual
+scoping guarantees on `tim-admin`'s own settings tab and `/explore`. Offering-badge/relationship-
+chip colors confirmed byte-identical to the prior commit. `pm2 jlist` confirmed
+`peerify`/`peerify-staging` pids/uptimes unchanged throughout. Cleaned up the test login token and
+temporary standalone directory afterward.
+
+Commit `d369ef3a`, on top of `4633b70e`. Staging-only per instruction; not deployed in this entry.
+
+### Follow-up same day — deployed to staging, then accepted as final
+
+User gave the go-ahead again. `./deploy-staging.sh` — all 8 steps passed (BUILD_ID
+`v8LfjQMObKQB1LdW2Bh4k`); `pm2 jlist` confirmed `peerify` (prod) pid/uptime unchanged. Re-verified
+live on the real domain (login-link-token as tim-admin, per
+[[project_peerify_staging_environment]]): `https://staging.peerify.one/circles/tim-admin/home`
+(own profile — gear only, no star/megaphone) and `https://staging.peerify.one/circles/tim-solo/home`
+(administered circle — all three, gear rightmost, matching the local preview and each other).
+`/explore` confirmed unaffected. Cleaned up the test login token afterward.
+
+User then confirmed: **keep what's currently deployed, no further comparison against production
+needed.** This closes out the visual-identity pilot (started two entries above as "chrome" palette
++ typography on `/circles/tim-admin/home`, refined to Option A's restrained-accent treatment, then
+corrected twice against side-by-side production review) — the deployed state as of commit
+`d369ef3a` (BUILD_ID `v8LfjQMObKQB1LdW2Bh4k`) is the accepted result. No wider-rollout decision
+requested yet; per the pilot's original scope this stays a single-page comparison
+(`/circles/tim-admin/home`, plus the viewer-gated action-icon treatment reachable on circles
+tim-admin administers) rather than something applied elsewhere in the app.
+
+## 2026-08-10 — Extended three shell-only fixes app-wide (not the full visual-identity rollout)
+
+Follow-up the same day: font-weight explicitly confirmed final (no further comparison), then a
+narrower ask than "roll out the pilot everywhere" — take exactly three of the pilot's shared-
+component fixes (nav divider, settings-gear/star/megaphone gating+tint, heading font-weight) and
+stop scoping them to the one page they were built against, since they're shared components
+rendered identically everywhere. Everything else from the pilot (badges, the `--primary`/`--ring`
+tab-accent color on `CircleTabs`, the profile-menu's small ink recolors) explicitly stays exactly
+as narrow as before — `/circles/tim-admin/home` only — none of those three were named in this
+round's ask.
+
+**Per-item scope, and why each ended up where it did:**
+
+1. **Nav divider.** No scoping mechanism needed at all anymore — `global-nav.tsx` no longer
+   references `.pilot-chrome`, reverted to its exact original unconditional `className`. The
+   divider rule (`.bg-[#3a3129]`, the gradient fade from the first correction pass) became a plain
+   top-level CSS rule, since the nav renders identically on every page regardless of pilot status.
+2. **Settings-gear/star/megaphone action icons.** `home-content.tsx`'s `isPilotActionIconsContext`
+   was `isPilotViewer && showSettingsButton` (viewer-gated, from the prior "extend to circles
+   tim-admin administers" fix); dropped the `isPilotViewer` half entirely, so it's now just
+   `showSettingsButton` — the same own-profile-vs-administered-circle logic, for every viewer. The
+   settings-gear's old solid-emerald-green branch of `settingsButtonClassName`'s ternary became
+   dead code the moment the condition turned unconditional (it can never be false when
+   `showSettingsButton` is true anymore) — removed rather than left unreachable.
+3. **Heading font-weight.** This one couldn't just drop its scope check — `HomeContent`'s name
+   heading renders on *every* tab of a circle (it's the shared header), but "Feed/Noticeboard post
+   cards... Admin screens... out of scope" meant the weight change must NOT follow it onto those
+   other tabs. Added `isCircleHomePath` to `pilot-chrome.ts` (`/^\/circles\/[^/]+\/home\/?$/` —
+   any handle, but only the `/home` tab specifically) and a second, independent boolean in
+   `PilotChromeScope` alongside the original `isPilotChromePath` check — the page-content wrapper
+   now carries two classes computed separately (`.pilot-chrome`/`.pilot-chrome-page`, still exact-
+   match-only, and the new `.circle-home-headings`, broad-match) rather than one. This means a
+   circle's name heading is intentionally lighter on its `/home` tab and production-weight on
+   every other tab of the *same* circle — a real, visible inconsistency, but the accepted
+   trade-off of "only extend what was actually visually tested," not a bug; called out explicitly
+   below rather than quietly patched.
+
+**Verified against the four page types named in the ask** (isolated standalone build on an
+unrelated port, as in every prior entry, real login-link-token sessions — never staging/prod):
+own profile (`tim-admin`) — gear only, no star/megaphone, heading weight 500. Administered circle
+(`tim-solo`, one of the circles found via the earlier `createdBy` query) — all three action icons
+present and tinted, gear rightmost, heading weight 500. A circle tim-admin does *not* administer
+(`default`/Kamooni, found via a `members` collection query for circles where his DID isn't in the
+member list) — no gear (not authorized), star/megaphone present but *not* tinted
+(`background-color: rgba(0,0,0,0)`, confirming regular-visitor production behavior is untouched),
+heading weight still 500 (this is also a `/home` tab, correctly widened). `/explore` — shell
+elements absent entirely, as expected for a non-circle page. Two extra checks beyond what was
+asked, specifically to probe the "shell renders every tab, heading-weight is /home-only" tension
+named above: `tim-solo`'s Noticeboard and Settings tabs both show the *same* tinted, correctly-
+ordered action-icon shell as `/home` (confirms item 2 is genuinely shell-wide), while the name
+heading on both computes back to weight `700` (its own explicit `font-bold`, unaffected by the
+pilot) rather than `500` (confirms item 3 stayed exactly as narrow as intended). Screenshotted all
+six pages — nothing looked broken or inconsistent enough to warrant stopping and reporting back,
+per the instruction's escape hatch. Build and lint clean, no new warnings; `git diff --stat`
+confirms `global-nav-items.tsx` and `profile-menu.tsx` are untouched.
+
+Commit `73544ddc`, on top of `98ac567f`. Staging-only per instruction; not deployed in this entry.
+
+### Follow-up same day — deployed to staging
+
+User gave the go-ahead. `./deploy-staging.sh` — all 8 steps passed (BUILD_ID
+`sWDpBdUZ8wZhIItBl8pJ5`; the build step logged several transient "Retrying 1/3..." lines partway
+through — a Google Fonts metadata fetch hiccup, unrelated to any pilot change, resolved on its own
+and the build still compiled cleanly). `pm2 jlist` confirmed `peerify` (prod) pid/uptime unchanged.
+Re-verified live on the real domain across all four page types from the prior entry (own profile,
+`tim-solo` administered circle, `default`/Kamooni non-admin circle, `/explore`) — all matched the
+local preview exactly. Cleaned up the test login token afterward.
+
+## 2026-08-11 — Heading weight: extended from /home-only to every tab of a circle
+
+Follow-up fix, same shell-extension effort as the entry above: the lighter heading weight only
+ever applied on a circle's `/home` tab (`.circle-home-headings`, scoped by `isCircleHomePath` —
+an exact `/circles/[handle]/home` match). Settings, Noticeboard, Followers, Circles, Events, and
+any other tab still rendered the circle's name heading at production's original weight, since
+`HomeContent`'s name `<h4>` is shell — it renders once per circle layout, above `{children}`,
+*identically regardless of which tab is active* — but the CSS scope it depended on was keyed to
+the current route, not to "is this the shell." Visiting a circle's Settings tab right after its
+Home tab made the inconsistency obvious: same heading, same position, different weight.
+
+**Investigation, per instruction:** confirmed via grep that `.circle-home-headings` covers
+`h1,h2,h3,h4,.heading,.header`, but only ONE of those (`HomeContent`'s `<h4>`) is actually shared
+shell — the `h1`/`h2`/`h3` elements the same rule was hitting are all `PresenceCard`-rendered
+("About"/"Offers"/"Venue overview" titles), which only ever exist inside `{children}` on the
+`/home` tab in the first place (`AboutPage`/`OffersCard`/`TourTeamOfferingsCard`) — they can't
+render on Settings/Followers/etc. regardless of CSS scope, so they never needed a scope change.
+
+**Cleanest fix, reported before implementing:** rather than widening the pathname regex to try to
+cover "every tab of a circle" (which risks catching {children}'s own tab-specific content
+headings too — Settings' own section titles, etc. — never part of what was asked), gave the name
+heading a direct, unconditional `font-medium` class in `home-content.tsx` (replacing `font-bold`)
+instead of a route-scoped CSS rule. Since `HomeContent` is already one shared component instance
+rendered identically for every tab, this direct edit **is** the "one shared rule" the investigation
+was asked to find — simpler and more precise than any CSS-scope widening would have been. Removed
+`h4` from the `.circle-home-headings` selector (now redundant, and dead — nothing else uses that
+class on an `h4`) and updated the rule's comment to clarify it's `PresenceCard`'s home-tab-only
+titles specifically, not the name heading.
+
+**Verified across every tab named in the ask** — Home, Noticeboard, Followers, Circles/Community,
+Events, Settings — on all three profile types: `tim-admin`'s own profile (all 6 tabs: heading
+weight `500`, `Wix Madefor Display` unchanged, gear present/tinted, star/megaphone absent — icon
+gating exactly as before), `tim-solo` administered circle (all 5 tabs checked: heading weight
+`500`, all three action icons present and tinted, gear last), `default`/Kamooni non-admin circle
+(3 tabs checked: heading weight `500`, no gear, star present but untinted — regular-visitor
+behavior unaffected). 14 tab checks total, all consistent. Screenshotted the Kamooni Followers tab
+specifically to confirm visually, not just via computed style — the lighter heading reads
+correctly there now, nothing else on the page shifted. `git diff --stat` shows only `globals.css`
+and `home-content.tsx` touched — the icon-gating logic, nav divider, and alignment fix from the
+prior entry are untouched by construction, not just by re-verification. Build and lint clean, no
+new warnings. Same isolated-standalone-server technique as every entry above; never touched
+staging or prod during verification.
+
+Commit `b65fbd13`, on top of `6304cb33`. **Staging-only, not deployed** — per instruction,
+awaiting go-ahead before running `deploy-staging.sh`.
+
+## 2026-08-11 — Two mobile-viewport bugs found and fixed: Explore search-bar overlap, CircleTabs vs bottom nav
+
+Asked to check the live site (`https://peerify.one`) on mobile as a diagnostic (Playwright,
+`devices["iPhone 13"]`, 390×664). Found two pre-existing, unrelated bugs — neither touched by the
+pilot/rebrand work already in prod — and was told to fix both.
+
+**Bug 1 — Explore page:** the search/filter controls (`map-explorer.tsx`) and the top-right
+profile-menu buttons both use fixed-offset positioning, reserving `mobileTopControlsRight = 128px`
+of clearance. That constant was sized for the *authenticated* state (single avatar button), but
+never accounted for the wider *unauthenticated* "Log in"/"Sign up" button pair — measured at 169px
+wide, sitting at `right-6` (24px from the edge), i.e. needing ~193px of clearance, not 128px. On
+mobile with a logged-out viewer, the search bar's icons rendered directly under those buttons.
+Fix: bumped the constant to 205px (small buffer above the measured 193px). Single-line change.
+
+**Bug 2 — Circle profile pages:** the `CircleTabs` row ("Home / Noticeboard / More") could render
+partially behind the fixed bottom nav (`GlobalNav`, `z-[300]`, opaque) on the initial unscrolled
+load. Root cause: the bottom-nav clearance in `GlobalNav` is a flex `order-last` spacer, which only
+reserves space at the very *end* of the page's scroll length — it does nothing for content that
+happens to land near the viewport's bottom edge on first paint. How far CircleTabs sits down the
+page is entirely a function of how much header content precedes it (bio, "Pledge Interest" button,
+genre badges), so the overlap's severity varies a lot by circle: measured 16px on a simple profile,
+84px-worth-too-tall (tabs partly below the viewport entirely) on `tim-solo`, whose header has 7
+wrapped genre badges across 3 rows.
+
+Considered and rejected `position: sticky; bottom: <navHeight>` on `CircleTabs` — it would fix the
+initial-load case but, since `CircleTabs` is the persistent shell for every module tab (Settings,
+Noticeboard, Tasks, etc.), a bottom-sticky rule would cause it to visually detach and float near
+the screen bottom while scrolling through content *below* it — a worse regression than the bug
+being fixed. Went with a scoped, structural trim instead: mobile cover height `270px → 220px`
+(`home-cover.tsx`), plus tightened vertical spacing in the artist-profile header block on mobile
+(`gap-3`/`py-2` → `gap-2`/`py-1`, `home-content.tsx`, mobile-only — desktop classes untouched).
+
+**Result, measured before/after via the isolated-standalone-server technique against staging's DB
+(never touched the live `peerify-staging` pm2 process or DB during iteration):**
+- `the-band` ("A Friendly Few", staging's analogue to the originally-reported production circle):
+  overlap fully eliminated — tabs bottom now 592px vs nav top 608px, 16px clear.
+- `tim-admin` (personal profile, short header): no overlap, large margin.
+- `tim-solo` (7 wrapped genre badges, the worst case found): reduced from ~84px too-tall to an
+  18px residual overlap — a real improvement (~78% reduction) but not fully eliminated. Flagging
+  this as a known limitation rather than claiming full resolution: profiles with unusually long
+  badge/tag lists can still see a small overlap. A more thorough fix (e.g. capping visible badges
+  with a "+N more" affordance, or a larger restructure of the bottom-nav clearance system) would
+  be a separate, bigger-scoped follow-up if wanted.
+- Explore page: 12px clear gap between search controls and Log in/Sign up in the logged-out state,
+  confirmed via `getBoundingClientRect()` and screenshot.
+
+Commit `84b46b00`, on top of `793979cf`. **Staging-only, not deployed** — per instruction, awaiting
+go-ahead before running `deploy-staging.sh`.
+
+## 2026-08-14 — Multi-artist events: additional bands, delegated edit access, self-service removal
+- Shipped: events can now list additional artist/band circles beyond the primary host `circleId`. New optional `EventModel` fields `additionalArtistCircleIds`/`artistAdminCircleIds` (additive, no migration). New actions `addArtistToEvent`/`removeArtistFromEvent`/`setArtistAdminStatus` (gated by canModerate/isAuthor, same as event edits) and `removeSelfAsEventArtist` (a deliberately separate, narrower gate: admin of the specific band circle, no moderator/author rights implied). `canEdit` on both the event detail page and the `/edit` route now also passes for admins of a delegated band (`artistAdminCircleIds`) — these are two independent gates in the code, both needed the same fix. New `EventArtistPicker` (create/edit form) and `EventArtistList` (detail page) components. New `event_artist_added` notification, sent to the added band's own admins (not the host circle's).
+- Bug found and fixed during manual verification: `searchArtistCirclesAction` initially hard-filtered to `circleType: "user"` — but real managed-identity bands/producers in this app are `circleType: "circle"` (only a solo artist using their own personal account is `"user"`). Would have returned zero real bands. Fixed to search all circle types and filter by `isPeerifyArtistIdentity` after, matching how map-explorer's own search already does it.
+- Verified end-to-end against staging's DB via the isolated dev-server-on-a-free-port + Playwright technique (never against the live `peerify-staging` pm2 process/DB during iteration): picker finds circleType-"circle" bands and excludes venues; delegated band admin gets `canEdit` on both the detail page AND the separate `/edit` route (the two-gate issue above, confirmed fixed); non-delegated band admin sees only "Remove yourself" and removing affects only that band; `event_artist_added` notifications land for each band's own admins with correct message/link. Test fixtures (2 throwaway users, 2 test events, notifications) cleaned up and admin memberships restored afterward.
+- Commits: `9d8b230c`..`b2143502` on `staging` (cherry-picked from `main` @ `b63947de`..`a3e1ec74`, 7 commits, no conflicts despite 3 files — `models.ts`/`notifications.ts`/`notifications.tsx` — overlapping with intervening staging-only work). Deployed via `deploy-staging.sh`, all 8 steps passed, prod pid/uptime unchanged, BUILD_ID `C1-arA2IIeJrCF1sEbBIm`.
+
+## 2026-08-15/16 — Noticeboard post audience visibility: four distinct bugs found and fixed
+
+**Repro that started this:** A Noticeboard post ("The Venue Festival," circle "the-venue") with audience explicitly set to "Everyone" was not visible to a logged-in non-follower, in either the circle's own Noticeboard tab or the home Feed.
+
+**Issue 1 — events/actions.ts:301, upsertEventNoticeboardPost:** Event→Noticeboard sync hardcoded userGroups to ["admins","moderators","members"] on every create AND every resync, completely disconnected from the actual event/post's intended audience. Any time a linked event was republished, this silently reset the post's audience regardless of prior state — a real data-corruption bug, not just a UI gap.
+Fix (commit 8c98bbb0): new posts get the event's actual userGroups; resync no longer touches userGroups at all, so republishing never clobbers a human's manual audience edit.
+
+**Issue 2 — updatePostAction, feeds/actions.ts:** The post edit dialog's audience selector correctly serialized selections client-side, but the server action handling edits never read userGroups from the submitted form at all (unlike createPostAction, which did). Edits appeared to succeed with no error, but the audience value in the DB was never touched.
+Fix (commit 134dd2c5): updatePostAction now reads and persists userGroups from the edit form, matching createPostAction's existing correct pattern.
+
+**Issue 3 — getAccessibleFeedIdsForUser, feed.ts:48-97:** The home Feed "Following" tab required an existing Members/follower relationship with a circle BEFORE ever checking whether a post's own userGroups included "everyone" — so even a correctly-tagged "everyone" post from a circle the viewer doesn't follow was structurally excluded from the aggregation before its audience setting was ever considered. Same pattern as other visibility-gate bugs found this week (event map/search draft-status gate, getEventById private-visibility gate): a blanket membership precondition applied before checking the content's own intended-audience field.
+Fix (commit e1006fc4): "everyone"-tagged content now bypasses the membership requirement in both the single-circle and whole-home-feed code paths, matching the correct pattern already used in getPosts/canUserViewPost. Confirmed the circle's own Noticeboard tab was NOT affected by this specific gate — only the home Feed "Following" tab was.
+
+**Issue 4 — CircleSelector initial-mount callback collision, post-form.tsx:** Found during live post-fix testing (not in the original investigation): the post edit dialog's audience selector displayed "Everyone" as selected regardless of the post's actual stored audience (e.g. "Followers"), because CircleSelector's one-time initial-mount report used the SAME callback (onCircleSelected → handleCircleSelected) as genuine user-driven circle changes, which unconditionally reset userGroups to ["everyone"]. This silently clobbered the correctly-seeded initial audience a moment after mount, on every single dialog open. Given Issue 2's fix now correctly persists whatever the dialog displays, this created a live, silent risk: any unnoticed edit (even to unrelated fields) would downgrade a Followers-only post to Everyone.
+Fix (commit 556293f9): track whether CircleSelector's initial mount-time callback has already fired; only reset audience to "everyone" on subsequent, genuine circle-change events.
+
+**All four fixes verified live** against real posts/events on staging.peerify.one via real browser sessions (not just code inspection or isolated dev-server testing) — including a real non-follower test account confirming Feed visibility, and a real edit-and-save cycle confirming a Followers-only post's audience survives an unrelated edit.
+
+**Status:** All four committed to staging branch, deployed and confirmed live on staging.peerify.one. Not yet promoted to production — pending final full click-through re-test of all four together, then standard deploy-peerify.sh promotion path.
+
+## 2026-08-16 — Draft-status event: clearer hero badge + status box (presentation-only)
+
+Asked to make an event's Draft status harder to miss — previously a prominent green "Open" button sat right next to a quiet "Status: Draft" text label, so a draft event's page could look live at a glance. Scoped as UI-only: no permission/visibility logic touched, only presentation.
+
+**Changes, both in `EventDetail`** (`src/components/modules/events/event-detail.tsx`, the single shared component behind the real detail-page route, the content-preview modal, and both events-panel sidebars via an `isPreview` prop):
+1. Hero cover-image corner badge (lines ~490–512, the non-preview/full-layout branch only — this is the only branch that ever renders the "Status:"/stage-controls block, since `page.tsx` is the only caller that doesn't pass `isPreview`): a small top-left tag, `stage === "draft"` only, reading "DRAFT — NOT VISIBLE TO THE PUBLIC", styled with the Peerify mustard/ink/cream palette (`#FAF6EC` cream background, `#1A1612` ink text, `#E8732C` orange accent dot/border) rather than a generic red/yellow warning banner. Positioned so it never covers the image center.
+2. Stage-controls status box (lines ~577–610): draft state now gets its own branch — bold uppercase label, `EyeOff` icon, warm tinted background/border (`#F8E2CE`/`#E8732C`-50%) instead of the same plain `text-muted-foreground` treatment every other stage used, so it reads at least as loud as the "Open"/"Submit for review" buttons beside it. Non-draft stages (`open`/`review`/`cancelled`) are pixel-identical to before — untouched branch.
+
+Deliberately did NOT add the badge to the compact/preview hero (the `if (compact)` branch, lines ~264–323, used by `content-preview.tsx`/`events-panel.tsx`/`mobile-events-panel.tsx`) — that branch never had the "Status:"/button-cluster problem this task was scoped to fix, and its hero is already busy with a date badge, close button, and calendar button in the same two top corners. Flagging as a separate, smaller follow-up if draft-status visibility is also wanted on preview cards.
+
+The Peerify `--pf-*` mustard/ink/cream token set is documented in `PEERIFY_CONTEXT.md` §4.2 but not yet wired into `globals.css`/`tailwind.config.ts` anywhere (confirmed via grep, zero hits) — used the documented hex values directly as Tailwind arbitrary-value classes in this one file rather than introducing new global tokens, to keep the change scoped to the two components actually being touched.
+
+**Incident during verification, self-inflicted, staging-only:** ran a bare `bun run build` in the repo (to type-check/lint the change) without realizing `EXPECTED_STANDALONE_ROOT` in `deploy-staging.sh` (`.next/standalone/apps/peerify-staging/circles/circles`) *is* the exact directory the running `peerify-staging` PM2 process serves from — a fresh `next build` wipes and regenerates the whole `.next` tree, including that standalone dir, but does NOT copy `public/`/`.next/static` back into it (that's `deploy-staging.sh` Step 4 alone). Result: staging's already-running process was left serving 400s for every `_next/static/*` CSS/JS chunk for a few minutes (confirmed via direct `curl`) — the same "stale process, missing static" failure mode documented earlier in this log. Caught it immediately via the same `curl` check, fixed by running the real `deploy-staging.sh` (which both restores static assets and ships this change) rather than manually patching the directory. Prod `pid`/`pm_uptime` confirmed unchanged before and after. **Lesson for next time: never run a bare `bun run build` inside this repo directory once `peerify-staging`'s pm2 process is live — always build inside a copy (or go straight through `deploy-staging.sh`) — see [[project_peerify_staging_environment]].**
+
+**Verified:** `bun run lint` and `CI=1 bun run build` clean (no new warnings in touched file). Visually confirmed via the isolated-standalone-server-on-a-free-port technique (fresh copy of `.next/standalone` + `public`/`.next/static`, port 3003, login-link-token as `tim-admin`, real Playwright `chromium`, never against the live pm2-served directory during iteration) against two real staging-DB events: a real `stage: "draft"` event (badge + loud status box both render, buttons unaffected) and a real `stage: "open"` event (no badge, plain "Status: Open" box, pixel-same as before — confirms no regression on non-draft stages). Login-link token fields cleaned up on the `tim-admin` circle doc after each check. Deployed via `deploy-staging.sh`, all 8 steps passed, prod pid/uptime unchanged (`1839957`/unchanged uptime), staging restarted onto the new build (BUILD_ID `ueyZpgSdeSaBPg8vyQ0c_`). Did not re-screenshot against `https://staging.peerify.one` itself — an automated Playwright hit against the live public domain was blocked by this session's auto-mode classifier; the local isolated-build screenshots (identical source) plus the deploy script's own passing HTTP/asset checks against `localhost:3001` were treated as sufficient.
