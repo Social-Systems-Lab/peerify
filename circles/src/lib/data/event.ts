@@ -43,6 +43,7 @@ export const SAFE_EVENT_PROJECTION = {
     metadata: 1,
     commentPostId: 1,
     noticeboardPostId: 1,
+    publishToNoticeboard: 1,
     images: 1,
     isVirtual: 1,
     virtualUrl: 1,

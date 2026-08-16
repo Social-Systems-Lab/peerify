@@ -172,7 +172,9 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
     const [images, setImages] = useState<ImageItem[]>([]);
     const [artistBands, setArtistBands] = useState<SelectedArtistBand[]>([]);
     const originalArtistBandsRef = useRef<{ ids: string[]; adminIds: string[] }>({ ids: [], adminIds: [] });
-    const [publishToNoticeboard, setPublishToNoticeboard] = useState<boolean>(Boolean(event?.noticeboardPostId));
+    const [publishToNoticeboard, setPublishToNoticeboard] = useState<boolean>(
+        Boolean(event?.noticeboardPostId || event?.publishToNoticeboard),
+    );
     const peerifyMetadata = event?.metadata?.peerify;
     const [venueDisclosure, setVenueDisclosure] = useState<PeerifyEventVenueDisclosure>(
         peerifyMetadata?.venueDisclosure || "public",
@@ -288,8 +290,8 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
     }, [event?.images]);
 
     useEffect(() => {
-        setPublishToNoticeboard(Boolean(event?.noticeboardPostId));
-    }, [event?.noticeboardPostId]);
+        setPublishToNoticeboard(Boolean(event?.noticeboardPostId || event?.publishToNoticeboard));
+    }, [event?.noticeboardPostId, event?.publishToNoticeboard]);
 
     // Seed additional artists for edit
     useEffect(() => {
@@ -860,7 +862,9 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                             <div className="space-y-1">
                                 <Label htmlFor="publishToNoticeboard">Share this event on the Noticeboard</Label>
                                 <p className="text-sm text-muted-foreground">
-                                    Create or update one linked Noticeboard post for this event.
+                                    Create or update one linked Noticeboard post for this event. The post is only
+                                    published once this event is opened — nothing is posted while it&apos;s in Draft
+                                    or Review.
                                 </p>
                             </div>
                         </div>
