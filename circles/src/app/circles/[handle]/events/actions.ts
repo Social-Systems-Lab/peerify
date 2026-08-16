@@ -551,6 +551,7 @@ export async function createEventAction(
             location: locationData,
             stage: "draft",
             userGroups: data.userGroups || [],
+            publishToNoticeboard: shouldPublishToNoticeboard(formData),
             isVirtual,
             virtualUrl,
             isHybrid,
@@ -580,29 +581,10 @@ export async function createEventAction(
             console.error("Failed to ensure events module is enabled on user circle:", err);
         }
 
-        if (shouldPublishToNoticeboard(formData)) {
-            try {
-                const noticeboardPostId = await upsertEventNoticeboardPost({
-                    circle,
-                    circleHandle,
-                    event: created,
-                });
-                if (noticeboardPostId && noticeboardPostId !== created.noticeboardPostId) {
-                    await Events.updateOne(
-                        { _id: new ObjectId(created._id!.toString()) },
-                        { $set: { noticeboardPostId } },
-                    );
-                    revalidatePath(`/circles/${circleHandle}/feed`);
-                }
-            } catch (error) {
-                console.error("Failed to create linked noticeboard post for event:", error);
-                return {
-                    success: true,
-                    message: "Event created, but Noticeboard post could not be created.",
-                    eventId: created._id?.toString(),
-                };
-            }
-        }
+        // Note: no Noticeboard sync here even if publishToNoticeboard is set — new events are
+        // always created in "draft" stage (see above), and the linked post is only ever
+        // created/synced once the event actually transitions to "open" (changeEventStageAction).
+        // The `publishToNoticeboard` flag persisted above is what that transition checks.
 
         return { success: true, message: "Event created successfully", eventId: created._id?.toString() };
     } catch (error) {
@@ -758,6 +740,7 @@ export async function updateEventAction(
             visibility: (data.visibility as any) ?? event.visibility,
             metadata,
             recurrence: recurrenceData as any,
+            publishToNoticeboard: shouldPublishToNoticeboard(formData),
             updatedAt: new Date(),
         };
 
@@ -767,7 +750,11 @@ export async function updateEventAction(
         const success = await updateEventDb(eventId, updateData, user);
         if (!success) return { success: false, message: "Failed to update event" };
 
-        if (shouldPublishToNoticeboard(formData)) {
+        // Only resync the linked Noticeboard post while the event is already open — for
+        // draft/review, `publishToNoticeboard` above just records host intent, and the post
+        // itself is created for the first time on the draft/review -> open transition (see
+        // changeEventStageAction). This mirrors the "no live post while draft" fix.
+        if (event.stage === "open" && shouldPublishToNoticeboard(formData)) {
             try {
                 const noticeboardPostId = await upsertEventNoticeboardPost({
                     circle,
@@ -1181,6 +1168,26 @@ export async function changeEventStageAction(
             }
         } catch (notifyErr) {
             console.error("Error sending event stage change notifications:", notifyErr);
+        }
+
+        // Create/sync the linked Noticeboard post now that the event is actually open. This is
+        // the only place a draft/review event's post ever gets created — createEventAction and
+        // updateEventAction only persist the host's intent (publishToNoticeboard) while the event
+        // isn't open yet, so a draft event never has a live, publicly-visible Noticeboard post.
+        if (newStage === "open" && event.publishToNoticeboard) {
+            try {
+                const noticeboardPostId = await upsertEventNoticeboardPost({
+                    circle,
+                    circleHandle,
+                    event,
+                });
+                if (noticeboardPostId && noticeboardPostId !== event.noticeboardPostId) {
+                    await Events.updateOne({ _id: new ObjectId(eventId) }, { $set: { noticeboardPostId } });
+                }
+                revalidatePath(`/circles/${circleHandle}/feed`);
+            } catch (error) {
+                console.error("Failed to create linked noticeboard post for event on open:", error);
+            }
         }
 
         revalidatePath(`/circles/${circleHandle}/events`);

@@ -1854,6 +1854,10 @@ export const eventSchema = z.object({
         .optional(),
     commentPostId: z.string().optional(), // Optional link to a shadow post for comments
     noticeboardPostId: z.string().optional(), // Optional link to a promoted noticeboard post
+    // Host's intent to share this event on the Noticeboard, captured while the event may still be
+    // draft/review. The linked post itself is only created/synced once the event transitions to
+    // "open" (see changeEventStageAction) — this flag is what that transition checks.
+    publishToNoticeboard: z.boolean().optional(),
     images: z.array(mediaSchema).optional(), // Optional images/media attached to the event
     // Format
     isVirtual: z.boolean().optional(),
