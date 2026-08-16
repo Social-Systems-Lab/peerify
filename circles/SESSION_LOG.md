@@ -3944,3 +3944,27 @@ key pair from staging, as intended), redeployed. Confirmed working live on
 peerify.one: settings card renders, subscribe flow completes, and a real 
 notification was received end-to-end.
 
+
+### 2026-08-16 (later still) — Hid redundant "Submit for review" button for reviewers
+
+Investigated the draft-status action row on the event detail page 
+(event-detail.tsx). Found the row showed both "Submit for review" and 
+"Open" to any viewer with canReview (e.g. a circle admin), even though 
+draft->review is pointless for someone who can already open the event 
+directly. Root cause: the button's visibility condition was `isAuthor || 
+canReview`, so canReview alone was enough to show it regardless of 
+authorship. Changed to `isAuthor && !canReview` — reviewers now see only 
+"Open" while a draft event is theirs or anyone else's; non-admin authors 
+without canReview are unaffected and still see only "Submit for review." 
+No changes to changeEventStageAction, the review->open transition, or 
+notification logic.
+
+**Known issue surfaced, not fixed (out of scope for this change):** 
+`notifyEventSubmittedForReview` (eventNotifications.ts) silently no-ops 
+when the resolved reviewer set is empty after excluding the submitter — 
+no error, no log line, nothing. This happens whenever the submitter is the 
+circle's only admin/moderator (the default case, since events.create and 
+events.review share the same default user groups). Worth adding at least 
+a log line for this case someday so a submitted-for-review event that 
+reaches nobody isn't completely silent.
+
