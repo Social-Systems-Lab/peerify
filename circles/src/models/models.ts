@@ -602,6 +602,13 @@ export const circleSchema = z.object({
     emailTaskUpdates: z.boolean().optional(),
     emailVerificationUpdates: z.boolean().optional(),
     lastActionableEmailDigestAt: z.date().optional(),
+    // Web push category preferences (mirrors the emailX fields above). One boolean per
+    // PushNotificationCategory in src/lib/data/notifications.ts — adding a future category
+    // is a new optional field here, no migration needed (same as the email fields).
+    pushMessages: z.boolean().optional(),
+    pushEvents: z.boolean().optional(),
+    pushVerification: z.boolean().optional(),
+    pushCommunity: z.boolean().optional(),
     communityGuidelinesAcceptance: communityGuidelineAgreementStateSchema.optional(),
     communityGuidelinesAcceptedAt: z.date().optional(),
     // Captured once, at pilot-signup onboarding (Frame F3 in the fan path) — "maybe" is kept
@@ -1988,3 +1995,20 @@ export const notificationSchema = z.object({
 });
 
 export type Notification = z.infer<typeof notificationSchema>;
+
+// One doc per subscribed browser/device (a user can have several), unlike the single-value
+// emailX/pushX preference booleans on circleSchema.
+export const pushSubscriptionSchema = z.object({
+    _id: z.any().optional(),
+    userId: didSchema,
+    endpoint: z.string(),
+    keys: z.object({
+        p256dh: z.string(),
+        auth: z.string(),
+    }),
+    userAgent: z.string().optional(),
+    createdAt: z.date(),
+    lastSeenAt: z.date().optional(),
+});
+
+export type PushSubscriptionDoc = z.infer<typeof pushSubscriptionSchema>;

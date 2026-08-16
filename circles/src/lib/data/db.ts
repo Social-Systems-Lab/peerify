@@ -28,6 +28,7 @@ import {
     EventRsvp,
     EventInvitation,
     Notification,
+    PushSubscriptionDoc,
     HumanityVerification,
     PlatformSettings,
 } from "@/models/models";
@@ -76,6 +77,7 @@ let AggregateRanks: Collection<AggregateRank>;
 let UserNotificationSettings: Collection<UserNotificationSetting>; // Added UserNotificationSettings collection
 let DefaultNotificationSettings: Collection<DefaultNotificationSetting>; // Added DefaultNotificationSettings collection
 let Notifications: Collection<Notification>;
+let PushSubscriptions: Collection<PushSubscriptionDoc>;
 let ChatConversations: Collection<ChatConversation>;
 let ChatMessageDocs: Collection<ChatMessageDoc>;
 let ChatReadStates: Collection<ChatReadState>;
@@ -124,6 +126,9 @@ if (process.env.IS_BUILD !== "true") {
     UserNotificationSettings = db.collection<UserNotificationSetting>("userNotificationSettings");
     DefaultNotificationSettings = db.collection<DefaultNotificationSetting>("defaultNotificationSettings");
     Notifications = db.collection<Notification>("notifications");
+    PushSubscriptions = db.collection<PushSubscriptionDoc>("pushSubscriptions");
+    PushSubscriptions?.createIndex({ endpoint: 1 }, { unique: true });
+    PushSubscriptions?.createIndex({ userId: 1 });
     ChatConversations = db.collection<ChatConversation>("chatConversations");
     ChatMessageDocs = db.collection<ChatMessageDoc>("chatMessageDocs");
     ChatReadStates = db.collection<ChatReadState>("chatReadStates");
@@ -173,6 +178,7 @@ export {
     UserNotificationSettings,
     DefaultNotificationSettings,
     Notifications,
+    PushSubscriptions,
     ChatConversations,
     ChatMessageDocs,
     ChatReadStates,

@@ -6,11 +6,12 @@ import type { PlatformMembershipCredentialCardData } from "@/lib/vibe-id/members
 import SubscriptionForm from "./subscription-form";
 import { VerificationSettingsCard } from "./verification-settings-card";
 import { VibeIdSettingsCard } from "./vibe-id-settings-card";
-import { updateEmailPreferenceSetting } from "./actions";
+import { updateEmailPreferenceSetting, updatePushPreferenceSetting } from "./actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
+import { usePushSubscription } from "@/components/notifications/push/use-push-subscription";
 
 type EmailPreferenceKey = "emailMissedMessages" | "emailTaskAssigned" | "emailTaskUpdates" | "emailVerificationUpdates";
 
@@ -44,6 +45,38 @@ const getInitialEmailPreferences = (user: Circle): Record<EmailPreferenceKey, bo
     emailVerificationUpdates: user.emailVerificationUpdates === true,
 });
 
+type PushPreferenceKey = "pushMessages" | "pushEvents" | "pushVerification" | "pushCommunity";
+
+const pushPreferenceOptions: { key: PushPreferenceKey; label: string; description: string }[] = [
+    {
+        key: "pushMessages",
+        label: "Messages",
+        description: "Direct messages and contact requests.",
+    },
+    {
+        key: "pushEvents",
+        label: "Events",
+        description: "Event invitations and lineup additions.",
+    },
+    {
+        key: "pushVerification",
+        label: "Verification",
+        description: "Updates on your account or profile verification.",
+    },
+    {
+        key: "pushCommunity",
+        label: "Follow activity",
+        description: "New followers and follow requests.",
+    },
+];
+
+const getInitialPushPreferences = (user: Circle): Record<PushPreferenceKey, boolean> => ({
+    pushMessages: user.pushMessages !== false,
+    pushEvents: user.pushEvents !== false,
+    pushVerification: user.pushVerification !== false,
+    pushCommunity: user.pushCommunity === true,
+});
+
 export default function SubscriptionFormSettings({
     user,
     membershipCredential,
@@ -53,6 +86,7 @@ export default function SubscriptionFormSettings({
 }) {
     const [subscriptionAttempted, setSubscriptionAttempted] = useState(false);
     const initialEmailPreferences = getInitialEmailPreferences(user);
+    const initialPushPreferences = getInitialPushPreferences(user);
 
     const handleDialogClose = () => {
         setSubscriptionAttempted(true);
@@ -68,6 +102,7 @@ export default function SubscriptionFormSettings({
                     verification is reintroduced.
                 <VerificationSettingsCard user={user} />
                 */}
+                <PushPreferencesSettingsCard initialValues={initialPushPreferences} />
                 <EmailPreferencesSettingsCard initialValues={initialEmailPreferences} />
                 {/* Hidden pending a redesign of the membership/deferred-payment model.
                     Not deleted so it's easy to reinstate once the new design lands.
@@ -113,6 +148,97 @@ export default function SubscriptionFormSettings({
             </section>
             */}
         </div>
+    );
+}
+
+function PushPreferencesSettingsCard({ initialValues }: { initialValues: Record<PushPreferenceKey, boolean> }) {
+    const [pushPreferences, setPushPreferences] = useState(initialValues);
+    const [isPending, startTransition] = useTransition();
+    const { toast } = useToast();
+    const { supportState, isSubscribed, isBusy, subscribe, unsubscribe } = usePushSubscription();
+
+    const handleCheckedChange = (preference: PushPreferenceKey, checked: boolean) => {
+        startTransition(async () => {
+            const result = await updatePushPreferenceSetting(preference, checked);
+
+            if (!result.success) {
+                toast({ title: result.message, variant: "destructive" });
+                return;
+            }
+
+            setPushPreferences((current) => ({ ...current, [preference]: checked }));
+            toast({ title: result.message });
+        });
+    };
+
+    const handleEnableToggle = async (checked: boolean) => {
+        const result = checked ? await subscribe() : await unsubscribe();
+        if (!result.success && result.message) {
+            toast({ title: result.message, variant: "destructive" });
+        }
+    };
+
+    return (
+        <Card>
+            <CardHeader className="space-y-2 pb-5">
+                <CardTitle className="text-2xl font-semibold tracking-tight">Push Notifications</CardTitle>
+                <CardDescription className="max-w-2xl text-sm leading-6">
+                    Get notified in your browser the moment something happens, no need to have Peerify open.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {supportState === "ios-needs-install" && (
+                    <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
+                        Safari on iPhone/iPad only delivers push notifications to apps added to your Home
+                        Screen. Tap <span className="font-medium text-foreground">Share</span> then{" "}
+                        <span className="font-medium text-foreground">Add to Home Screen</span>, then open
+                        Peerify from the Home Screen icon to turn on notifications.
+                    </div>
+                )}
+                {supportState === "unsupported" && (
+                    <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
+                        Push notifications aren&apos;t supported in this browser.
+                    </div>
+                )}
+                {supportState === "supported" && (
+                    <>
+                        <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+                            <div className="space-y-1">
+                                <Label htmlFor="push-enable">Enable browser notifications</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Turn this on first, then choose what you want to be notified about below.
+                                </p>
+                            </div>
+                            <Switch
+                                id="push-enable"
+                                checked={isSubscribed}
+                                onCheckedChange={handleEnableToggle}
+                                disabled={isBusy}
+                                aria-label="Enable browser notifications"
+                            />
+                        </div>
+                        {pushPreferenceOptions.map((option) => (
+                            <div
+                                key={option.key}
+                                className="flex items-center justify-between gap-4 rounded-lg border p-4"
+                            >
+                                <div className="space-y-1">
+                                    <Label htmlFor={option.key}>{option.label}</Label>
+                                    <p className="text-sm text-muted-foreground">{option.description}</p>
+                                </div>
+                                <Switch
+                                    id={option.key}
+                                    checked={pushPreferences[option.key]}
+                                    onCheckedChange={(checked) => handleCheckedChange(option.key, checked)}
+                                    disabled={isPending || !isSubscribed}
+                                    aria-label={option.label}
+                                />
+                            </div>
+                        ))}
+                    </>
+                )}
+            </CardContent>
+        </Card>
     );
 }
 
