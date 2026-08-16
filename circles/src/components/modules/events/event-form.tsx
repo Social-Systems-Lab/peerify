@@ -2,6 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useAtom } from "jotai";
+import { userAtom } from "@/lib/data/atoms";
 import {
     createEventAction,
     updateEventAction,
@@ -30,8 +32,9 @@ import { useToast } from "@/components/ui/use-toast";
 import LocationPicker from "@/components/forms/location-picker";
 import TimePicker from "@/components/forms/time-picker";
 import { format, addHours, setHours, setMinutes } from "date-fns";
-import { Bold, Italic, List, Link as LinkIcon, Heading1, Heading2 } from "lucide-react";
+import { Bold, Italic, List, Link as LinkIcon, Heading1, Heading2, Globe, Users, ChevronDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 type Props = {
     circleHandle?: string; // optional, can come from context or picker
@@ -175,6 +178,14 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
     const [publishToNoticeboard, setPublishToNoticeboard] = useState<boolean>(
         Boolean(event?.noticeboardPostId || event?.publishToNoticeboard),
     );
+    const [user] = useAtom(userAtom);
+    // Existing events currently all have userGroups: [] (the schema default, from before this
+    // control existed) — unlike post-form.tsx's equivalent seed, `event?.userGroups || [...]`
+    // can't be used here since an empty array is truthy and would leave nothing selected.
+    const [userGroups, setUserGroups] = useState<string[]>(
+        event?.userGroups?.length ? event.userGroups : ["everyone"],
+    );
+    const [isUserGroupsDialogOpen, setIsUserGroupsDialogOpen] = useState(false);
     const peerifyMetadata = event?.metadata?.peerify;
     const [venueDisclosure, setVenueDisclosure] = useState<PeerifyEventVenueDisclosure>(
         peerifyMetadata?.venueDisclosure || "public",
@@ -293,6 +304,10 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
         setPublishToNoticeboard(Boolean(event?.noticeboardPostId || event?.publishToNoticeboard));
     }, [event?.noticeboardPostId, event?.publishToNoticeboard]);
 
+    useEffect(() => {
+        setUserGroups(event?.userGroups?.length ? event.userGroups : ["everyone"]);
+    }, [event?.userGroups]);
+
     // Seed additional artists for edit
     useEffect(() => {
         const eventId = event?._id as string | undefined;
@@ -324,6 +339,36 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
     const handleCircleSelected = useCallback((circle: Circle | null) => {
         setSelectedCircle(circle?.handle);
     }, []);
+
+    // Audience for the linked Noticeboard post — mirrors post-form.tsx's own
+    // getAvailableUserGroups/getUserGroupName, adapted from a selected Circle object to the
+    // host-circle handle string this form works with.
+    const getTargetMembership = () => {
+        if (!user || !selectedCircle) return undefined;
+        return user.memberships?.find((m) => m.circle?.handle === selectedCircle);
+    };
+
+    const getUserGroupName = (userGroup: string) => {
+        const targetCircle = selectedCircle && user?.handle === selectedCircle ? user : getTargetMembership()?.circle;
+        const group = targetCircle?.userGroups?.find((g) => g.handle === userGroup);
+        if (!group) {
+            return userGroup.charAt(0).toUpperCase() + userGroup.slice(1);
+        }
+        return group.name;
+    };
+
+    const getAvailableUserGroups = () => {
+        const membership = getTargetMembership();
+        const groups = ["everyone"];
+        if (membership?.userGroups && membership.userGroups.length > 0) {
+            membership.userGroups.forEach((group) => {
+                if (!groups.includes(group)) {
+                    groups.push(group);
+                }
+            });
+        }
+        return groups;
+    };
 
     // Diff the staged artistBands selection against what was loaded for this event and call the
     // dedicated add/remove/admin-status actions to bring the server in sync. Returns any failure
@@ -464,6 +509,7 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                     fd.set("recurrence", "");
                 }
                 fd.set("publishToNoticeboard", String(publishToNoticeboard));
+                userGroups.forEach((group) => fd.append("userGroups", group));
 
                 let result: { success: boolean; message?: string; eventId?: string };
                 if (event?._id) {
@@ -866,6 +912,26 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                                     published once this event is opened — nothing is posted while it&apos;s in Draft
                                     or Review.
                                 </p>
+                                {publishToNoticeboard && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-auto p-1 text-xs hover:bg-gray-100"
+                                        onClick={() => setIsUserGroupsDialogOpen(true)}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            <Users className="h-3 w-3" />
+                                            <span>
+                                                Post visible to:{" "}
+                                                {userGroups.includes("everyone")
+                                                    ? "Everyone"
+                                                    : getUserGroupName(userGroups?.[0])}
+                                            </span>
+                                            <ChevronDown className="h-3 w-3" />
+                                        </div>
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1033,6 +1099,81 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                     Cancel
                 </Button>
             </div>
+
+            <Dialog open={isUserGroupsDialogOpen} onOpenChange={setIsUserGroupsDialogOpen}>
+                <DialogContent
+                    className="z-[11000] max-w-md"
+                    onInteractOutside={(e) => {
+                        e.preventDefault();
+                    }}
+                >
+                    <DialogHeader>
+                        <DialogTitle className="text-center text-xl font-bold">
+                            Who can see the Noticeboard post?
+                        </DialogTitle>
+                    </DialogHeader>
+                    <div className="mt-2 space-y-4">
+                        <div className="text-sm text-gray-600">
+                            This only controls the linked Noticeboard post — it doesn&apos;t change who can see the
+                            event itself.
+                        </div>
+                        <div className="max-h-[300px] space-y-3 overflow-y-auto py-2">
+                            <div className="flex items-center rounded-lg p-2 hover:bg-gray-100">
+                                <div className="mr-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">
+                                    <Globe className="h-5 w-5 text-gray-700" />
+                                </div>
+                                <div className="flex-1">
+                                    <div className="font-medium">Everyone</div>
+                                    <div className="text-xs text-gray-500">Everyone on and outside Peerify</div>
+                                </div>
+                                <div className="ml-2">
+                                    <input
+                                        type="radio"
+                                        id="event-group-everyone"
+                                        name="event-post-visibility"
+                                        className="h-4 w-4 text-blue-600"
+                                        checked={userGroups.includes("everyone")}
+                                        onChange={() => setUserGroups(["everyone"])}
+                                    />
+                                </div>
+                            </div>
+                            {getAvailableUserGroups()
+                                .filter((group) => group !== "everyone")
+                                .map((group) => (
+                                    <div key={group} className="flex items-center rounded-lg p-2 hover:bg-gray-100">
+                                        <div className="mr-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">
+                                            <Users className="h-5 w-5 text-gray-700" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="font-medium">{getUserGroupName(group)}</div>
+                                            <div className="text-xs text-gray-500">
+                                                Only {getUserGroupName(group)?.toLowerCase()}
+                                            </div>
+                                        </div>
+                                        <div className="ml-2">
+                                            <input
+                                                type="radio"
+                                                id={`event-group-${group}`}
+                                                name="event-post-visibility"
+                                                className="h-4 w-4 text-blue-600"
+                                                checked={userGroups.includes(group) && !userGroups.includes("everyone")}
+                                                onChange={() => setUserGroups([group])}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+                    <DialogFooter className="flex justify-between sm:justify-between">
+                        <Button type="button" variant="ghost" onClick={() => setIsUserGroupsDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="button" onClick={() => setIsUserGroupsDialogOpen(false)}>
+                            Done
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </form>
     );
 }

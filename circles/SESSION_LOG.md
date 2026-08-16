@@ -3203,3 +3203,29 @@ Follow-up to the draft-status UI work above. Manual testing found that a draft e
 Deployed via `deploy-staging.sh` (the real one, from the actual repo directory — the scratch copy above was only for pre-deploy local testing) — all 8 steps passed, prod pid/uptime unchanged, staging restarted onto the new build.
 
 **Follow-up logged, not implemented — Bug B:** events have no real audience-selection UI (`event-form.tsx` has zero `userGroups` control), so `event.userGroups` is always `[]` and every event-linked Noticeboard post is unconditionally public via the `feed.ts` "empty array means everyone" convention (`canUserViewPost` line ~312, `getPostsFromMultipleFeeds` ~1126/1157, `getPosts` ~1548/1577). This is a separate, larger feature (real audience-selection UI + wiring it through create/update, mirroring how post-form.tsx's own `CircleSelector` already does this for regular Noticeboard posts) — worth scoping as its own task, not a quick fix.
+
+## 2026-08-16 (later still) — Bug B fix: real audience control for event-linked Noticeboard posts
+
+Follow-up to Bug A above. Investigated first (report-only pass, no code changes), then implemented per the recommended scope: give the linked Noticeboard post a real audience choice, mirroring `post-form.tsx`'s existing single-tier radio pattern, without touching the event's own separate `stage`/`visibility` gates.
+
+**Investigation correction worth noting:** the original ask assumed `post-form.tsx`'s audience selector was `CircleSelector`-based. It isn't — `CircleSelector` only picks *which circle* a post targets. The actual audience picker is a separate small "Users" icon button + a `Dialog` radio list (`post-form.tsx` ~1231-1304), driven by `getAvailableUserGroups()`/`getUserGroupName()` (~530-556), which derive from the *poster's own membership* in the target circle (`user.memberships`, a client-side `UserPrivate` already carrying both membership tiers and each circle's group definitions). `CircleSelector`'s only real involvement was the Issue 4 bug from the 2026-08-15/16 entry (its mount callback resetting audience).
+
+**Implementation, `src/components/modules/events/event-form.tsx`:**
+- Pulled the current user via the same client-side `userAtom` (jotai) the post composer already uses — no new server-side prop plumbing needed in the create/edit event pages, since `UserPrivate.memberships[].circle` already carries everything (the user's own tier + the circle's group name/handle definitions).
+- Added `userGroups` state seeded from `event?.userGroups`, with one deliberate deviation from `post-form.tsx`'s pattern: `event?.userGroups?.length ? event.userGroups : ["everyone"]` instead of a naive `||`, because every existing event's `userGroups` is `[]` (the old schema default) — a bare `||` would leave the dialog with nothing selected when editing any pre-existing event.
+- Added `getTargetMembership`/`getUserGroupName`/`getAvailableUserGroups`, adapted from `post-form.tsx`'s equivalents to work off the form's `selectedCircle` handle string rather than a full `Circle` object.
+- Added the audience button + `Dialog` (radio list: Everyone + the viewer's own group tiers in that circle), shown only when "Share this event on the Noticeboard" is checked — since that's the only thing this setting affects. Copy explicitly says "This only controls the linked Noticeboard post — it doesn't change who can see the event itself," to avoid confusion with the separate `visibility` (public/private) toggle.
+- `onSubmit`: appends `userGroups` to the form data, same as `post-form.tsx`.
+
+**`src/app/circles/[handle]/events/actions.ts`:** switched both `createEventAction` and `updateEventAction` from `data.userGroups || [...]`/`data.userGroups || event.userGroups` (both effectively dead fallbacks, since an empty array is truthy in JS) to the explicit `data.userGroups.length > 0 ? data.userGroups : ["everyone"]` form `feeds/actions.ts` already uses — so a real `"everyone"` is always stored, rather than leaning on `feed.ts`'s empty-array convention.
+
+No changes needed to `upsertEventNoticeboardPost`, `changeEventStageAction`, or `feed.ts` — they already correctly consume whatever `event.userGroups` holds (confirmed during the Bug A investigation).
+
+**Verified** against real staging DB via the same isolated-build-copy technique as the Bug A entry above (fresh scratch build, port 3003, login-link-token as `tim-admin`, real Playwright `chromium`):
+- Created a draft event on `the-venue` (a circle where `tim-admin` has real `admins/moderators/members` tiers, confirmed via direct Mongo query — even personal/self circles turned out to already have a self-membership row here, so the selector shows real tiers everywhere tried), checked "Share to Noticeboard," opened the audience dialog, selected "Members" → event persisted `userGroups: ["members"]`, still draft, no post yet (Bug A's gate still holds).
+- Opened that event → linked post created with `userGroups: ["members"]` (not `[]`) — confirmed via direct Mongo query on the post document.
+- Created a second event without touching the audience dialog at all → persisted `userGroups: ["everyone"]` explicitly (not `[]`), confirming the new explicit-default logic in both actions.
+- Test events/posts cleaned up from the DB afterward; login-link token fields unset on the `tim-admin` circle doc after each check.
+- `bun run lint` and `tsc --noEmit` both clean (no new warnings/errors in touched files).
+
+Deployed via `deploy-staging.sh` — all 8 steps passed, prod pid/uptime unchanged, staging restarted onto the new build.
