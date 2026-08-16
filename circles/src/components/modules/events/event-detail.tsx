@@ -108,6 +108,21 @@ export default function EventDetail({
     // admins) — used to gate moderator-style controls in the Artists list per band.
     const canManageAllArtists = Boolean(canModerate || isAuthor);
 
+    // Read-only display of the linked Noticeboard post's configured audience (set via event-form.tsx's
+    // own audience dialog) — surfaced here so a host can catch an unintended "Followers-only" post at a
+    // glance instead of having to reopen the edit dialog.
+    const getNoticeboardAudienceLabel = () => {
+        const groups = (event.userGroups ?? []).filter((g) => g !== "everyone");
+        if (groups.length === 0) return "Everyone";
+        return groups
+            .map(
+                (g) =>
+                    circle?.userGroups?.find((ug) => ug.handle === g)?.name ||
+                    g.charAt(0).toUpperCase() + g.slice(1),
+            )
+            .join(", ");
+    };
+
     const start = event.startAt ? new Date(event.startAt as any) : null;
     const end = event.endAt ? new Date(event.endAt as any) : null;
     const isCancelled = event.stage === "cancelled";
@@ -589,16 +604,26 @@ export default function EventDetail({
                     event.stage === "draft" ? "border-[#E8732C]/50 bg-[#F8E2CE]" : "bg-white/70",
                 )}
             >
-                {event.stage === "draft" ? (
-                    <div className="flex items-center gap-2 text-sm text-[#1A1612]">
-                        <EyeOff className="h-4 w-4 text-[#E8732C]" />
-                        <span className="font-bold uppercase tracking-wide">Draft — not visible to the public</span>
-                    </div>
-                ) : (
-                    <div className="text-sm text-muted-foreground">
-                        Status: <span className="font-medium capitalize">{event.stage}</span>
-                    </div>
-                )}
+                <div className="flex flex-col gap-1">
+                    {event.stage === "draft" ? (
+                        <div className="flex items-center gap-2 text-sm text-[#1A1612]">
+                            <EyeOff className="h-4 w-4 text-[#E8732C]" />
+                            <span className="font-bold uppercase tracking-wide">
+                                Draft — not visible to the public
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="text-sm text-muted-foreground">
+                            Status: <span className="font-medium capitalize">{event.stage}</span>
+                        </div>
+                    )}
+                    {event.publishToNoticeboard && (
+                        <div className="text-xs text-muted-foreground">
+                            Noticeboard post visible to:{" "}
+                            <span className="font-medium">{getNoticeboardAudienceLabel()}</span>
+                        </div>
+                    )}
+                </div>
                 <div className="flex flex-wrap gap-2">
                     {event.stage === "draft" && (isAuthor || canReview) && (
                         <Button disabled={isPending} variant="secondary" onClick={onSubmitForReview}>
