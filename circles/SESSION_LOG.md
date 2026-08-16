@@ -3817,3 +3817,130 @@ Deployed via `deploy-staging.sh` — all 8 steps passed, prod pid/uptime unchang
 - `bun run lint` / `tsc --noEmit` clean on all three touched files. Test event/posts cleaned up from the DB afterward; login-link token fields unset on the `tim-admin` circle doc after each check.
 
 Deployed via `deploy-staging.sh` — all 8 steps passed, prod pid/uptime unchanged, staging restarted onto the new build.
+
+### 2026-08-15 (later) — Update: broken circle logo images no longer reproducing
+
+Re-checked after prod deploy; "Blurry Images" and other previously-broken 
+circle logos now display correctly (default avatar rendering as expected). 
+Likely browser cache from the prior day's asset issues, not a live bug. 
+Not investigated further — closing this item unless it recurs.
+
+### 2026-08-16 — Feature request: add "Acoustic" as an artist category
+
+Add "Acoustic" as a selectable category/genre for artist profiles and 
+search filtering — currently not in the list. Small, scoped addition. 
+Not yet investigated (likely touches the category enum in models.ts and 
+whatever search/filter UI reads from it). Low urgency, pick up whenever 
+convenient.
+
+
+### 2026-08-16 — Self-hosted web push notifications: implemented and verified live
+
+**Scope (deliberately modest per decision):** Push notifications for four 
+categories only — messages, events, verification, follow/community (off by 
+default) — mirroring the existing coarse email-preference model. Broader 
+Kamooni/Circles governance notification types (tasks, proposals, issues, 
+goals) explicitly excluded from push for now; remain in-app-bell-only.
+
+**Implementation:**
+- Schema: four pushX booleans on circleSchema (mirroring email preference 
+  fields), new pushSubscriptionSchema for per-device subscription docs.
+- Storage: new PushSubscriptions Mongo collection, unique index on endpoint, 
+  index on userId.
+- Delivery module (src/lib/data/push.ts, new): PUSH_NOTIFICATION_CATEGORIES 
+  config, isPushEnabledForRecipient, sendPushToUser (via web-push, cleans up 
+  expired 404/410 subscriptions), subscription CRUD.
+- Integration: sendNotifications (the single confirmed funnel all ~45 
+  notification wrapper functions and 9 direct callers go through) now fires 
+  push immediately, fire-and-forget, right after the existing bell-
+  notification insert — NOT on the hourly email-digest batch model.
+- Client: new usePushSubscription hook, detects support state (unsupported / 
+  ios-needs-install / supported) via PushManager presence and 
+  navigator.standalone/display-mode checks.
+- UI: new PushPreferencesSettingsCard in Account Settings, rendered above 
+  Email Preferences as intended. Includes iOS-specific "Add to Home Screen" 
+  instructions (Share → Add to Home Screen → open from Home Screen icon) 
+  when iOS Safari outside a home-screen install is detected.
+- Service worker (public/sw.js, new): push + notificationclick handlers, 
+  opens/focuses a per-notification-type URL (e.g. a message notification 
+  opens the relevant chat directly, not a general notification center).
+- VAPID keys generated, added to staging .env.local.
+
+**Bug found and fixed during deployment:** PushPreferencesSettingsCard was 
+initially wired into an unreachable code branch (gated on subscriptionAttempted, 
+which can only become true via a dialog-close flow that's currently commented 
+out pending an unrelated redesign) — the component existed correctly in the 
+codebase and the build, but was never actually rendered. Fixed by moving it 
+into the default/always-reached branch, directly above EmailPreferencesSettingsCard 
+as intended.
+
+**Verified live, end-to-end, by a human on a real device (not just automated 
+testing):** Real OS-level browser permission prompt fired in Chrome (desktop 
+Sun Aug 16). Subscription persisted correctly through a hard refresh. Sent a 
+real direct message from a second account → real OS notification appeared in 
+Chrome with correct app name, subdomain, and message content. iOS Safari 
+correctly detected and displayed the "Add to Home Screen" instructions on a 
+real iPhone (older iPhone SE — "Add to Home Screen" option not immediately 
+found in the iOS share sheet on that device; full iOS PWA install flow not 
+yet completed, to be retried on a more modern device).
+
+**Explicitly NOT built, and would need separate scoping:** home-screen icon 
+badge count (requires the separate Badging API — navigator.setAppBadge — 
+with its own, historically inconsistent iOS support; unrelated to the Push 
+API used here). Currently, tapping a push notification opens the specific 
+relevant content (e.g. a chat) rather than a general notification center.
+
+**Status:** Deployed and verified on staging.peerify.one. Not yet promoted 
+to production.
+
+
+### 2026-08-16 — Future features discussed: Telegram forwarding & weekly performance summary
+
+**1. Telegram message forwarding (like Kamooni)**
+Idea: let users link a Telegram account/bot to receive message forwards, 
+closing the iOS gap that web push can't solve (iOS requires Home Screen 
+install; Telegram works instantly on iOS with no install friction). Real 
+integration lift, not a toggle — needs a Telegram bot, a per-user linking 
+flow (user must /start the bot and link their Peerify account; Telegram 
+doesn't allow pushing to unlinked users). Scope as its own investigation, 
+separate from the push notification work.
+
+Explicit decision: do NOT disable Postmark email digests for users who set 
+up Telegram. Email is the one channel that doesn't depend on live 
+third-party infrastructure staying up — it's the safety net, not a 
+redundant channel to prune. If Telegram has an outage or a link breaks 
+silently, a user with email fully disabled would get nothing until they 
+noticed. Keep the digest running as background safety net regardless of 
+which real-time channels (push, Telegram) are active.
+
+**2. Weekly artist performance summary email — distinct from missed-activity 
+digest**
+Idea (person's): a weekly email like "Your song 'X' was played 45 times 
+fully, 239 times partially, by fans from 13 countries; you received 15 new 
+pledges, 3 new crew members, 6 comments." This is a RE-ENGAGEMENT/retention 
+email, conceptually different from the existing "here's what you missed" 
+digest — keep them as two separate features, not one system. Needs new 
+aggregated data (play counts by country, weekly pledge/crew/comment counts) 
+that doesn't currently exist in reportable form. Not yet scoped.
+
+**Cost/architecture note carried into both:** push (browser push service) 
+and Telegram (Bot API) are both free at reasonable volume; Postmark has a 
+real per-email cost — keep any new email sends batched/digest-style, not 
+per-event, consistent with the existing digest design.
+
+**Status:** Both ideas discussed and captured, not yet scoped or 
+implemented. Pick up separately, after Telegram gets its own investigation 
+pass given the real integration complexity.
+
+
+### 2026-08-16 (later) — Push notifications promoted to production
+
+Deployed to peerify.one. Two commits (77ec08b7, 3a3f90f3) were initially 
+missed on the main branch during promotion — staging had them, main didn't 
+— caught because the settings card was confirmed working on staging but 
+absent on prod despite a "successful" deploy. Cherry-picked onto main, 
+prod-specific VAPID keys generated and added to prod's .env.local (separate 
+key pair from staging, as intended), redeployed. Confirmed working live on 
+peerify.one: settings card renders, subscribe flow completes, and a real 
+notification was received end-to-end.
+
