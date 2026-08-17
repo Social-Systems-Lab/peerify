@@ -686,12 +686,12 @@ export const createComment = async (comment: Comment): Promise<Comment> => {
         const insertedComment = { ...comment, _id: result.insertedId.toString() };
 
         await Posts.updateOne(
-            { _id: new ObjectId(comment.postId) },
+            { _id: new ObjectId(comment.postId!) },
             { $inc: { comments: 1 }, $set: { lastActivityAt: new Date() } },
         );
 
         if (!comment.parentCommentId) {
-            await updateHighlightedComment(comment.postId);
+            await updateHighlightedComment(comment.postId!);
         } else {
             // update replies
             await Comments.updateOne({ _id: new ObjectId(comment.parentCommentId) }, { $inc: { replies: 1 } });
@@ -731,7 +731,7 @@ export const deleteComment = async (commentId: string): Promise<void> => {
         await Comments.deleteOne({ _id: new ObjectId(commentId) });
 
         // Decrement comment count for the post
-        await Posts.updateOne({ _id: new ObjectId(comment.postId) }, { $inc: { comments: -1 } });
+        await Posts.updateOne({ _id: new ObjectId(comment.postId!) }, { $inc: { comments: -1 } });
 
         if (comment.parentCommentId) {
             // Decrement comment count for the parent comment
@@ -740,7 +740,7 @@ export const deleteComment = async (commentId: string): Promise<void> => {
     }
 
     if (!comment.parentCommentId) {
-        await updateHighlightedComment(comment.postId);
+        await updateHighlightedComment(comment.postId!);
     }
 };
 
@@ -2008,6 +2008,7 @@ export const likeContent = async (
         contentType,
         userDid,
         reactionType,
+        count: 1,
         createdAt: new Date(),
     });
 
@@ -2017,7 +2018,7 @@ export const likeContent = async (
     if (contentType === "comment") {
         const comment = await Comments.findOne({ _id: new ObjectId(contentId) });
         if (comment && !comment.parentCommentId) {
-            await updateHighlightedComment(comment.postId);
+            await updateHighlightedComment(comment.postId!);
         }
     }
 };
@@ -2041,7 +2042,7 @@ export const unlikeContent = async (
     if (contentType === "comment") {
         const comment = await Comments.findOne({ _id: new ObjectId(contentId) });
         if (comment && !comment.parentCommentId) {
-            await updateHighlightedComment(comment.postId);
+            await updateHighlightedComment(comment.postId!);
         }
     }
 };

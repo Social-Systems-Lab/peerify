@@ -119,6 +119,7 @@ export async function uploadTrackAction(formData: FormData): Promise<UploadTrack
             originalMimeType,
             rightsConfirmed: true,
             rightsConfirmedAt: now,
+            commentCount: 0,
             createdAt: now,
             createdBy: userDid,
         });
