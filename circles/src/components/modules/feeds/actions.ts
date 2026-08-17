@@ -972,7 +972,7 @@ export async function editCommentAction(
         // Send notifications for new mentions
 
         try {
-            const post = await getPost(comment.postId);
+            const post = await getPost(comment.postId!);
             if (post && updatedMentions && updatedMentions.length > 0) {
                 const user = await getUserByDid(userDid);
                 // Get previous mentions to avoid duplicate notifications
@@ -1025,7 +1025,7 @@ export async function deleteCommentAction(commentId: string): Promise<{ success:
             return { success: false, message: "Comment not found" };
         }
 
-        const post = await getPost(comment.postId);
+        const post = await getPost(comment.postId!);
         if (!post) {
             return { success: false, message: "Post not found" };
         }
@@ -1068,7 +1068,7 @@ export async function likeContentAction(
             if (!comment) {
                 return { success: false, message: "Comment not found" };
             }
-            postId = comment.postId;
+            postId = comment.postId!;
         }
 
         const post = await getPost(postId);

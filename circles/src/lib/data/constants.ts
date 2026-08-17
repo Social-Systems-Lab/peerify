@@ -383,6 +383,22 @@ export const features = {
             module: "music",
             needsToBeVerified: true,
         } as Feature,
+        comment: {
+            name: "Comment on Songs",
+            handle: "comment",
+            description: "Comment on music tracks",
+            defaultUserGroups: ["admins", "moderators", "members", "everyone"],
+            module: "music",
+            needsToBeVerified: true,
+        } as Feature,
+        react: {
+            name: "React to Songs",
+            handle: "react",
+            description: "Give an ovation (clap) to a music track",
+            defaultUserGroups: ["admins", "moderators", "members", "everyone"],
+            module: "music",
+            needsToBeVerified: true,
+        } as Feature,
     },
     proposals: {
         view: {

@@ -220,6 +220,7 @@ export const trackSchema = z.object({
     rightsConfirmedAt: z.date(),
     createdAt: z.date(),
     createdBy: didSchema,
+    commentCount: z.number().default(0), // denormalized count, public (shown next to the track)
 });
 
 export type Track = z.infer<typeof trackSchema>;
@@ -315,7 +316,8 @@ export interface PostDisplay extends WithMetric<Omit<Post, "sdgs">> {
 
 export const commentSchema = z.object({
     _id: z.any().optional(),
-    postId: z.string(),
+    postId: z.string().optional(), // Present for post comments; mutually exclusive with trackId
+    trackId: z.string().optional(), // Present for song comments; mutually exclusive with postId
     parentCommentId: z.string().nullable(), // Null for root-level comments
     content: z.string(),
     createdBy: didSchema,
@@ -337,10 +339,16 @@ export interface CommentDisplay extends Comment {
 
 export const reactionSchema = z.object({
     _id: z.any().optional(),
-    contentId: z.string(), // ID of the post, comment, or proposal
-    contentType: z.enum(["post", "comment", "chatMessage", "proposal"]),
+    contentId: z.string(), // ID of the post, comment, proposal, or track
+    contentType: z.enum(["post", "comment", "chatMessage", "proposal", "track"]),
     userDid: didSchema,
     reactionType: z.string(),
+    // Number of times this reaction has been given by this user on this content.
+    // Used by repeatable reactions (e.g. "ovation" claps on a track), where a single
+    // (userDid, contentId, reactionType) doc is upserted and incremented per tap
+    // rather than inserting one row per tap. Toggle-style reactions (e.g. "like")
+    // ignore this field and stay at the default of 1.
+    count: z.number().default(1),
     createdAt: z.date(),
 });
 

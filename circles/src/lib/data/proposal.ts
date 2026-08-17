@@ -909,6 +909,7 @@ export const addReactionToProposal = async (
             contentType: "proposal",
             userDid,
             reactionType,
+            count: 1,
             createdAt: new Date(),
         });
 
