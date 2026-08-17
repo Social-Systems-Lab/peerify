@@ -43,7 +43,7 @@ type SongCommentItemProps = {
     circle: Circle;
     onDelete: (commentId: string) => void;
     onEdited: (commentId: string, content: string) => void;
-    onQuote: (snippet: string) => void;
+    onQuote: (commentId: string, snippet: string) => void;
 };
 
 const SongCommentItem: React.FC<SongCommentItemProps> = ({ comment, user, circle, onDelete, onEdited, onQuote }) => {
@@ -137,7 +137,7 @@ const SongCommentItem: React.FC<SongCommentItemProps> = ({ comment, user, circle
                 <div className="mt-1 flex items-center gap-4 text-xs text-gray-500">
                     <div>{getPublishTime(comment.createdAt)}</div>
                     <div
-                        onClick={() => onQuote(truncateForQuote(comment.content))}
+                        onClick={() => onQuote(comment._id!, truncateForQuote(comment.content))}
                         className="flex cursor-pointer items-center gap-1 font-medium hover:underline"
                     >
                         <Quote className="h-3 w-3" />
@@ -185,6 +185,7 @@ export const SongCommentsPanel: React.FC<SongCommentsPanelProps> = ({ trackId, c
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [newContent, setNewContent] = useState("");
+    const [quotedCommentId, setQuotedCommentId] = useState<string | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { toast } = useToast();
     const postingAsCircle = useActingIdentity();
@@ -220,7 +221,9 @@ export const SongCommentsPanel: React.FC<SongCommentsPanelProps> = ({ trackId, c
         if (!newContent.trim() || isSubmitting || !user) return;
 
         const content = newContent.trim();
+        const quotingCommentId = quotedCommentId ?? undefined;
         setNewContent("");
+        setQuotedCommentId(null);
         setIsSubmitting(true);
 
         const tempComment: CommentDisplay = {
@@ -239,7 +242,7 @@ export const SongCommentsPanel: React.FC<SongCommentsPanelProps> = ({ trackId, c
 
         (async () => {
             try {
-                const result = await createTrackCommentAction(trackId, content, postingAsCircle?._id);
+                const result = await createTrackCommentAction(trackId, content, postingAsCircle?._id, quotingCommentId);
                 if (result.success && result.comment) {
                     const newComment = { ...result.comment, author: (postingAsCircle as Circle) ?? result.comment.author };
                     updateComments((prev) => prev.map((c) => (c._id === tempComment._id ? newComment : c)));
@@ -267,7 +270,8 @@ export const SongCommentsPanel: React.FC<SongCommentsPanelProps> = ({ trackId, c
         }
     };
 
-    const handleQuote = (snippet: string) => {
+    const handleQuote = (commentId: string, snippet: string) => {
+        setQuotedCommentId(commentId);
         setNewContent(`> ${snippet}\n\n`);
     };
 

@@ -4,14 +4,17 @@ import React, { useEffect, useState } from "react";
 import { getTracksForCirclePreviewAction, TrackPreview } from "@/components/modules/circles/map-explorer-actions";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { TrackPreviewRow } from "./track-preview-row";
+import { Circle, UserPrivate } from "@/models/models";
 
 type TrackPreviewListProps = {
-    circleId: string;
+    circle: Circle;
+    user: UserPrivate | null;
 };
 
-export const TrackPreviewList: React.FC<TrackPreviewListProps> = ({ circleId }) => {
+export const TrackPreviewList: React.FC<TrackPreviewListProps> = ({ circle, user }) => {
     const [tracks, setTracks] = useState<TrackPreview[] | null>(null);
     const isMobile = useIsMobile();
+    const circleId = circle._id!.toString();
 
     useEffect(() => {
         let cancelled = false;
@@ -33,10 +36,14 @@ export const TrackPreviewList: React.FC<TrackPreviewListProps> = ({ circleId }) 
                 {tracks.map((track) => (
                     <TrackPreviewRow
                         key={track.id}
+                        trackId={track.id}
                         title={track.title}
                         durationSec={track.durationSec}
                         streamUrl={track.streamUrl}
+                        commentCount={track.commentCount}
                         alwaysShowControl={!!isMobile}
+                        circle={circle}
+                        user={user}
                     />
                 ))}
             </ul>

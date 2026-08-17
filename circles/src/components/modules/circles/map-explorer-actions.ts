@@ -71,6 +71,7 @@ export type TrackPreview = {
     title: string;
     durationSec?: number;
     streamUrl: string;
+    commentCount: number;
 };
 
 const MAX_PREVIEW_TRACKS = 3;
@@ -100,6 +101,7 @@ export async function getTracksForCirclePreviewAction(circleId: string): Promise
                 id: track._id!.toString(),
                 title: track.title,
                 durationSec: track.durationSec,
+                commentCount: track.commentCount ?? 0,
                 streamUrl: `/api/peerify/audio?t=${encodeURIComponent(
                     await signAudioToken({ trackId: track._id!.toString(), previewKey: track.previewKey }),
                 )}`,

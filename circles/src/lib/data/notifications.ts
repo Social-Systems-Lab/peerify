@@ -1142,6 +1142,44 @@ export async function notifyTrackComment(track: Track, artistCircle: Circle, com
 }
 
 /**
+ * Notifies the author of a quoted comment when someone replies to it via the
+ * "Quote & reply" affordance (song comments stay flat — this is metadata-only reply
+ * targeting, not a threading model). Reuses the existing "comment_reply" type since
+ * the body text and bell-UI wiring already fit (see the trackId fallback added to its
+ * URL case for track_comment/comment_mention).
+ */
+export async function notifyTrackCommentReply(
+    quotedComment: Comment,
+    track: Track,
+    reply: Comment,
+    replier: Circle,
+): Promise<void> {
+    try {
+        // Don't notify if replying to your own comment
+        if (quotedComment.createdBy === reply.createdBy) return;
+
+        const quotedAuthor = await getUser(quotedComment.createdBy);
+        if (!quotedAuthor?.did) return;
+
+        const quotedAuthorPrivate = await getUserPrivate(quotedAuthor.did);
+
+        await sendNotifications(
+            "comment_reply",
+            [quotedAuthorPrivate],
+            sanitizeObjectForJSON({
+                user: replier,
+                comment: reply,
+                commentId: reply._id?.toString(),
+                trackId: track._id?.toString(),
+                trackTitle: track.title,
+            }),
+        );
+    } catch (error) {
+        console.error("🔔 [NOTIFY] Error sending track comment reply notification:", error);
+    }
+}
+
+/**
  * Send notifications when someone is mentioned in a comment on a song. Reuses the
  * generic "comment_mention" type (see notifyCommentMentions) since the body text and
  * grouping are identical — only the link target differs (song vs. post), which the

@@ -288,7 +288,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
 
                         {/* Song preview (artist/band circles only) */}
                         {isPeerifyArtistIdentity(circle) && circle._id && (
-                            <TrackPreviewList circleId={circle._id.toString()} />
+                            <TrackPreviewList circle={circle} user={user ?? null} />
                         )}
 
                         {/* Pledge (artist/band circles only) */}
