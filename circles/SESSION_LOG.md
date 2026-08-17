@@ -3968,3 +3968,53 @@ events.review share the same default user groups). Worth adding at least
 a log line for this case someday so a submitted-for-review event that 
 reaches nobody isn't completely silent.
 
+
+### 2026-08-17 — Prod incident: peerify.one served unstyled, root cause was an interrupted deploy
+
+**Symptom:** peerify.one was reachable and rendering page structure/text, 
+but with no CSS applied and at least one broken image icon.
+
+**Diagnosis:** Prod's PM2 process (`peerify`, pid 1851614) had an uptime 
+that exactly matched a baseline captured earlier the same day — the app 
+process itself never crashed or restarted, ruling out a bad deploy that 
+got restarted into and pointing at a static-asset problem instead. Direct 
+`curl` checks against `https://peerify.one/_next/static/css/*.css` 
+returned HTTP 400, served by Next.js itself (not nginx, not a plain 404) — 
+confirming every static asset request was failing at the app layer.
+
+Root cause: `~/apps/peerify-app/circles/.next/standalone/apps/peerify-app/circles/.next/static/` 
+did not exist on disk at all. `scripts/deploy-peerify.sh` had been run 
+manually (found as the last command in shell history) inside a `screen` 
+session named `peerify-work`, immediately followed by `pkill screen` — 
+which killed the deploy mid-run. Step 2 (`rm -rf .next && bun run build`) 
+had completed, regenerating a fresh `.next/standalone` tree (which never 
+includes static assets by itself), but Step 4 (copying `.next/static` and 
+`public/` into the standalone dir) and Step 6 (`pm2 restart`) never ran. 
+The still-running old PM2 process was left with zero static assets to 
+serve. This is the same failure mode logged on 2026-08-02 for staging 
+("stale standalone build broke staging site-wide") — now confirmed to 
+also be able to hit prod when a deploy is interrupted between build and 
+copy/restart.
+
+Side note during investigation: `~/apps/peerify/circles` is a stale, 
+unused clone with no `deploy-peerify.sh` and is not what backs the running 
+`peerify` PM2 process — the real prod repo/working tree is 
+`~/apps/peerify-app/circles` (confirmed via `pm2 describe peerify`'s exec 
+cwd). Worth remembering to avoid re-diagnosing in the wrong directory next 
+time.
+
+`autoMode.hard_deny` rules for `deploy-peerify.sh`/`pm2 restart`/`pm2 start` 
+were confirmed present and correctly configured; they were not implicated, 
+since this was an interactive manual run, not an agent-initiated one.
+
+**Fix:** Re-ran `./scripts/deploy-peerify.sh` to completion from 
+`~/apps/peerify-app/circles`. All 8 steps passed: fresh build from current 
+`main` HEAD (4f074b54), BUILD_ID verified, static assets copied into the 
+standalone dir and verified present, PM2 `peerify` restarted (new pid 
+1880856) with staging's pid/uptime confirmed unchanged, HTTP root check 
+200, static asset check 200. Independently verified from outside the box 
+afterward: `GET https://peerify.one/` → 200, and a CSS bundle 
+(`8342e51e453e2131.css`) → 200 with real content (36,468 bytes).
+
+**Status:** Resolved and verified live on peerify.one.
+
