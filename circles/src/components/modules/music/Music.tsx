@@ -4,10 +4,10 @@
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { getTracksByCircleId } from "@/lib/data/track";
+import { getUserPrivate } from "@/lib/data/user";
 import { signAudioToken } from "@/lib/audio/audio-token";
 import TrackUploadForm from "@/components/modules/music/track-upload-form";
-import AudioPlayer from "@/components/modules/music/audio-player";
-import TrackDeleteButton from "@/components/modules/music/track-delete-button";
+import TrackRow from "@/components/modules/music/track-row";
 import { Circle } from "@/models/models";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 
@@ -46,6 +46,8 @@ export default async function MusicModule({ circle }: Props) {
         ? await isAuthorized(userDid, circle._id!.toString(), features.music.upload)
         : false;
 
+    const user = userDid ? await getUserPrivate(userDid) : null;
+
     const circleId = circle._id!.toString();
     const tracks = await getTracksByCircleId(circleId);
 
@@ -54,6 +56,7 @@ export default async function MusicModule({ circle }: Props) {
             id: track._id!.toString(),
             title: track.title,
             durationSec: track.durationSec,
+            commentCount: track.commentCount ?? 0,
             streamUrl: `/api/peerify/audio?t=${encodeURIComponent(
                 await signAudioToken({ trackId: track._id!.toString(), previewKey: track.previewKey }),
             )}`,
@@ -84,11 +87,17 @@ export default async function MusicModule({ circle }: Props) {
                 ) : (
                     <ul className="flex flex-col gap-4">
                         {tracksWithUrls.map((track) => (
-                            <li key={track.id} className="flex flex-col gap-2 rounded-lg border p-4">
-                                <span className="font-medium">{track.title}</span>
-                                <AudioPlayer src={track.streamUrl} durationSec={track.durationSec} />
-                                {canUpload && <TrackDeleteButton trackId={track.id} title={track.title} />}
-                            </li>
+                            <TrackRow
+                                key={track.id}
+                                trackId={track.id}
+                                title={track.title}
+                                durationSec={track.durationSec}
+                                streamUrl={track.streamUrl}
+                                initialCommentCount={track.commentCount}
+                                circle={circle}
+                                user={user}
+                                canManage={canUpload}
+                            />
                         ))}
                     </ul>
                 )}

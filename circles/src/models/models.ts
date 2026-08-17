@@ -1219,6 +1219,7 @@ export type NotificationType =
     | "comment_like" // Someone liked a comment - sent to comment author
     | "post_mention" // Someone mentioned a user in a post - sent to user mentioned
     | "comment_mention" // Someone mentioned as user in a comment - sent to user mentioned
+    | "track_comment" // Someone commented on a song - sent to the artist circle's admins
     // Proposal Notifications
     | "proposal_submitted_for_review" // Proposal submitted for review - sent to users with review permissions
     | "proposal_moved_to_voting" // Proposal moved to voting stage - sent to users with voting permissions
@@ -1297,6 +1298,7 @@ export const notificationTypeValues = [
     "comment_like",
     "post_mention",
     "comment_mention",
+    "track_comment",
     "proposal_submitted_for_review",
     "proposal_moved_to_voting",
     "proposal_approved_for_voting",

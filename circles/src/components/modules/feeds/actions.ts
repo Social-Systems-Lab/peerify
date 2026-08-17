@@ -146,7 +146,7 @@ type ExpectedPreview = {
 
 const mentionPermissionErrorMessage = "You can only mention people you can message.";
 
-const validateMentionPermissions = async (userDid: string, mentions?: Array<{ id: string }>): Promise<void> => {
+export const validateMentionPermissions = async (userDid: string, mentions?: Array<{ id: string }>): Promise<void> => {
     if (!mentions?.length) {
         return;
     }
