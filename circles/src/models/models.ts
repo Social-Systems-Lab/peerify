@@ -319,6 +319,10 @@ export const commentSchema = z.object({
     postId: z.string().optional(), // Present for post comments; mutually exclusive with trackId
     trackId: z.string().optional(), // Present for song comments; mutually exclusive with postId
     parentCommentId: z.string().nullable(), // Null for root-level comments
+    // Set only when this comment was composed via the "Quote & reply" affordance on
+    // another comment (song comments only, so far). Metadata for notification targeting
+    // ONLY — comments stay flat; this never drives rendering or a threaded UI.
+    quotedCommentId: z.string().optional(),
     content: z.string(),
     createdBy: didSchema,
     createdAt: z.date(),

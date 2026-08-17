@@ -12,12 +12,13 @@ import { validateMentionPermissions } from "@/components/modules/feeds/actions";
 import { getCircleById } from "@/lib/data/circle";
 import { getUserByDid } from "@/lib/data/user";
 import { resolveActingAuthor } from "@/lib/data/acting-identity";
-import { notifyTrackComment, notifyTrackCommentMentions } from "@/lib/data/notifications";
+import { notifyTrackComment, notifyTrackCommentMentions, notifyTrackCommentReply } from "@/lib/data/notifications";
 
 export async function createTrackCommentAction(
     trackId: string,
     content: string,
     postAsCircleId?: string,
+    quotedCommentId?: string,
 ): Promise<{ success: boolean; message?: string; comment?: CommentDisplay }> {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -48,6 +49,13 @@ export async function createTrackCommentAction(
         const mentions = extractMentions(content);
         await validateMentionPermissions(userDid, mentions);
 
+        // Only trust a quotedCommentId that actually belongs to this same track — for
+        // reply-notification targeting only, never rendered or turned into a thread.
+        let quotedComment = quotedCommentId ? await getComment(quotedCommentId) : null;
+        if (quotedComment?.trackId !== trackId) {
+            quotedComment = null;
+        }
+
         let comment: CommentDisplay = {
             trackId,
             parentCommentId: null,
@@ -57,6 +65,7 @@ export async function createTrackCommentAction(
             reactions: {},
             replies: 0,
             mentions,
+            quotedCommentId: quotedComment?._id,
             author,
         };
 
@@ -74,6 +83,10 @@ export async function createTrackCommentAction(
             const artistCircle = await getCircleById(track.artistProfileId);
             if (artistCircle) {
                 await notifyTrackComment(track, artistCircle, newComment, user);
+
+                if (quotedComment) {
+                    await notifyTrackCommentReply(quotedComment, track, newComment, user);
+                }
 
                 if (mentions.length > 0) {
                     const mentionedCircles = (await Promise.all(mentions.map((m) => getCircleById(m.id)))).filter(

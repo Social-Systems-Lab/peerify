@@ -1,15 +1,23 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Pause, Play } from "lucide-react";
+import { MessageCircle, Pause, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useExclusiveAudio } from "@/lib/audio/use-exclusive-audio";
+import { Circle, UserPrivate } from "@/models/models";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { SongCommentsPanel } from "./song-comments-panel";
 
 type TrackPreviewRowProps = {
+    trackId: string;
     title: string;
     durationSec?: number;
     streamUrl: string;
+    commentCount: number;
     alwaysShowControl: boolean;
+    circle: Circle;
+    user: UserPrivate | null;
 };
 
 const formatDuration = (durationSec?: number): string | null => {
@@ -20,13 +28,19 @@ const formatDuration = (durationSec?: number): string | null => {
 };
 
 export const TrackPreviewRow: React.FC<TrackPreviewRowProps> = ({
+    trackId,
     title,
     durationSec,
     streamUrl,
+    commentCount,
     alwaysShowControl,
+    circle,
+    user,
 }) => {
     const audioRef = useExclusiveAudio();
     const [isPlaying, setIsPlaying] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+    const [liveCommentCount, setLiveCommentCount] = useState(commentCount);
     const duration = formatDuration(durationSec);
 
     useEffect(() => {
@@ -74,6 +88,19 @@ export const TrackPreviewRow: React.FC<TrackPreviewRowProps> = ({
             </button>
             <span className="flex-1 truncate text-sm text-gray-700">{title}</span>
             {duration && <span className="flex-shrink-0 text-xs text-gray-500">{duration}</span>}
+            <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    setShowComments(true);
+                }}
+                className="flex h-auto flex-shrink-0 items-center gap-1 px-1.5 py-1 text-gray-500 hover:text-gray-900"
+            >
+                <MessageCircle className="h-3.5 w-3.5" />
+                <span className="text-xs">{liveCommentCount}</span>
+            </Button>
             <audio
                 ref={audioRef}
                 src={streamUrl}
@@ -84,6 +111,19 @@ export const TrackPreviewRow: React.FC<TrackPreviewRowProps> = ({
             >
                 Your browser does not support the audio element.
             </audio>
+            <Dialog open={showComments} onOpenChange={setShowComments}>
+                <DialogContent className="max-h-[90vh] w-full max-w-lg overflow-y-auto">
+                    <div className="hidden">
+                        <DialogTitle>Comments on {title}</DialogTitle>
+                    </div>
+                    <SongCommentsPanel
+                        trackId={trackId}
+                        circle={circle}
+                        user={user}
+                        onCommentCountChange={setLiveCommentCount}
+                    />
+                </DialogContent>
+            </Dialog>
         </li>
     );
 };
