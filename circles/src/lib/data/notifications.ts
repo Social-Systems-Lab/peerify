@@ -18,6 +18,7 @@ import {
     GoalDisplay,
     GoalStage,
     Event,
+    Track,
 } from "@/models/models";
 import { DefaultNotificationSettings, Notifications, UserNotificationSettings } from "./db";
 import { sanitizeObjectForJSON } from "../utils/sanitize";
@@ -85,6 +86,7 @@ const buildNotificationBody = (type: string, payload: any): string => {
     const goalTitle = payload?.goalTitle || payload?.goal?.title || "a goal";
     const eventName = payload?.eventName || payload?.eventTitle || "an event";
     const artistCircleName = payload?.artistCircle?.name || "Your artist profile";
+    const trackTitle = payload?.trackTitle || payload?.track?.title || "a song";
 
     switch (type) {
         case "follow_request":
@@ -107,6 +109,8 @@ const buildNotificationBody = (type: string, payload: any): string => {
             return `${actorName} mentioned you in a post`;
         case "comment_mention":
             return `${actorName} mentioned you in a comment`;
+        case "track_comment":
+            return `${actorName} commented on your song "${trackTitle}"`;
         case "proposal_submitted_for_review":
             return `${actorName} submitted ${proposalName} for review`;
         case "proposal_moved_to_voting":
@@ -1098,6 +1102,78 @@ export async function notifyCommentMentions(
             postId: post._id?.toString(),
             commentId: comment._id?.toString(),
             ...parentItemPayloadMention, // Spread the parent item details into the payload
+        }),
+    );
+}
+
+/**
+ * Notifies the artist circle's admins when someone comments on one of their songs.
+ */
+export async function notifyTrackComment(track: Track, artistCircle: Circle, comment: Comment, commenter: Circle): Promise<void> {
+    try {
+        // Don't notify if the commenter is the one who uploaded the track
+        if (track.createdBy === comment.createdBy) {
+            return;
+        }
+
+        const admins = await getAuthorizedMembers(artistCircle, features.music.manage);
+        const recipientPrivates = (
+            await Promise.all(admins.map((admin) => (admin.did ? getUserPrivate(admin.did) : null)))
+        ).filter((up): up is UserPrivate => up !== null);
+
+        if (recipientPrivates.length === 0) return;
+
+        await sendNotifications(
+            "track_comment",
+            recipientPrivates,
+            sanitizeObjectForJSON({
+                circle: artistCircle,
+                user: commenter,
+                track,
+                trackId: track._id?.toString(),
+                trackTitle: track.title,
+                comment,
+                commentId: comment._id?.toString(),
+            }),
+        );
+    } catch (error) {
+        console.error("🔔 [NOTIFY] Error sending track comment notification:", error);
+    }
+}
+
+/**
+ * Send notifications when someone is mentioned in a comment on a song. Reuses the
+ * generic "comment_mention" type (see notifyCommentMentions) since the body text and
+ * grouping are identical — only the link target differs (song vs. post), which the
+ * notification bell resolves via trackId.
+ */
+export async function notifyTrackCommentMentions(
+    comment: Comment,
+    track: Track,
+    author: Circle,
+    mentionedCircles: Circle[],
+): Promise<void> {
+    const mentionedUserDids = mentionedCircles
+        .map((circle) => circle.did)
+        .filter((did): did is string => !!did && did !== author.did);
+
+    if (mentionedUserDids.length === 0) return;
+
+    const mentionedUserPrivates = (await Promise.all(mentionedUserDids.map((did) => getUserPrivate(did)))).filter(
+        (up): up is UserPrivate => up !== null,
+    );
+
+    if (mentionedUserPrivates.length === 0) return;
+
+    await sendNotifications(
+        "comment_mention",
+        mentionedUserPrivates,
+        sanitizeObjectForJSON({
+            user: author,
+            comment,
+            commentId: comment._id?.toString(),
+            trackId: track._id?.toString(),
+            trackTitle: track.title,
         }),
     );
 }

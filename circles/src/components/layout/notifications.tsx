@@ -73,6 +73,9 @@ type Notification = {
     // Event fields
     eventId?: string;
     eventName?: string;
+    // Track (song) fields
+    trackId?: string;
+    trackTitle?: string;
     // For grouping purposes
     key?: string;
 };
@@ -204,6 +207,9 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                     case "comment_mention":
                         groupKey = `comment_mention_${content.commentId}`;
                         break;
+                    case "track_comment":
+                        groupKey = `track_comment_${content.trackId}`;
+                        break;
                     case "proposal_vote":
                         groupKey = `proposal_vote_${content.proposalId}`;
                         break;
@@ -258,6 +264,8 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                     newGoalStage: content.newGoalStage,
                     eventId: content.eventId,
                     eventName: content.eventName,
+                    trackId: content.trackId,
+                    trackTitle: content.trackTitle,
                     key: groupKey,
                 };
 
@@ -482,8 +490,16 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                 case "comment_like":
                 case "post_mention":
                 case "comment_mention":
-                    return getParentItemUrl(notification) ||
-                        (notification.postId ? `/circles/${circleHandle}/post/${notification.postId}` : null);
+                    return (
+                        getParentItemUrl(notification) ||
+                        (notification.postId
+                            ? `/circles/${circleHandle}/post/${notification.postId}`
+                            : notification.trackId
+                              ? `/circles/${circleHandle}/music`
+                              : null)
+                    );
+                case "track_comment":
+                    return notification.trackId ? `/circles/${circleHandle}/music` : null;
                 case "proposal_submitted_for_review":
                 case "proposal_moved_to_voting":
                 case "proposal_approved_for_voting":
@@ -558,6 +574,7 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
             case "comment_reply":
             case "post_mention":
             case "comment_mention":
+            case "track_comment":
             case "task_status_changed":
             case "task_approved":
             case "task_submitted_for_review":
