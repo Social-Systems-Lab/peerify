@@ -134,6 +134,13 @@ const DISCOVERY_CIRCLE_PROJECTION = {
     organizationName: 1,
     metadata: 1,
     tourTeamOfferings: 1,
+    // Needed so isAuthorized/hasFeatureAccessIgnoringVerification can evaluate feature
+    // access for content rendered from a map-sourced circle (e.g. song comments in the
+    // map popup's TrackPreviewList) — without these, hasFeatureAccessIgnoringVerification
+    // sees no accessRules at all and denies every feature check unconditionally, regardless
+    // of the viewer's actual permissions.
+    accessRules: 1,
+    enabledModules: 1,
 } as const;
 
 export const getCirclesByIds = async (ids: string[]): Promise<Circle[]> => {
