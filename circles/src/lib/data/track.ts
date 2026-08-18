@@ -3,7 +3,7 @@
 
 import { ObjectId } from "mongodb";
 import { Comment, CommentDisplay, Track } from "@/models/models";
-import { Comments, Tracks } from "./db";
+import { Comments, Reactions, Tracks } from "./db";
 import { removePrivateObject } from "./storage";
 
 export const createTrack = async (trackData: Omit<Track, "_id">): Promise<Track> => {
@@ -48,6 +48,35 @@ export const deleteTrack = async (trackId: string): Promise<void> => {
     if (!track) return;
     await Promise.allSettled([removePrivateObject(track.originalKey), removePrivateObject(track.previewKey)]);
     await Tracks.deleteOne({ _id: new ObjectId(trackId) });
+};
+
+// Ovation ("clap") taps are repeatable and uncapped: a single (userDid, trackId,
+// reactionType) Reaction doc is upserted and its count incremented per tap, rather
+// than inserting one row per tap. Never returned to the tapping fan — only the
+// owning artist/admin's aggregate view reads getTrackOvationCount.
+export const ovateTrack = async (trackId: string, userDid: string): Promise<void> => {
+    await Reactions.updateOne(
+        { contentId: trackId, contentType: "track", userDid, reactionType: "ovation" },
+        {
+            $inc: { count: 1 },
+            $setOnInsert: {
+                contentId: trackId,
+                contentType: "track",
+                userDid,
+                reactionType: "ovation",
+                createdAt: new Date(),
+            },
+        },
+        { upsert: true },
+    );
+};
+
+export const getTrackOvationCount = async (trackId: string): Promise<number> => {
+    const result = await Reactions.aggregate<{ total: number }>([
+        { $match: { contentId: trackId, contentType: "track", reactionType: "ovation" } },
+        { $group: { _id: null, total: { $sum: "$count" } } },
+    ]).toArray();
+    return result[0]?.total ?? 0;
 };
 
 // Comments on a track are always flat (no threading/replies — see PEERIFY_CONTEXT.md).

@@ -8,6 +8,7 @@ import { Circle, UserPrivate } from "@/models/models";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { SongCommentsPanel } from "./song-comments-panel";
+import { OvateButton } from "./ovate-button";
 
 type TrackPreviewRowProps = {
     trackId: string;
@@ -101,6 +102,7 @@ export const TrackPreviewRow: React.FC<TrackPreviewRowProps> = ({
                 <MessageCircle className="h-3.5 w-3.5" />
                 <span className="text-xs">{liveCommentCount}</span>
             </Button>
+            <OvateButton trackId={trackId} circle={circle} user={user} />
             <audio
                 ref={audioRef}
                 src={streamUrl}
