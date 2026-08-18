@@ -19,6 +19,22 @@
 // route around.
 let sharedAudioCtx: AudioContext | null = null;
 
+// A real clap/click is a broadband noise transient, not a pitched tone — a sine
+// oscillator (the previous approach) inherently reads as a soft "boop" no matter
+// how its envelope is shaped. Synthesizing a short filtered-noise burst instead
+// is the standard no-asset technique for a percussive click, and gives a much
+// sharper attack/decay than any oscillator-based tone can.
+function createNoiseBurstBuffer(ctx: AudioContext): AudioBuffer {
+    const durationSec = 0.05;
+    const sampleCount = Math.max(1, Math.floor(ctx.sampleRate * durationSec));
+    const buffer = ctx.createBuffer(1, sampleCount, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < sampleCount; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
+    return buffer;
+}
+
 export function playOvationTick(): void {
     if (typeof window === "undefined") return;
 
@@ -35,23 +51,35 @@ export function playOvationTick(): void {
 
         const ctx = sharedAudioCtx;
         const now = ctx.currentTime;
-        const oscillator = ctx.createOscillator();
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = createNoiseBurstBuffer(ctx);
+
+        // Bandpass gives the noise a "snap" character instead of raw hiss; the
+        // highpass cuts low-end rumble so it doesn't compete with the track audio.
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = "bandpass";
+        bandpass.frequency.setValueAtTime(2200, now);
+        bandpass.Q.setValueAtTime(0.9, now);
+
+        const highpass = ctx.createBiquadFilter();
+        highpass.type = "highpass";
+        highpass.frequency.setValueAtTime(700, now);
+
         const gain = ctx.createGain();
-
-        oscillator.type = "sine";
-        oscillator.frequency.setValueAtTime(880, now);
-        oscillator.frequency.exponentialRampToValueAtTime(660, now + 0.08);
-
-        // Exponential ramps can't target 0 exactly, hence the near-zero floor —
-        // this also avoids the click/pop an abrupt gain change would cause.
+        // Near-instant attack, full decay to silence in ~45ms total — sharp
+        // rather than the previous tone's comparatively slow 100ms fade.
         gain.gain.setValueAtTime(0.0001, now);
-        gain.gain.exponentialRampToValueAtTime(0.15, now + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+        gain.gain.linearRampToValueAtTime(0.28, now + 0.002);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
 
-        oscillator.connect(gain);
+        noise.connect(bandpass);
+        bandpass.connect(highpass);
+        highpass.connect(gain);
         gain.connect(ctx.destination);
-        oscillator.start(now);
-        oscillator.stop(now + 0.1);
+
+        noise.start(now);
+        noise.stop(now + 0.05);
     } catch {
         // Web Audio unavailable or blocked — the tap animation is still the
         // primary feedback, so skip the sound rather than surface an error for
