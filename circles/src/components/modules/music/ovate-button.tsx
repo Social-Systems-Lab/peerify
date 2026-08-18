@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { ReactionTapBurst } from "@/components/modules/feeds/post-list";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { playOvationTick } from "@/lib/audio/ovation-tick";
-import { ovateTrackAction } from "./ovation-actions";
+import { getHasOvatedTrackAction, ovateTrackAction } from "./ovation-actions";
 
 const OVATION_HINT_DISMISSED_KEY = "peerify_ovation_tap_hint_dismissed";
 
@@ -32,8 +32,25 @@ type OvateButtonProps = {
 // and tick sound once active) is the entire feedback loop.
 export const OvateButton: React.FC<OvateButtonProps> = ({ trackId, circle, user }) => {
     const [tapCount, setTapCount] = useState(0);
+    // Persistent active/enlarged look — separate from tapCount, which only
+    // drives the transient per-tap burst replay. Restored from prior history on
+    // mount below, with no animation attached to that restoration.
+    const [isActive, setIsActive] = useState(false);
     const [showHint, setShowHint] = useState(false);
     const canReact = isAuthorized(user ?? undefined, circle, features.music.react);
+
+    useEffect(() => {
+        if (!canReact) return;
+        let cancelled = false;
+        getHasOvatedTrackAction(trackId).then((result) => {
+            if (!cancelled && result.success && result.hasOvated) {
+                setIsActive(true);
+            }
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [trackId, canReact]);
 
     useEffect(() => {
         if (!canReact || hintClaimedThisPageLoad) return;
@@ -63,15 +80,16 @@ export const OvateButton: React.FC<OvateButtonProps> = ({ trackId, circle, user 
         e.stopPropagation();
         if (!canReact) return;
         setShowHint(false);
+        setIsActive(true);
         setTapCount((n) => n + 1);
         playOvationTick();
         ovateTrackAction(trackId).catch(() => {});
     };
 
-    // Persistent once active, on top of the per-tap transient pulse below — not
-    // instead of the existing color/fill change, which already persists via the
-    // always-mounted-once-tapped ReactionTapBurst overlay.
-    const iconSizeClass = tapCount > 0 ? "h-5 w-5" : "h-4 w-4";
+    // Persistent once active (from history or a tap this session), on top of
+    // the per-tap transient pulse below — not instead of the existing color/fill
+    // change, which is now the base icon itself rather than a permanent overlay.
+    const iconSizeClass = isActive ? "h-5 w-5" : "h-4 w-4";
 
     return (
         <TooltipProvider>
@@ -90,7 +108,11 @@ export const OvateButton: React.FC<OvateButtonProps> = ({ trackId, circle, user 
                             animate={tapCount > 0 ? { scale: [1, 1.3, 1] } : { scale: 1 }}
                             transition={{ duration: 0.3 }}
                         >
-                            <PiHandsClapping className={iconSizeClass} />
+                            {isActive ? (
+                                <PiHandsClappingFill className={cn(iconSizeClass, "text-[#FE801B]")} />
+                            ) : (
+                                <PiHandsClapping className={iconSizeClass} />
+                            )}
                         </motion.div>
                         {tapCount > 0 && (
                             <ReactionTapBurst triggerKey={tapCount}>

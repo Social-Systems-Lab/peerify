@@ -6,7 +6,7 @@
 
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
-import { getTrackById, ovateTrack } from "@/lib/data/track";
+import { getTrackById, hasUserOvatedTrack, ovateTrack } from "@/lib/data/track";
 
 export async function ovateTrackAction(trackId: string): Promise<{ success: boolean; message?: string }> {
     const userDid = await getAuthenticatedUserDid();
@@ -29,5 +29,30 @@ export async function ovateTrackAction(trackId: string): Promise<{ success: bool
         return { success: true };
     } catch (error) {
         return { success: false, message: error instanceof Error ? error.message : "Failed to give ovation." };
+    }
+}
+
+// Restores OvateButton's persistent active/enlarged look on mount for a fan who
+// has ovated this track before. Scoped strictly to the caller's own
+// authenticated did (never a client-supplied identity) and never returns a
+// count — only whether they personally have ovated at least once.
+export async function getHasOvatedTrackAction(
+    trackId: string,
+): Promise<{ success: boolean; hasOvated?: boolean; message?: string }> {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: true, hasOvated: false };
+    }
+
+    try {
+        const track = await getTrackById(trackId);
+        if (!track) {
+            return { success: false, message: "Song not found" };
+        }
+
+        const hasOvated = await hasUserOvatedTrack(trackId, userDid);
+        return { success: true, hasOvated };
+    } catch (error) {
+        return { success: false, message: error instanceof Error ? error.message : "Failed to check ovation status." };
     }
 }

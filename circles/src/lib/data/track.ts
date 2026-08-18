@@ -79,6 +79,16 @@ export const getTrackOvationCount = async (trackId: string): Promise<number> => 
     return result[0]?.total ?? 0;
 };
 
+// Whether this specific fan has ever ovated this track — used only to restore
+// OvateButton's persistent active/enlarged look on mount, never a count.
+export const hasUserOvatedTrack = async (trackId: string, userDid: string): Promise<boolean> => {
+    const existing = await Reactions.findOne(
+        { contentId: trackId, contentType: "track", userDid, reactionType: "ovation" },
+        { projection: { _id: 1 } },
+    );
+    return !!existing;
+};
+
 // Comments on a track are always flat (no threading/replies — see PEERIFY_CONTEXT.md).
 // A "reply" is just a new top-level comment; parentCommentId is always null.
 export const createTrackComment = async (comment: Comment): Promise<Comment> => {
