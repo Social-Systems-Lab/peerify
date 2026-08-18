@@ -2,3 +2,11 @@
 .env
 .env.local
 .env*.local
+
+# Deploy-time atomic-release artifacts (see circles/scripts/deploy-common.sh) —
+# live one level above the app checkout, deliberately outside its
+# tsconfig scope so `next build` never scans a previous release's copied
+# source as project input.
+/releases/
+/current
+/current.tmp
