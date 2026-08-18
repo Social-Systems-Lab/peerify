@@ -191,6 +191,26 @@ type LikeButtonProps = {
     onClick: () => void;
 };
 
+// Shared burst-in animation base for tap/toggle reactions (likes, ovations, ...):
+// scales a filled icon in from nothing. Keyed by triggerKey so a caller can force
+// a fresh play on every tap (repeatable reactions), not just on a one-time mount.
+type ReactionTapBurstProps = {
+    triggerKey: number;
+    children: React.ReactNode;
+};
+
+export const ReactionTapBurst: React.FC<ReactionTapBurstProps> = ({ triggerKey, children }) => (
+    <motion.div
+        key={triggerKey}
+        initial={{ scale: 0 }}
+        animate={{ scale: [0, 1] }}
+        transition={{ duration: 0.3 }}
+        className="absolute inset-0 flex items-center justify-center"
+    >
+        {children}
+    </motion.div>
+);
+
 export const LikeButton = ({ isLiked, onClick }: LikeButtonProps) => {
     return (
         <button
@@ -210,14 +230,9 @@ export const LikeButton = ({ isLiked, onClick }: LikeButtonProps) => {
                 />
             </motion.div>
             {isLiked && (
-                <motion.div
-                    initial={{ scale: 0 }}
-                    animate={{ scale: [0, 1] }}
-                    transition={{ duration: 0.3 }}
-                    className="absolute inset-0 flex items-center justify-center"
-                >
+                <ReactionTapBurst triggerKey={1}>
                     <AiFillHeart className="h-5 w-5 fill-[#ff4772] stroke-[#ff4772]" />
-                </motion.div>
+                </ReactionTapBurst>
             )}
         </button>
     );

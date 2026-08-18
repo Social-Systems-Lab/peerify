@@ -3,7 +3,7 @@
 
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
-import { getTracksByCircleId } from "@/lib/data/track";
+import { getTracksByCircleId, getTrackOvationCount } from "@/lib/data/track";
 import { getUserPrivate } from "@/lib/data/user";
 import { signAudioToken } from "@/lib/audio/audio-token";
 import TrackUploadForm from "@/components/modules/music/track-upload-form";
@@ -45,6 +45,12 @@ export default async function MusicModule({ circle }: Props) {
     const canUpload = userDid
         ? await isAuthorized(userDid, circle._id!.toString(), features.music.upload)
         : false;
+    // Owner/admin-only gate for the ovation aggregate view — deliberately the same
+    // feature deleteTrackCommentAction uses for moderation, not the looser upload
+    // permission, since this is a real security boundary, not a UI-only hide.
+    const canManageMusic = userDid
+        ? await isAuthorized(userDid, circle._id!.toString(), features.music.manage)
+        : false;
 
     const user = userDid ? await getUserPrivate(userDid) : null;
 
@@ -57,6 +63,7 @@ export default async function MusicModule({ circle }: Props) {
             title: track.title,
             durationSec: track.durationSec,
             commentCount: track.commentCount ?? 0,
+            ovationCount: canManageMusic ? await getTrackOvationCount(track._id!.toString()) : undefined,
             streamUrl: `/api/peerify/audio?t=${encodeURIComponent(
                 await signAudioToken({ trackId: track._id!.toString(), previewKey: track.previewKey }),
             )}`,
@@ -94,6 +101,7 @@ export default async function MusicModule({ circle }: Props) {
                                 durationSec={track.durationSec}
                                 streamUrl={track.streamUrl}
                                 initialCommentCount={track.commentCount}
+                                ovationCount={track.ovationCount}
                                 circle={circle}
                                 user={user}
                                 canManage={canUpload}
