@@ -41,6 +41,7 @@ type Props = {
     event?: EventDisplay | null;
     showCirclePicker?: boolean;
     initialSelectedCircleId?: string;
+    onFormSubmitSuccess?: (data: { id?: string; circleHandle?: string }) => void;
 };
 
 function toISOStringLocal(date: Date) {
@@ -155,7 +156,13 @@ function getSelectedHelper<T extends string>(options: Array<{ value: T; helper: 
     return options.find((option) => option.value === value)?.helper;
 }
 
-export default function EventForm({ circleHandle, event, showCirclePicker, initialSelectedCircleId }: Props) {
+export default function EventForm({
+    circleHandle,
+    event,
+    showCirclePicker,
+    initialSelectedCircleId,
+    onFormSubmitSuccess,
+}: Props) {
     console.log("EventForm mounted/updated. Event recurrence:", event?.recurrence);
     const [selectedCircle, setSelectedCircle] = useState<string | undefined>(circleHandle);
     const router = useRouter();
@@ -536,18 +543,23 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                             description: result.message || (event ? "Event updated." : "Event created."),
                         });
                     }
-                    // Navigate straight back to the event's own detail page (not the events list)
-                    // so router.refresh() below re-renders THAT page fresh. Editing previously
-                    // redirected to the list, and router.refresh() only ever refreshes the current
-                    // route after a push resolves — it never touched the detail page the artist
-                    // changes above actually apply to, which could otherwise still show a stale
-                    // "Artists" box (delegation toggle, remove controls) until a manual reload.
-                    if (resolvedEventId) {
-                        router.push(`/circles/${selectedCircle}/events/${resolvedEventId}`);
+                    if (onFormSubmitSuccess) {
+                        // Dialog context: let the caller close the modal and navigate.
+                        onFormSubmitSuccess({ id: resolvedEventId, circleHandle: selectedCircle });
                     } else {
-                        router.push(`/circles/${selectedCircle}/events`);
+                        // Navigate straight back to the event's own detail page (not the events list)
+                        // so router.refresh() below re-renders THAT page fresh. Editing previously
+                        // redirected to the list, and router.refresh() only ever refreshes the current
+                        // route after a push resolves — it never touched the detail page the artist
+                        // changes above actually apply to, which could otherwise still show a stale
+                        // "Artists" box (delegation toggle, remove controls) until a manual reload.
+                        if (resolvedEventId) {
+                            router.push(`/circles/${selectedCircle}/events/${resolvedEventId}`);
+                        } else {
+                            router.push(`/circles/${selectedCircle}/events`);
+                        }
+                        router.refresh();
                     }
-                    router.refresh();
                 } else {
                     toast({
                         title: "Error",
