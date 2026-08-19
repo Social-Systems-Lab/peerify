@@ -47,6 +47,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type Props = {
     circleHandle?: string; // optional, can come from context or picker
@@ -1243,15 +1244,28 @@ export default function EventForm({
                         )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <Switch id="isPrivate" checked={isPrivate} onCheckedChange={setIsPrivate} />
-                        <Label htmlFor="isPrivate">{isPrivate ? "Private event" : "Public event"}</Label>
+                    <div className="space-y-2">
+                        <Label>Visibility</Label>
+                        <ToggleGroup
+                            type="single"
+                            variant="outline"
+                            size="sm"
+                            value={isPrivate ? "private" : "public"}
+                            onValueChange={(value) => {
+                                // ToggleGroup allows deselecting the current item (empty string) —
+                                // ignore that so exactly one of Public/Private is always selected.
+                                if (value) setIsPrivate(value === "private");
+                            }}
+                        >
+                            <ToggleGroupItem value="public">Public</ToggleGroupItem>
+                            <ToggleGroupItem value="private">Private</ToggleGroupItem>
+                        </ToggleGroup>
+                        <p className="text-xs text-muted-foreground">
+                            {isPrivate
+                                ? "Invite-only or unlisted. Not shown publicly."
+                                : "Listed publicly when the event is open."}
+                        </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                        {isPrivate
-                            ? "Invite-only or unlisted. Not shown publicly."
-                            : "Listed publicly when the event is open."}
-                    </p>
 
                     <div className="rounded-lg border p-4">
                         <div className="flex items-start gap-3">
