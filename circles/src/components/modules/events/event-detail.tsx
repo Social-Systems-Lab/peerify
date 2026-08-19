@@ -11,7 +11,18 @@ import {
     changeEventStageAction,
     hideCancelledEventAction,
     unhideCancelledEventAction,
+    deleteEventAction,
 } from "@/app/circles/[handle]/events/actions";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import ImageCarousel from "@/components/ui/image-carousel";
@@ -97,6 +108,7 @@ export default function EventDetail({
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [isInviteModalOpen, setInviteModalOpen] = useState(false);
+    const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [isRsvpDialogOpen, setRsvpDialogOpen] = useState(false);
     const compact = !!isPreview;
     const [hideUpdating, setHideUpdating] = useState(false);
@@ -216,6 +228,20 @@ export default function EventDetail({
                 router.refresh();
             } else {
                 toast({ title: "Error", description: res.message || "Failed to open", variant: "destructive" });
+            }
+        });
+    };
+
+    const onDeleteEvent = () => {
+        startTransition(async () => {
+            const res = await deleteEventAction(circleHandle, (event as any)._id?.toString?.() || "");
+            setDeleteDialogOpen(false);
+            if (res.success) {
+                toast({ title: "Event deleted" });
+                router.push(`/circles/${circleHandle}/events`);
+                router.refresh();
+            } else {
+                toast({ title: "Error", description: res.message || "Failed to delete event", variant: "destructive" });
             }
         });
     };
@@ -635,6 +661,15 @@ export default function EventDetail({
                             Publish
                         </Button>
                     )}
+                    {event.stage === "draft" && (isAuthor || canModerate) && (
+                        <Button
+                            disabled={isPending}
+                            variant="destructive"
+                            onClick={() => setDeleteDialogOpen(true)}
+                        >
+                            Delete
+                        </Button>
+                    )}
                     {event.stage === "open" && (canReview || canModerate) && (
                         <Button disabled={isPending} variant="destructive" onClick={onCancelEvent}>
                             Cancel
@@ -836,6 +871,26 @@ export default function EventDetail({
                 open={isRsvpDialogOpen}
                 onOpenChange={setRsvpDialogOpen}
             />
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this draft event?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete &quot;{event.title}&quot;. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={isPending}
+                            onClick={onDeleteEvent}
+                            className="bg-red-500 hover:bg-red-600"
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             {event.commentPostId ? (
                 <CommentSection postId={event.commentPostId} circle={circle!} user={user ?? null} />
