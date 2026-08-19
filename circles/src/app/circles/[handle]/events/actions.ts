@@ -197,6 +197,8 @@ type ParsedPeerifyEventMetadata = {
     clearPublicLocationLabel: boolean;
     clearPrivateLocationNote: boolean;
     clearPublicMapLocation: boolean;
+    clearPrice: boolean;
+    clearPaymentInfo: boolean;
 };
 
 const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata | undefined => {
@@ -209,6 +211,8 @@ const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata |
     const publicLocationLabel = parsed.publicLocationLabel?.trim();
     const privateLocationNote = parsed.privateLocationNote?.trim();
     const publicMapLocation = parsed.publicMapLocation ?? undefined;
+    const price = typeof parsed.price === "number" ? parsed.price : undefined;
+    const paymentInfo = parsed.paymentInfo?.trim();
     const peerify = {
         venueDisclosure: parsed.venueDisclosure ?? "public",
         locationDisclosure: parsed.locationDisclosure ?? "public",
@@ -217,6 +221,9 @@ const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata |
         ...(privateLocationNote ? { privateLocationNote } : {}),
         ...(publicMapLocation ? { publicMapLocation } : {}),
         ...(parsed.venueCircleId ? { venueCircleId: parsed.venueCircleId } : {}),
+        // currency travels with price — no price means no currency to show either.
+        ...(price !== undefined ? { price, currency: parsed.currency?.trim() || "EUR" } : {}),
+        ...(paymentInfo ? { paymentInfo } : {}),
     };
 
     return {
@@ -226,6 +233,8 @@ const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata |
         clearPublicLocationLabel: !publicLocationLabel,
         clearPrivateLocationNote: !privateLocationNote,
         clearPublicMapLocation: !publicMapLocation,
+        clearPrice: price === undefined,
+        clearPaymentInfo: !paymentInfo,
     };
 };
 
@@ -249,6 +258,13 @@ const mergePeerifyEventMetadata = (
     }
     if (peerifyMetadata.clearPublicMapLocation) {
         delete nextPeerify.publicMapLocation;
+    }
+    if (peerifyMetadata.clearPrice) {
+        delete nextPeerify.price;
+        delete nextPeerify.currency;
+    }
+    if (peerifyMetadata.clearPaymentInfo) {
+        delete nextPeerify.paymentInfo;
     }
 
     return {

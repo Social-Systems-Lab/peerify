@@ -55,6 +55,7 @@ import { CommentSection } from "../feeds/CommentSection";
 import RichText from "../feeds/RichText";
 import { userAtom, mapboxKeyAtom, zoomContentAtom, triggerMapOpenAtom } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
+import { formatFundingAmount } from "@/components/modules/funding/funding-shared";
 
 type Props = {
     circle?: Circle;
@@ -780,6 +781,20 @@ export default function EventDetail({
                             <div className="prose max-w-none">
                                 <RichText content={event.description} />
                             </div>
+                        </div>
+                    )}
+
+                    {typeof event.metadata?.peerify?.price === "number" && (
+                        <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
+                            <div className="mb-2 text-sm font-medium text-muted-foreground">Price</div>
+                            <div className="text-lg font-semibold">
+                                {formatFundingAmount(event.metadata.peerify.price, event.metadata.peerify.currency || "EUR")}
+                            </div>
+                            {event.metadata.peerify.paymentInfo && (
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    {event.metadata.peerify.paymentInfo}
+                                </p>
+                            )}
                         </div>
                     )}
                 </div>
