@@ -632,7 +632,7 @@ export default function EventDetail({
                     )}
                     {(event.stage === "draft" || event.stage === "review") && canReview && (
                         <Button disabled={isPending} onClick={onOpenNow}>
-                            Open
+                            Publish
                         </Button>
                     )}
                     {event.stage === "open" && (canReview || canModerate) && (
