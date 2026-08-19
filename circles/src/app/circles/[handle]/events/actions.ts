@@ -211,12 +211,17 @@ const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata |
     const publicLocationLabel = parsed.publicLocationLabel?.trim();
     const privateLocationNote = parsed.privateLocationNote?.trim();
     const publicMapLocation = parsed.publicMapLocation ?? undefined;
-    const price = typeof parsed.price === "number" ? parsed.price : undefined;
-    const paymentInfo = parsed.paymentInfo?.trim();
+    // `ticketed` gates persistence of price/currency/paymentInfo, not just their display — a
+    // submit with the toggle off never saves them, even if the form still holds values (e.g. the
+    // user re-toggled off after filling them in without clearing the fields).
+    const ticketed = Boolean(parsed.ticketed);
+    const price = ticketed && typeof parsed.price === "number" ? parsed.price : undefined;
+    const paymentInfo = ticketed ? parsed.paymentInfo?.trim() : undefined;
     const peerify = {
         venueDisclosure: parsed.venueDisclosure ?? "public",
         locationDisclosure: parsed.locationDisclosure ?? "public",
         accessMode: parsed.accessMode ?? "open_rsvp",
+        ticketed,
         ...(publicLocationLabel ? { publicLocationLabel } : {}),
         ...(privateLocationNote ? { privateLocationNote } : {}),
         ...(publicMapLocation ? { publicMapLocation } : {}),

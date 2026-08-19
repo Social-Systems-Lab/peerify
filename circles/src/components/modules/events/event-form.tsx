@@ -209,7 +209,16 @@ export default function EventForm({
     const [publicMapLocation, setPublicMapLocation] = useState<Location | undefined>(
         peerifyMetadata?.publicMapLocation,
     );
-    // Pricing — informational only, no ticketing/payment processing wired to these.
+    // Pricing — informational only, no ticketing/payment processing wired to these. Off by
+    // default for new events. For events saved before this toggle existed (`ticketed` absent),
+    // fall back to "has a saved price" so opening the edit form doesn't default to a collapsed,
+    // easy-to-miss Pricing section that then silently wipes the existing price on next save —
+    // same fallback-from-a-pre-existing-signal pattern publishToNoticeboard's own seed uses above
+    // for `noticeboardPostId`. Whether the *public page* should treat this legacy data as
+    // ticketed is a separate, deliberate call — see event-detail.tsx.
+    const [isTicketed, setIsTicketed] = useState<boolean>(
+        peerifyMetadata?.ticketed ?? typeof peerifyMetadata?.price === "number",
+    );
     const [price, setPrice] = useState<string>(
         typeof peerifyMetadata?.price === "number" ? String(peerifyMetadata.price) : "",
     );
@@ -534,6 +543,7 @@ export default function EventForm({
                         publicLocationLabel: publicLocationLabel.trim(),
                         privateLocationNote: privateLocationNote.trim(),
                         publicMapLocation: publicMapLocation ?? null,
+                        ticketed: isTicketed,
                         price: Number.isFinite(parsedPrice) ? parsedPrice : undefined,
                         currency,
                         paymentInfo: paymentInfo.trim(),
@@ -932,53 +942,60 @@ export default function EventForm({
                         />
                     </div>
 
-                    <div className="space-y-4 rounded-lg border p-4">
-                        <div>
-                            <h3 className="text-sm font-medium">Pricing (optional)</h3>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                                Informational only — this isn&apos;t ticketing or payment processing.
-                            </p>
-                        </div>
-                        <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center gap-2">
+                        <Switch id="isTicketed" checked={isTicketed} onCheckedChange={setIsTicketed} />
+                        <Label htmlFor="isTicketed">Ticketed event</Label>
+                    </div>
+
+                    {isTicketed && (
+                        <div className="space-y-4 rounded-lg border p-4">
                             <div>
-                                <Label htmlFor="price">Price</Label>
+                                <h3 className="text-sm font-medium">Pricing (optional)</h3>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                    Informational only — this isn&apos;t ticketing or payment processing.
+                                </p>
+                            </div>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div>
+                                    <Label htmlFor="price">Price</Label>
+                                    <Input
+                                        id="price"
+                                        type="number"
+                                        inputMode="decimal"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="e.g., 15"
+                                        value={price}
+                                        onChange={(e) => setPrice(e.target.value)}
+                                    />
+                                </div>
+                                <div>
+                                    <Label htmlFor="currency">Currency</Label>
+                                    <Select value={currency} onValueChange={setCurrency}>
+                                        <SelectTrigger id="currency">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {EVENT_CURRENCY_OPTIONS.map((option) => (
+                                                <SelectItem key={option} value={option}>
+                                                    {option}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div>
+                                <Label htmlFor="paymentInfo">Payment info</Label>
                                 <Input
-                                    id="price"
-                                    type="number"
-                                    inputMode="decimal"
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="e.g., 15"
-                                    value={price}
-                                    onChange={(e) => setPrice(e.target.value)}
+                                    id="paymentInfo"
+                                    placeholder="e.g., €5 at the door, DM host for payment link"
+                                    value={paymentInfo}
+                                    onChange={(e) => setPaymentInfo(e.target.value)}
                                 />
                             </div>
-                            <div>
-                                <Label htmlFor="currency">Currency</Label>
-                                <Select value={currency} onValueChange={setCurrency}>
-                                    <SelectTrigger id="currency">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {EVENT_CURRENCY_OPTIONS.map((option) => (
-                                            <SelectItem key={option} value={option}>
-                                                {option}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
                         </div>
-                        <div>
-                            <Label htmlFor="paymentInfo">Payment info</Label>
-                            <Input
-                                id="paymentInfo"
-                                placeholder="e.g., €5 at the door, DM host for payment link"
-                                value={paymentInfo}
-                                onChange={(e) => setPaymentInfo(e.target.value)}
-                            />
-                        </div>
-                    </div>
+                    )}
 
                     <div className="rounded-lg border p-4">
                         <EventArtistPicker value={artistBands} onChange={setArtistBands} />
