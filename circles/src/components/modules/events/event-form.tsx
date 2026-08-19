@@ -70,6 +70,9 @@ function toUtcEndOfDayIso(dateOnly: string) {
 import CircleSelector from "@/components/global-create/circle-selector";
 import { CreatableItemDetail, creatableItemsList } from "@/components/global-create/global-create-dialog-content";
 import EventArtistPicker, { SelectedArtistBand } from "@/components/modules/events/event-artist-picker";
+import { getPeerifyArtistProfile } from "@/lib/peerify/artist-profile";
+
+const EVENT_CURRENCY_OPTIONS = ["EUR", "USD", "GBP", "SEK"];
 
 const VENUE_DISCLOSURE_OPTIONS: Array<{
     value: PeerifyEventVenueDisclosure;
@@ -206,6 +209,12 @@ export default function EventForm({
     const [publicMapLocation, setPublicMapLocation] = useState<Location | undefined>(
         peerifyMetadata?.publicMapLocation,
     );
+    // Pricing — informational only, no ticketing/payment processing wired to these.
+    const [price, setPrice] = useState<string>(
+        typeof peerifyMetadata?.price === "number" ? String(peerifyMetadata.price) : "",
+    );
+    const [currency, setCurrency] = useState<string>(peerifyMetadata?.currency || "EUR");
+    const [paymentInfo, setPaymentInfo] = useState<string>(peerifyMetadata?.paymentInfo || "");
 
     // Recurrence State
     const [isRecurring, setIsRecurring] = useState<boolean>(!!event?.recurrence);
@@ -353,10 +362,16 @@ export default function EventForm({
             setSelectedCircle(circle?.handle);
             if (!hasReceivedInitialCircleSelection.current) {
                 hasReceivedInitialCircleSelection.current = true;
-                // Only for new events — an edit form already seeded `location` from the event
-                // itself, and shouldn't have it overwritten by the circle's own saved location.
-                if (!event && circle?.location) {
-                    setLocation(circle.location);
+                // Only for new events — an edit form already seeded `location`/`currency` from
+                // the event itself, and shouldn't have them overwritten by the circle's defaults.
+                if (!event) {
+                    if (circle?.location) {
+                        setLocation(circle.location);
+                    }
+                    const circleCurrency = circle ? getPeerifyArtistProfile(circle).bookingSettings.currency : "";
+                    if (circleCurrency && EVENT_CURRENCY_OPTIONS.includes(circleCurrency)) {
+                        setCurrency(circleCurrency);
+                    }
                 }
             }
         },
@@ -508,6 +523,8 @@ export default function EventForm({
                 fd.set("allDay", allDay ? "on" : "");
                 if (capacity) fd.set("capacity", capacity);
                 fd.set("visibility", isPrivate ? "private" : "public");
+                const trimmedPrice = price.trim();
+                const parsedPrice = trimmedPrice.length > 0 ? Number(trimmedPrice) : undefined;
                 fd.set(
                     "peerifyEventMetadata",
                     JSON.stringify({
@@ -517,6 +534,9 @@ export default function EventForm({
                         publicLocationLabel: publicLocationLabel.trim(),
                         privateLocationNote: privateLocationNote.trim(),
                         publicMapLocation: publicMapLocation ?? null,
+                        price: Number.isFinite(parsedPrice) ? parsedPrice : undefined,
+                        currency,
+                        paymentInfo: paymentInfo.trim(),
                     }),
                 );
 
@@ -910,6 +930,54 @@ export default function EventForm({
                             value={capacity}
                             onChange={(e) => setCapacity(e.target.value)}
                         />
+                    </div>
+
+                    <div className="space-y-4 rounded-lg border p-4">
+                        <div>
+                            <h3 className="text-sm font-medium">Pricing (optional)</h3>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Informational only — this isn&apos;t ticketing or payment processing.
+                            </p>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <Label htmlFor="price">Price</Label>
+                                <Input
+                                    id="price"
+                                    type="number"
+                                    inputMode="decimal"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="e.g., 15"
+                                    value={price}
+                                    onChange={(e) => setPrice(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="currency">Currency</Label>
+                                <Select value={currency} onValueChange={setCurrency}>
+                                    <SelectTrigger id="currency">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {EVENT_CURRENCY_OPTIONS.map((option) => (
+                                            <SelectItem key={option} value={option}>
+                                                {option}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor="paymentInfo">Payment info</Label>
+                            <Input
+                                id="paymentInfo"
+                                placeholder="e.g., €5 at the door, DM host for payment link"
+                                value={paymentInfo}
+                                onChange={(e) => setPaymentInfo(e.target.value)}
+                            />
+                        </div>
                     </div>
 
                     <div className="rounded-lg border p-4">
