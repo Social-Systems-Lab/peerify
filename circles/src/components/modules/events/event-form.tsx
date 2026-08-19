@@ -1050,69 +1050,72 @@ export default function EventForm({
                             </p>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <div className="space-y-3 rounded-lg border p-4">
-                <div>
-                    <h3 className="text-sm font-medium">Visibility: {isPrivate ? "Private" : "Public"}</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                        {isPrivate
-                            ? "Invite-only or unlisted. Not shown publicly."
-                            : "Listed publicly when the event is open."}
-                    </p>
-                </div>
-                <ToggleGroup
-                    type="single"
-                    variant="outline"
-                    className="w-full"
-                    value={isPrivate ? "private" : "public"}
-                    onValueChange={(value) => {
-                        // ToggleGroup allows deselecting the current item (empty string) — ignore
-                        // that so exactly one of Public/Private is always selected.
-                        if (value) setIsPrivate(value === "private");
-                    }}
-                >
-                    <ToggleGroupItem value="public" className="flex-1">
-                        Public
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="private" className="flex-1">
-                        Private
-                    </ToggleGroupItem>
-                </ToggleGroup>
-            </div>
+                    <div className="space-y-3 rounded-lg border p-4">
+                        <div>
+                            <h3 className="text-sm font-medium">Visibility: {isPrivate ? "Private" : "Public"}</h3>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {isPrivate
+                                    ? "Invite-only or unlisted. Not shown publicly."
+                                    : "Listed publicly when the event is open."}
+                            </p>
+                        </div>
+                        <ToggleGroup
+                            type="single"
+                            variant="outline"
+                            className="w-full"
+                            value={isPrivate ? "private" : "public"}
+                            onValueChange={(value) => {
+                                // ToggleGroup allows deselecting the current item (empty string) —
+                                // ignore that so exactly one of Public/Private is always selected.
+                                if (value) setIsPrivate(value === "private");
+                            }}
+                        >
+                            <ToggleGroupItem value="public" className="flex-1">
+                                Public
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="private" className="flex-1">
+                                Private
+                            </ToggleGroupItem>
+                        </ToggleGroup>
+                    </div>
 
-            <div className="rounded-lg border p-4">
-                <div className="flex items-start gap-3">
-                    <Checkbox
-                        id="publishToNoticeboard"
-                        checked={publishToNoticeboard}
-                        onCheckedChange={(checked) => setPublishToNoticeboard(Boolean(checked))}
-                    />
-                    <div className="space-y-1">
-                        <Label htmlFor="publishToNoticeboard">Share this event on the Noticeboard</Label>
-                        <p className="text-sm text-muted-foreground">
-                            Create or update one linked Noticeboard post for this event. The post is only published
-                            once this event is opened — nothing is posted while it&apos;s in Draft or Review.
-                        </p>
-                        {publishToNoticeboard && (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-auto p-1 text-xs hover:bg-gray-100"
-                                onClick={() => setIsUserGroupsDialogOpen(true)}
-                            >
-                                <div className="flex items-center gap-1">
-                                    <Users className="h-3 w-3" />
-                                    <span>
-                                        Post visible to:{" "}
-                                        {userGroups.includes("everyone") ? "Everyone" : getUserGroupName(userGroups?.[0])}
-                                    </span>
-                                    <ChevronDown className="h-3 w-3" />
-                                </div>
-                            </Button>
-                        )}
+                    <div className="rounded-lg border p-4">
+                        <div className="flex items-start gap-3">
+                            <Checkbox
+                                id="publishToNoticeboard"
+                                checked={publishToNoticeboard}
+                                onCheckedChange={(checked) => setPublishToNoticeboard(Boolean(checked))}
+                            />
+                            <div className="space-y-1">
+                                <Label htmlFor="publishToNoticeboard">Share this event on the Noticeboard</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Create or update one linked Noticeboard post for this event. The post is only
+                                    published once this event is opened — nothing is posted while it&apos;s in Draft
+                                    or Review.
+                                </p>
+                                {publishToNoticeboard && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-auto p-1 text-xs hover:bg-gray-100"
+                                        onClick={() => setIsUserGroupsDialogOpen(true)}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            <Users className="h-3 w-3" />
+                                            <span>
+                                                Post visible to:{" "}
+                                                {userGroups.includes("everyone")
+                                                    ? "Everyone"
+                                                    : getUserGroupName(userGroups?.[0])}
+                                            </span>
+                                            <ChevronDown className="h-3 w-3" />
+                                        </div>
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
