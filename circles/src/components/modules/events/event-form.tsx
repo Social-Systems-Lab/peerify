@@ -32,7 +32,18 @@ import { useToast } from "@/components/ui/use-toast";
 import LocationPicker from "@/components/forms/location-picker";
 import TimePicker from "@/components/forms/time-picker";
 import { format, addHours, setHours, setMinutes } from "date-fns";
-import { Bold, Italic, List, Link as LinkIcon, Heading1, Heading2, Globe, Users, ChevronDown } from "lucide-react";
+import {
+    Bold,
+    Italic,
+    List,
+    Link as LinkIcon,
+    Heading1,
+    Heading2,
+    Globe,
+    Users,
+    ChevronDown,
+    SlidersHorizontal,
+} from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -1049,9 +1060,12 @@ export default function EventForm({
                     <Button
                         type="button"
                         variant="ghost"
-                        className="flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left text-sm font-medium hover:bg-gray-50"
+                        className="flex w-full items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-left text-sm font-medium text-stone-700 hover:bg-stone-100"
                     >
-                        <span>More options</span>
+                        <span className="flex items-center gap-2">
+                            <SlidersHorizontal className="h-4 w-4" />
+                            More options
+                        </span>
                         <ChevronDown
                             className={cn("h-4 w-4 transition-transform", isMoreOptionsOpen && "rotate-180")}
                         />
