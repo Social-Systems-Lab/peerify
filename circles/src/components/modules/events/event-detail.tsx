@@ -70,6 +70,12 @@ type Props = {
     isPreview?: boolean;
     onOpen?: () => void;
     onClose?: () => void;
+    // Forces every viewer-identity-dependent section (RSVP, comments, distance-from-you) into its
+    // logged-out state regardless of who's actually viewing — used by the "Preview as a fan would
+    // see it" page so a host previewing their own event doesn't see their own RSVP/comment
+    // identity leak through. Permission props (canEdit/canModerate/etc.) already independently
+    // control host-only actions; this only affects the anonymous-visitor-identity parts.
+    previewAsAnonymous?: boolean;
 };
 
 function googleCalendarUrl(e: EventDisplay) {
@@ -101,9 +107,14 @@ export default function EventDetail({
     onClose,
     isAuthor,
     canRemoveSelfAsArtist,
+    previewAsAnonymous,
 }: Props) {
     const { toast } = useToast();
     const [user, setUser] = useAtom(userAtom);
+    // See Props.previewAsAnonymous — every RSVP/comment/distance section below reads this instead
+    // of `user` directly, so the preview renders as a logged-out visitor would see it regardless
+    // of who's actually logged in and previewing.
+    const effectiveUser = previewAsAnonymous ? null : user;
     const [mapboxKey] = useAtom(mapboxKeyAtom);
     const [, setZoomContent] = useAtom(zoomContentAtom);
     const [, setTriggerOpen] = useAtom(triggerMapOpenAtom);
@@ -115,9 +126,9 @@ export default function EventDetail({
     const compact = !!isPreview;
     const [hideUpdating, setHideUpdating] = useState(false);
     const eventId = ((event as any)._id?.toString?.() || (event as any)._id || "") as string;
-    const hiddenCancelledIds = user?.hiddenCancelledEventIds || [];
+    const hiddenCancelledIds = effectiveUser?.hiddenCancelledEventIds || [];
     const isEventHidden = eventId ? hiddenCancelledIds.includes(eventId) : false;
-    const canManageJoinLink = Boolean(canEdit || canModerate || isAuthor || user?.did === event.createdBy);
+    const canManageJoinLink = Boolean(canEdit || canModerate || isAuthor || effectiveUser?.did === event.createdBy);
     // True host-level rights only (not the broader canEdit, which also includes delegated artist
     // admins) — used to gate moderator-style controls in the Artists list per band.
     const canManageAllArtists = Boolean(canModerate || isAuthor);
@@ -154,7 +165,9 @@ export default function EventDetail({
     const hasMapLocation = Boolean(event.location?.lngLat);
     const resolvedDistance = hasMapLocation
         ? ((event as any).distance ??
-          (event.location?.lngLat && user ? haversineKm(event.location.lngLat, getUserLocation(user)) : undefined))
+          (event.location?.lngLat && effectiveUser
+              ? haversineKm(event.location.lngLat, getUserLocation(effectiveUser))
+              : undefined))
         : undefined;
 
     const handleAddressClick = () => {
@@ -440,7 +453,7 @@ export default function EventDetail({
                                 {accessBadge.label}
                             </div>
                         )}
-                        {user ? (
+                        {effectiveUser ? (
                             <div className="flex flex-wrap gap-2">
                                 {event.userRsvpStatus === "going" ? (
                                     <>
@@ -483,7 +496,7 @@ export default function EventDetail({
                         <div className="mt-2 text-xs text-muted-foreground">
                             Attendees (going): {event.attendees ?? 0}
                         </div>
-                        {event.userRsvpStatus && event.userRsvpStatus !== "none" && (
+                        {effectiveUser && event.userRsvpStatus && event.userRsvpStatus !== "none" && (
                             <div className="mt-1 text-xs">Your status: {event.userRsvpStatus}</div>
                         )}
                     </div>
@@ -824,7 +837,7 @@ export default function EventDetail({
                                 {accessBadge.label}
                             </div>
                         )}
-                        {user ? (
+                        {effectiveUser ? (
                             <div className="flex flex-wrap gap-2">
                                 {event.userRsvpStatus === "going" ? (
                                     <>
@@ -867,7 +880,7 @@ export default function EventDetail({
                         <div className="mt-3 text-sm text-muted-foreground">
                             Attendees (going): {event.attendees ?? 0}
                         </div>
-                        {event.userRsvpStatus && event.userRsvpStatus !== "none" && (
+                        {effectiveUser && event.userRsvpStatus && event.userRsvpStatus !== "none" && (
                             <div className="mt-1 text-sm">Your status: {event.userRsvpStatus}</div>
                         )}
                     </div>
@@ -925,7 +938,7 @@ export default function EventDetail({
             </AlertDialog>
 
             {event.commentPostId ? (
-                <CommentSection postId={event.commentPostId} circle={circle!} user={user ?? null} />
+                <CommentSection postId={event.commentPostId} circle={circle!} user={effectiveUser ?? null} />
             ) : (
                 <div className="text-sm text-gray-500">Comments are not available for this event.</div>
             )}
