@@ -19,6 +19,11 @@ export function CreateEventDialog({ isOpen, onOpenChange, onSuccess }: Props) {
     const [user] = useAtom(userAtom);
     const itemDetail = creatableItemsList.find((item: CreatableItemDetail) => item.key === "event");
 
+    const handleFormSuccess = (data: { id?: string; circleHandle?: string }) => {
+        onSuccess(data);
+        onOpenChange(false);
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
             <DialogContent
@@ -30,7 +35,7 @@ export function CreateEventDialog({ isOpen, onOpenChange, onSuccess }: Props) {
             >
                 <DialogTitle className="hidden">Create New Event</DialogTitle>
                 {!user && <p className="p-4 text-red-500">Please log in to create an event.</p>}
-                {user && itemDetail && <EventForm showCirclePicker />}
+                {user && itemDetail && <EventForm showCirclePicker onFormSubmitSuccess={handleFormSuccess} />}
             </DialogContent>
         </Dialog>
     );
