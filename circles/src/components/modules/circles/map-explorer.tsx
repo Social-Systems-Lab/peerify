@@ -746,7 +746,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                     selectedGenres.length > 0 ? selectedGenres : undefined,
                 );
                 if (!canceled) {
-                    setEventsForMap((data || []).filter((e: any) => e?.location?.lngLat));
+                    // No location.lngLat filter here — getOpenEventsForMapAction already only
+                    // returns events with a geocoded point or virtual ones, and MapDisplay itself
+                    // skips placing a marker for anything without location.lngLat (map.tsx), so a
+                    // virtual event with no location still needs to reach eventsForMap for the
+                    // events-category count/list, it just never gets a pin.
+                    setEventsForMap(data || []);
                 }
             } catch (e) {
                 console.error("Failed to load events for map:", e);
