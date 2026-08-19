@@ -197,6 +197,19 @@ function sanitizePeerifyPublicEventMetadata(event: EventDisplay): EventDisplay["
         publicPeerify.venueCircleId = peerify.venueCircleId;
     }
 
+    // Pricing is informational only, but still gated on `ticketed` for anonymous/public viewers
+    // exactly as it is for authenticated ones (event-detail.tsx) — this allowlist previously
+    // dropped all four fields unconditionally, silently hiding pricing from every logged-out
+    // visitor of a ticketed, published event regardless of the toggle.
+    if (peerify.ticketed === true && typeof peerify.price === "number") {
+        publicPeerify.ticketed = true;
+        publicPeerify.price = peerify.price;
+        publicPeerify.currency = peerify.currency;
+        if (peerify.paymentInfo) {
+            publicPeerify.paymentInfo = peerify.paymentInfo;
+        }
+    }
+
     return { peerify: publicPeerify };
 }
 
