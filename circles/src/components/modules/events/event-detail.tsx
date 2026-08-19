@@ -26,7 +26,8 @@ import {
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import ImageCarousel from "@/components/ui/image-carousel";
-import { Calendar, MapPin, Clock, X, EyeOff } from "lucide-react";
+import { Calendar, MapPin, Clock, X, EyeOff, Eye } from "lucide-react";
+import Link from "next/link";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { MapDisplay } from "@/components/map/map";
 import type { Circle, Media } from "@/models/models";
@@ -669,6 +670,18 @@ export default function EventDetail({
                             onClick={() => setDeleteDialogOpen(true)}
                         >
                             Delete
+                        </Button>
+                    )}
+                    {event.stage === "draft" && (isAuthor || canModerate) && (
+                        <Button variant="outline" asChild>
+                            <Link
+                                href={`/circles/${circleHandle}/events/${(event as any)._id?.toString?.() || ""}/preview`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <Eye className="mr-2 h-4 w-4" />
+                                Preview as a fan would see it
+                            </Link>
                         </Button>
                     )}
                     {event.stage === "open" && (canReview || canModerate) && (
