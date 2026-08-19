@@ -1276,12 +1276,20 @@ export const getOpenEventsForMap = async (
         const dateMatch = buildRangeMatch(range);
         const now = new Date();
 
-        // Base match: must be open and have a geocoded point for exact or public-safe map placement.
+        // Base match: must be open, and either have a geocoded point for exact or public-safe map
+        // placement, or be virtual — a virtual event has no venue to pin, but should still surface
+        // in the map feed's underlying dataset (event counts, category list, deep-linking) exactly
+        // like getOpenEventsForList already does. MapDisplay itself already skips placing a marker
+        // for any item without location.lngLat (see map.tsx), so a virtual event with no location
+        // simply renders with no pin rather than being excluded from the feed entirely. A virtual
+        // event that does have a location (e.g. an approximate public area) still matches the first
+        // two clauses too and gets a pin like any other event.
         const baseMatch: any = {
             stage: "open",
             $or: [
                 { "location.lngLat": { $exists: true } },
                 { "metadata.peerify.publicMapLocation.lngLat": { $exists: true } },
+                { isVirtual: true },
             ],
         };
 
