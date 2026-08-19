@@ -32,15 +32,29 @@ import { useToast } from "@/components/ui/use-toast";
 import LocationPicker from "@/components/forms/location-picker";
 import TimePicker from "@/components/forms/time-picker";
 import { format, addHours, setHours, setMinutes } from "date-fns";
-import { Bold, Italic, List, Link as LinkIcon, Heading1, Heading2, Globe, Users, ChevronDown } from "lucide-react";
+import {
+    Bold,
+    Italic,
+    List,
+    Link as LinkIcon,
+    Heading1,
+    Heading2,
+    Globe,
+    Users,
+    ChevronDown,
+    SlidersHorizontal,
+} from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 type Props = {
     circleHandle?: string; // optional, can come from context or picker
     event?: EventDisplay | null;
     showCirclePicker?: boolean;
     initialSelectedCircleId?: string;
+    onFormSubmitSuccess?: (data: { id?: string; circleHandle?: string }) => void;
 };
 
 function toISOStringLocal(date: Date) {
@@ -69,6 +83,10 @@ function toUtcEndOfDayIso(dateOnly: string) {
 import CircleSelector from "@/components/global-create/circle-selector";
 import { CreatableItemDetail, creatableItemsList } from "@/components/global-create/global-create-dialog-content";
 import EventArtistPicker, { SelectedArtistBand } from "@/components/modules/events/event-artist-picker";
+import { getPeerifyArtistProfile } from "@/lib/peerify/artist-profile";
+import { cn } from "@/lib/utils";
+
+const EVENT_CURRENCY_OPTIONS = ["EUR", "USD", "GBP", "SEK"];
 
 const VENUE_DISCLOSURE_OPTIONS: Array<{
     value: PeerifyEventVenueDisclosure;
@@ -155,7 +173,13 @@ function getSelectedHelper<T extends string>(options: Array<{ value: T; helper: 
     return options.find((option) => option.value === value)?.helper;
 }
 
-export default function EventForm({ circleHandle, event, showCirclePicker, initialSelectedCircleId }: Props) {
+export default function EventForm({
+    circleHandle,
+    event,
+    showCirclePicker,
+    initialSelectedCircleId,
+    onFormSubmitSuccess,
+}: Props) {
     console.log("EventForm mounted/updated. Event recurrence:", event?.recurrence);
     const [selectedCircle, setSelectedCircle] = useState<string | undefined>(circleHandle);
     const router = useRouter();
@@ -178,6 +202,20 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
     const [publishToNoticeboard, setPublishToNoticeboard] = useState<boolean>(
         Boolean(event?.noticeboardPostId || event?.publishToNoticeboard),
     );
+    // Closed by default for a new event. For an existing one, open it if any field inside it
+    // already holds a non-default value, so editing an event that e.g. has Capacity set or is
+    // Virtual doesn't hide that setting behind a collapsed section the host has to go hunting
+    // for. Reads straight off `event` rather than the fields' own state (some of which, like
+    // artistBands, only populate asynchronously after mount) to keep this a synchronous seed.
+    const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState<boolean>(
+        Boolean(
+            event?.additionalArtistCircleIds?.length ||
+                event?.isVirtual ||
+                event?.isHybrid ||
+                event?.capacity ||
+                event?.recurrence,
+        ),
+    );
     const [user] = useAtom(userAtom);
     // Existing events currently all have userGroups: [] (the schema default, from before this
     // control existed) — unlike post-form.tsx's equivalent seed, `event?.userGroups || [...]`
@@ -195,10 +233,47 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
     );
     const [accessMode, setAccessMode] = useState<PeerifyEventAccessMode>(peerifyMetadata?.accessMode || "open_rsvp");
     const [publicLocationLabel, setPublicLocationLabel] = useState<string>(peerifyMetadata?.publicLocationLabel || "");
+    // No dedicated persisted flag for this toggle — it's a pure form convenience over the four
+    // fields above. For an existing event, infer it as "on" if any of them already diverges from
+    // its plain-public default, so opening the edit form never collapses a section that already
+    // holds real, deliberately-set privacy values (same precedent as the Ticketed toggle's own
+    // "infer from existing price" fallback above).
+    const [isPrivateHomeEvent, setIsPrivateHomeEvent] = useState<boolean>(
+        Boolean(
+            (peerifyMetadata?.venueDisclosure && peerifyMetadata.venueDisclosure !== "public") ||
+                (peerifyMetadata?.locationDisclosure && peerifyMetadata.locationDisclosure !== "public") ||
+                (peerifyMetadata?.accessMode && peerifyMetadata.accessMode !== "open_rsvp") ||
+                peerifyMetadata?.publicLocationLabel,
+        ),
+    );
+    const handlePrivateHomeEventToggle = (checked: boolean) => {
+        setIsPrivateHomeEvent(checked);
+        if (!checked) return;
+        // Only seed defaults for fields still at their plain-public default — never override a
+        // value the user already explicitly set (or that an existing event already had saved).
+        if (venueDisclosure === "public") setVenueDisclosure("secret_after_acceptance");
+        if (locationDisclosure === "public") setLocationDisclosure("approximate");
+        if (accessMode === "open_rsvp") setAccessMode("approval_required");
+    };
     const [privateLocationNote, setPrivateLocationNote] = useState<string>(peerifyMetadata?.privateLocationNote || "");
     const [publicMapLocation, setPublicMapLocation] = useState<Location | undefined>(
         peerifyMetadata?.publicMapLocation,
     );
+    // Pricing — informational only, no ticketing/payment processing wired to these. Off by
+    // default for new events. For events saved before this toggle existed (`ticketed` absent),
+    // fall back to "has a saved price" so opening the edit form doesn't default to a collapsed,
+    // easy-to-miss Pricing section that then silently wipes the existing price on next save —
+    // same fallback-from-a-pre-existing-signal pattern publishToNoticeboard's own seed uses above
+    // for `noticeboardPostId`. Whether the *public page* should treat this legacy data as
+    // ticketed is a separate, deliberate call — see event-detail.tsx.
+    const [isTicketed, setIsTicketed] = useState<boolean>(
+        peerifyMetadata?.ticketed ?? typeof peerifyMetadata?.price === "number",
+    );
+    const [price, setPrice] = useState<string>(
+        typeof peerifyMetadata?.price === "number" ? String(peerifyMetadata.price) : "",
+    );
+    const [currency, setCurrency] = useState<string>(peerifyMetadata?.currency || "EUR");
+    const [paymentInfo, setPaymentInfo] = useState<string>(peerifyMetadata?.paymentInfo || "");
 
     // Recurrence State
     const [isRecurring, setIsRecurring] = useState<boolean>(!!event?.recurrence);
@@ -232,6 +307,11 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
     const [startDirty, setStartDirty] = useState(false);
     const seededRef = useRef(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    // CircleSelector reports its initial (default) selection via onCircleSelected on mount, not
+    // just on genuine user-driven changes (same gotcha post-form.tsx's own handleCircleSelected
+    // documents for audience reset) — only prefill from that first call, never on a later manual
+    // circle switch, so we don't clobber a location the user already typed.
+    const hasReceivedInitialCircleSelection = useRef(false);
 
     const insertMarkdown = (prefix: string, suffix: string = "") => {
         const textarea = textareaRef.current;
@@ -336,9 +416,26 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
     }, [event?._id, circleHandle]);
 
     const handleImagesChange = (items: ImageItem[]) => setImages(items);
-    const handleCircleSelected = useCallback((circle: Circle | null) => {
-        setSelectedCircle(circle?.handle);
-    }, []);
+    const handleCircleSelected = useCallback(
+        (circle: Circle | null) => {
+            setSelectedCircle(circle?.handle);
+            if (!hasReceivedInitialCircleSelection.current) {
+                hasReceivedInitialCircleSelection.current = true;
+                // Only for new events — an edit form already seeded `location`/`currency` from
+                // the event itself, and shouldn't have them overwritten by the circle's defaults.
+                if (!event) {
+                    if (circle?.location) {
+                        setLocation(circle.location);
+                    }
+                    const circleCurrency = circle ? getPeerifyArtistProfile(circle).bookingSettings.currency : "";
+                    if (circleCurrency && EVENT_CURRENCY_OPTIONS.includes(circleCurrency)) {
+                        setCurrency(circleCurrency);
+                    }
+                }
+            }
+        },
+        [event],
+    );
 
     // Audience for the linked Noticeboard post — mirrors post-form.tsx's own
     // getAvailableUserGroups/getUserGroupName, adapted from a selected Circle object to the
@@ -485,6 +582,8 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                 fd.set("allDay", allDay ? "on" : "");
                 if (capacity) fd.set("capacity", capacity);
                 fd.set("visibility", isPrivate ? "private" : "public");
+                const trimmedPrice = price.trim();
+                const parsedPrice = trimmedPrice.length > 0 ? Number(trimmedPrice) : undefined;
                 fd.set(
                     "peerifyEventMetadata",
                     JSON.stringify({
@@ -494,6 +593,10 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                         publicLocationLabel: publicLocationLabel.trim(),
                         privateLocationNote: privateLocationNote.trim(),
                         publicMapLocation: publicMapLocation ?? null,
+                        ticketed: isTicketed,
+                        price: Number.isFinite(parsedPrice) ? parsedPrice : undefined,
+                        currency,
+                        paymentInfo: paymentInfo.trim(),
                     }),
                 );
 
@@ -536,18 +639,23 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                             description: result.message || (event ? "Event updated." : "Event created."),
                         });
                     }
-                    // Navigate straight back to the event's own detail page (not the events list)
-                    // so router.refresh() below re-renders THAT page fresh. Editing previously
-                    // redirected to the list, and router.refresh() only ever refreshes the current
-                    // route after a push resolves — it never touched the detail page the artist
-                    // changes above actually apply to, which could otherwise still show a stale
-                    // "Artists" box (delegation toggle, remove controls) until a manual reload.
-                    if (resolvedEventId) {
-                        router.push(`/circles/${selectedCircle}/events/${resolvedEventId}`);
+                    if (onFormSubmitSuccess) {
+                        // Dialog context: let the caller close the modal and navigate.
+                        onFormSubmitSuccess({ id: resolvedEventId, circleHandle: selectedCircle });
                     } else {
-                        router.push(`/circles/${selectedCircle}/events`);
+                        // Navigate straight back to the event's own detail page (not the events list)
+                        // so router.refresh() below re-renders THAT page fresh. Editing previously
+                        // redirected to the list, and router.refresh() only ever refreshes the current
+                        // route after a push resolves — it never touched the detail page the artist
+                        // changes above actually apply to, which could otherwise still show a stale
+                        // "Artists" box (delegation toggle, remove controls) until a manual reload.
+                        if (resolvedEventId) {
+                            router.push(`/circles/${selectedCircle}/events/${resolvedEventId}`);
+                        } else {
+                            router.push(`/circles/${selectedCircle}/events`);
+                        }
+                        router.refresh();
                     }
-                    router.refresh();
                 } else {
                     toast({
                         title: "Error",
@@ -717,6 +825,322 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                         <Label htmlFor="allDay">All day</Label>
                     </div>
 
+                    <div className="flex items-center gap-2">
+                        <Switch id="isTicketed" checked={isTicketed} onCheckedChange={setIsTicketed} />
+                        <Label htmlFor="isTicketed">Ticketed event</Label>
+                    </div>
+
+                    {/* CSS-hidden rather than conditionally unmounted: this section sits among
+                        other sibling cards (EventArtistPicker, etc.) with no key, so unmounting
+                        it on toggle-off shifted every following sibling's position in React's
+                        reconciliation, spuriously remounting them (losing their own internal UI
+                        state) every time this toggle flipped. Keeping it mounted and hiding via
+                        `hidden` avoids that entirely, on top of guaranteeing price/currency/
+                        paymentInfo (already parent-owned state, unaffected either way) are never
+                        at risk of it. */}
+                    <div className={cn("space-y-4 rounded-lg border p-4", !isTicketed && "hidden")}>
+                        <div>
+                            <h3 className="text-sm font-medium">Pricing (optional)</h3>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Informational only — this isn&apos;t ticketing or payment processing.
+                            </p>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                                <Label htmlFor="price">Price</Label>
+                                <Input
+                                    id="price"
+                                    type="number"
+                                    inputMode="decimal"
+                                    min="0"
+                                    step="0.01"
+                                    placeholder="e.g., 15"
+                                    value={price}
+                                    onChange={(e) => setPrice(e.target.value)}
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="currency">Currency</Label>
+                                <Select value={currency} onValueChange={setCurrency}>
+                                    <SelectTrigger id="currency">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {EVENT_CURRENCY_OPTIONS.map((option) => (
+                                            <SelectItem key={option} value={option}>
+                                                {option}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor="paymentInfo">Payment info</Label>
+                            <Input
+                                id="paymentInfo"
+                                placeholder="e.g., €5 at the door, DM host for payment link"
+                                value={paymentInfo}
+                                onChange={(e) => setPaymentInfo(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-3 rounded-lg border p-4">
+                        <div>
+                            <h3 className="text-sm font-medium">Visibility: {isPrivate ? "Private" : "Public"}</h3>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {isPrivate
+                                    ? "Invite-only or unlisted. Not shown publicly."
+                                    : "Listed publicly when the event is open."}
+                            </p>
+                        </div>
+                        <ToggleGroup
+                            type="single"
+                            variant="outline"
+                            className="w-full"
+                            value={isPrivate ? "private" : "public"}
+                            onValueChange={(value) => {
+                                // ToggleGroup allows deselecting the current item (empty string) —
+                                // ignore that so exactly one of Public/Private is always selected.
+                                if (value) setIsPrivate(value === "private");
+                            }}
+                        >
+                            <ToggleGroupItem value="public" className="flex-1">
+                                Public
+                            </ToggleGroupItem>
+                            <ToggleGroupItem value="private" className="flex-1">
+                                Private
+                            </ToggleGroupItem>
+                        </ToggleGroup>
+                    </div>
+
+                    <div className="rounded-lg border p-4">
+                        <div className="flex items-start gap-3">
+                            <Checkbox
+                                id="publishToNoticeboard"
+                                checked={publishToNoticeboard}
+                                onCheckedChange={(checked) => setPublishToNoticeboard(Boolean(checked))}
+                            />
+                            <div className="space-y-1">
+                                <Label htmlFor="publishToNoticeboard">Share this event on the Noticeboard</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Create or update one linked Noticeboard post for this event. The post is only
+                                    published once this event is opened — nothing is posted while it&apos;s in Draft
+                                    or Review.
+                                </p>
+                                {publishToNoticeboard && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-auto p-1 text-xs hover:bg-gray-100"
+                                        onClick={() => setIsUserGroupsDialogOpen(true)}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            <Users className="h-3 w-3" />
+                                            <span>
+                                                Post visible to:{" "}
+                                                {userGroups.includes("everyone")
+                                                    ? "Everyone"
+                                                    : getUserGroupName(userGroups?.[0])}
+                                            </span>
+                                            <ChevronDown className="h-3 w-3" />
+                                        </div>
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div>
+                        <Label>Images</Label>
+                        <MultiImageUploader initialImages={event?.images || []} onChange={handleImagesChange} />
+                    </div>
+
+                    <div>
+                        <Label htmlFor="location">Location</Label>
+                        <LocationPicker value={location} onChange={(val) => setLocation(val)} compact />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            {locationDisclosure === "public"
+                                ? "Shown publicly when the event is open."
+                                : "Saved privately. Public visitors will see the public map area instead."}{" "}
+                            For online events, toggle &quot;Virtual&quot; in More options below.
+                        </p>
+                    </div>
+
+                    <div className="space-y-4 rounded-lg border p-4">
+                        <div>
+                            <h3 className="text-sm font-medium">Venue & location privacy</h3>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Choose what people can see before they are accepted, ticketed, or invited. Venue / host
+                                display controls the name or identity of the place. Address & map display controls the
+                                exact address and map pin.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Switch
+                                id="isPrivateHomeEvent"
+                                checked={isPrivateHomeEvent}
+                                onCheckedChange={handlePrivateHomeEventToggle}
+                            />
+                            <Label htmlFor="isPrivateHomeEvent">This is a private/home event</Label>
+                        </div>
+
+                        <div className={cn("space-y-4", !isPrivateHomeEvent && "hidden")}>
+                            <div className="space-y-2">
+                                <Label htmlFor="venueDisclosure">Venue / host display</Label>
+                                <Select
+                                    value={venueDisclosure}
+                                    onValueChange={(value) => setVenueDisclosure(value as PeerifyEventVenueDisclosure)}
+                                >
+                                    <SelectTrigger id="venueDisclosure">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {VENUE_DISCLOSURE_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    {getSelectedHelper(VENUE_DISCLOSURE_OPTIONS, venueDisclosure)}
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="locationDisclosure">Address & map display</Label>
+                                <Select
+                                    value={locationDisclosure}
+                                    onValueChange={(value) =>
+                                        setLocationDisclosure(value as PeerifyEventLocationDisclosure)
+                                    }
+                                >
+                                    <SelectTrigger id="locationDisclosure">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {LOCATION_DISCLOSURE_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    {getSelectedHelper(LOCATION_DISCLOSURE_OPTIONS, locationDisclosure)}
+                                </p>
+                            </div>
+
+                            {locationDisclosure !== "public" && (
+                                <div className="space-y-2">
+                                    <Label>Public map area</Label>
+                                    <LocationPicker
+                                        value={publicMapLocation}
+                                        onChange={(val) => setPublicMapLocation(val)}
+                                        compact
+                                    />
+                                    <div className="space-y-1 text-xs font-medium text-muted-foreground">
+                                        <p>
+                                            This is not the venue address. It is only the approximate area shown on
+                                            Explore while the exact address is hidden or not yet announced.
+                                        </p>
+                                        <p>
+                                            Use a neighbourhood, city area, or general meeting area, not a private home
+                                            address.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-2">
+                                <Label htmlFor="accessMode">Access mode</Label>
+                                <Select
+                                    value={accessMode}
+                                    onValueChange={(value) => setAccessMode(value as PeerifyEventAccessMode)}
+                                >
+                                    <SelectTrigger id="accessMode">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {ACCESS_MODE_OPTIONS.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    {getSelectedHelper(ACCESS_MODE_OPTIONS, accessMode)}
+                                </p>
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="publicLocationLabel">Public area / address label</Label>
+                                <Input
+                                    id="publicLocationLabel"
+                                    value={publicLocationLabel}
+                                    onChange={(e) => setPublicLocationLabel(e.target.value)}
+                                    placeholder="Stockholm venue TBA"
+                                />
+                                <p
+                                    className={`text-xs ${
+                                        locationDisclosure === "public"
+                                            ? "text-muted-foreground"
+                                            : "font-medium text-muted-foreground"
+                                    }`}
+                                >
+                                    Shown publicly when the exact address is approximate, secret, or to be announced.
+                                    Examples: Cape Town city bowl, Stockholm venue TBA, or Address shared after
+                                    approval.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="privateLocationNote">Private organiser note</Label>
+                            <Textarea
+                                id="privateLocationNote"
+                                value={privateLocationNote}
+                                onChange={(e) => setPrivateLocationNote(e.target.value)}
+                                className="min-h-[90px]"
+                                placeholder="Internal organiser note"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Internal note about the exact address, access instructions, or reveal conditions. This
+                                is not shown publicly.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <Collapsible open={isMoreOptionsOpen} onOpenChange={setIsMoreOptionsOpen}>
+                <CollapsibleTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        className="flex w-full items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-left text-sm font-medium text-stone-700 hover:bg-stone-100"
+                    >
+                        <span className="flex items-center gap-2">
+                            <SlidersHorizontal className="h-4 w-4" />
+                            More options
+                        </span>
+                        <ChevronDown
+                            className={cn("h-4 w-4 transition-transform", isMoreOptionsOpen && "rotate-180")}
+                        />
+                    </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 pt-4">
+                    <div className="rounded-lg border p-4">
+                        <EventArtistPicker value={artistBands} onChange={setArtistBands} />
+                    </div>
+
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="flex items-center gap-2">
                             <Switch id="isVirtual" checked={isVirtual} onCheckedChange={setIsVirtual} />
@@ -726,6 +1150,31 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                             <Switch id="isHybrid" checked={isHybrid} onCheckedChange={setIsHybrid} />
                             <Label htmlFor="isHybrid">Hybrid</Label>
                         </div>
+                    </div>
+
+                    {isVirtual && (
+                        <div>
+                            <Label htmlFor="virtualUrl">Virtual URL</Label>
+                            <Input
+                                id="virtualUrl"
+                                type="url"
+                                placeholder="https://meet.example.com/..."
+                                value={virtualUrl}
+                                onChange={(e) => setVirtualUrl(e.target.value)}
+                            />
+                        </div>
+                    )}
+
+                    <div>
+                        <Label htmlFor="capacity">Capacity (optional)</Label>
+                        <Input
+                            id="capacity"
+                            type="number"
+                            inputMode="numeric"
+                            placeholder="e.g., 50"
+                            value={capacity}
+                            onChange={(e) => setCapacity(e.target.value)}
+                        />
                     </div>
 
                     <div className="space-y-4 rounded-lg border p-4">
@@ -748,7 +1197,7 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                                 }}
                             />
                             <Label htmlFor="isRecurring" className="font-medium">
-                                Recurring meeting
+                                Recurring event
                             </Label>
                         </div>
 
@@ -859,237 +1308,8 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                         )}
                     </div>
 
-                    {isVirtual && (
-                        <div>
-                            <Label htmlFor="virtualUrl">Virtual URL</Label>
-                            <Input
-                                id="virtualUrl"
-                                type="url"
-                                placeholder="https://meet.example.com/..."
-                                value={virtualUrl}
-                                onChange={(e) => setVirtualUrl(e.target.value)}
-                            />
-                        </div>
-                    )}
-
-                    <div>
-                        <Label htmlFor="capacity">Capacity (optional)</Label>
-                        <Input
-                            id="capacity"
-                            type="number"
-                            inputMode="numeric"
-                            placeholder="e.g., 50"
-                            value={capacity}
-                            onChange={(e) => setCapacity(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="rounded-lg border p-4">
-                        <EventArtistPicker value={artistBands} onChange={setArtistBands} />
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <Switch id="isPrivate" checked={isPrivate} onCheckedChange={setIsPrivate} />
-                        <Label htmlFor="isPrivate">{isPrivate ? "Private event" : "Public event"}</Label>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                        {isPrivate
-                            ? "Invite-only or unlisted. Not shown publicly."
-                            : "Listed publicly when the event is open."}
-                    </p>
-
-                    <div className="rounded-lg border p-4">
-                        <div className="flex items-start gap-3">
-                            <Checkbox
-                                id="publishToNoticeboard"
-                                checked={publishToNoticeboard}
-                                onCheckedChange={(checked) => setPublishToNoticeboard(Boolean(checked))}
-                            />
-                            <div className="space-y-1">
-                                <Label htmlFor="publishToNoticeboard">Share this event on the Noticeboard</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    Create or update one linked Noticeboard post for this event. The post is only
-                                    published once this event is opened — nothing is posted while it&apos;s in Draft
-                                    or Review.
-                                </p>
-                                {publishToNoticeboard && (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-auto p-1 text-xs hover:bg-gray-100"
-                                        onClick={() => setIsUserGroupsDialogOpen(true)}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            <Users className="h-3 w-3" />
-                                            <span>
-                                                Post visible to:{" "}
-                                                {userGroups.includes("everyone")
-                                                    ? "Everyone"
-                                                    : getUserGroupName(userGroups?.[0])}
-                                            </span>
-                                            <ChevronDown className="h-3 w-3" />
-                                        </div>
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-4">
-                    <div>
-                        <Label>Images</Label>
-                        <MultiImageUploader initialImages={event?.images || []} onChange={handleImagesChange} />
-                    </div>
-
-                    <div>
-                        <Label htmlFor="location">Location</Label>
-                        <LocationPicker value={location} onChange={(val) => setLocation(val)} compact />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            {locationDisclosure === "public"
-                                ? "Shown publicly when the event is open."
-                                : "Saved privately. Public visitors will see the public map area instead."}{" "}
-                            For online events, toggle &quot;Virtual&quot; above.
-                        </p>
-                    </div>
-
-                    <div className="space-y-4 rounded-lg border p-4">
-                        <div>
-                            <h3 className="text-sm font-medium">Venue & location privacy</h3>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                                Choose what people can see before they are accepted, ticketed, or invited. Venue / host
-                                display controls the name or identity of the place. Address & map display controls the
-                                exact address and map pin.
-                            </p>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="venueDisclosure">Venue / host display</Label>
-                            <Select
-                                value={venueDisclosure}
-                                onValueChange={(value) => setVenueDisclosure(value as PeerifyEventVenueDisclosure)}
-                            >
-                                <SelectTrigger id="venueDisclosure">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {VENUE_DISCLOSURE_OPTIONS.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">
-                                {getSelectedHelper(VENUE_DISCLOSURE_OPTIONS, venueDisclosure)}
-                            </p>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="locationDisclosure">Address & map display</Label>
-                            <Select
-                                value={locationDisclosure}
-                                onValueChange={(value) =>
-                                    setLocationDisclosure(value as PeerifyEventLocationDisclosure)
-                                }
-                            >
-                                <SelectTrigger id="locationDisclosure">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {LOCATION_DISCLOSURE_OPTIONS.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">
-                                {getSelectedHelper(LOCATION_DISCLOSURE_OPTIONS, locationDisclosure)}
-                            </p>
-                        </div>
-
-                        {locationDisclosure !== "public" && (
-                            <div className="space-y-2">
-                                <Label>Public map area</Label>
-                                <LocationPicker
-                                    value={publicMapLocation}
-                                    onChange={(val) => setPublicMapLocation(val)}
-                                    compact
-                                />
-                                <div className="space-y-1 text-xs font-medium text-muted-foreground">
-                                    <p>
-                                        This is not the venue address. It is only the approximate area shown on Explore
-                                        while the exact address is hidden or not yet announced.
-                                    </p>
-                                    <p>
-                                        Use a neighbourhood, city area, or general meeting area, not a private home
-                                        address.
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="space-y-2">
-                            <Label htmlFor="accessMode">Access mode</Label>
-                            <Select
-                                value={accessMode}
-                                onValueChange={(value) => setAccessMode(value as PeerifyEventAccessMode)}
-                            >
-                                <SelectTrigger id="accessMode">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {ACCESS_MODE_OPTIONS.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">
-                                {getSelectedHelper(ACCESS_MODE_OPTIONS, accessMode)}
-                            </p>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="publicLocationLabel">Public area / address label</Label>
-                            <Input
-                                id="publicLocationLabel"
-                                value={publicLocationLabel}
-                                onChange={(e) => setPublicLocationLabel(e.target.value)}
-                                placeholder="Stockholm venue TBA"
-                            />
-                            <p
-                                className={`text-xs ${
-                                    locationDisclosure === "public"
-                                        ? "text-muted-foreground"
-                                        : "font-medium text-muted-foreground"
-                                }`}
-                            >
-                                Shown publicly when the exact address is approximate, secret, or to be announced.
-                                Examples: Cape Town city bowl, Stockholm venue TBA, or Address shared after approval.
-                            </p>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="privateLocationNote">Private organiser note</Label>
-                            <Textarea
-                                id="privateLocationNote"
-                                value={privateLocationNote}
-                                onChange={(e) => setPrivateLocationNote(e.target.value)}
-                                className="min-h-[90px]"
-                                placeholder="Internal organiser note"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                Internal note about the exact address, access instructions, or reveal conditions. This
-                                is not shown publicly.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+                </CollapsibleContent>
+            </Collapsible>
 
             <div className="flex gap-3">
                 <Button type="submit" disabled={isPending}>

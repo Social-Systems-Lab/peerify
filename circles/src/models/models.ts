@@ -1825,6 +1825,13 @@ export const peerifyEventMetadataSchema = z.object({
     publicMapDisplay: z.enum(["exact", "area"]).optional(),
     publicMapRadiusKm: z.number().positive().optional(),
     venueCircleId: z.string().optional(),
+    // Informational only — no ticketing/payment processing wired to these. `ticketed` is the
+    // sole determinant of whether price/currency/paymentInfo are ever persisted or displayed —
+    // see parsePeerifyEventMetadata/mergePeerifyEventMetadata in events/actions.ts.
+    ticketed: z.boolean().optional(),
+    price: z.number().nonnegative().optional(),
+    currency: z.string().optional(),
+    paymentInfo: z.string().optional(),
 });
 export type PeerifyEventMetadata = z.infer<typeof peerifyEventMetadataSchema>;
 

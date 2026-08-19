@@ -10,6 +10,8 @@ import { motion } from "framer-motion";
 import CircleSwipeCard from "./circle-swipe-card";
 import { MapDisplay } from "@/components/map/map";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -259,8 +261,15 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const [isEventsLoading, setIsEventsLoading] = useState(false);
     const [pendingFocusEventId, setPendingFocusEventId] = useState<string | null>(searchParams.get("focusEvent"));
     const [hasAppliedFocusEvent, setHasAppliedFocusEvent] = useState(false);
+    // Opt-in filter to exclude virtual events — off by default, matching the "show everything by
+    // default" behavior the map feed fix above establishes. Applied client-side since it's a pure
+    // boolean check on data already fetched, same as the search-query filter just below.
+    const [physicalOnly, setPhysicalOnly] = useState<boolean>(false);
     const filteredEventsForMap = useMemo(() => {
         let list = eventsForMap;
+        if (physicalOnly) {
+            list = list.filter((e) => !e.isVirtual);
+        }
         if (hasSearched && searchQuery.trim()) {
             const q = searchQuery.trim().toLowerCase();
             list = list.filter(
@@ -270,7 +279,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             );
         }
         return list;
-    }, [eventsForMap, hasSearched, searchQuery]);
+    }, [eventsForMap, hasSearched, searchQuery, physicalOnly]);
     // Date range filter
     const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
     const dateLabel = useMemo(() => {
@@ -401,12 +410,14 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         let count = 0;
         if (hasDateFilter) count += 1;
         if (selectedGenres.length > 0) count += 1;
+        if (physicalOnly) count += 1;
         return count;
-    }, [hasDateFilter, selectedGenres]);
+    }, [hasDateFilter, selectedGenres, physicalOnly]);
 
     const handleClearAdvancedFilters = useCallback(() => {
         setDateRange(undefined);
         setSelectedGenres([]);
+        setPhysicalOnly(false);
     }, []);
 
     useEffect(() => {
@@ -746,7 +757,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                     selectedGenres.length > 0 ? selectedGenres : undefined,
                 );
                 if (!canceled) {
-                    setEventsForMap((data || []).filter((e: any) => e?.location?.lngLat));
+                    // No location.lngLat filter here — getOpenEventsForMapAction already only
+                    // returns events with a geocoded point or virtual ones, and MapDisplay itself
+                    // skips placing a marker for anything without location.lngLat (map.tsx), so a
+                    // virtual event with no location still needs to reach eventsForMap for the
+                    // events-category count/list, it just never gets a pin.
+                    setEventsForMap(data || []);
                 }
             } catch (e) {
                 console.error("Failed to load events for map:", e);
@@ -952,6 +968,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                         ))}
                     </SelectContent>
                 </Select>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <Label htmlFor="physicalOnly" className="text-sm font-semibold text-gray-900">
+                    Physical events only
+                </Label>
+                <Switch id="physicalOnly" checked={physicalOnly} onCheckedChange={setPhysicalOnly} />
             </div>
 
             <Accordion

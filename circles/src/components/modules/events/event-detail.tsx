@@ -11,11 +11,23 @@ import {
     changeEventStageAction,
     hideCancelledEventAction,
     unhideCancelledEventAction,
+    deleteEventAction,
 } from "@/app/circles/[handle]/events/actions";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import ImageCarousel from "@/components/ui/image-carousel";
-import { Calendar, MapPin, Clock, X, EyeOff } from "lucide-react";
+import { Calendar, MapPin, Clock, X, EyeOff, Eye } from "lucide-react";
+import Link from "next/link";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { MapDisplay } from "@/components/map/map";
 import type { Circle, Media } from "@/models/models";
@@ -44,6 +56,7 @@ import { CommentSection } from "../feeds/CommentSection";
 import RichText from "../feeds/RichText";
 import { userAtom, mapboxKeyAtom, zoomContentAtom, triggerMapOpenAtom } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
+import { formatFundingAmount } from "@/components/modules/funding/funding-shared";
 
 type Props = {
     circle?: Circle;
@@ -57,6 +70,12 @@ type Props = {
     isPreview?: boolean;
     onOpen?: () => void;
     onClose?: () => void;
+    // Forces every viewer-identity-dependent section (RSVP, comments, distance-from-you) into its
+    // logged-out state regardless of who's actually viewing — used by the "Preview as a fan would
+    // see it" page so a host previewing their own event doesn't see their own RSVP/comment
+    // identity leak through. Permission props (canEdit/canModerate/etc.) already independently
+    // control host-only actions; this only affects the anonymous-visitor-identity parts.
+    previewAsAnonymous?: boolean;
 };
 
 function googleCalendarUrl(e: EventDisplay) {
@@ -88,22 +107,28 @@ export default function EventDetail({
     onClose,
     isAuthor,
     canRemoveSelfAsArtist,
+    previewAsAnonymous,
 }: Props) {
     const { toast } = useToast();
     const [user, setUser] = useAtom(userAtom);
+    // See Props.previewAsAnonymous — every RSVP/comment/distance section below reads this instead
+    // of `user` directly, so the preview renders as a logged-out visitor would see it regardless
+    // of who's actually logged in and previewing.
+    const effectiveUser = previewAsAnonymous ? null : user;
     const [mapboxKey] = useAtom(mapboxKeyAtom);
     const [, setZoomContent] = useAtom(zoomContentAtom);
     const [, setTriggerOpen] = useAtom(triggerMapOpenAtom);
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [isInviteModalOpen, setInviteModalOpen] = useState(false);
+    const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [isRsvpDialogOpen, setRsvpDialogOpen] = useState(false);
     const compact = !!isPreview;
     const [hideUpdating, setHideUpdating] = useState(false);
     const eventId = ((event as any)._id?.toString?.() || (event as any)._id || "") as string;
-    const hiddenCancelledIds = user?.hiddenCancelledEventIds || [];
+    const hiddenCancelledIds = effectiveUser?.hiddenCancelledEventIds || [];
     const isEventHidden = eventId ? hiddenCancelledIds.includes(eventId) : false;
-    const canManageJoinLink = Boolean(canEdit || canModerate || isAuthor || user?.did === event.createdBy);
+    const canManageJoinLink = Boolean(canEdit || canModerate || isAuthor || effectiveUser?.did === event.createdBy);
     // True host-level rights only (not the broader canEdit, which also includes delegated artist
     // admins) — used to gate moderator-style controls in the Artists list per band.
     const canManageAllArtists = Boolean(canModerate || isAuthor);
@@ -140,7 +165,9 @@ export default function EventDetail({
     const hasMapLocation = Boolean(event.location?.lngLat);
     const resolvedDistance = hasMapLocation
         ? ((event as any).distance ??
-          (event.location?.lngLat && user ? haversineKm(event.location.lngLat, getUserLocation(user)) : undefined))
+          (event.location?.lngLat && effectiveUser
+              ? haversineKm(event.location.lngLat, getUserLocation(effectiveUser))
+              : undefined))
         : undefined;
 
     const handleAddressClick = () => {
@@ -216,6 +243,20 @@ export default function EventDetail({
                 router.refresh();
             } else {
                 toast({ title: "Error", description: res.message || "Failed to open", variant: "destructive" });
+            }
+        });
+    };
+
+    const onDeleteEvent = () => {
+        startTransition(async () => {
+            const res = await deleteEventAction(circleHandle, (event as any)._id?.toString?.() || "");
+            setDeleteDialogOpen(false);
+            if (res.success) {
+                toast({ title: "Event deleted" });
+                router.push(`/circles/${circleHandle}/events`);
+                router.refresh();
+            } else {
+                toast({ title: "Error", description: res.message || "Failed to delete event", variant: "destructive" });
             }
         });
     };
@@ -412,7 +453,7 @@ export default function EventDetail({
                                 {accessBadge.label}
                             </div>
                         )}
-                        {user ? (
+                        {effectiveUser ? (
                             <div className="flex flex-wrap gap-2">
                                 {event.userRsvpStatus === "going" ? (
                                     <>
@@ -455,7 +496,7 @@ export default function EventDetail({
                         <div className="mt-2 text-xs text-muted-foreground">
                             Attendees (going): {event.attendees ?? 0}
                         </div>
-                        {event.userRsvpStatus && event.userRsvpStatus !== "none" && (
+                        {effectiveUser && event.userRsvpStatus && event.userRsvpStatus !== "none" && (
                             <div className="mt-1 text-xs">Your status: {event.userRsvpStatus}</div>
                         )}
                     </div>
@@ -632,7 +673,28 @@ export default function EventDetail({
                     )}
                     {(event.stage === "draft" || event.stage === "review") && canReview && (
                         <Button disabled={isPending} onClick={onOpenNow}>
-                            Open
+                            Publish
+                        </Button>
+                    )}
+                    {event.stage === "draft" && (isAuthor || canModerate) && (
+                        <Button
+                            disabled={isPending}
+                            variant="destructive"
+                            onClick={() => setDeleteDialogOpen(true)}
+                        >
+                            Delete
+                        </Button>
+                    )}
+                    {event.stage === "draft" && (isAuthor || canModerate) && (
+                        <Button variant="outline" asChild>
+                            <Link
+                                href={`/circles/${circleHandle}/events/${(event as any)._id?.toString?.() || ""}/preview`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                            >
+                                <Eye className="mr-2 h-4 w-4" />
+                                Preview as a fan would see it
+                            </Link>
                         </Button>
                     )}
                     {event.stage === "open" && (canReview || canModerate) && (
@@ -747,6 +809,24 @@ export default function EventDetail({
                             </div>
                         </div>
                     )}
+
+                    {event.metadata?.peerify?.ticketed === true &&
+                        typeof event.metadata?.peerify?.price === "number" && (
+                            <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
+                                <div className="mb-2 text-sm font-medium text-muted-foreground">Price</div>
+                                <div className="text-lg font-semibold">
+                                    {formatFundingAmount(
+                                        event.metadata.peerify.price,
+                                        event.metadata.peerify.currency || "EUR",
+                                    )}
+                                </div>
+                                {event.metadata.peerify.paymentInfo && (
+                                    <p className="mt-1 text-sm text-muted-foreground">
+                                        {event.metadata.peerify.paymentInfo}
+                                    </p>
+                                )}
+                            </div>
+                        )}
                 </div>
 
                 <div className="space-y-4">
@@ -757,7 +837,7 @@ export default function EventDetail({
                                 {accessBadge.label}
                             </div>
                         )}
-                        {user ? (
+                        {effectiveUser ? (
                             <div className="flex flex-wrap gap-2">
                                 {event.userRsvpStatus === "going" ? (
                                     <>
@@ -800,7 +880,7 @@ export default function EventDetail({
                         <div className="mt-3 text-sm text-muted-foreground">
                             Attendees (going): {event.attendees ?? 0}
                         </div>
-                        {event.userRsvpStatus && event.userRsvpStatus !== "none" && (
+                        {effectiveUser && event.userRsvpStatus && event.userRsvpStatus !== "none" && (
                             <div className="mt-1 text-sm">Your status: {event.userRsvpStatus}</div>
                         )}
                     </div>
@@ -836,9 +916,29 @@ export default function EventDetail({
                 open={isRsvpDialogOpen}
                 onOpenChange={setRsvpDialogOpen}
             />
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete this draft event?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete &quot;{event.title}&quot;. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={isPending}
+                            onClick={onDeleteEvent}
+                            className="bg-red-500 hover:bg-red-600"
+                        >
+                            Delete
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             {event.commentPostId ? (
-                <CommentSection postId={event.commentPostId} circle={circle!} user={user ?? null} />
+                <CommentSection postId={event.commentPostId} circle={circle!} user={effectiveUser ?? null} />
             ) : (
                 <div className="text-sm text-gray-500">Comments are not available for this event.</div>
             )}

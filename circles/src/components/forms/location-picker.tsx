@@ -224,6 +224,23 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
         }
     }, [precision, onChange]);
 
+    // Reflects a `value` that arrived from outside this component's own onChange loop (e.g. a
+    // parent prefilling from the creating circle's saved location only after this component has
+    // already mounted and initialized its map with no location). The map-init effect above only
+    // reads `value` once, at mount, so without this the marker/confirmed-state would silently
+    // never catch up even though the address text does (see the effect above this one).
+    useEffect(() => {
+        if (!value?.lngLat) return;
+        setIsLocationConfirmed(true);
+        if (map.current && mapMarker.current) {
+            mapMarker.current.setLngLat(value.lngLat);
+            if (!mapMarker.current.getElement().parentNode) {
+                mapMarker.current.addTo(map.current);
+            }
+            map.current.flyTo({ center: value.lngLat, zoom: precisionLevels[precision].zoom });
+        }
+    }, [value?.lngLat]);
+
     const fetchSuggestions = useCallback(
         async (query: string) => {
             if (!query) {
