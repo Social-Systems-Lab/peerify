@@ -1053,12 +1053,19 @@ export default function EventForm({
                 </div>
             </div>
 
-            <div className="space-y-2">
-                <Label>Visibility</Label>
+            <div className="space-y-3 rounded-lg border p-4">
+                <div>
+                    <h3 className="text-sm font-medium">Visibility: {isPrivate ? "Private" : "Public"}</h3>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        {isPrivate
+                            ? "Invite-only or unlisted. Not shown publicly."
+                            : "Listed publicly when the event is open."}
+                    </p>
+                </div>
                 <ToggleGroup
                     type="single"
                     variant="outline"
-                    size="sm"
+                    className="w-full"
                     value={isPrivate ? "private" : "public"}
                     onValueChange={(value) => {
                         // ToggleGroup allows deselecting the current item (empty string) — ignore
@@ -1066,14 +1073,13 @@ export default function EventForm({
                         if (value) setIsPrivate(value === "private");
                     }}
                 >
-                    <ToggleGroupItem value="public">Public</ToggleGroupItem>
-                    <ToggleGroupItem value="private">Private</ToggleGroupItem>
+                    <ToggleGroupItem value="public" className="flex-1">
+                        Public
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="private" className="flex-1">
+                        Private
+                    </ToggleGroupItem>
                 </ToggleGroup>
-                <p className="text-xs text-muted-foreground">
-                    {isPrivate
-                        ? "Invite-only or unlisted. Not shown publicly."
-                        : "Listed publicly when the event is open."}
-                </p>
             </div>
 
             <div className="rounded-lg border p-4">
