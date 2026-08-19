@@ -35,6 +35,7 @@ import { format, addHours, setHours, setMinutes } from "date-fns";
 import { Bold, Italic, List, Link as LinkIcon, Heading1, Heading2, Globe, Users, ChevronDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 type Props = {
     circleHandle?: string; // optional, can come from context or picker
@@ -188,6 +189,24 @@ export default function EventForm({
     const originalArtistBandsRef = useRef<{ ids: string[]; adminIds: string[] }>({ ids: [], adminIds: [] });
     const [publishToNoticeboard, setPublishToNoticeboard] = useState<boolean>(
         Boolean(event?.noticeboardPostId || event?.publishToNoticeboard),
+    );
+    // Closed by default for a new event. For an existing one, open it if any field inside it
+    // already holds a non-default value, so editing an event that e.g. has Capacity set or is
+    // Virtual doesn't hide that setting behind a collapsed section the host has to go hunting
+    // for. Reads straight off `event` rather than the fields' own state (some of which, like
+    // artistBands, only populate asynchronously after mount) to keep this a synchronous seed.
+    const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState<boolean>(
+        Boolean(
+            event?.images?.length ||
+                event?.additionalArtistCircleIds?.length ||
+                event?.isVirtual ||
+                event?.isHybrid ||
+                event?.capacity ||
+                event?.recurrence ||
+                event?.visibility === "private" ||
+                event?.publishToNoticeboard ||
+                event?.noticeboardPostId,
+        ),
     );
     const [user] = useAtom(userAtom);
     // Existing events currently all have userGroups: [] (the schema default, from before this
@@ -798,173 +817,6 @@ export default function EventForm({
                         <Label htmlFor="allDay">All day</Label>
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="flex items-center gap-2">
-                            <Switch id="isVirtual" checked={isVirtual} onCheckedChange={setIsVirtual} />
-                            <Label htmlFor="isVirtual">Virtual</Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Switch id="isHybrid" checked={isHybrid} onCheckedChange={setIsHybrid} />
-                            <Label htmlFor="isHybrid">Hybrid</Label>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4 rounded-lg border p-4">
-                        <div className="flex items-center gap-2">
-                            <Switch
-                                id="isRecurring"
-                                checked={isRecurring}
-                                onCheckedChange={(checked) => {
-                                    setIsRecurring(checked);
-                                    if (checked) {
-                                        // Reset end date to start date to avoid multi-day recurrence confusion
-                                        setEndDate(startDate);
-                                        if (!recurrenceFreq) {
-                                            setRecurrenceFreq("daily");
-                                            setRecurrenceInterval("1");
-                                            setRecurrenceEndMode("date");
-                                            setRecurrenceEndDate(endDate);
-                                        }
-                                    }
-                                }}
-                            />
-                            <Label htmlFor="isRecurring" className="font-medium">
-                                Recurring event
-                            </Label>
-                        </div>
-
-                        {isRecurring && (
-                            <div className="grid gap-4 pl-6 pt-2">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label>Recurrence</Label>
-                                        <Select
-                                            value={recurrenceFreq}
-                                            onValueChange={(val) => setRecurrenceFreq(val as any)}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="daily">Daily</SelectItem>
-                                                <SelectItem value="weekly">Weekly</SelectItem>
-                                                <SelectItem value="monthly">Monthly</SelectItem>
-                                                <SelectItem value="yearly">Yearly</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>Repeat every</Label>
-                                        <div className="flex items-center gap-2">
-                                            <Input
-                                                type="number"
-                                                min="1"
-                                                value={recurrenceInterval}
-                                                onChange={(e) => setRecurrenceInterval(e.target.value)}
-                                            />
-                                            <span className="text-sm text-muted-foreground">
-                                                {recurrenceFreq === "daily"
-                                                    ? "day(s)"
-                                                    : recurrenceFreq === "weekly"
-                                                      ? "week(s)"
-                                                      : recurrenceFreq === "monthly"
-                                                        ? "month(s)"
-                                                        : "year(s)"}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>End Date</Label>
-                                    <div className="flex flex-col gap-2">
-                                        <div className="flex items-center gap-2">
-                                            <div
-                                                className={`flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border ${
-                                                    recurrenceEndMode === "date"
-                                                        ? "border-primary bg-primary text-primary-foreground"
-                                                        : "border-input"
-                                                }`}
-                                                onClick={() => setRecurrenceEndMode("date")}
-                                            >
-                                                {recurrenceEndMode === "date" && (
-                                                    <div className="h-2 w-2 rounded-full bg-white" />
-                                                )}
-                                            </div>
-                                            <Label
-                                                className="cursor-pointer font-normal"
-                                                onClick={() => setRecurrenceEndMode("date")}
-                                            >
-                                                By
-                                            </Label>
-                                            <Input
-                                                type="date"
-                                                disabled={recurrenceEndMode !== "date"}
-                                                value={recurrenceEndDate}
-                                                onChange={(e) => setRecurrenceEndDate(e.target.value)}
-                                                className="w-40"
-                                            />
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <div
-                                                className={`flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border ${
-                                                    recurrenceEndMode === "count"
-                                                        ? "border-primary bg-primary text-primary-foreground"
-                                                        : "border-input"
-                                                }`}
-                                                onClick={() => setRecurrenceEndMode("count")}
-                                            >
-                                                {recurrenceEndMode === "count" && (
-                                                    <div className="h-2 w-2 rounded-full bg-white" />
-                                                )}
-                                            </div>
-                                            <Label
-                                                className="cursor-pointer font-normal"
-                                                onClick={() => setRecurrenceEndMode("count")}
-                                            >
-                                                After
-                                            </Label>
-                                            <Input
-                                                type="number"
-                                                min="1"
-                                                disabled={recurrenceEndMode !== "count"}
-                                                value={recurrenceCount}
-                                                onChange={(e) => setRecurrenceCount(e.target.value)}
-                                                className="w-20"
-                                            />
-                                            <span className="text-sm text-muted-foreground">occurrences</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {isVirtual && (
-                        <div>
-                            <Label htmlFor="virtualUrl">Virtual URL</Label>
-                            <Input
-                                id="virtualUrl"
-                                type="url"
-                                placeholder="https://meet.example.com/..."
-                                value={virtualUrl}
-                                onChange={(e) => setVirtualUrl(e.target.value)}
-                            />
-                        </div>
-                    )}
-
-                    <div>
-                        <Label htmlFor="capacity">Capacity (optional)</Label>
-                        <Input
-                            id="capacity"
-                            type="number"
-                            inputMode="numeric"
-                            placeholder="e.g., 50"
-                            value={capacity}
-                            onChange={(e) => setCapacity(e.target.value)}
-                        />
-                    </div>
-
                     <div className="flex items-center gap-2">
                         <Switch id="isTicketed" checked={isTicketed} onCheckedChange={setIsTicketed} />
                         <Label htmlFor="isTicketed">Ticketed event</Label>
@@ -1025,66 +877,9 @@ export default function EventForm({
                             />
                         </div>
                     </div>
-
-                    <div className="rounded-lg border p-4">
-                        <EventArtistPicker value={artistBands} onChange={setArtistBands} />
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <Switch id="isPrivate" checked={isPrivate} onCheckedChange={setIsPrivate} />
-                        <Label htmlFor="isPrivate">{isPrivate ? "Private event" : "Public event"}</Label>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                        {isPrivate
-                            ? "Invite-only or unlisted. Not shown publicly."
-                            : "Listed publicly when the event is open."}
-                    </p>
-
-                    <div className="rounded-lg border p-4">
-                        <div className="flex items-start gap-3">
-                            <Checkbox
-                                id="publishToNoticeboard"
-                                checked={publishToNoticeboard}
-                                onCheckedChange={(checked) => setPublishToNoticeboard(Boolean(checked))}
-                            />
-                            <div className="space-y-1">
-                                <Label htmlFor="publishToNoticeboard">Share this event on the Noticeboard</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    Create or update one linked Noticeboard post for this event. The post is only
-                                    published once this event is opened — nothing is posted while it&apos;s in Draft
-                                    or Review.
-                                </p>
-                                {publishToNoticeboard && (
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-auto p-1 text-xs hover:bg-gray-100"
-                                        onClick={() => setIsUserGroupsDialogOpen(true)}
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            <Users className="h-3 w-3" />
-                                            <span>
-                                                Post visible to:{" "}
-                                                {userGroups.includes("everyone")
-                                                    ? "Everyone"
-                                                    : getUserGroupName(userGroups?.[0])}
-                                            </span>
-                                            <ChevronDown className="h-3 w-3" />
-                                        </div>
-                                    </Button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 <div className="space-y-4">
-                    <div>
-                        <Label>Images</Label>
-                        <MultiImageUploader initialImages={event?.images || []} onChange={handleImagesChange} />
-                    </div>
-
                     <div>
                         <Label htmlFor="location">Location</Label>
                         <LocationPicker value={location} onChange={(val) => setLocation(val)} compact />
@@ -1092,7 +887,7 @@ export default function EventForm({
                             {locationDisclosure === "public"
                                 ? "Shown publicly when the event is open."
                                 : "Saved privately. Public visitors will see the public map area instead."}{" "}
-                            For online events, toggle &quot;Virtual&quot; above.
+                            For online events, toggle &quot;Virtual&quot; in More options below.
                         </p>
                     </div>
 
@@ -1244,6 +1039,246 @@ export default function EventForm({
                     </div>
                 </div>
             </div>
+
+            <Collapsible open={isMoreOptionsOpen} onOpenChange={setIsMoreOptionsOpen}>
+                <CollapsibleTrigger asChild>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        className="flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left text-sm font-medium hover:bg-gray-50"
+                    >
+                        <span>More options</span>
+                        <ChevronDown
+                            className={cn("h-4 w-4 transition-transform", isMoreOptionsOpen && "rotate-180")}
+                        />
+                    </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 pt-4">
+                    <div>
+                        <Label>Images</Label>
+                        <MultiImageUploader initialImages={event?.images || []} onChange={handleImagesChange} />
+                    </div>
+
+                    <div className="rounded-lg border p-4">
+                        <EventArtistPicker value={artistBands} onChange={setArtistBands} />
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="flex items-center gap-2">
+                            <Switch id="isVirtual" checked={isVirtual} onCheckedChange={setIsVirtual} />
+                            <Label htmlFor="isVirtual">Virtual</Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Switch id="isHybrid" checked={isHybrid} onCheckedChange={setIsHybrid} />
+                            <Label htmlFor="isHybrid">Hybrid</Label>
+                        </div>
+                    </div>
+
+                    {isVirtual && (
+                        <div>
+                            <Label htmlFor="virtualUrl">Virtual URL</Label>
+                            <Input
+                                id="virtualUrl"
+                                type="url"
+                                placeholder="https://meet.example.com/..."
+                                value={virtualUrl}
+                                onChange={(e) => setVirtualUrl(e.target.value)}
+                            />
+                        </div>
+                    )}
+
+                    <div>
+                        <Label htmlFor="capacity">Capacity (optional)</Label>
+                        <Input
+                            id="capacity"
+                            type="number"
+                            inputMode="numeric"
+                            placeholder="e.g., 50"
+                            value={capacity}
+                            onChange={(e) => setCapacity(e.target.value)}
+                        />
+                    </div>
+
+                    <div className="space-y-4 rounded-lg border p-4">
+                        <div className="flex items-center gap-2">
+                            <Switch
+                                id="isRecurring"
+                                checked={isRecurring}
+                                onCheckedChange={(checked) => {
+                                    setIsRecurring(checked);
+                                    if (checked) {
+                                        // Reset end date to start date to avoid multi-day recurrence confusion
+                                        setEndDate(startDate);
+                                        if (!recurrenceFreq) {
+                                            setRecurrenceFreq("daily");
+                                            setRecurrenceInterval("1");
+                                            setRecurrenceEndMode("date");
+                                            setRecurrenceEndDate(endDate);
+                                        }
+                                    }
+                                }}
+                            />
+                            <Label htmlFor="isRecurring" className="font-medium">
+                                Recurring event
+                            </Label>
+                        </div>
+
+                        {isRecurring && (
+                            <div className="grid gap-4 pl-6 pt-2">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <Label>Recurrence</Label>
+                                        <Select
+                                            value={recurrenceFreq}
+                                            onValueChange={(val) => setRecurrenceFreq(val as any)}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="daily">Daily</SelectItem>
+                                                <SelectItem value="weekly">Weekly</SelectItem>
+                                                <SelectItem value="monthly">Monthly</SelectItem>
+                                                <SelectItem value="yearly">Yearly</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>Repeat every</Label>
+                                        <div className="flex items-center gap-2">
+                                            <Input
+                                                type="number"
+                                                min="1"
+                                                value={recurrenceInterval}
+                                                onChange={(e) => setRecurrenceInterval(e.target.value)}
+                                            />
+                                            <span className="text-sm text-muted-foreground">
+                                                {recurrenceFreq === "daily"
+                                                    ? "day(s)"
+                                                    : recurrenceFreq === "weekly"
+                                                      ? "week(s)"
+                                                      : recurrenceFreq === "monthly"
+                                                        ? "month(s)"
+                                                        : "year(s)"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label>End Date</Label>
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <div
+                                                className={`flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border ${
+                                                    recurrenceEndMode === "date"
+                                                        ? "border-primary bg-primary text-primary-foreground"
+                                                        : "border-input"
+                                                }`}
+                                                onClick={() => setRecurrenceEndMode("date")}
+                                            >
+                                                {recurrenceEndMode === "date" && (
+                                                    <div className="h-2 w-2 rounded-full bg-white" />
+                                                )}
+                                            </div>
+                                            <Label
+                                                className="cursor-pointer font-normal"
+                                                onClick={() => setRecurrenceEndMode("date")}
+                                            >
+                                                By
+                                            </Label>
+                                            <Input
+                                                type="date"
+                                                disabled={recurrenceEndMode !== "date"}
+                                                value={recurrenceEndDate}
+                                                onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                                                className="w-40"
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div
+                                                className={`flex h-4 w-4 cursor-pointer items-center justify-center rounded-full border ${
+                                                    recurrenceEndMode === "count"
+                                                        ? "border-primary bg-primary text-primary-foreground"
+                                                        : "border-input"
+                                                }`}
+                                                onClick={() => setRecurrenceEndMode("count")}
+                                            >
+                                                {recurrenceEndMode === "count" && (
+                                                    <div className="h-2 w-2 rounded-full bg-white" />
+                                                )}
+                                            </div>
+                                            <Label
+                                                className="cursor-pointer font-normal"
+                                                onClick={() => setRecurrenceEndMode("count")}
+                                            >
+                                                After
+                                            </Label>
+                                            <Input
+                                                type="number"
+                                                min="1"
+                                                disabled={recurrenceEndMode !== "count"}
+                                                value={recurrenceCount}
+                                                onChange={(e) => setRecurrenceCount(e.target.value)}
+                                                className="w-20"
+                                            />
+                                            <span className="text-sm text-muted-foreground">occurrences</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Switch id="isPrivate" checked={isPrivate} onCheckedChange={setIsPrivate} />
+                        <Label htmlFor="isPrivate">{isPrivate ? "Private event" : "Public event"}</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        {isPrivate
+                            ? "Invite-only or unlisted. Not shown publicly."
+                            : "Listed publicly when the event is open."}
+                    </p>
+
+                    <div className="rounded-lg border p-4">
+                        <div className="flex items-start gap-3">
+                            <Checkbox
+                                id="publishToNoticeboard"
+                                checked={publishToNoticeboard}
+                                onCheckedChange={(checked) => setPublishToNoticeboard(Boolean(checked))}
+                            />
+                            <div className="space-y-1">
+                                <Label htmlFor="publishToNoticeboard">Share this event on the Noticeboard</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    Create or update one linked Noticeboard post for this event. The post is only
+                                    published once this event is opened — nothing is posted while it&apos;s in Draft
+                                    or Review.
+                                </p>
+                                {publishToNoticeboard && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-auto p-1 text-xs hover:bg-gray-100"
+                                        onClick={() => setIsUserGroupsDialogOpen(true)}
+                                    >
+                                        <div className="flex items-center gap-1">
+                                            <Users className="h-3 w-3" />
+                                            <span>
+                                                Post visible to:{" "}
+                                                {userGroups.includes("everyone")
+                                                    ? "Everyone"
+                                                    : getUserGroupName(userGroups?.[0])}
+                                            </span>
+                                            <ChevronDown className="h-3 w-3" />
+                                        </div>
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </CollapsibleContent>
+            </Collapsible>
 
             <div className="flex gap-3">
                 <Button type="submit" disabled={isPending}>
