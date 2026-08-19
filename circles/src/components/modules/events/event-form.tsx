@@ -748,7 +748,7 @@ export default function EventForm({ circleHandle, event, showCirclePicker, initi
                                 }}
                             />
                             <Label htmlFor="isRecurring" className="font-medium">
-                                Recurring meeting
+                                Recurring event
                             </Label>
                         </div>
 
