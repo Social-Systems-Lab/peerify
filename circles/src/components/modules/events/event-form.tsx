@@ -197,8 +197,7 @@ export default function EventForm({
     // artistBands, only populate asynchronously after mount) to keep this a synchronous seed.
     const [isMoreOptionsOpen, setIsMoreOptionsOpen] = useState<boolean>(
         Boolean(
-            event?.images?.length ||
-                event?.additionalArtistCircleIds?.length ||
+            event?.additionalArtistCircleIds?.length ||
                 event?.isVirtual ||
                 event?.isHybrid ||
                 event?.capacity ||
@@ -881,6 +880,11 @@ export default function EventForm({
 
                 <div className="space-y-4">
                     <div>
+                        <Label>Images</Label>
+                        <MultiImageUploader initialImages={event?.images || []} onChange={handleImagesChange} />
+                    </div>
+
+                    <div>
                         <Label htmlFor="location">Location</Label>
                         <LocationPicker value={location} onChange={(val) => setLocation(val)} compact />
                         <p className="mt-1 text-xs text-muted-foreground">
@@ -1054,11 +1058,6 @@ export default function EventForm({
                     </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-4 pt-4">
-                    <div>
-                        <Label>Images</Label>
-                        <MultiImageUploader initialImages={event?.images || []} onChange={handleImagesChange} />
-                    </div>
-
                     <div className="rounded-lg border p-4">
                         <EventArtistPicker value={artistBands} onChange={setArtistBands} />
                     </div>
