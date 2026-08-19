@@ -80,6 +80,7 @@ export default async function EventPreviewPage(props: PageProps) {
                         canReview={false}
                         canModerate={false}
                         isAuthor={false}
+                        previewAsAnonymous
                     />
                 </div>
             </div>
