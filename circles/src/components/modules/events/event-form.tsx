@@ -239,6 +239,11 @@ export default function EventForm({
     const [startDirty, setStartDirty] = useState(false);
     const seededRef = useRef(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    // CircleSelector reports its initial (default) selection via onCircleSelected on mount, not
+    // just on genuine user-driven changes (same gotcha post-form.tsx's own handleCircleSelected
+    // documents for audience reset) — only prefill from that first call, never on a later manual
+    // circle switch, so we don't clobber a location the user already typed.
+    const hasReceivedInitialCircleSelection = useRef(false);
 
     const insertMarkdown = (prefix: string, suffix: string = "") => {
         const textarea = textareaRef.current;
@@ -343,9 +348,20 @@ export default function EventForm({
     }, [event?._id, circleHandle]);
 
     const handleImagesChange = (items: ImageItem[]) => setImages(items);
-    const handleCircleSelected = useCallback((circle: Circle | null) => {
-        setSelectedCircle(circle?.handle);
-    }, []);
+    const handleCircleSelected = useCallback(
+        (circle: Circle | null) => {
+            setSelectedCircle(circle?.handle);
+            if (!hasReceivedInitialCircleSelection.current) {
+                hasReceivedInitialCircleSelection.current = true;
+                // Only for new events — an edit form already seeded `location` from the event
+                // itself, and shouldn't have it overwritten by the circle's own saved location.
+                if (!event && circle?.location) {
+                    setLocation(circle.location);
+                }
+            }
+        },
+        [event],
+    );
 
     // Audience for the linked Noticeboard post — mirrors post-form.tsx's own
     // getAvailableUserGroups/getUserGroupName, adapted from a selected Circle object to the
