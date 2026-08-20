@@ -316,11 +316,16 @@ export const DynamicArrayField: React.FC<RenderFieldProps> = ({ field, formField
         return null;
     }
 
+    // Prepending/inserting a bare {} (as opposed to appending one) corrupts react-hook-form's
+    // internal reindexing here — the new row ends up with the previous top row's values
+    // instead of blanks. Passing an explicit empty value for every item-schema field avoids it.
+    const emptyItem = () => Object.fromEntries(field.itemSchema!.fields.map((subField) => [subField.name, ""]));
+
     return (
         <div>
             <div className="flex items-center justify-between">
                 <h1 className="m-0 p-0 pb-3 text-xl font-bold">{getUserOrCircleInfo(field.label, isUser)}</h1>
-                <Button type="button" onClick={() => prepend({})}>
+                <Button type="button" onClick={() => prepend(emptyItem())}>
                     Add {getUserOrCircleInfo(field.itemSchema.title, isUser)}
                 </Button>
             </div>
