@@ -1174,6 +1174,37 @@ export const createEvent = async (data: Omit<Event, "_id" | "commentPostId">, in
 };
 
 /**
+ * Re-point an event's linked comment shadow post at its new host circle's feed. createEvent
+ * pins the shadow post to `feed.circleId = data.circleId` once, at creation, via the post's own
+ * `feedId` — it's never recomputed on its own, so without this, comments would stay gated by the
+ * old host's feed/membership rules after a host change. Only moves the post to the new feed;
+ * the comments themselves (and their reactions/replies) are untouched.
+ */
+export const recomputeEventCommentFeed = async (eventId: string, newCircleId: string): Promise<boolean> => {
+    try {
+        if (!ObjectId.isValid(eventId)) return false;
+
+        const event = await Events.findOne({ _id: new ObjectId(eventId) });
+        if (!event?.commentPostId) return true; // Nothing to move — no shadow post exists.
+
+        const newFeed = await Feeds.findOne({ circleId: newCircleId });
+        if (!newFeed) {
+            console.warn(`No feed found for circle ${newCircleId}; leaving event ${eventId}'s comment post as-is.`);
+            return false;
+        }
+
+        const result = await Posts.updateOne(
+            { _id: new ObjectId(event.commentPostId) },
+            { $set: { feedId: newFeed._id.toString() } },
+        );
+        return result.matchedCount > 0;
+    } catch (error) {
+        console.error(`Error recomputing comment feed for event (${eventId}):`, error);
+        return false;
+    }
+};
+
+/**
  * Update an event
  */
 export const updateEvent = async (eventId: string, updates: Partial<Event>, inviter: Circle): Promise<boolean> => {
