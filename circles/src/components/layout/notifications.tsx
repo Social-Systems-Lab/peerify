@@ -532,7 +532,10 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                     return notification.goalId ? `/circles/${circleHandle}/goals/${notification.goalId}` : null;
                 case "event_invitation":
                 case "event_artist_added":
+                case "event_host_change_decided":
                     return notification.eventId ? `/circles/${circleHandle}/events/${notification.eventId}` : null;
+                case "event_host_change_requested":
+                    return `/circles/${circleHandle}/settings/event-host-requests`;
                 default:
                     return null;
             }
@@ -558,6 +561,7 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                 return "Review";
             case "user_verification_request":
             case "user_verification_reply_received":
+            case "event_host_change_requested":
                 return "Review";
             case "user_verification_clarification_requested":
                 return "Respond";
