@@ -760,6 +760,10 @@ export const upsertVbdGoals = async (goals: Goal[]) => {
 
 // Method to delete circles from Qdrant by ID
 export const deleteVbdCircle = async (circleId: string) => {
+    if (!shouldRunEmbeddings("circle deletion")) {
+        return;
+    }
+
     const client = await getQdrantClient();
 
     let uuid = uuidv5(circleId, circleNs);
@@ -774,6 +778,10 @@ export const deleteVbdCircle = async (circleId: string) => {
 
 // Method to delete posts from Qdrant by ID
 export const deleteVbdPost = async (postId: string) => {
+    if (!shouldRunEmbeddings("post deletion")) {
+        return;
+    }
+
     const client = await getQdrantClient();
 
     let uuid = uuidv5(postId, postNs);
