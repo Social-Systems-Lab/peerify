@@ -307,7 +307,7 @@ export const DynamicAutoHandleField: React.FC<RenderFieldProps> = ({ field, form
 };
 
 export const DynamicArrayField: React.FC<RenderFieldProps> = ({ field, formField, control, readOnly, isUser }) => {
-    const { fields, append, remove } = useFieldArray({
+    const { fields, prepend, remove } = useFieldArray({
         control,
         name: formField.name,
     });
@@ -320,7 +320,7 @@ export const DynamicArrayField: React.FC<RenderFieldProps> = ({ field, formField
         <div>
             <div className="flex items-center justify-between">
                 <h1 className="m-0 p-0 pb-3 text-xl font-bold">{getUserOrCircleInfo(field.label, isUser)}</h1>
-                <Button type="button" onClick={() => append({})}>
+                <Button type="button" onClick={() => prepend({})}>
                     Add {getUserOrCircleInfo(field.itemSchema.title, isUser)}
                 </Button>
             </div>
