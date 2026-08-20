@@ -12,6 +12,7 @@ import {
     hideCancelledEventAction,
     unhideCancelledEventAction,
     deleteEventAction,
+    changeEventHostAction,
 } from "@/app/circles/[handle]/events/actions";
 import {
     AlertDialog,
@@ -23,6 +24,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import CircleSelector from "@/components/global-create/circle-selector";
+import { creatableItemsList } from "@/components/global-create/global-create-dialog-content";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import ImageCarousel from "@/components/ui/image-carousel";
@@ -123,6 +127,10 @@ export default function EventDetail({
     const [isInviteModalOpen, setInviteModalOpen] = useState(false);
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [isRsvpDialogOpen, setRsvpDialogOpen] = useState(false);
+    const [isChangeHostDialogOpen, setChangeHostDialogOpen] = useState(false);
+    const [newHostCircle, setNewHostCircle] = useState<Circle | null>(null);
+    const [isChangingHost, setIsChangingHost] = useState(false);
+    const eventItemDetail = creatableItemsList.find((item) => item.key === "event");
     const compact = !!isPreview;
     const [hideUpdating, setHideUpdating] = useState(false);
     const eventId = ((event as any)._id?.toString?.() || (event as any)._id || "") as string;
@@ -257,6 +265,34 @@ export default function EventDetail({
                 router.refresh();
             } else {
                 toast({ title: "Error", description: res.message || "Failed to delete event", variant: "destructive" });
+            }
+        });
+    };
+
+    const onChangeHost = () => {
+        if (!newHostCircle?.handle) return;
+        setIsChangingHost(true);
+        startTransition(async () => {
+            const res = await changeEventHostAction(
+                circleHandle,
+                (event as any)._id?.toString?.() || "",
+                newHostCircle.handle!,
+            );
+            setIsChangingHost(false);
+            if (res.success) {
+                setChangeHostDialogOpen(false);
+                setNewHostCircle(null);
+                toast({ title: res.message || "Event host changed" });
+                if (res.newCircleHandle) {
+                    router.push(`/circles/${res.newCircleHandle}/events/${(event as any)._id?.toString?.() || ""}`);
+                }
+                router.refresh();
+            } else {
+                toast({
+                    title: res.pending ? "Approval requested" : "Error",
+                    description: res.message || "Failed to change event host",
+                    variant: res.pending ? "default" : "destructive",
+                });
             }
         });
     };
@@ -697,6 +733,15 @@ export default function EventDetail({
                             </Link>
                         </Button>
                     )}
+                    {isAuthor && (
+                        <Button
+                            variant="outline"
+                            disabled={isPending}
+                            onClick={() => setChangeHostDialogOpen(true)}
+                        >
+                            Change host
+                        </Button>
+                    )}
                     {event.stage === "open" && (canReview || canModerate) && (
                         <Button disabled={isPending} variant="destructive" onClick={onCancelEvent}>
                             Cancel
@@ -936,6 +981,47 @@ export default function EventDetail({
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            <Dialog
+                open={isChangeHostDialogOpen}
+                onOpenChange={(open) => {
+                    setChangeHostDialogOpen(open);
+                    if (!open) setNewHostCircle(null);
+                }}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Change event host</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-muted-foreground">
+                        Pick a new circle to host this event. If you administer that circle, the change happens
+                        immediately. Otherwise, its admins will need to approve it first — RSVPs, comments, and
+                        tasks stay exactly as they are either way.
+                    </p>
+                    {eventItemDetail && (
+                        <CircleSelector
+                            itemType={eventItemDetail}
+                            onCircleSelected={setNewHostCircle}
+                            label="New host:"
+                        />
+                    )}
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            disabled={isChangingHost}
+                            onClick={() => setChangeHostDialogOpen(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            disabled={isChangingHost || !newHostCircle || newHostCircle._id === circle?._id}
+                            onClick={onChangeHost}
+                        >
+                            {isChangingHost ? "Changing..." : "Change host"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {event.commentPostId ? (
                 <CommentSection postId={event.commentPostId} circle={circle!} user={effectiveUser ?? null} />

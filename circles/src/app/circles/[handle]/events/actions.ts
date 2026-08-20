@@ -44,6 +44,7 @@ import {
     updateEvent as updateEventDb,
     deleteEvent as deleteEventDb,
     changeEventStage as changeEventStageDb,
+    applyEventHostChange,
 } from "@/lib/data/event";
 import { getCirclesByDids } from "@/lib/data/circle";
 import { upsertRsvp, cancelRsvp, listAttendees } from "@/lib/data/eventRsvp";
@@ -841,6 +842,71 @@ export async function deleteEventAction(
     } catch (error) {
         console.error("Error deleting event:", error);
         return { success: false, message: "Failed to delete event" };
+    }
+}
+
+// ----- Host change -----
+
+/**
+ * Change an event's host circle — available on both draft and published events, gated on being
+ * the event's creator (not canModerate/canEdit; this is deliberately narrower, matching the spec
+ * that only the creator can initiate a host change). If the creator is an admin/owner of the
+ * target circle, the change is instant. Otherwise a pending eventHostChangeRequest is created for
+ * the target circle's admins to approve — see approveEventHostChangeRequestAction/
+ * rejectEventHostChangeRequestAction.
+ */
+export async function changeEventHostAction(
+    circleHandle: string,
+    eventId: string,
+    targetCircleHandle: string,
+): Promise<{ success: boolean; message?: string; pending?: boolean; newCircleHandle?: string }> {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return { success: false, message: "User not authenticated" };
+
+        const event = await getEventById(eventId, userDid);
+        if (!event) return { success: false, message: "Event not found" };
+
+        if (event.createdBy !== userDid) {
+            return { success: false, message: "Only the event's creator can change its host" };
+        }
+
+        const targetCircle = await getCircleByHandle(targetCircleHandle);
+        if (!targetCircle?._id) return { success: false, message: "Target circle not found" };
+
+        const fromCircleId = event.circleId;
+        const targetCircleId = targetCircle._id.toString();
+        if (targetCircleId === fromCircleId) {
+            return { success: false, message: "This is already the event's host" };
+        }
+
+        const isTargetAdminOrOwner =
+            targetCircle.did === userDid || (await isCircleAdmin(userDid, targetCircleId));
+
+        if (isTargetAdminOrOwner) {
+            const applied = await applyEventHostChange(eventId, fromCircleId, targetCircleId);
+            if (!applied) return { success: false, message: "Failed to change event host" };
+
+            revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
+            revalidatePath(`/circles/${circleHandle}/events`);
+            revalidatePath(`/circles/${targetCircle.handle}/events/${eventId}`);
+            revalidatePath(`/circles/${targetCircle.handle}/events`);
+
+            return {
+                success: true,
+                message: `Event moved to ${targetCircle.name || targetCircle.handle}`,
+                newCircleHandle: targetCircle.handle,
+            };
+        }
+
+        // Not an admin of the target circle — approval flow lands in the next commit.
+        return {
+            success: false,
+            message: "Requesting approval from a circle you don't administer isn't implemented yet",
+        };
+    } catch (error) {
+        console.error("Error changing event host:", error);
+        return { success: false, message: "Failed to change event host" };
     }
 }
 

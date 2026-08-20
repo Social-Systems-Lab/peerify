@@ -1,4 +1,5 @@
 import { Circles, Events, EventRsvps, Feeds, Posts, EventInvitations } from "./db";
+import { migrateEventTasksToCircle } from "./task";
 import { ObjectId } from "mongodb";
 import { RRule, RRuleSet, rrulestr } from "rrule";
 import {
@@ -1202,6 +1203,38 @@ export const recomputeEventCommentFeed = async (eventId: string, newCircleId: st
         console.error(`Error recomputing comment feed for event (${eventId}):`, error);
         return false;
     }
+};
+
+/**
+ * Actually move an event to a new host circle — the one place that touches event.circleId itself
+ * plus every piece of event data that denormalizes it (see migrateEventTasksToCircle,
+ * recomputeEventCommentFeed). Used identically by both the instant-reassignment path (requester is
+ * already an admin of the target) and the approval path's approve step (target circle approved a
+ * pending request) — the only difference between those two is what gates calling this function,
+ * not what it does. RSVPs are deliberately left untouched (historical snapshot, not a live
+ * reference to the event's current host).
+ */
+export const applyEventHostChange = async (
+    eventId: string,
+    fromCircleId: string,
+    toCircleId: string,
+): Promise<boolean> => {
+    if (!ObjectId.isValid(eventId) || !fromCircleId || !toCircleId || fromCircleId === toCircleId) {
+        return false;
+    }
+
+    const result = await Events.updateOne(
+        { _id: new ObjectId(eventId) },
+        { $set: { circleId: toCircleId, updatedAt: new Date() } },
+    );
+    if (result.matchedCount === 0) {
+        return false;
+    }
+
+    await migrateEventTasksToCircle(eventId, fromCircleId, toCircleId);
+    await recomputeEventCommentFeed(eventId, toCircleId);
+
+    return true;
 };
 
 /**
