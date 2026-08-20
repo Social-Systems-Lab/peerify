@@ -54,7 +54,16 @@ import {
     notifyEventApproved,
     notifyEventStatusChanged,
     notifyAddedAsEventArtist,
+    notifyEventHostChangeRequested,
+    notifyEventHostChangeDecided,
 } from "@/lib/data/eventNotifications";
+import {
+    getPendingEventHostChangeRequestForEvent,
+    getPendingEventHostChangeRequestsForCircle,
+    getEventHostChangeRequest,
+    createPendingEventHostChangeRequest,
+    updateEventHostChangeRequestStatus,
+} from "@/lib/data/eventHostChangeRequests";
 import { inviteUsersToEvent } from "@/lib/data/event";
 import { getMembers, isCircleAdmin, isCircleAdminOfAny } from "@/lib/data/member";
 import { addCommentToDiscussion, getDiscussionWithComments } from "@/lib/data/discussion";
@@ -899,15 +908,153 @@ export async function changeEventHostAction(
             };
         }
 
-        // Not an admin of the target circle — approval flow lands in the next commit.
+        // Not an admin of the target circle — needs the target's approval before it takes effect.
+        const existingRequest = await getPendingEventHostChangeRequestForEvent(eventId);
+        if (existingRequest) {
+            return {
+                success: false,
+                message:
+                    existingRequest.toCircleId === targetCircleId
+                        ? "A request to move this event there is already pending"
+                        : "A different host-change request is already pending for this event",
+            };
+        }
+
+        await createPendingEventHostChangeRequest(eventId, fromCircleId, targetCircleId, userDid);
+
+        const requester = await getUserByDid(userDid);
+        await notifyEventHostChangeRequested({ _id: event._id, title: event.title }, targetCircleId, requester);
+
+        // success: false here is deliberate — the event's host hasn't actually changed yet, only
+        // a pending request was created. `pending: true` is what tells the caller this wasn't an
+        // error, just not an immediate change (see event-detail.tsx's onChangeHost).
         return {
             success: false,
-            message: "Requesting approval from a circle you don't administer isn't implemented yet",
+            pending: true,
+            message: `Request sent to ${targetCircle.name || targetCircle.handle} — waiting for their approval`,
         };
     } catch (error) {
         console.error("Error changing event host:", error);
         return { success: false, message: "Failed to change event host" };
     }
+}
+
+export type EventHostChangeRequestDisplay = {
+    _id: string;
+    eventId: string;
+    eventTitle?: string;
+    fromCircleName?: string;
+    fromCircleHandle?: string;
+    requesterName?: string;
+    requestedAt: Date;
+};
+
+/**
+ * List an event host-change requests pending FOR a circle (i.e. this circle is the requested new
+ * host) — gated on being an admin/owner of that circle, same check approve/reject use. Fetches
+ * event titles directly off the Events collection rather than through getEventById, since the
+ * reviewing admin isn't necessarily authorized to view the event under its normal visibility
+ * rules (it belongs to a different circle) — reviewing a request implicitly needs to see the
+ * basic details regardless.
+ */
+export async function getEventHostChangeRequestsForCircleAction(
+    circleHandle: string,
+): Promise<{ success: boolean; requests?: EventHostChangeRequestDisplay[]; message?: string }> {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return { success: false, message: "User not authenticated" };
+
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle?._id) return { success: false, message: "Circle not found" };
+
+        const canManage = circle.did === userDid || (await isCircleAdmin(userDid, circle._id as string));
+        if (!canManage) return { success: false, message: "Not authorized to manage this circle's requests" };
+
+        const pending = await getPendingEventHostChangeRequestsForCircle(circle._id as string);
+
+        const requests = await Promise.all(
+            pending.map(async (request) => {
+                const [eventDoc, fromCircle, requester] = await Promise.all([
+                    Events.findOne({ _id: new ObjectId(request.eventId) }, { projection: { title: 1 } }),
+                    getCircleById(request.fromCircleId),
+                    getUserByDid(request.requestedBy),
+                ]);
+                return {
+                    _id: (request._id as any)?.toString?.() || String(request._id),
+                    eventId: request.eventId,
+                    eventTitle: eventDoc?.title,
+                    fromCircleName: fromCircle?.name,
+                    fromCircleHandle: fromCircle?.handle,
+                    requesterName: requester?.name,
+                    requestedAt: request.requestedAt,
+                };
+            }),
+        );
+
+        return { success: true, requests };
+    } catch (error) {
+        console.error("Error getting event host change requests:", error);
+        return { success: false, message: "Failed to load requests" };
+    }
+}
+
+async function decideEventHostChangeRequest(
+    requestId: string,
+    decision: "approved" | "rejected",
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return { success: false, message: "User not authenticated" };
+
+        const request = await getEventHostChangeRequest(requestId);
+        if (request.status !== "pending") {
+            return { success: false, message: "This request has already been decided" };
+        }
+
+        const targetCircle = await getCircleById(request.toCircleId);
+        if (!targetCircle?._id) return { success: false, message: "Target circle not found" };
+
+        const canDecide = targetCircle.did === userDid || (await isCircleAdmin(userDid, request.toCircleId));
+        if (!canDecide) return { success: false, message: "Not authorized to decide this request" };
+
+        if (decision === "approved") {
+            const applied = await applyEventHostChange(request.eventId, request.fromCircleId, request.toCircleId);
+            if (!applied) return { success: false, message: "Failed to change event host" };
+        }
+
+        await updateEventHostChangeRequestStatus(requestId, decision);
+
+        const eventDoc = await Events.findOne({ _id: new ObjectId(request.eventId) }, { projection: { title: 1 } });
+        await notifyEventHostChangeDecided(
+            { _id: request.eventId, title: eventDoc?.title || "your event" },
+            targetCircle,
+            request.requestedBy,
+            decision === "approved",
+        );
+
+        revalidatePath(`/circles/${targetCircle.handle}/settings/event-host-requests`);
+        if (decision === "approved") {
+            revalidatePath(`/circles/${targetCircle.handle}/events/${request.eventId}`);
+            revalidatePath(`/circles/${targetCircle.handle}/events`);
+        }
+
+        return { success: true, message: decision === "approved" ? "Request approved — event moved" : "Request rejected" };
+    } catch (error) {
+        console.error(`Error deciding event host change request (${decision}):`, error);
+        return { success: false, message: "Failed to decide request" };
+    }
+}
+
+export async function approveEventHostChangeRequestAction(
+    requestId: string,
+): Promise<{ success: boolean; message?: string }> {
+    return decideEventHostChangeRequest(requestId, "approved");
+}
+
+export async function rejectEventHostChangeRequestAction(
+    requestId: string,
+): Promise<{ success: boolean; message?: string }> {
+    return decideEventHostChangeRequest(requestId, "rejected");
 }
 
 // ----- Multi-artist support -----

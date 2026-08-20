@@ -44,6 +44,10 @@ const settingsForms: SettingsForm[] = [
         handle: "membership-requests",
     },
     {
+        name: "Event Host Requests",
+        handle: "event-host-requests",
+    },
+    {
         name: "Questionnaire",
         handle: "questionnaire",
     },
