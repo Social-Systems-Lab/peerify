@@ -363,6 +363,7 @@ const VENUE_TYPE_OPTIONS = [
     { value: "Community space", label: "Community space" },
     { value: "House venue", label: "House venue" },
     { value: "Outdoor", label: "Outdoor" },
+    { value: "Studio", label: "Studio" },
     { value: "Other", label: "Other" },
 ];
 
