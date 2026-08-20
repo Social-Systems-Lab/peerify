@@ -1262,6 +1262,8 @@ export type NotificationType =
     | "event_status_changed"
     | "event_invitation"
     | "event_artist_added" // A circle was added as an additional artist/band on an event
+    | "event_host_change_requested" // A circle's admins are asked to approve an event moving to them
+    | "event_host_change_decided" // The requester is told whether their host-change request was approved/rejected
     // Ranking Notifications
     | "ranking_stale_reminder" // User's ranking list is stale, reminder sent
     | "ranking_grace_period_ended" // User's ranking list is past grace period
@@ -1337,6 +1339,8 @@ export const notificationTypeValues = [
     "event_status_changed",
     "event_invitation",
     "event_artist_added",
+    "event_host_change_requested",
+    "event_host_change_decided",
     "ranking_stale_reminder",
     "ranking_grace_period_ended",
     "user_verified",
@@ -1948,6 +1952,25 @@ export const eventInvitationSchema = z.object({
     updatedAt: z.date(),
 });
 export type EventInvitation = z.infer<typeof eventInvitationSchema>;
+
+/**
+ * A request to change an event's host circle, created when the requesting user is not an admin
+ * of the target circle (an admin of the target can reassign the host instantly, no request
+ * needed — see requestEventHostChangeAction). Modeled on membershipRequestSchema's
+ * pending/approved/rejected shape.
+ */
+export const eventHostChangeRequestSchema = z.object({
+    _id: z.any().optional(),
+    eventId: z.string(),
+    fromCircleId: z.string(),
+    toCircleId: z.string(),
+    requestedBy: didSchema,
+    status: z.enum(["pending", "approved", "rejected"]),
+    requestedAt: z.date(),
+    approvedAt: z.date().optional(),
+    rejectedAt: z.date().optional(),
+});
+export type EventHostChangeRequest = z.infer<typeof eventHostChangeRequestSchema>;
 
 // Goal stages
 export const goalStageSchema = z.enum(["review", "open", "completed"]); // Replaced "resolved" with "completed"
