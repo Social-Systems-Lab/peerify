@@ -279,20 +279,20 @@ export default function EventDetail({
                 newHostCircle.handle!,
             );
             setIsChangingHost(false);
-            if (res.success) {
+            if (res.success || res.pending) {
                 setChangeHostDialogOpen(false);
                 setNewHostCircle(null);
+            }
+            if (res.success) {
                 toast({ title: res.message || "Event host changed" });
                 if (res.newCircleHandle) {
                     router.push(`/circles/${res.newCircleHandle}/events/${(event as any)._id?.toString?.() || ""}`);
                 }
                 router.refresh();
+            } else if (res.pending) {
+                toast({ title: "Approval requested", description: res.message });
             } else {
-                toast({
-                    title: res.pending ? "Approval requested" : "Error",
-                    description: res.message || "Failed to change event host",
-                    variant: res.pending ? "default" : "destructive",
-                });
+                toast({ title: "Error", description: res.message || "Failed to change event host", variant: "destructive" });
             }
         });
     };
