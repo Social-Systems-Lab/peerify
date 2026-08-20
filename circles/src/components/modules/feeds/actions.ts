@@ -761,6 +761,11 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
         // delete post
         await deletePost(postId);
 
+        if (feed) {
+            let circlePath = await getCirclePath({ _id: feed.circleId } as Circle);
+            revalidatePath(`${circlePath}feed`);
+        }
+
         return { success: true, message: "Post deleted successfully" };
     } catch (error) {
         console.error("Error deleting post:", error);
