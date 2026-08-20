@@ -165,3 +165,76 @@ export async function notifyAddedAsEventArtist(
         console.error("Error in notifyAddedAsEventArtist:", err);
     }
 }
+
+/**
+ * Notify admins of the target circle that a host-change request is awaiting their decision.
+ * Like notifyAddedAsEventArtist, recipients are admins of the TARGET circle, not getEventCircle()
+ * (the current/old host) — `circle` in the payload is deliberately the target so the
+ * notification's link (settings/event-host-requests) resolves under the right circle's route.
+ */
+export async function notifyEventHostChangeRequested(
+    event: Pick<EventModel, "_id" | "title">,
+    targetCircleId: string,
+    requester: Circle,
+) {
+    try {
+        const targetCircle = await getCircleById(targetCircleId);
+        if (!targetCircle) return;
+
+        const targetMembers = await getMembers(targetCircleId);
+        const adminDids = targetMembers
+            .filter((member) => member.userGroups?.includes("admins"))
+            .map((member) => member.userDid)
+            .filter((did): did is string => !!did && did !== requester.did);
+
+        if (adminDids.length === 0) return;
+
+        const adminPrivates = (await Promise.all(adminDids.map((did) => getUserPrivate(did)))).filter(
+            (up): up is UserPrivate => up !== null,
+        );
+        if (adminPrivates.length === 0) return;
+
+        await sendNotifications(
+            "event_host_change_requested",
+            adminPrivates,
+            sanitizeObjectForJSON({
+                circle: targetCircle,
+                user: requester,
+                eventId: (event as any)._id?.toString?.() || String((event as any)._id),
+                eventTitle: event.title,
+            }),
+        );
+    } catch (err) {
+        console.error("Error in notifyEventHostChangeRequested:", err);
+    }
+}
+
+/**
+ * Notify the requester that their host-change request was approved or rejected. `circle` in the
+ * payload is the target circle (whether the request succeeded or not) so the notification's link
+ * resolves under the right route once approved.
+ */
+export async function notifyEventHostChangeDecided(
+    event: Pick<EventModel, "_id" | "title">,
+    targetCircle: Circle,
+    requesterDid: string,
+    approved: boolean,
+) {
+    try {
+        const requester = await getUserPrivate(requesterDid);
+        if (!requester) return;
+
+        await sendNotifications(
+            "event_host_change_decided",
+            [requester],
+            sanitizeObjectForJSON({
+                circle: targetCircle,
+                eventId: (event as any)._id?.toString?.() || String((event as any)._id),
+                eventTitle: event.title,
+                approved,
+            }),
+        );
+    } catch (err) {
+        console.error("Error in notifyEventHostChangeDecided:", err);
+    }
+}

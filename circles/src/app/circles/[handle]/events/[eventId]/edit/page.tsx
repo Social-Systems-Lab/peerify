@@ -1,6 +1,6 @@
 // circles/[handle]/events/[eventId]/edit/page.tsx
 import { getCircleByHandle } from "@/lib/data/circle";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { getEventAction } from "@/app/circles/[handle]/events/actions";
@@ -29,6 +29,12 @@ export default async function EditEventPage(props: PageProps) {
     const event = await getEventAction(circle.handle!, params.eventId);
     if (!event) {
         notFound();
+    }
+
+    // See the detail page's identical check: the event's host circle can change after creation,
+    // so a stale /edit link should follow it to the new host rather than dead-ending.
+    if (event.circle?.handle && event.circle.handle !== params.handle) {
+        redirect(`/circles/${event.circle.handle}/events/${params.eventId}/edit`);
     }
 
     const isAuthor = userDid === event.createdBy;

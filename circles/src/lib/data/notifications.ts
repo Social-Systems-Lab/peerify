@@ -176,6 +176,12 @@ const buildNotificationBody = (type: string, payload: any): string => {
             return `${actorName} invited you to ${eventName}`;
         case "event_artist_added":
             return `${artistCircleName} was added to the lineup for ${eventName}`;
+        case "event_host_change_requested":
+            return `${actorName} wants to move ${eventName} to ${circleName}`;
+        case "event_host_change_decided":
+            return payload?.approved
+                ? `Your request to move ${eventName} to ${circleName} was approved`
+                : `Your request to move ${eventName} to ${circleName} was declined`;
         case "ranking_stale_reminder":
             return "Your ranking needs attention";
         case "ranking_grace_period_ended":

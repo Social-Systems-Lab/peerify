@@ -1,6 +1,6 @@
 // circles/[handle]/events/[eventId]/page.tsx
 import { getCircleByHandle } from "@/lib/data/circle";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { getEventAction } from "@/app/circles/[handle]/events/actions";
@@ -42,6 +42,15 @@ export default async function EventDetailPage(props: PageProps) {
     const event = await getEventAction(circle.handle!, params.eventId);
     if (!event) {
         notFound();
+    }
+
+    // The event's host circle can change after creation (see changeEventHostAction). event.circle
+    // is populated fresh from a live $lookup on every fetch, so if it no longer matches the URL's
+    // handle, this is a stale link — send the visitor to the canonical URL instead of a dead end.
+    if (event.circle?.handle && event.circle.handle !== params.handle) {
+        redirect(
+            `/circles/${event.circle.handle}/events/${params.eventId}${isNoticeboardSource ? "?source=noticeboard" : ""}`,
+        );
     }
 
     // Permissions

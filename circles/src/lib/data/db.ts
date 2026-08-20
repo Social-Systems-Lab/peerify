@@ -27,6 +27,7 @@ import {
     Event,
     EventRsvp,
     EventInvitation,
+    EventHostChangeRequest,
     Notification,
     PushSubscriptionDoc,
     HumanityVerification,
@@ -71,6 +72,7 @@ let Goals: Collection<Goal>;
 let Events: Collection<Event>;
 let EventRsvps: Collection<EventRsvp>;
 let EventInvitations: Collection<EventInvitation>;
+let EventHostChangeRequests: Collection<EventHostChangeRequest>;
 let GoalMembers: Collection<GoalMember>; // Added GoalMembers collection
 let RankedLists: Collection<RankedList>;
 let AggregateRanks: Collection<AggregateRank>;
@@ -120,6 +122,7 @@ if (process.env.IS_BUILD !== "true") {
     Events = db.collection<Event>("events");
     EventRsvps = db.collection<EventRsvp>("eventRsvps");
     EventInvitations = db.collection<EventInvitation>("eventInvitations");
+    EventHostChangeRequests = db.collection<EventHostChangeRequest>("eventHostChangeRequests");
     GoalMembers = db.collection<GoalMember>("goalMembers"); // Initialize GoalMembers
     RankedLists = db.collection<RankedList>("rankedLists");
     AggregateRanks = db.collection<AggregateRank>("aggregateRanks");
@@ -172,6 +175,7 @@ export {
     Events,
     EventRsvps,
     EventInvitations,
+    EventHostChangeRequests,
     GoalMembers, // Export GoalMembers
     RankedLists,
     AggregateRanks,

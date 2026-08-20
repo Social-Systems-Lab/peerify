@@ -1610,5 +1610,25 @@ export const getTasksByEventId = async (eventId: string, circleId: string): Prom
     }
 };
 
+/**
+ * Re-point every existing task linked to an event at the event's new host circle. Needed because
+ * getTasksByEventId matches on { eventId, circleId } together — without this, a task created
+ * under the event's old host would silently stop matching (and disappear from the event's task
+ * panel) the moment the event's own circleId changes. Only touches the denormalized circleId
+ * foreign key; task content, stage, assignee, etc. are untouched.
+ */
+export const migrateEventTasksToCircle = async (
+    eventId: string,
+    fromCircleId: string,
+    toCircleId: string,
+): Promise<number> => {
+    if (!eventId || !fromCircleId || !toCircleId || fromCircleId === toCircleId) {
+        return 0;
+    }
+
+    const result = await Tasks.updateMany({ eventId, circleId: fromCircleId }, { $set: { circleId: toCircleId } });
+    return result.modifiedCount;
+};
+
 // TODO: Implement comment/reaction functions if needed, potentially reusing post/comment logic
 // e.g., addCommentToTask, addReactionToTask, etc.

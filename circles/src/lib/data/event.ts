@@ -1,4 +1,5 @@
 import { Circles, Events, EventRsvps, Feeds, Posts, EventInvitations } from "./db";
+import { migrateEventTasksToCircle } from "./task";
 import { ObjectId } from "mongodb";
 import { RRule, RRuleSet, rrulestr } from "rrule";
 import {
@@ -1171,6 +1172,69 @@ export const createEvent = async (data: Omit<Event, "_id" | "commentPostId">, in
     }
 
     return createdEvent as Event;
+};
+
+/**
+ * Re-point an event's linked comment shadow post at its new host circle's feed. createEvent
+ * pins the shadow post to `feed.circleId = data.circleId` once, at creation, via the post's own
+ * `feedId` — it's never recomputed on its own, so without this, comments would stay gated by the
+ * old host's feed/membership rules after a host change. Only moves the post to the new feed;
+ * the comments themselves (and their reactions/replies) are untouched.
+ */
+export const recomputeEventCommentFeed = async (eventId: string, newCircleId: string): Promise<boolean> => {
+    try {
+        if (!ObjectId.isValid(eventId)) return false;
+
+        const event = await Events.findOne({ _id: new ObjectId(eventId) });
+        if (!event?.commentPostId) return true; // Nothing to move — no shadow post exists.
+
+        const newFeed = await Feeds.findOne({ circleId: newCircleId });
+        if (!newFeed) {
+            console.warn(`No feed found for circle ${newCircleId}; leaving event ${eventId}'s comment post as-is.`);
+            return false;
+        }
+
+        const result = await Posts.updateOne(
+            { _id: new ObjectId(event.commentPostId) },
+            { $set: { feedId: newFeed._id.toString() } },
+        );
+        return result.matchedCount > 0;
+    } catch (error) {
+        console.error(`Error recomputing comment feed for event (${eventId}):`, error);
+        return false;
+    }
+};
+
+/**
+ * Actually move an event to a new host circle — the one place that touches event.circleId itself
+ * plus every piece of event data that denormalizes it (see migrateEventTasksToCircle,
+ * recomputeEventCommentFeed). Used identically by both the instant-reassignment path (requester is
+ * already an admin of the target) and the approval path's approve step (target circle approved a
+ * pending request) — the only difference between those two is what gates calling this function,
+ * not what it does. RSVPs are deliberately left untouched (historical snapshot, not a live
+ * reference to the event's current host).
+ */
+export const applyEventHostChange = async (
+    eventId: string,
+    fromCircleId: string,
+    toCircleId: string,
+): Promise<boolean> => {
+    if (!ObjectId.isValid(eventId) || !fromCircleId || !toCircleId || fromCircleId === toCircleId) {
+        return false;
+    }
+
+    const result = await Events.updateOne(
+        { _id: new ObjectId(eventId) },
+        { $set: { circleId: toCircleId, updatedAt: new Date() } },
+    );
+    if (result.matchedCount === 0) {
+        return false;
+    }
+
+    await migrateEventTasksToCircle(eventId, fromCircleId, toCircleId);
+    await recomputeEventCommentFeed(eventId, toCircleId);
+
+    return true;
 };
 
 /**

@@ -20,7 +20,12 @@ export const PUSH_NOTIFICATION_CATEGORIES: Record<
     events: {
         preferenceKey: "pushEvents",
         defaultEnabled: true,
-        notificationTypes: ["event_invitation", "event_artist_added"],
+        notificationTypes: [
+            "event_invitation",
+            "event_artist_added",
+            "event_host_change_requested",
+            "event_host_change_decided",
+        ],
     },
     verification: {
         preferenceKey: "pushVerification",
@@ -115,7 +120,10 @@ export const resolvePushUrl = (type: string, payload: any): string | undefined =
             return payload?.user?.handle ? getCircleDefaultPath(payload.user) : undefined;
         case "event_invitation":
         case "event_artist_added":
+        case "event_host_change_decided":
             return circleHandle && payload?.eventId ? `/circles/${circleHandle}/events/${payload.eventId}` : undefined;
+        case "event_host_change_requested":
+            return circleHandle ? `/circles/${circleHandle}/settings/event-host-requests` : undefined;
         default:
             return undefined;
     }
