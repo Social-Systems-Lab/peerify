@@ -584,6 +584,7 @@ export const PostItem = ({
                     variant: "success",
                 });
             }
+            setIsDeleting(false);
         });
     };
 
