@@ -1,4 +1,5 @@
-import { FaTwitter, FaLinkedin, FaGithub, FaFacebook, FaInstagram, FaYoutube, FaGlobe } from "react-icons/fa";
+import { FaTwitter, FaLinkedin, FaGithub, FaFacebook, FaInstagram, FaYoutube } from "react-icons/fa";
+import { KamooniIcon } from "@/components/modules/home/KamooniIcon";
 
 export const socialPlatforms = [
     { name: "Twitter", handle: "twitter", icon: FaTwitter },
@@ -7,5 +8,5 @@ export const socialPlatforms = [
     { name: "Facebook", handle: "facebook", icon: FaFacebook },
     { name: "Instagram", handle: "instagram", icon: FaInstagram },
     { name: "YouTube", handle: "youtube", icon: FaYoutube },
-    { name: "Kamooni", handle: "kamooni", icon: FaGlobe },
+    { name: "Kamooni", handle: "kamooni", icon: KamooniIcon },
 ];
