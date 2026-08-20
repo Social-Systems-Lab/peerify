@@ -1,6 +1,6 @@
 // circles/[handle]/events/[eventId]/preview/page.tsx
 import { getCircleByHandle } from "@/lib/data/circle";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { getEventById, sanitizePeerifyPublicEventDisplay } from "@/lib/data/event";
@@ -28,6 +28,12 @@ export default async function EventPreviewPage(props: PageProps) {
     const event = await getEventById(params.eventId, userDid);
     if (!event) {
         notFound();
+    }
+
+    // See the detail page's identical check: the event's host circle can change after creation,
+    // so a stale /preview link should follow it to the new host rather than dead-ending.
+    if (event.circle?.handle && event.circle.handle !== params.handle) {
+        redirect(`/circles/${event.circle.handle}/events/${params.eventId}/preview`);
     }
 
     const isAuthor = userDid === event.createdBy;
