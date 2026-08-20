@@ -600,17 +600,26 @@ export async function createEventAction(
         // Create in DB (will also create shadow post if feed exists)
         const created = await createEventDb(newEvent, user);
 
-        // Revalidate list
-        revalidatePath(`/circles/${circleHandle}/events`);
-
-        // Ensure module enabled on user's own circle
+        // Ensure module enabled on user's own circle. Done before revalidatePath so the
+        // revalidated /events page reflects an already-enabled module rather than racing it.
         try {
             if (circle.circleType === "user" && circle.did === userDid) {
-                await ensureModuleIsEnabledOnCircle(circle._id as string, "events", userDid);
+                const enabled = await ensureModuleIsEnabledOnCircle(circle._id as string, "events", userDid);
+                if (!enabled) {
+                    // ensureModuleIsEnabledOnCircle swallows its own errors and returns false rather
+                    // than throwing, so this is the only signal we get that the user's own Events
+                    // tab may now 404 despite the event having been created successfully.
+                    console.warn(
+                        `Events module was not enabled on user circle ${circle._id} after event creation — the user's own Events tab may 404.`,
+                    );
+                }
             }
         } catch (err) {
             console.error("Failed to ensure events module is enabled on user circle:", err);
         }
+
+        // Revalidate list
+        revalidatePath(`/circles/${circleHandle}/events`);
 
         // Note: no Noticeboard sync here even if publishToNoticeboard is set — new events are
         // always created in "draft" stage (see above), and the linked post is only ever
