@@ -282,7 +282,7 @@ export const postSchema = z.object({
     // referencing another it reshares; noticeboardPostId is the reverse
     // direction — the mirror Post this (Community) post spawned, not one it shares.
     noticeboardPostId: z.string().optional(),
-    postType: z.enum(["post", "goal", "task", "issue", "proposal", "event", "discussion", "community"]).optional(), // Added discussion, community
+    postType: z.enum(["post", "goal", "task", "issue", "proposal", "event", "discussion", "community", "crew"]).optional(), // Added discussion, community, crew
     userGroups: z.array(z.string()).default([]), // User groups that can see this post
     parentItemId: z.string().optional(), // ID of the parent Goal, Task, Issue, or Proposal for shadow posts
     parentItemType: z.enum(["goal", "task", "issue", "proposal", "event"]).optional(), // Type of the parent item
