@@ -50,7 +50,7 @@ import { isPeerifyArtistIdentity, PEERIFY_DEFAULT_PROFILE_AVATAR_URL } from "@/l
 import { TrackPreviewList } from "../modules/music/track-preview-list";
 import PledgeDialog from "../modules/home/pledge-dialog";
 import JoinCrewDialog from "../modules/home/join-crew-dialog";
-import { getCrewApplicationStatusAction } from "../modules/crew/actions";
+import { getCrewMembershipStatusAction } from "../modules/crew/actions";
 
 const sdgMap = new Map(sdgs.map((s) => [s.handle, s]));
 const skillMap = new Map(skills.map((s) => [s.handle, s]));
@@ -106,26 +106,24 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
     const [user] = useAtom(userAtom); // Keep user state here for CirclePreview specific logic if needed
     const [isPledgeDialogOpen, setIsPledgeDialogOpen] = React.useState(false);
     const [isJoinCrewDialogOpen, setIsJoinCrewDialogOpen] = React.useState(false);
-    // "approved" is already known client-side via user.memberships (same source home-content.tsx's
-    // isMember uses) — only "pending" needs a server round trip, since pending applications live
-    // in a separate collection not included on UserPrivate.
-    const isCrewMember = React.useMemo(() => {
-        const membership = user?.memberships?.find((m) => m.circleId === circle._id);
-        return membership?.userGroups?.includes("crew") ?? false;
-    }, [user, circle._id]);
-    const [crewApplicationStatus, setCrewApplicationStatus] = React.useState<"none" | "pending">("none");
+    // Deliberately NOT derived from user.memberships — that's the client-side userAtom, populated
+    // once per tab/session at login and never refreshed afterward. A Crew approval happens in a
+    // different session (the admin's), so an already-open tab has no way to learn about it without
+    // either a full page reload or this kind of fresh re-check on mount. See
+    // getCrewMembershipStatusAction for the reproduction notes.
+    const [crewMembershipStatus, setCrewMembershipStatus] = React.useState<"approved" | "pending" | "none">("none");
     useEffect(() => {
-        if (!isPeerifyArtistIdentity(circle) || isCrewMember || !user?.did || !circle?._id) {
+        if (!isPeerifyArtistIdentity(circle) || !user?.did || !circle?._id) {
             return;
         }
         let isCurrent = true;
-        getCrewApplicationStatusAction(circle._id ?? "").then((result) => {
-            if (isCurrent) setCrewApplicationStatus(result.status);
+        getCrewMembershipStatusAction(circle._id ?? "").then((result) => {
+            if (isCurrent) setCrewMembershipStatus(result.status);
         });
         return () => {
             isCurrent = false;
         };
-    }, [circle, isCrewMember, user?.did]);
+    }, [circle, user?.did]);
     const closeDelayMs = 400;
 
     // Relationship-aware bypass: a follower or accepted contact still sees the full profile
@@ -336,7 +334,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                 >
                                     Pledge
                                 </Button>
-                                {isCrewMember ? (
+                                {crewMembershipStatus === "approved" ? (
                                     <Button
                                         type="button"
                                         size="sm"
@@ -351,7 +349,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                     >
                                         View Crew
                                     </Button>
-                                ) : crewApplicationStatus === "pending" ? (
+                                ) : crewMembershipStatus === "pending" ? (
                                     <Button type="button" size="sm" variant="outline" disabled>
                                         Application Pending
                                     </Button>

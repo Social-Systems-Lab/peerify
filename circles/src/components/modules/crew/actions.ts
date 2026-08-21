@@ -28,14 +28,25 @@ export const getCrewProfileAccessAction = async (
     return { hasAccess: isAdminOrMod };
 };
 
-// Whether the current viewer's crew role is "approved" is already available for free client-side
-// via user.memberships (see isMember in home-content.tsx) — this only covers the one thing that
-// isn't: whether they have a pending application sitting in the separate CrewApplications
-// collection. Callers combine both to get the full Join Crew button state.
-export const getCrewApplicationStatusAction = async (circleId: string): Promise<{ status: "pending" | "none" }> => {
+// Deliberately a fresh DB read on every call, NOT derived from user.memberships (the client-side
+// userAtom populated once per tab/session by Authenticator's mount-time checkAuth() call). An
+// approval happens in a different browser/session (the admin's), so a fan's already-open tab has
+// no way to learn about it without either a full page reload or this kind of live re-check —
+// reproduced empirically: userAtom stays stale across client-side navigation until the page is
+// actually reloaded. follow-button.tsx solves the analogous same-tab case with an optimistic
+// local userAtom patch, but that doesn't help here since the mutating action happens in someone
+// else's session entirely.
+export const getCrewMembershipStatusAction = async (
+    circleId: string,
+): Promise<{ status: "approved" | "pending" | "none" }> => {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid || !circleId) {
         return { status: "none" };
+    }
+
+    const member = await getMember(userDid, circleId);
+    if (member?.userGroups?.includes("crew")) {
+        return { status: "approved" };
     }
 
     const pending = await getUserPendingCrewApplication(userDid, circleId);

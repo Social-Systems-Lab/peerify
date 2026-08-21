@@ -472,6 +472,8 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                     return notification.circle?.handle
                         ? `/circles/${notification.circle.handle}/settings/crew-applications`
                         : null;
+                case "crew_application_approved":
+                    return notification.circle?.handle ? `/circles/${notification.circle.handle}/crew` : null;
                 case "new_follower":
                     return notification.user?.handle ? `/circles/${notification.user.handle}` : null;
                 case "follow_accepted":
@@ -568,6 +570,8 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
             case "event_host_change_requested":
             case "crew_application":
                 return "Review";
+            case "crew_application_approved":
+                return "View Crew";
             case "user_verification_clarification_requested":
                 return "Respond";
             case "task_shift_confirmed":
