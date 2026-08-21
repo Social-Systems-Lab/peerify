@@ -151,6 +151,22 @@ export const membershipRequestSchema = z.object({
 
 export type MembershipRequest = z.infer<typeof membershipRequestSchema>;
 
+export const crewApplicationSchema = z.object({
+    _id: z.any().optional(),
+    userDid: didSchema,
+    circleId: z.string(),
+    status: z.enum(["pending", "approved", "rejected"]),
+    requestedAt: z.date(),
+    rejectedAt: z.date().optional(),
+    approvedAt: z.date().optional(),
+    name: z.string().optional(),
+    email: z.string().optional(),
+    picture: z.string().optional(),
+    message: z.string(),
+});
+
+export type CrewApplication = z.infer<typeof crewApplicationSchema>;
+
 export const userGroupSchema = z.object({
     name: z.string(),
     handle: handleSchema,
@@ -1217,6 +1233,7 @@ export type NotificationType =
     | "follow_request" // Someone requests to follow a circle - sent to users with permissions to approve requests
     | "new_follower" // A circle has a new follower - for non-user circles notifications are sent to all followers of the circle
     | "follow_accepted" // Someone's request to follow a circle has been accepted - sent to user being accepted
+    | "crew_application" // Someone applied to join a circle's Crew - sent to users with permissions to approve crew applications
     | "post_comment" // Someone commented on a post - sent to post author
     | "comment_reply" // Someone replied to a comment - sent to comment author and post author
     | "post_like" // Someone liked a post - sent to post author
@@ -1298,6 +1315,7 @@ export const notificationTypeValues = [
     "follow_request",
     "new_follower",
     "follow_accepted", // Not configurable by user, but still a type
+    "crew_application",
     "post_comment",
     "comment_reply",
     "post_like",

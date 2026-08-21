@@ -4,6 +4,7 @@ import {
     Circle,
     Member,
     MembershipRequest,
+    CrewApplication,
     Feed,
     Post,
     Reaction,
@@ -53,6 +54,7 @@ let ServerSettingsCollection: Collection<ServerSettings>;
 let PlatformSettingsCollection: Collection<PlatformSettings>;
 let Members: Collection<Member>;
 let MembershipRequests: Collection<MembershipRequest>;
+let CrewApplications: Collection<CrewApplication>;
 let Feeds: Collection<Feed>;
 let Posts: Collection<Post>;
 let Comments: Collection<Comment>;
@@ -103,6 +105,7 @@ if (process.env.IS_BUILD !== "true") {
     ServerSettingsCollection = db.collection<ServerSettings>("serverSettings");
     Members = db.collection<Member>("members");
     MembershipRequests = db.collection<MembershipRequest>("membershipRequests");
+    CrewApplications = db.collection<CrewApplication>("crewApplications");
     Feeds = db.collection<Feed>("feeds");
     Posts = db.collection<Post>("posts");
     Comments = db.collection<Comment>("comments");
@@ -156,6 +159,7 @@ export {
     ServerSettingsCollection,
     Members,
     MembershipRequests,
+    CrewApplications,
     Feeds,
     Posts,
     Comments,
