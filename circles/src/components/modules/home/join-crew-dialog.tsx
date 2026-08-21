@@ -24,9 +24,15 @@ type Props = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     circle: Circle;
+    // Optimistic same-tab update, mirroring follow-button.tsx's pattern for membership changes
+    // the current tab itself just caused. Needed because the caller's crew-status check only
+    // re-runs on mount (see getCrewMembershipStatusAction) — router.refresh() alone doesn't
+    // re-trigger it, so without this the button would still show "Join Crew" until the next
+    // full reload even though the application was just sent successfully.
+    onApplied?: () => void;
 };
 
-export default function JoinCrewDialog({ open, onOpenChange, circle }: Props) {
+export default function JoinCrewDialog({ open, onOpenChange, circle, onApplied }: Props) {
     const { toast } = useToast();
     const router = useRouter();
     const [user] = useAtom(userAtom);
@@ -45,6 +51,7 @@ export default function JoinCrewDialog({ open, onOpenChange, circle }: Props) {
                 toast({ title: "Crew application sent", description: res.message });
                 setMessage("");
                 onOpenChange(false);
+                onApplied?.();
                 router.refresh();
             } else {
                 toast({

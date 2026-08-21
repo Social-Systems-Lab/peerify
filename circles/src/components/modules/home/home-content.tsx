@@ -325,7 +325,12 @@ export default function HomeContent({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
-            <JoinCrewDialog circle={circle} open={isJoinCrewDialogOpen} onOpenChange={setIsJoinCrewDialogOpen} />
+            <JoinCrewDialog
+                circle={circle}
+                open={isJoinCrewDialogOpen}
+                onOpenChange={setIsJoinCrewDialogOpen}
+                onApplied={() => setCrewMembershipStatus("pending")}
+            />
 
             <div className="flex flex-1 flex-row justify-center">
                 <div className="mb-0 ml-4 mr-4 flex max-w-[1100px] flex-1 flex-col">
