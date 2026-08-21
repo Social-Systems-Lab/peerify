@@ -93,6 +93,11 @@ relationship edges, and the notification doc deleted after.
 **Deployed to staging**, live and tested as above. **Not promoted to prod** — holding per
 instruction pending Tim's review.
 
+**Update (2026-08-08):** promoted to production together with the 2026-08-07 fixes below —
+`de7acf09` cherry-picked onto `main` as `62792eb4`. See prod's own `SESSION_LOG.md` entry "2026-08-08
+(cont.) — Promoted to production: notify-on-accept, Connected badge, profile-page Respond
+dropdown" for the full scoping/verification record.
+
 **Carry-forward:** none new. The RELATIONSHIP-panel artist-profile suppression gate
 (`AboutPage.tsx` `shouldShowProfileStatus`) carry-forward from 2026-08-07 is still open and
 still deliberately untouched.
@@ -159,6 +164,11 @@ sidestep it entirely.
 `jRCIMQZTcYZv6J82mdAup`), prod pid/uptime unchanged. **Not yet promoted to prod** — holding per
 instruction pending Tim's review.
 
+**Update (2026-08-08):** promoted to production — `f6b8ebe0`/`b19c0f54` cherry-picked onto `main`
+as `9df424cf`/`c6d537a0`, part of the same scoped promotion as the 2026-08-08 entry above (prod
+`SESSION_LOG.md`, "Promoted to production: notify-on-accept, Connected badge, profile-page
+Respond dropdown").
+
 **Carry-forward:**
 1. RELATIONSHIP panel's `!isPeerifyArtistProfile` gate (`AboutPage.tsx` `shouldShowProfileStatus`)
    still suppresses Connected/Requested/Following entirely for any profile with
@@ -212,6 +222,10 @@ both HTTP 200 post-restart.
 **Carry-forward:** pending manual verification on staging by Tim (send a real connection
 request between two accounts, confirm the dropdown appears and accept/decline both work,
 confirm messaging-based implicit access is unaffected). Not yet merged to `main`/prod.
+
+**Update (2026-08-06):** verified and promoted to production the same day — `4456f397`
+cherry-picked onto `main` as `ce4cc900` (prod `SESSION_LOG.md`, "Log production promotion of
+Respond dropdown fix").
 
 ---
 
@@ -392,6 +406,11 @@ that the build succeeded.
 **Do NOT promote to production without explicit confirmation first** — flagged here in bold
 per instruction, given the privacy sensitivity (same class as the event-visibility fixes, which
 *were* already promoted earlier this week — this one is still staging-only).
+
+**Update (2026-08-06):** confirmed and promoted to production — `a9143e4b` + its log entry
+(`e40d53ef`) cherry-picked onto `main` as `661d1ce0`, verified post-deploy against the real
+production account (`tim`), not a staging stand-in. See prod's own `SESSION_LOG.md` entry
+"2026-08-06 — PRIVACY: promoted to production — map leak..." for the full record.
 
 ---
 
