@@ -69,6 +69,10 @@ export function CircleTabs({ circle }: CircleTabsProps) {
     // NOT gated by the stored enabledModules array, so existing circles (created
     // before this module existed) get it with no backfill script. Matches the
     // lazy-create-not-backfill convention already used for the Community feed itself.
+    // Crew (Commit 3/4) is force-enabled the same way and for the same reason — this tab bar
+    // has its own local enabled-modules computation rather than delegating to
+    // isModuleEnabled() in client-auth.ts, so that function's force-enable for "crew" doesn't
+    // automatically cover this component; it has to be added here too.
     const isArtistOrVenueCircle = circle.circleType === "circle";
 
     const enabledModules = useMemo(() => {
@@ -82,7 +86,7 @@ export function CircleTabs({ circle }: CircleTabsProps) {
             new Set([
                 ...(circle.enabledModules ?? []),
                 ...(isPeerifyVenueIdentity(circle) ? ["events"] : []),
-                ...(isArtistOrVenueCircle ? ["community"] : []),
+                ...(isArtistOrVenueCircle ? ["community", "crew"] : []),
             ]),
         );
 

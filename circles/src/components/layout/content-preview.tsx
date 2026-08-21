@@ -49,6 +49,8 @@ import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
 import { isPeerifyArtistIdentity, PEERIFY_DEFAULT_PROFILE_AVATAR_URL } from "@/lib/peerify/artist-profile";
 import { TrackPreviewList } from "../modules/music/track-preview-list";
 import PledgeDialog from "../modules/home/pledge-dialog";
+import JoinCrewDialog from "../modules/home/join-crew-dialog";
+import { getCrewApplicationStatusAction } from "../modules/crew/actions";
 
 const sdgMap = new Map(sdgs.map((s) => [s.handle, s]));
 const skillMap = new Map(skills.map((s) => [s.handle, s]));
@@ -103,6 +105,27 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
     const [, setContentPreview] = useAtom(contentPreviewAtom);
     const [user] = useAtom(userAtom); // Keep user state here for CirclePreview specific logic if needed
     const [isPledgeDialogOpen, setIsPledgeDialogOpen] = React.useState(false);
+    const [isJoinCrewDialogOpen, setIsJoinCrewDialogOpen] = React.useState(false);
+    // "approved" is already known client-side via user.memberships (same source home-content.tsx's
+    // isMember uses) — only "pending" needs a server round trip, since pending applications live
+    // in a separate collection not included on UserPrivate.
+    const isCrewMember = React.useMemo(() => {
+        const membership = user?.memberships?.find((m) => m.circleId === circle._id);
+        return membership?.userGroups?.includes("crew") ?? false;
+    }, [user, circle._id]);
+    const [crewApplicationStatus, setCrewApplicationStatus] = React.useState<"none" | "pending">("none");
+    useEffect(() => {
+        if (!isPeerifyArtistIdentity(circle) || isCrewMember || !user?.did || !circle?._id) {
+            return;
+        }
+        let isCurrent = true;
+        getCrewApplicationStatusAction(circle._id ?? "").then((result) => {
+            if (isCurrent) setCrewApplicationStatus(result.status);
+        });
+        return () => {
+            isCurrent = false;
+        };
+    }, [circle, isCrewMember, user?.did]);
     const closeDelayMs = 400;
 
     // Relationship-aware bypass: a follower or accepted contact still sees the full profile
@@ -139,6 +162,14 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
             return;
         }
         setIsPledgeDialogOpen(true);
+    };
+
+    const openJoinCrewDialog = () => {
+        if (!user?.did) {
+            router.push(`/login?redirectTo=${encodeURIComponent(getCircleDefaultPath(circle))}`);
+            return;
+        }
+        setIsJoinCrewDialogOpen(true);
     };
 
     // Keep handleImageClick for the profile picture
@@ -291,9 +322,12 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             <TrackPreviewList circle={circle} user={user ?? null} />
                         )}
 
-                        {/* Pledge (artist/band circles only) */}
+                        {/* Pledge + Join Crew (artist/band circles only) — each independently
+                            conditional in a shared flex row, same pattern as the Follow/Bookmark
+                            row above, so either can be absent without leaving dead space or the
+                            other looking like it's missing a sibling. */}
                         {isPeerifyArtistIdentity(circle) && (
-                            <div className="flex justify-center">
+                            <div className="flex flex-row justify-center gap-1">
                                 <Button
                                     type="button"
                                     size="sm"
@@ -302,6 +336,30 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                 >
                                     Pledge
                                 </Button>
+                                {isCrewMember ? (
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setContentPreview(undefined);
+                                            window.setTimeout(() => {
+                                                router.push(`/circles/${circle.handle}/crew`);
+                                            }, closeDelayMs);
+                                        }}
+                                    >
+                                        View Crew
+                                    </Button>
+                                ) : crewApplicationStatus === "pending" ? (
+                                    <Button type="button" size="sm" variant="outline" disabled>
+                                        Application Pending
+                                    </Button>
+                                ) : (
+                                    <Button type="button" size="sm" variant="outline" onClick={openJoinCrewDialog}>
+                                        Join Crew
+                                    </Button>
+                                )}
                             </div>
                         )}
 
@@ -425,7 +483,10 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                 </div>{" "}
             </div>
             {isPeerifyArtistIdentity(circle) && (
-                <PledgeDialog circle={circle} open={isPledgeDialogOpen} onOpenChange={setIsPledgeDialogOpen} />
+                <>
+                    <PledgeDialog circle={circle} open={isPledgeDialogOpen} onOpenChange={setIsPledgeDialogOpen} />
+                    <JoinCrewDialog circle={circle} open={isJoinCrewDialogOpen} onOpenChange={setIsJoinCrewDialogOpen} />
+                </>
             )}
         </>
     );

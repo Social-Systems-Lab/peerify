@@ -23,6 +23,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PublishManagedProfileButton } from "@/components/profiles/publish-managed-profile-button";
 import { VerifyAccountButton } from "../auth/verify-account-button";
+import JoinCrewDialog from "./join-crew-dialog";
+import { getCrewApplicationStatusAction } from "@/components/modules/crew/actions";
 import SocialLinks from "./social-links";
 import { ProofOfHumanityHeaderAction } from "./proof-of-humanity-card";
 import type { HumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
@@ -145,6 +147,34 @@ export default function HomeContent({
         const membership = user.memberships?.find((m) => m.circleId === circle._id);
         return membership ? true : false;
     }, [circle._id, user]);
+    // "approved" is already known for free via user.memberships (same source as isMember above)
+    // — only "pending" needs a server round trip, since pending applications live in a separate
+    // collection not included on UserPrivate.
+    const isCrewMember = useMemo(() => {
+        const membership = user?.memberships?.find((m) => m.circleId === circle._id);
+        return membership?.userGroups?.includes("crew") ?? false;
+    }, [circle._id, user]);
+    const [isJoinCrewDialogOpen, setIsJoinCrewDialogOpen] = useState(false);
+    const [crewApplicationStatus, setCrewApplicationStatus] = useState<"none" | "pending">("none");
+    useEffect(() => {
+        if (!isPeerifyArtistProfile || isCrewMember || !user?.did || !circle?._id) {
+            return;
+        }
+        let isCurrent = true;
+        getCrewApplicationStatusAction(circle._id).then((result) => {
+            if (isCurrent) setCrewApplicationStatus(result.status);
+        });
+        return () => {
+            isCurrent = false;
+        };
+    }, [isPeerifyArtistProfile, isCrewMember, user?.did, circle._id]);
+    const openJoinCrewDialog = () => {
+        if (!user?.did) {
+            router.push(`/login?redirectTo=${encodeURIComponent(`/circles/${circle.handle}/home`)}`);
+            return;
+        }
+        setIsJoinCrewDialogOpen(true);
+    };
 
     useEffect(() => {
         if (logLevel >= LOG_LEVEL_TRACE) {
@@ -297,6 +327,7 @@ export default function HomeContent({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            <JoinCrewDialog circle={circle} open={isJoinCrewDialogOpen} onOpenChange={setIsJoinCrewDialogOpen} />
 
             <div className="flex flex-1 flex-row justify-center">
                 <div className="mb-0 ml-4 mr-4 flex max-w-[1100px] flex-1 flex-col">
@@ -581,6 +612,19 @@ export default function HomeContent({
                                                 </Link>
                                             </Button>
                                         ) : null}
+                                        {isCrewMember ? (
+                                            <Button asChild size="sm" variant="outline">
+                                                <Link href={`/circles/${circle.handle}/crew`}>View Crew</Link>
+                                            </Button>
+                                        ) : crewApplicationStatus === "pending" ? (
+                                            <Button type="button" size="sm" variant="outline" disabled>
+                                                Application Pending
+                                            </Button>
+                                        ) : (
+                                            <Button type="button" size="sm" variant="outline" onClick={openJoinCrewDialog}>
+                                                Join Crew
+                                            </Button>
+                                        )}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {peerifyArtistProfile.primaryGenres.map((genre) => (

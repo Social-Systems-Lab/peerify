@@ -2,6 +2,7 @@
 
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getMember, setCrewVisibility } from "@/lib/data/member";
+import { getUserPendingCrewApplication } from "@/lib/data/crew-applications";
 
 // Crew-specific relationship-access check, modeled on getProfilePreviewAccessAction's shape but
 // with different rules: Community's suppression (mapVisible/searchable) is per-account/global
@@ -25,6 +26,20 @@ export const getCrewProfileAccessAction = async (
     const isAdminOrMod = viewerMember?.userGroups?.some((group) => group === "admins" || group === "moderators") ?? false;
 
     return { hasAccess: isAdminOrMod };
+};
+
+// Whether the current viewer's crew role is "approved" is already available for free client-side
+// via user.memberships (see isMember in home-content.tsx) — this only covers the one thing that
+// isn't: whether they have a pending application sitting in the separate CrewApplications
+// collection. Callers combine both to get the full Join Crew button state.
+export const getCrewApplicationStatusAction = async (circleId: string): Promise<{ status: "pending" | "none" }> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid || !circleId) {
+        return { status: "none" };
+    }
+
+    const pending = await getUserPendingCrewApplication(userDid, circleId);
+    return { status: pending ? "pending" : "none" };
 };
 
 type SetCrewVisibilityResponse = {
