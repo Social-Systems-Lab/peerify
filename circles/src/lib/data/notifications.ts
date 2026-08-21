@@ -91,6 +91,8 @@ const buildNotificationBody = (type: string, payload: any): string => {
     switch (type) {
         case "follow_request":
             return `${actorName} requested to follow ${circleName}`;
+        case "crew_application":
+            return `${actorName} applied to join ${circleName}'s Crew`;
         case "new_follower":
             return `${actorName} is now following ${circleName}`;
         case "follow_accepted":

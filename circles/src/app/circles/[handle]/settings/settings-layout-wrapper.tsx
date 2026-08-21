@@ -44,6 +44,10 @@ const settingsForms: SettingsForm[] = [
         handle: "membership-requests",
     },
     {
+        name: "Crew Applications",
+        handle: "crew-applications",
+    },
+    {
         name: "Event Host Requests",
         handle: "event-host-requests",
     },
@@ -101,7 +105,8 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
                 (item.handle === "pages" ||
                     item.handle === "user-groups" ||
                     item.handle === "access-rules" ||
-                    item.handle === "membership-requests")
+                    item.handle === "membership-requests" ||
+                    item.handle === "crew-applications")
             ) {
                 return false;
             }

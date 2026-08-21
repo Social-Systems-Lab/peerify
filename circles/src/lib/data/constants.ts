@@ -46,6 +46,14 @@ export const features = {
             module: "general",
             needsToBeVerified: true,
         } as Feature,
+        manage_crew_applications: {
+            name: "Manage Crew Applications",
+            handle: "manage_crew_applications",
+            description: "Manage applications to join the circle's Crew",
+            defaultUserGroups: ["admins", "moderators"],
+            module: "general",
+            needsToBeVerified: true,
+        } as Feature,
     },
     feed: {
         view: {

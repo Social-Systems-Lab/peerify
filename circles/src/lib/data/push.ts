@@ -42,7 +42,7 @@ export const PUSH_NOTIFICATION_CATEGORIES: Record<
     community: {
         preferenceKey: "pushCommunity",
         defaultEnabled: false,
-        notificationTypes: ["follow_request", "new_follower", "follow_accepted"],
+        notificationTypes: ["follow_request", "new_follower", "follow_accepted", "crew_application"],
     },
 };
 
@@ -109,6 +109,8 @@ export const resolvePushUrl = (type: string, payload: any): string | undefined =
     switch (type) {
         case "follow_request":
             return circleHandle ? `/circles/${circleHandle}/settings/membership-requests` : undefined;
+        case "crew_application":
+            return circleHandle ? `/circles/${circleHandle}/settings/crew-applications` : undefined;
         case "new_follower":
             return payload?.user?.handle ? `/circles/${payload.user.handle}` : undefined;
         case "follow_accepted":

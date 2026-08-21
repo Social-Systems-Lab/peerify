@@ -546,6 +546,22 @@ export const getPilotArtistCircleReadiness = async (artistCircle: Partial<Circle
     };
 };
 
+// Self-heals a circle's userGroups to include "crew" the first time it's actually needed
+// (e.g. a Crew application is approved), instead of requiring a one-off migration to backfill
+// every circle created before the Crew tier existed. Matches the shape Commit 1 added to
+// defaultUserGroups so every circle ends up with an identical Crew group definition. The
+// "userGroups.handle": { $ne: "crew" } filter makes this idempotent/race-safe — concurrent
+// approvals for the same circle can't both push a duplicate entry.
+export const ensureCrewUserGroupOnCircle = async (circleId: string): Promise<void> => {
+    const crewGroup = defaultUserGroups.find((group) => group.handle === "crew");
+    if (!crewGroup) return;
+
+    await Circles.updateOne(
+        { _id: new ObjectId(circleId), "userGroups.handle": { $ne: "crew" } },
+        { $push: { userGroups: crewGroup } },
+    );
+};
+
 export const updateCircle = async (circle: Partial<Circle>, authenticatedUserDid: string): Promise<void> => {
     const { _id, ...circleWithoutId } = circle;
     if (!_id) {

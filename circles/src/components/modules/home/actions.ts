@@ -6,6 +6,7 @@ import { addMember, countAdmins, getMember, removeMember } from "@/lib/data/memb
 import { ChatRoom, Circle, UserPrivate } from "@/models/models";
 import { cookies } from "next/headers";
 import { createPendingMembershipRequest, deletePendingMembershipRequest } from "@/lib/data/membership-requests";
+import { createPendingCrewApplication } from "@/lib/data/crew-applications";
 import { getCircleById, getCirclePath, updateCircle, getCircleByDid, getCirclesByIds } from "@/lib/data/circle";
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { getAuthenticatedUserDid, getAuthorizedMembers, isAuthorized } from "@/lib/auth/auth";
@@ -138,6 +139,57 @@ export const followCircle = async (circle: Circle, answers?: Record<string, stri
             success: false,
             message: (isUser ? "Failed to follow user" : "Failed to follow circle. ") + error?.toString(),
         };
+    }
+};
+
+// Applying for Crew doesn't create/replace the applicant's membership itself — that only
+// happens once an admin/mod approves the application (see approveCrewApplicationAction, which
+// branches on addMember vs. updateMemberUserGroups since the applicant is almost always
+// already a follower). This just records the application and notifies whoever can approve it,
+// mirroring followCircle's private-circle branch (createPendingMembershipRequest + notify).
+export const applyForCrewMembership = async (circle: Circle, message: string): Promise<CircleActionResponse> => {
+    const token = readAuthToken(await cookies());
+
+    try {
+        if (!token) {
+            return { success: false, message: "You need to be logged in to apply for Crew" };
+        }
+
+        let payload = await verifyUserToken(token);
+        let userDid = payload.userDid as string;
+        if (!userDid) {
+            return { success: false, message: "Authentication failed" };
+        }
+
+        let updatedCircle = await getCircleById(circle._id ?? "");
+        if (!updatedCircle) {
+            return { success: false, message: "Circle not found" };
+        }
+
+        const existingMember = await getMember(userDid, updatedCircle._id ?? "");
+        if (existingMember?.userGroups?.includes("crew")) {
+            return { success: true, message: "You are already in this circle's Crew", pending: false };
+        }
+
+        await createPendingCrewApplication(userDid, updatedCircle._id ?? "", message);
+
+        let members = await getAuthorizedMembers(updatedCircle, features.general.manage_crew_applications);
+        let user = await getUser(userDid);
+        const recipientUsers: UserPrivate[] = [];
+        for (const memberCircle of members) {
+            if (memberCircle.did) {
+                const userPrivate = await getUserPrivate(memberCircle.did);
+                if (userPrivate) {
+                    recipientUsers.push(userPrivate);
+                }
+            }
+        }
+        await sendNotifications("crew_application", recipientUsers, { circle: updatedCircle, user });
+
+        return { success: true, message: "Your Crew application has been sent", pending: true };
+    } catch (error) {
+        console.error("Failed to apply for crew membership", error);
+        return { success: false, message: "Failed to submit your Crew application. " + error?.toString() };
     }
 };
 
