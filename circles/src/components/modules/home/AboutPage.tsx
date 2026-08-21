@@ -491,6 +491,7 @@ export default function AboutPage({
     const getLeaderRole = (leader: MemberDisplay) => {
         if (leader.userGroups?.includes("admins")) return "Admin";
         if (leader.userGroups?.includes("moderators")) return "Moderator";
+        if (leader.userGroups?.includes("crew")) return "Crew";
         return "Member";
     };
 

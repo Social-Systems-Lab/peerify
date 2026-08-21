@@ -901,6 +901,14 @@ export const defaultUserGroups: UserGroup[] = [
         readOnly: true,
     },
     {
+        name: "Crew",
+        handle: "crew",
+        title: "Crew",
+        description: "Crew member of the circle",
+        accessLevel: 250,
+        readOnly: true,
+    },
+    {
         name: "Followers",
         handle: "members",
         title: "Follower",
