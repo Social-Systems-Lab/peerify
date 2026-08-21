@@ -90,6 +90,50 @@ export const getMembers = async (circleId?: string): Promise<MemberDisplay[]> =>
     return members as MemberDisplay[];
 };
 
+// Approved Crew members are just Members docs whose userGroups includes "crew" (assigned by
+// approveCrewApplicationAction) — there's no separate "crew membership" collection, so this is
+// getMembers filtered to that group plus the crewVisible flag projected through.
+export const getCrewMembers = async (circleId?: string): Promise<MemberDisplay[]> => {
+    if (!circleId) return [];
+
+    let members = await Members.aggregate([
+        { $match: { circleId: circleId, userGroups: "crew" } },
+        {
+            $lookup: {
+                from: "circles",
+                localField: "userDid",
+                foreignField: "did",
+                as: "userDetails",
+            },
+        },
+        { $unwind: "$userDetails" },
+        {
+            $project: {
+                _id: { $toString: "$_id" },
+                userDid: 1,
+                circleId: 1,
+                userGroups: 1,
+                joinedAt: 1,
+                crewVisible: 1,
+                name: "$userDetails.name",
+                picture: "$userDetails.picture",
+                handle: "$userDetails.handle",
+            },
+        },
+    ]).toArray();
+
+    return members as MemberDisplay[];
+};
+
+// Self-service only — callers must derive userDid from the authenticated viewer's own session,
+// never accept it as a parameter from elsewhere, so a member can only toggle their own row.
+export const setCrewVisibility = async (userDid: string, circleId: string, crewVisible: boolean): Promise<void> => {
+    const result = await Members.updateOne({ userDid, circleId }, { $set: { crewVisible } });
+    if (result.matchedCount === 0) {
+        throw new Error("Member not found");
+    }
+};
+
 export const addMember = async (
     userDid: string,
     circleId: string,

@@ -86,6 +86,11 @@ export const memberSchema = z.object({
     userGroups: z.array(z.string()).optional(),
     joinedAt: z.date().optional(),
     questionnaireAnswers: z.record(z.string(), z.string()).optional(),
+    // Per-membership Crew privacy toggle — scoped to this circle's Crew, not the account-wide
+    // mapVisible/searchable flags (see isSuppressedCrewMember). Defaults to visible: Crew is a
+    // small, curated group ("opt out if you want privacy"), not a discovery surface where
+    // opt-in-only makes sense.
+    crewVisible: z.boolean().default(true).optional(),
 });
 
 export type Member = z.infer<typeof memberSchema>;
