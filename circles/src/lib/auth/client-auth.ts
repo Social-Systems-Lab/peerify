@@ -171,6 +171,14 @@ export const isModuleEnabled = (circle: Circle, moduleHandle: string): boolean =
         return true;
     }
 
+    // Crew is likewise force-enabled for every artist/venue circle (circleType "circle"), same
+    // backfill-avoidance rationale as Community above — Crew Phase 1's role/application/approval
+    // pieces (Commits 1-2) already work retroactively on existing circles via self-heal on
+    // approval, so the member-list route shouldn't be the one piece that needs a migration.
+    if (moduleHandle === "crew" && circle.circleType === "circle") {
+        return true;
+    }
+
     // First check enabledModules array if it exists
     if (circle.enabledModules && circle.enabledModules.length > 0) {
         return circle.enabledModules.includes(moduleHandle);

@@ -114,6 +114,15 @@ export const features = {
             module: "followers",
         } as Feature,
     },
+    crew: {
+        view: {
+            name: "View Crew",
+            handle: "view",
+            description: "View the Crew member list",
+            defaultUserGroups: ["admins", "moderators", "members", "everyone"],
+            module: "crew",
+        } as Feature,
+    },
     communities: {
         view: {
             name: "View Communities",
@@ -782,6 +791,12 @@ export const modules: ModuleInfo[] = [
         handle: "followers",
         description:
             "Shows everyone who follows or is part of the circle. Admins can see, manage, and engage with supporters, making it easier to track growth and involvement.",
+    },
+    {
+        name: "Crew",
+        handle: "crew",
+        description:
+            "Shows approved Crew members for this artist/band circle, respecting each member's own visibility preference.",
     },
     {
         name: "Circles",
