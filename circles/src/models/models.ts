@@ -1239,6 +1239,7 @@ export type NotificationType =
     | "new_follower" // A circle has a new follower - for non-user circles notifications are sent to all followers of the circle
     | "follow_accepted" // Someone's request to follow a circle has been accepted - sent to user being accepted
     | "crew_application" // Someone applied to join a circle's Crew - sent to users with permissions to approve crew applications
+    | "crew_application_approved" // A circle's admins approved a Crew application - sent to the applicant
     | "post_comment" // Someone commented on a post - sent to post author
     | "comment_reply" // Someone replied to a comment - sent to comment author and post author
     | "post_like" // Someone liked a post - sent to post author
@@ -1321,6 +1322,7 @@ export const notificationTypeValues = [
     "new_follower",
     "follow_accepted", // Not configurable by user, but still a type
     "crew_application",
+    "crew_application_approved",
     "post_comment",
     "comment_reply",
     "post_like",

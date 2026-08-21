@@ -9,6 +9,8 @@ import {
     getCrewApplication,
     updatePendingCrewApplicationStatus,
 } from "@/lib/data/crew-applications";
+import { sendNotifications } from "@/lib/data/notifications";
+import { getUserPrivate } from "@/lib/data/user";
 import { Circle, CrewApplication } from "@/models/models";
 import { revalidatePath } from "next/cache";
 
@@ -81,6 +83,11 @@ export const approveCrewApplicationAction = async (
         revalidatePath(`${circlePath}`);
 
         await updatePendingCrewApplicationStatus(application._id!, "approved");
+
+        const applicant = await getUserPrivate(application.userDid);
+        if (applicant) {
+            await sendNotifications("crew_application_approved", [applicant], { circle });
+        }
 
         return { success: true };
     } catch (error) {

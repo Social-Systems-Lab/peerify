@@ -24,7 +24,7 @@ import { useRouter } from "next/navigation";
 import { PublishManagedProfileButton } from "@/components/profiles/publish-managed-profile-button";
 import { VerifyAccountButton } from "../auth/verify-account-button";
 import JoinCrewDialog from "./join-crew-dialog";
-import { getCrewApplicationStatusAction } from "@/components/modules/crew/actions";
+import { getCrewMembershipStatusAction } from "@/components/modules/crew/actions";
 import SocialLinks from "./social-links";
 import { ProofOfHumanityHeaderAction } from "./proof-of-humanity-card";
 import type { HumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
@@ -147,27 +147,25 @@ export default function HomeContent({
         const membership = user.memberships?.find((m) => m.circleId === circle._id);
         return membership ? true : false;
     }, [circle._id, user]);
-    // "approved" is already known for free via user.memberships (same source as isMember above)
-    // — only "pending" needs a server round trip, since pending applications live in a separate
-    // collection not included on UserPrivate.
-    const isCrewMember = useMemo(() => {
-        const membership = user?.memberships?.find((m) => m.circleId === circle._id);
-        return membership?.userGroups?.includes("crew") ?? false;
-    }, [circle._id, user]);
+    // Deliberately NOT derived from user.memberships — that's the client-side userAtom, populated
+    // once per tab/session at login and never refreshed afterward. A Crew approval happens in a
+    // different session (the admin's), so an already-open tab has no way to learn about it without
+    // either a full page reload or this kind of fresh re-check on mount. See
+    // getCrewMembershipStatusAction for the reproduction notes.
     const [isJoinCrewDialogOpen, setIsJoinCrewDialogOpen] = useState(false);
-    const [crewApplicationStatus, setCrewApplicationStatus] = useState<"none" | "pending">("none");
+    const [crewMembershipStatus, setCrewMembershipStatus] = useState<"approved" | "pending" | "none">("none");
     useEffect(() => {
-        if (!isPeerifyArtistProfile || isCrewMember || !user?.did || !circle?._id) {
+        if (!isPeerifyArtistProfile || !user?.did || !circle?._id) {
             return;
         }
         let isCurrent = true;
-        getCrewApplicationStatusAction(circle._id).then((result) => {
-            if (isCurrent) setCrewApplicationStatus(result.status);
+        getCrewMembershipStatusAction(circle._id).then((result) => {
+            if (isCurrent) setCrewMembershipStatus(result.status);
         });
         return () => {
             isCurrent = false;
         };
-    }, [isPeerifyArtistProfile, isCrewMember, user?.did, circle._id]);
+    }, [isPeerifyArtistProfile, user?.did, circle._id]);
     const openJoinCrewDialog = () => {
         if (!user?.did) {
             router.push(`/login?redirectTo=${encodeURIComponent(`/circles/${circle.handle}/home`)}`);
@@ -612,11 +610,11 @@ export default function HomeContent({
                                                 </Link>
                                             </Button>
                                         ) : null}
-                                        {isCrewMember ? (
+                                        {crewMembershipStatus === "approved" ? (
                                             <Button asChild size="sm" variant="outline">
                                                 <Link href={`/circles/${circle.handle}/crew`}>View Crew</Link>
                                             </Button>
-                                        ) : crewApplicationStatus === "pending" ? (
+                                        ) : crewMembershipStatus === "pending" ? (
                                             <Button type="button" size="sm" variant="outline" disabled>
                                                 Application Pending
                                             </Button>
