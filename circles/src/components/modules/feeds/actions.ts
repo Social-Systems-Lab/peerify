@@ -28,6 +28,7 @@ import {
     createFeed,
     createDefaultFeed,
     createCommunityFeed,
+    createCrewFeed,
     getShareablePostPreview,
 } from "@/lib/data/feed";
 import { saveFile, isFile } from "@/lib/data/storage";
@@ -409,8 +410,8 @@ export async function createPostAction(
         const userGroups = formData.getAll("userGroups") as string[];
 
         // Title is required for normal posts, but shares can be comment-only, and
-        // Community posts are text-body-first per the agreed MVP field set (no title).
-        if (!sharedPostId && postType !== "community" && (!title || !title.trim())) {
+        // Community/Crew posts are text-body-first per the agreed MVP field set (no title).
+        if (!sharedPostId && postType !== "community" && postType !== "crew" && (!title || !title.trim())) {
             return { success: false, message: "Title is required" };
         }
 
@@ -444,16 +445,21 @@ export async function createPostAction(
             return { success: false, message: "You are not authorized to create posts on this profile" };
         }
 
-        // Community posts live in their own lazily-created, handle-scoped feed;
+        // Community and Crew posts each live in their own lazily-created, handle-scoped feed;
         // every other postType continues to use the circle's single default feed.
         const isCommunityPost = postType === "community";
-        const feedHandle = isCommunityPost ? "community" : "default";
+        const isCrewPost = postType === "crew";
+        const feedHandle = isCommunityPost ? "community" : isCrewPost ? "crew" : "default";
         let feed = await getFeedByHandle(circleId, feedHandle); // Changed to let
 
         if (!feed) {
             // Create the feed lazily if it doesn't exist yet — no backfill script.
             console.log(`${feedHandle} feed not found for circle ${circleId}, creating one.`);
-            feed = isCommunityPost ? await createCommunityFeed(circleId) : await createDefaultFeed(circleId);
+            feed = isCommunityPost
+                ? await createCommunityFeed(circleId)
+                : isCrewPost
+                  ? await createCrewFeed(circleId)
+                  : await createDefaultFeed(circleId);
             if (!feed) {
                 return { success: false, message: `Failed to create ${feedHandle} feed for this circle` };
             }
