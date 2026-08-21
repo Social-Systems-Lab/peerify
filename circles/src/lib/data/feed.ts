@@ -244,6 +244,32 @@ export const createCommunityFeed = async (circleId: string): Promise<Feed | null
     return communityFeed;
 };
 
+// Lazy-create only — there is no backfill script. A circle's Crew feed is created the first
+// time it's actually needed (its first postType: "crew" post), same convention as
+// createCommunityFeed. userGroups deliberately excludes "everyone"/"members" — unlike
+// Community, this feed is not meant to be visible to plain followers.
+export const createCrewFeed = async (circleId: string): Promise<Feed | null> => {
+    let circle = await getCircleById(circleId);
+    if (!circle) {
+        return null;
+    }
+
+    // Only create a single crew feed per circle
+    let crewFeed = await getFeedByHandle(circleId, "crew");
+    if (!crewFeed) {
+        crewFeed = {
+            name: "Crew",
+            handle: "crew",
+            circleId,
+            userGroups: ["admins", "moderators", "crew"],
+            createdAt: new Date(),
+        };
+        crewFeed = await createFeed(crewFeed);
+    }
+
+    return crewFeed;
+};
+
 export const createPost = async (post: Post): Promise<Post> => {
     const result = await Posts.insertOne(post);
     let newPost = { ...post, _id: result.insertedId.toString() } as Post;

@@ -656,6 +656,35 @@ export const features = {
             needsToBeVerified: true,
         } as Feature,
     },
+    // Crew's social space — forked from features.community above, same shape, re-gated to the
+    // circle's approved Crew instead of general membership: "members" swapped for "crew", and
+    // "everyone" dropped from view since (unlike Community) this isn't meant to be visible to
+    // plain followers at all.
+    crew_space: {
+        view: {
+            name: "View Crew Space",
+            handle: "view",
+            description: "View posts in the Crew space",
+            defaultUserGroups: ["admins", "moderators", "crew"],
+            module: "crew_space",
+        } as Feature,
+        post: {
+            name: "Create Crew Space Post",
+            handle: "post",
+            description: "Create a post in the Crew space (circle admins/moderators and approved Crew members)",
+            defaultUserGroups: ["admins", "moderators", "crew"],
+            module: "crew_space",
+            needsToBeVerified: true,
+        } as Feature,
+        moderate: {
+            name: "Moderate Crew Space",
+            handle: "moderate",
+            description: "Hide/delete Crew space posts (self-service — the circle's own admins/moderators)",
+            defaultUserGroups: ["admins", "moderators"],
+            module: "crew_space",
+            needsToBeVerified: true,
+        } as Feature,
+    },
     discussions: {
         view: {
             name: "View Forum Posts",
@@ -709,6 +738,8 @@ export const getPostViewFeature = (postType?: Post["postType"]): Feature => {
     switch (postType) {
         case "community":
             return features.community.view;
+        case "crew":
+            return features.crew_space.view;
         default:
             return features.feed.view;
     }
@@ -718,6 +749,8 @@ export const getPostModerateFeature = (postType?: Post["postType"]): Feature => 
     switch (postType) {
         case "community":
             return features.community.moderate;
+        case "crew":
+            return features.crew_space.moderate;
         default:
             return features.feed.moderate;
     }
@@ -727,6 +760,8 @@ export const getPostCreateFeature = (postType?: Post["postType"]): Feature => {
     switch (postType) {
         case "community":
             return features.community.post;
+        case "crew":
+            return features.crew_space.post;
         default:
             return features.feed.post;
     }
@@ -735,11 +770,14 @@ export const getPostCreateFeature = (postType?: Post["postType"]): Feature => {
 // Community has no dedicated "comment" feature — participation (posting and
 // commenting/replying) is gated by the same features.community.post
 // membership check, matching the composer's existing gate. Every other
-// postType keeps today's behavior unchanged (features.feed.comment).
+// postType keeps today's behavior unchanged (features.feed.comment). Crew
+// space follows the identical convention, gated by features.crew_space.post.
 export const getPostCommentFeature = (postType?: Post["postType"]): Feature => {
     switch (postType) {
         case "community":
             return features.community.post;
+        case "crew":
+            return features.crew_space.post;
         default:
             return features.feed.comment;
     }
@@ -748,13 +786,15 @@ export const getPostCommentFeature = (postType?: Post["postType"]): Feature => {
 // Same idea as the postType resolvers above, but keyed by Feed handle instead
 // of a post's postType — for call sites (getPostsAction, getFeedByHandleAction)
 // that check view access to an entire feed rather than one post. Only
-// "community"-handle feeds diverge from features.feed.view; every other feed
-// (including Discussions, which shares the "default" feed with Noticeboard)
-// keeps today's behavior unchanged.
+// "community"- and "crew"-handle feeds diverge from features.feed.view; every
+// other feed (including Discussions, which shares the "default" feed with
+// Noticeboard) keeps today's behavior unchanged.
 export const getFeedViewFeature = (feedHandle?: string): Feature => {
     switch (feedHandle) {
         case "community":
             return features.community.view;
+        case "crew":
+            return features.crew_space.view;
         default:
             return features.feed.view;
     }
