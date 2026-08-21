@@ -53,6 +53,15 @@ export const getAllCrewApplications = async (
     return { pendingApplications, rejectedApplications };
 };
 
+// Lightweight per-viewer existence check (no circle $lookup needed) — used to decide the Join
+// Crew button's state for the current viewer, not to render a queue.
+export const getUserPendingCrewApplication = async (
+    userDid: string,
+    circleId: string,
+): Promise<CrewApplication | null> => {
+    return await CrewApplications.findOne({ userDid, circleId, status: "pending" });
+};
+
 export const getCrewApplication = async (applicationId: string): Promise<CrewApplication> => {
     const application = await CrewApplications.findOne({ _id: new ObjectId(applicationId) });
     if (!application) {
