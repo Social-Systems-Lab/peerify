@@ -483,7 +483,12 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
             {isPeerifyArtistIdentity(circle) && (
                 <>
                     <PledgeDialog circle={circle} open={isPledgeDialogOpen} onOpenChange={setIsPledgeDialogOpen} />
-                    <JoinCrewDialog circle={circle} open={isJoinCrewDialogOpen} onOpenChange={setIsJoinCrewDialogOpen} />
+                    <JoinCrewDialog
+                        circle={circle}
+                        open={isJoinCrewDialogOpen}
+                        onOpenChange={setIsJoinCrewDialogOpen}
+                        onApplied={() => setCrewMembershipStatus("pending")}
+                    />
                 </>
             )}
         </>
