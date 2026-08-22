@@ -596,6 +596,10 @@ export const circleSchema = z.object({
     // Shown to fans in join-crew-dialog.tsx before they apply to Crew. Falls back to a generic
     // default message when unset — see JOIN_CREW_DEFAULT_WELCOME_MESSAGE.
     crewWelcomeMessage: z.string().optional(),
+    // Artist-controlled visibility gate for the whole Crew feature on this circle. Defaults to
+    // true (missing/true = enabled) so existing circles are unaffected. Pure visibility gate —
+    // toggling this off never touches Members docs, "crew" userGroup tags, or Post documents.
+    crewEnabled: z.boolean().default(true).optional(),
     isPublic: z.boolean().optional(),
     showAdminsPublicly: z.boolean().optional(),
     mapVisible: z.boolean().optional(),
