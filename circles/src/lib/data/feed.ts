@@ -313,6 +313,17 @@ export const pinPost = async (postId: string, pinned: boolean): Promise<void> =>
     await Posts.updateOne({ _id: new ObjectId(postId) }, { $set: { pinned } });
 };
 
+// Called by broadcastToCrewAction before creating/pinning a new broadcast, so only the newest one
+// stays pinned. Scoped to isCrewMessage: true specifically — a manually-pinned ordinary post
+// (pinned via the pin/unpin dropdown, isCrewMessage undefined) is untouched. updateMany rather
+// than assuming exactly one: correct either way if more than one somehow ended up pinned, no-ops
+// harmlessly if none did. Only flips `pinned`; content, comments, reactions are untouched, so it
+// simply falls back into its normal chronological position via the existing rank-based ordering
+// once unpinned — no explicit re-sort needed.
+export const unpinPreviousCrewMessages = async (feedId: string): Promise<void> => {
+    await Posts.updateMany({ feedId, isCrewMessage: true, pinned: true }, { $set: { pinned: false } });
+};
+
 export const getPost = async (postId: string): Promise<Post | null> => {
     let post = (await Posts.findOne({ _id: new ObjectId(postId) })) as Post;
     if (post) {
