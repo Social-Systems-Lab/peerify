@@ -473,6 +473,7 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                         ? `/circles/${notification.circle.handle}/settings/crew-applications`
                         : null;
                 case "crew_application_approved":
+                case "crew_broadcast":
                     return notification.circle?.handle ? `/circles/${notification.circle.handle}/crew` : null;
                 case "new_follower":
                     return notification.user?.handle ? `/circles/${notification.user.handle}` : null;
@@ -571,6 +572,7 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
             case "crew_application":
                 return "Review";
             case "crew_application_approved":
+            case "crew_broadcast":
                 return "View Crew";
             case "user_verification_clarification_requested":
                 return "Respond";
