@@ -31,3 +31,7 @@
 - Pages and routes in `/src/app/` (Next.js App Router)
 - Models and type definitions in `/src/models/`
 - Utilities and helpers in `/src/lib/`
+
+## Deploy Safety — Prod Confirmation Required
+
+This repo (`peerify-staging`, branch `staging`) shares a box and origin with the real prod repo/branch (`peerify-app`, branch `main`). Before any action — in this or any future session — that deploys to, pushes to, or otherwise touches **prod** (`git push origin main`, running `scripts/deploy-peerify.sh` in `peerify-app`, restarting the `peerify` pm2 process, or writing to the prod Mongo db `circles`), explicitly state that the target is prod and wait for explicit go-ahead before proceeding. This applies regardless of what terminal/session the instruction came from, and even if an earlier message in the same conversation seems to have already authorized it — do not treat a prior "deploy to prod" as standing authorization for a later one. (Rule added 2026-08-21 per Tim's instruction.)
