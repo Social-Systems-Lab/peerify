@@ -598,6 +598,7 @@ export async function saveAbout(values: {
     description?: string;
     content?: string;
     mission?: string;
+    crewWelcomeMessage?: string;
     picture?: any;
     // cover?: any; // Removed cover
     images?: ImageItem[]; // Added images
@@ -624,6 +625,7 @@ export async function saveAbout(values: {
         description: values.description,
         content: values.content,
         mission: values.mission,
+        crewWelcomeMessage: values.crewWelcomeMessage?.trim() || undefined,
         isPublic: values.isPublic,
         showAdminsPublicly: values.showAdminsPublicly,
         mapVisible: values.mapVisible === true,
