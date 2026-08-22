@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
-import { isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyVenueIdentity, isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 
 type CircleTabsProps = {
     circle: Circle;
@@ -69,11 +69,15 @@ export function CircleTabs({ circle }: CircleTabsProps) {
     // NOT gated by the stored enabledModules array, so existing circles (created
     // before this module existed) get it with no backfill script. Matches the
     // lazy-create-not-backfill convention already used for the Community feed itself.
-    // Crew (Commit 3/4) is force-enabled the same way and for the same reason — this tab bar
-    // has its own local enabled-modules computation rather than delegating to
-    // isModuleEnabled() in client-auth.ts, so that function's force-enable for "crew" doesn't
-    // automatically cover this component; it has to be added here too.
+    // Crew is force-enabled too — this tab bar has its own local enabled-modules computation
+    // rather than delegating to isModuleEnabled() in client-auth.ts, so that function's
+    // force-enable for "crew" doesn't automatically cover this component; it has to be added
+    // here too. Deliberately its OWN condition, narrower than Community's — Crew is an
+    // artist/band-specific feature (matches Pledge/Offers' isPeerifyArtistIdentity scoping),
+    // not a general circleType === "circle" one, so venues and other non-artist circles
+    // shouldn't get the tab.
     const isArtistOrVenueCircle = circle.circleType === "circle";
+    const isCrewEligibleCircle = isPeerifyArtistIdentity(circle);
 
     const enabledModules = useMemo(() => {
         // loop through all modules and check if they are enabled for the circle
@@ -86,7 +90,8 @@ export function CircleTabs({ circle }: CircleTabsProps) {
             new Set([
                 ...(circle.enabledModules ?? []),
                 ...(isPeerifyVenueIdentity(circle) ? ["events"] : []),
-                ...(isArtistOrVenueCircle ? ["community", "crew"] : []),
+                ...(isArtistOrVenueCircle ? ["community"] : []),
+                ...(isCrewEligibleCircle ? ["crew"] : []),
             ]),
         );
 

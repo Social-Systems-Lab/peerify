@@ -3,6 +3,13 @@
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getMember, setCrewVisibility, getCrewOfferings, CrewOfferer } from "@/lib/data/member";
 import { getUserPendingCrewApplication } from "@/lib/data/crew-applications";
+import { tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
+
+export type CrewOfferAggregateEntry = {
+    type: string;
+    label: string;
+    count: number;
+};
 
 // Crew-specific relationship-access check, modeled on getProfilePreviewAccessAction's shape but
 // with different rules: Community's suppression (mapVisible/searchable) is per-account/global
@@ -63,23 +70,51 @@ export const getCrewMembershipStatusAction = async (
 // circle — including a crew member of a *different* artist) gets nothing. eligible is
 // returned separately so the caller can distinguish "no offers to show" from "you can't see
 // this at all," without leaking which one via content alone.
+// Redesign (2026-08-22): a plain crew member no longer gets names/avatars in the response at
+// all for this circle's Offers — not just a rendering choice, the aggregate is computed HERE,
+// server-side, so a peer's browser never receives who-offers-what. Only the circle's own
+// admins/moderators get the full per-person breakdown. isAdminOrMod is returned so the widget
+// knows which shape to expect without re-deriving it from (potentially stale) client state.
 export const getCrewOffersAction = async (
     circleId: string,
-): Promise<{ eligible: boolean; offerers: CrewOfferer[] }> => {
+): Promise<{
+    eligible: boolean;
+    isAdminOrMod: boolean;
+    offerers?: CrewOfferer[];
+    aggregate?: CrewOfferAggregateEntry[];
+}> => {
     const viewerDid = await getAuthenticatedUserDid();
     if (!viewerDid || !circleId) {
-        return { eligible: false, offerers: [] };
+        return { eligible: false, isAdminOrMod: false };
     }
 
     const viewerMember = await getMember(viewerDid, circleId);
     const isAdminOrMod = viewerMember?.userGroups?.some((group) => group === "admins" || group === "moderators") ?? false;
     const isCrew = viewerMember?.userGroups?.includes("crew") ?? false;
     if (!isAdminOrMod && !isCrew) {
-        return { eligible: false, offerers: [] };
+        return { eligible: false, isAdminOrMod: false };
     }
 
     const offerers = await getCrewOfferings(circleId, isAdminOrMod ? undefined : viewerDid, isAdminOrMod);
-    return { eligible: true, offerers };
+
+    if (isAdminOrMod) {
+        return { eligible: true, isAdminOrMod: true, offerers };
+    }
+
+    const countsByType = new Map<string, number>();
+    for (const offerer of offerers) {
+        for (const offering of offerer.tourTeamOfferings) {
+            const key = offering.type === "custom" ? "custom" : offering.type;
+            countsByType.set(key, (countsByType.get(key) ?? 0) + 1);
+        }
+    }
+    const aggregate: CrewOfferAggregateEntry[] = Array.from(countsByType.entries()).map(([type, count]) => ({
+        type,
+        label: type === "custom" ? "Other" : tourTeamOfferingTypeLabels[type as keyof typeof tourTeamOfferingTypeLabels] ?? type,
+        count,
+    }));
+
+    return { eligible: true, isAdminOrMod: false, aggregate };
 };
 
 type SetCrewVisibilityResponse = {

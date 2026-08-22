@@ -2,9 +2,10 @@
 
 import { getCrewMembers, getMember } from "@/lib/data/member";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
-import CrewMembersTable from "./crew-members-table";
+import CrewMemberRail from "./crew-member-rail";
 import CrewSpaceModule from "./crew-space";
 import CrewOffersWidget from "./crew-offers-widget";
+import CrewLanding from "./crew-landing";
 import ContentDisplayWrapper from "@/components/utils/content-display-wrapper";
 import { Circle } from "@/models/models";
 
@@ -13,34 +14,37 @@ type CrewModuleProps = {
 };
 
 export default async function CrewModule({ circle }: CrewModuleProps) {
-    const members = await getCrewMembers(circle?._id);
-
-    // Sidebar (Offers widget) only renders for viewers who could ever see anything in it —
-    // this circle's admins/moderators, or its own approved Crew — matching
-    // getCrewOffersAction's own independent re-check. A viewer outside both groups (including a
-    // non-crew follower, or a crew member of a *different* artist) never even gets the grid's
-    // sidebar column, same "nothing to reveal" treatment as the Crew feed itself.
+    // The entire page — member rail, feed, Offers — is Crew-only. A viewer who isn't this
+    // circle's own admin/moderator or one of its approved Crew members (including a logged-out
+    // visitor, or a non-crew follower) gets only the welcome/Join-Crew landing state below, not
+    // a suppressed/partial version of the real content. Matches the same "nothing to reveal for
+    // an ineligible viewer" treatment the Crew feed itself already had — the member list just
+    // hadn't been gated the same way until now.
     const viewerDid = await getAuthenticatedUserDid();
     const viewerMember = viewerDid ? await getMember(viewerDid, circle?._id) : null;
-    const hasSidebarContent =
+    const isEligible =
         viewerMember?.userGroups?.some((group) => group === "admins" || group === "moderators" || group === "crew") ??
         false;
 
-    return (
-        <div className="flex flex-col gap-6">
-            <ContentDisplayWrapper content={members}>
-                <CrewMembersTable circle={circle} members={members} />
-            </ContentDisplayWrapper>
+    if (!isEligible) {
+        return <CrewLanding circle={circle} />;
+    }
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                <div className={hasSidebarContent ? "md:col-span-2" : "md:col-span-3"}>
-                    <CrewSpaceModule circle={circle} />
+    const members = await getCrewMembers(circle?._id);
+
+    return (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="md:col-span-2">
+                <CrewSpaceModule circle={circle} />
+            </div>
+            <div className="flex flex-col gap-4 md:col-span-1">
+                <div className="rounded-[18px] border border-black/5 bg-white p-4 shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
+                    <h2 className="mb-3 text-sm font-semibold text-muted-foreground">Crew</h2>
+                    <ContentDisplayWrapper content={members}>
+                        <CrewMemberRail circle={circle} members={members} />
+                    </ContentDisplayWrapper>
                 </div>
-                {hasSidebarContent && (
-                    <div className="md:col-span-1">
-                        <CrewOffersWidget circle={circle} />
-                    </div>
-                )}
+                <CrewOffersWidget circle={circle} />
             </div>
         </div>
     );

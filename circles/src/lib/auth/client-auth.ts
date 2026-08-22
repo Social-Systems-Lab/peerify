@@ -1,6 +1,7 @@
 import { Circle, Feature, MemberDisplay, UserPrivate } from "@/models/models";
 import { features, maxAccessLevel } from "../data/constants";
 import { isVerifiedUser } from "./verification";
+import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 
 export const getMemberAccessLevel = (user: UserPrivate | MemberDisplay | undefined, circle: Circle): number => {
     if (!user) return maxAccessLevel;
@@ -171,11 +172,13 @@ export const isModuleEnabled = (circle: Circle, moduleHandle: string): boolean =
         return true;
     }
 
-    // Crew is likewise force-enabled for every artist/venue circle (circleType "circle"), same
-    // backfill-avoidance rationale as Community above — Crew Phase 1's role/application/approval
-    // pieces (Commits 1-2) already work retroactively on existing circles via self-heal on
-    // approval, so the member-list route shouldn't be the one piece that needs a migration.
-    if (moduleHandle === "crew" && circle.circleType === "circle") {
+    // Crew is force-enabled too, same backfill-avoidance rationale as Community above — Crew
+    // Phase 1's role/application/approval pieces already work retroactively on existing circles
+    // via self-heal on approval, so this route shouldn't be the one piece that needs a
+    // migration. Deliberately narrower than Community's circleType === "circle" check, though:
+    // Crew is specifically an artist/band feature (matches Pledge/Offers' own scoping via
+    // isPeerifyArtistIdentity) — venues and other non-artist circle types should not get it.
+    if (moduleHandle === "crew" && isPeerifyArtistIdentity(circle)) {
         return true;
     }
 
