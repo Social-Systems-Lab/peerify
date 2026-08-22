@@ -296,7 +296,9 @@ export const postSchema = z.object({
     internalPreviewId: z.string().optional(), // Handle for circle, ID for others
     internalPreviewUrl: z.string().url().optional(),
     sdgs: z.array(z.string()).optional(),
-    // Discussion-specific fields
+    // pinned started as Discussion-only (see discussion.ts's pinDiscussion) but is a generic
+    // per-post flag usable by any postType's moderate action — Crew's pinPostAction reuses it
+    // directly, no schema change needed. closed remains Discussion-specific.
     pinned: z.boolean().default(false).optional(),
     closed: z.boolean().default(false).optional(),
     lastActivityAt: z.date().optional(),
@@ -899,6 +901,11 @@ export type PostItemProps = {
     embedded?: boolean;
     disableComments?: boolean;
     isDetailView?: boolean;
+    // Called after a successful pin/unpin so a client-fetched feed (e.g. Crew) can refetch to
+    // reflect the new pinned-first order. Undefined for callers that don't need it (Community,
+    // Noticeboard) — pin/unpin still works there, it just won't reorder until the next natural
+    // refetch.
+    onPostChanged?: () => void;
 };
 
 export type ContentPreviewData =
