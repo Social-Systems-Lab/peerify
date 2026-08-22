@@ -1,7 +1,7 @@
 "use server";
 
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
-import { getMember, setCrewVisibility } from "@/lib/data/member";
+import { getMember, setCrewVisibility, getCrewOfferings, CrewOfferer } from "@/lib/data/member";
 import { getUserPendingCrewApplication } from "@/lib/data/crew-applications";
 
 // Crew-specific relationship-access check, modeled on getProfilePreviewAccessAction's shape but
@@ -51,6 +51,33 @@ export const getCrewMembershipStatusAction = async (
 
     const pending = await getUserPendingCrewApplication(userDid, circleId);
     return { status: pending ? "pending" : "none" };
+};
+
+// Binary crew-visibility rule for Offers, same relationship shape as
+// getCrewProfileAccessAction: the artist's own admins/moderators always see every crew member's
+// offerings for this circle; a plain approved crew member sees every OTHER approved crew
+// member's offerings (peer visibility, no further per-offer restriction — Phase 2 is binary
+// only, no field-level granularity). Anyone else (not crew, not admin/mod of this specific
+// circle — including a crew member of a *different* artist) gets nothing. eligible is
+// returned separately so the caller can distinguish "no offers to show" from "you can't see
+// this at all," without leaking which one via content alone.
+export const getCrewOffersAction = async (
+    circleId: string,
+): Promise<{ eligible: boolean; offerers: CrewOfferer[] }> => {
+    const viewerDid = await getAuthenticatedUserDid();
+    if (!viewerDid || !circleId) {
+        return { eligible: false, offerers: [] };
+    }
+
+    const viewerMember = await getMember(viewerDid, circleId);
+    const isAdminOrMod = viewerMember?.userGroups?.some((group) => group === "admins" || group === "moderators") ?? false;
+    const isCrew = viewerMember?.userGroups?.includes("crew") ?? false;
+    if (!isAdminOrMod && !isCrew) {
+        return { eligible: false, offerers: [] };
+    }
+
+    const offerers = await getCrewOfferings(circleId, isAdminOrMod ? undefined : viewerDid);
+    return { eligible: true, offerers };
 };
 
 type SetCrewVisibilityResponse = {

@@ -438,7 +438,8 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                         )}
 
                         {/* Offers */}
-                        {circle.circleType === "user" &&
+                        {!suppressed &&
+                            circle.circleType === "user" &&
                             circle.tourTeamOfferings &&
                             circle.tourTeamOfferings.length > 0 && (
                                 <div className="mt-4">
