@@ -574,7 +574,7 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
             case "crew_application_approved":
                 return "View Crew";
             case "crew_broadcast":
-                return "View Message";
+                return "View Broadcast";
             case "user_verification_clarification_requested":
                 return "Respond";
             case "task_shift_confirmed":

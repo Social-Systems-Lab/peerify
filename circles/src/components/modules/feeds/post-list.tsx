@@ -875,12 +875,12 @@ export const PostItem = ({
                 badge here would sit directly on top of whatever renders first. Rendering it as a
                 normal block pushes that content down instead of covering it.
                 isCrewMessage takes precedence over the plain "Pinned" badge — a broadcast is
-                always pinned, but showing both would be redundant, and "Crew Message" is the
-                more specific, meaningful label of the two. --pc-orange is Peerify's brand orange
+                always pinned, but showing both would be redundant, and "Broadcast" is the more
+                specific, meaningful label of the two. --pc-orange is Peerify's brand orange
                 (defined on :root — see globals.css), used directly here rather than via the
                 .pilot-chrome-page-scoped auto-remap rules, since this badge should read as
-                urgent everywhere a Crew Message appears, not just within that pilot's current
-                page scope. */}
+                urgent everywhere a Broadcast appears, not just within that pilot's current page
+                scope. */}
             {(post.isCrewMessage || isPinned) && (
                 <div className="flex items-center gap-2 px-4 pt-4">
                     {post.isCrewMessage ? (
@@ -889,7 +889,7 @@ export const PostItem = ({
                             style={{ backgroundColor: "var(--pc-orange)" }}
                         >
                             <Megaphone className="h-3 w-3" />
-                            Crew Message
+                            Broadcast
                         </Badge>
                     ) : (
                         <Badge variant="secondary" className="gap-1">
