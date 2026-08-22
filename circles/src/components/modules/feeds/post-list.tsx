@@ -13,7 +13,7 @@ import {
 import { UserPicture } from "../members/user-picture";
 import { CirclePicture } from "../circles/circle-picture";
 import { Button } from "@/components/ui/button";
-import { Edit, Heart, Link2, Loader2, MessageCircle, MoreHorizontal, MoreVertical, Repeat2, Trash2, Users, X, MapPin } from "lucide-react"; // Added Users, MapPin
+import { Edit, Heart, Link2, Loader2, MessageCircle, MoreHorizontal, MoreVertical, Pin, PinOff, Repeat2, Trash2, Users, X, MapPin } from "lucide-react"; // Added Users, MapPin
 import { Badge } from "@/components/ui/badge"; // Added Badge import
 import { Carousel, CarouselApi, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import React, {
@@ -71,6 +71,7 @@ import {
     getReactionsAction,
     updatePostAction,
     deletePostAction,
+    pinPostAction,
     getAllCommentsAction,
     editCommentAction,
     deleteCommentAction,
@@ -355,6 +356,7 @@ export const PostItem = ({
     embedded,
     disableComments,
     isDetailView,
+    onPostChanged,
 }: PostItemProps) => {
     const [carouselApi, setCarouselApi] = useState<CarouselApi | null>(null);
     const formattedDate = getPublishTime(post?.createdAt);
@@ -586,6 +588,27 @@ export const PostItem = ({
             }
             setIsDeleting(false);
         });
+    };
+
+    // Optimistic local flag so the "Pinned" badge and dropdown label flip immediately —
+    // onPostChanged (when the caller provides it, e.g. Crew's fetchPosts) then re-fetches to
+    // pick up the real pinned-first order.
+    const [isPinned, setIsPinned] = useState(post.pinned === true);
+
+    const handlePinToggle = async () => {
+        const nextPinned = !isPinned;
+        setIsPinned(nextPinned);
+        const response = await pinPostAction(post._id, nextPinned);
+        if (!response.success) {
+            setIsPinned(!nextPinned);
+            toast({
+                title: response.message,
+                variant: "destructive",
+            });
+            return;
+        }
+        setOpenDropdown(false);
+        onPostChanged?.();
     };
 
     const handleLikePost = () => {
@@ -847,6 +870,14 @@ export const PostItem = ({
                 isCompact || inPreview || embedded ? "" : "rounded-[15px] border-0 shadow-lg"
             } bg-white`}
         >
+            {isPinned && (
+                <div className="absolute left-3 top-3 z-20">
+                    <Badge variant="secondary" className="gap-1">
+                        <Pin className="h-3 w-3" />
+                        Pinned
+                    </Badge>
+                </div>
+            )}
             {(showInlineClose || showAdminActions || isDetailView) && (
                 <div className="absolute right-2 top-2 z-20 flex items-center gap-1">
                 {showInlineClose && (
@@ -907,6 +938,21 @@ export const PostItem = ({
                                     >
                                         <Edit className="mr-2 h-4 w-4" />
                                         <div>Edit</div>
+                                    </DropdownMenuItem>
+                                )}
+                                {canModerate && (
+                                    <DropdownMenuItem
+                                        onSelect={(e) => {
+                                            e.stopPropagation();
+                                            handlePinToggle();
+                                        }}
+                                    >
+                                        {isPinned ? (
+                                            <PinOff className="mr-2 h-4 w-4" />
+                                        ) : (
+                                            <Pin className="mr-2 h-4 w-4" />
+                                        )}
+                                        <div>{isPinned ? "Unpin" : "Pin"}</div>
                                     </DropdownMenuItem>
                                 )}
                                 {(isAuthor || canModerate) && (
@@ -2082,9 +2128,10 @@ type PostListProps = {
     posts: PostDisplay[];
     isAggregateFeed?: boolean;
     compact?: boolean; // render in compact/mobile style (e.g., side panel)
+    onPostChanged?: () => void;
 };
 
-const PostList = ({ feed, circle, posts, isAggregateFeed, compact = false }: PostListProps) => {
+const PostList = ({ feed, circle, posts, isAggregateFeed, compact = false, onPostChanged }: PostListProps) => {
     useEffect(() => {
         if (logLevel >= LOG_LEVEL_TRACE) {
             console.log("useEffect.PostList.1");
@@ -2101,6 +2148,7 @@ const PostList = ({ feed, circle, posts, isAggregateFeed, compact = false }: Pos
                     feed={isAggregateFeed ? post.feed! : feed!}
                     isAggregateFeed={isAggregateFeed}
                     embedded={compact}
+                    onPostChanged={onPostChanged}
                 />
             ))}
         </div>

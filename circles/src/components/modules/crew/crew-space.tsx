@@ -32,7 +32,13 @@ export default function CrewSpaceModule({ circle }: CrewSpaceModuleProps) {
         startTransition(async () => {
             try {
                 const newPosts = await getPostsAction(feed._id, circle._id, 20, 0, "new", undefined, "crew");
-                setPosts(newPosts);
+                // getPosts/getPostsWithMetrics re-sorts by a recentness-only rank for "new",
+                // which doesn't know about `pinned` — float any pinned post(s) to the front here
+                // instead of touching that shared ranking pipeline (Community/Noticeboard also
+                // use it). No pagination in this feed (fixed 20-post fetch), so this can't cause
+                // a pinned post to duplicate across pages.
+                const sorted = [...newPosts].sort((a, b) => (b.pinned === true ? 1 : 0) - (a.pinned === true ? 1 : 0));
+                setPosts(sorted);
             } finally {
                 setIsLoading(false);
             }

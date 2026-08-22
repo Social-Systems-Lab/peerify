@@ -64,8 +64,11 @@ export const CrewFeed = ({ circle, posts, feed, isLoading = false, onPostCreated
                         </div>
                     </div>
                 )}
-                {/* No <ListFilter> — like Community, the Crew space is always reverse-chronological. */}
-                <PostList posts={posts} feed={feed} circle={circle} />
+                {/* No <ListFilter> — like Community, the Crew space is always reverse-chronological
+                    except for a pinned post, which crew-space.tsx floats to the front before
+                    handing posts down here. onPostChanged reuses the same refetch callback as
+                    the composer's onPostCreated, so pinning/unpinning re-sorts immediately. */}
+                <PostList posts={posts} feed={feed} circle={circle} onPostChanged={onPostCreated} />
             </div>
         </div>
     );

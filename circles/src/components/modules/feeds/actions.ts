@@ -13,6 +13,7 @@ import {
     updatePost,
     getPost,
     deletePost,
+    pinPost,
     getComment,
     getAllComments,
     getPosts,
@@ -776,6 +777,44 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
     } catch (error) {
         console.error("Error deleting post:", error);
         return { success: false, message: "An error occurred while deleting the post" };
+    }
+}
+
+// Moderator-only, unlike deletePostAction which also allows the post's own author — pinning is
+// a feed-curation action, not something an author does to their own post. No enforced
+// single-pin-per-feed: mirrors discussion.ts's pinDiscussion, which allows multiple pinned
+// posts and leaves ordering among them to createdAt.
+export async function pinPostAction(postId: string, pinned: boolean): Promise<{ success: boolean; message?: string }> {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to pin a post" };
+    }
+
+    try {
+        const post = await getPost(postId);
+        if (!post) {
+            return { success: false, message: "Post not found" };
+        }
+
+        const feed = await getFeed(post.feedId);
+        if (!feed) {
+            return { success: false, message: "Feed not found" };
+        }
+
+        const canModerate = await isAuthorized(userDid, feed.circleId, getPostModerateFeature(post.postType));
+        if (!canModerate) {
+            return { success: false, message: "You are not authorized to pin this post" };
+        }
+
+        await pinPost(postId, pinned);
+
+        let circlePath = await getCirclePath({ _id: feed.circleId } as Circle);
+        revalidatePath(`${circlePath}feed`);
+
+        return { success: true, message: pinned ? "Post pinned" : "Post unpinned" };
+    } catch (error) {
+        console.error("Error pinning post:", error);
+        return { success: false, message: "An error occurred while pinning the post" };
     }
 }
 
