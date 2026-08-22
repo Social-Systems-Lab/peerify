@@ -25,7 +25,7 @@ import { getIssueById } from "./issue";
 import { getFundingAskDocumentById } from "./funding";
 import { sdgs } from "./sdgs";
 import { isAuthorized } from "@/lib/auth/auth";
-import { features } from "./constants";
+import { features, getPostViewFeature } from "./constants";
 
 export const getFeedsByCircleId = async (circleId: string): Promise<Feed[]> => {
     const feeds = await Feeds.find({
@@ -327,7 +327,13 @@ export const canUserViewPost = async (post: Post, userDid?: string): Promise<boo
         return false;
     }
 
-    const canViewFeed = await isAuthorized(userDid, feed.circleId, features.feed.view);
+    // Was hardcoded to features.feed.view (Noticeboard) regardless of postType — harmless for
+    // an "everyone" post (the final post.userGroups check below still gated correctly), but a
+    // real bug for a non-"everyone" Community/Crew post on a circle without the Noticeboard
+    // module enabled: even an admin got a hard "Access denied: feed" before ever reaching the
+    // per-post userGroups check. Found via the standalone /post/{postId} page 403ing on a
+    // freshly-created Crew broadcast post.
+    const canViewFeed = await isAuthorized(userDid, feed.circleId, getPostViewFeature(post.postType));
     if (!canViewFeed) {
         return false;
     }
@@ -587,6 +593,7 @@ export const getFullPost = async (postId: string, userDid?: string): Promise<Pos
                 sdgs: 1,
                 postType: 1,
                 pinned: 1,
+                isCrewMessage: 1,
                 circleType: { $literal: "post" },
                 highlightedCommentId: { $toString: "$highlightedCommentId" },
                 mentions: 1,
@@ -1459,6 +1466,7 @@ export const getPosts = async (
                 sdgs: 1,
                 postType: 1,
                 pinned: 1,
+                isCrewMessage: 1,
                 circleType: { $literal: "post" },
                 highlightedCommentId: { $toString: "$highlightedCommentId" },
                 mentions: 1,

@@ -4,7 +4,7 @@
 import { CrewFeed } from "./crew-feed";
 import { getPostsAction, getFeedByHandleAction } from "@/components/modules/feeds/actions";
 import { Circle, Feed, PostDisplay } from "@/models/models";
-import { useState, useEffect, useTransition, useCallback } from "react";
+import { useState, useEffect, useTransition, useCallback, useRef } from "react";
 
 type CrewSpaceModuleProps = {
     circle: Circle;
@@ -57,6 +57,39 @@ export default function CrewSpaceModule({ circle }: CrewSpaceModuleProps) {
     useEffect(() => {
         fetchPosts();
     }, [fetchPosts]);
+
+    // Deep-link support for the crew_broadcast notification's #post-{id} URL. Posts here are
+    // fetched client-side (no server-rendered HTML for the hash to latch onto at navigation
+    // time, unlike e.g. the About settings form's #crew-welcome-message anchor), so this can't
+    // rely on the browser's native hash-scroll — it has to wait for the fetch to actually
+    // populate the DOM. hasHandledHash ensures this only runs once per page load, not every time
+    // `posts` changes (e.g. after creating a new post via onPostCreated), which would otherwise
+    // yank the viewer back to the original link target unexpectedly.
+    const hasHandledHashRef = useRef(false);
+    useEffect(() => {
+        if (hasHandledHashRef.current || isLoading || posts.length === 0) return;
+        const hash = window.location.hash;
+        if (!hash.startsWith("#post-")) return;
+
+        const target = document.getElementById(hash.slice(1));
+        if (!target) return;
+
+        hasHandledHashRef.current = true;
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        const previousTransition = target.style.transition;
+        const previousBoxShadow = target.style.boxShadow;
+        target.style.transition = "box-shadow 0.3s ease";
+        target.style.boxShadow = "0 0 0 3px hsl(var(--button-primary)) inset";
+        const clearHighlight = setTimeout(() => {
+            target.style.boxShadow = previousBoxShadow;
+            setTimeout(() => {
+                target.style.transition = previousTransition;
+            }, 300);
+        }, 2000);
+
+        return () => clearTimeout(clearHighlight);
+    }, [isLoading, posts]);
 
     if (!hasFetchedFeed || !feed) {
         return null;

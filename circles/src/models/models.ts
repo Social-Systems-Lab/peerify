@@ -301,6 +301,10 @@ export const postSchema = z.object({
     // directly, no schema change needed. closed remains Discussion-specific.
     pinned: z.boolean().default(false).optional(),
     closed: z.boolean().default(false).optional(),
+    // Set only by broadcastToCrewAction, on posts it creates on an artist's behalf — distinct
+    // from "authored by the circle + pinned", which can also happen via ordinary composer use
+    // (an admin posting as the circle, then pinning it) and isn't a reliable signal on its own.
+    isCrewMessage: z.boolean().optional(),
     lastActivityAt: z.date().optional(),
     // Community-specific fields
     // Soft-hide flag mirroring commentSchema.isDeleted, used for self-service
