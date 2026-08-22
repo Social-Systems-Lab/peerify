@@ -1,5 +1,5 @@
 // member.ts - membership management
-import { Content, Member, MemberDisplay, SortingOptions } from "@/models/models";
+import { Content, FileInfo, Member, MemberDisplay, SortingOptions, TourTeamOffering } from "@/models/models";
 import { ChatRoomMembers, Circles, Members } from "./db";
 import { ObjectId } from "mongodb";
 import { filterLocations } from "../utils";
@@ -123,6 +123,56 @@ export const getCrewMembers = async (circleId?: string): Promise<MemberDisplay[]
     ]).toArray();
 
     return members as MemberDisplay[];
+};
+
+export type CrewOfferer = {
+    userDid: string;
+    name: string;
+    picture?: FileInfo;
+    handle?: string;
+    tourTeamOfferings: TourTeamOffering[];
+};
+
+// Crew Offers widget's data source — deliberately scoped to THIS circle's crew members only
+// (same $match as getCrewMembers), never a global "all offers" query filtered down afterward.
+// excludeUserDid drops the viewer's own entry (they already see their own offers on their own
+// profile; this widget is about discovering peers'). Access control (who's allowed to call this
+// at all) lives in the caller (getCrewOffersAction) — this function only decides what a caller
+// with access sees, matching the existing getCrewMembers/getCrewProfileAccessAction split.
+export const getCrewOfferings = async (circleId: string, excludeUserDid?: string): Promise<CrewOfferer[]> => {
+    if (!circleId) return [];
+
+    const match: Record<string, any> = { circleId, userGroups: "crew" };
+    if (excludeUserDid) {
+        match.userDid = { $ne: excludeUserDid };
+    }
+
+    const offerers = await Members.aggregate([
+        { $match: match },
+        {
+            $lookup: {
+                from: "circles",
+                localField: "userDid",
+                foreignField: "did",
+                as: "userDetails",
+            },
+        },
+        { $unwind: "$userDetails" },
+        // Only circle members who've actually set up at least one offering are relevant here.
+        { $match: { "userDetails.tourTeamOfferings": { $exists: true, $not: { $size: 0 } } } },
+        {
+            $project: {
+                _id: 0,
+                userDid: 1,
+                name: "$userDetails.name",
+                picture: "$userDetails.picture",
+                handle: "$userDetails.handle",
+                tourTeamOfferings: "$userDetails.tourTeamOfferings",
+            },
+        },
+    ]).toArray();
+
+    return offerers as CrewOfferer[];
 };
 
 // Self-service only — callers must derive userDid from the authenticated viewer's own session,
