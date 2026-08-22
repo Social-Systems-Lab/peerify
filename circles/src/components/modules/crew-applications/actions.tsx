@@ -11,7 +11,7 @@ import {
 } from "@/lib/data/crew-applications";
 import { sendNotifications, buildNotificationBody } from "@/lib/data/notifications";
 import { getUserPrivate } from "@/lib/data/user";
-import { getFeedByHandle, createCrewFeed, createPost } from "@/lib/data/feed";
+import { getFeedByHandle, createCrewFeed, createPost, unpinPreviousCrewMessages } from "@/lib/data/feed";
 import { Circle, CrewApplication, Post, postSchema } from "@/models/models";
 import { revalidatePath } from "next/cache";
 
@@ -200,6 +200,12 @@ export const broadcastToCrewAction = async (circle: Circle, message: string): Pr
                 return { success: false, message: "Failed to set up the Crew feed for this circle" };
             }
         }
+
+        // Only one Broadcast stays pinned at a time — unpin any prior one in this feed before
+        // creating/pinning the new one. Scoped to isCrewMessage: true in the helper itself, so a
+        // manually-pinned ordinary post (via the pin/unpin dropdown) is never touched. Not
+        // deleted: it just falls back to its normal chronological position once unpinned.
+        await unpinPreviousCrewMessages(feed._id.toString());
 
         let post: Post = {
             content: trimmedMessage,

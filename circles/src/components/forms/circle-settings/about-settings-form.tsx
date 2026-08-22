@@ -959,52 +959,6 @@ export function AboutSettingsForm({
                             />
                         )}
 
-                        {isCrewEligibleCircle && (
-                            // id + scrollMarginTop let the "Edit your Crew welcome message" link on the
-                            // Crew Applications settings page (crew-applications.tsx) deep-link straight
-                            // here via #crew-welcome-message — same scroll-offset convention post-list.tsx
-                            // uses for its #post-{id} anchors, so the field doesn't land tucked under the
-                            // fixed header. Next.js's router already scrolls a navigated-to hash into view
-                            // on its own; this just gives it a target and clears the header.
-                            // Bordered container matches the Organization Claim section's convention above
-                            // (space-y-4 rounded-lg border bg-slate-50 p-4 + heading/description) — this is
-                            // a distinct, Crew-specific setting, not just another general About field, and
-                            // reads that way now instead of sitting inline between Description and Content
-                            // with no visual separation. Presentation only — no on/off toggle here, that's
-                            // deliberately deferred.
-                            <div
-                                id="crew-welcome-message"
-                                style={{ scrollMarginTop: "140px" }}
-                                className="space-y-4 rounded-lg border bg-slate-50 p-4"
-                            >
-                                <div className="space-y-1">
-                                    <h3 className="font-medium">Crew</h3>
-                                    <p className="text-sm text-muted-foreground">
-                                        Shown to fans before they apply to join your Crew.
-                                    </p>
-                                </div>
-                                <Controller
-                                    name="crewWelcomeMessage"
-                                    control={form.control as unknown as Control}
-                                    render={({ field }) => (
-                                        <DynamicTextareaField
-                                            field={{
-                                                name: "crewWelcomeMessage",
-                                                type: "textarea",
-                                                label: "Welcome Message",
-                                                placeholder:
-                                                    "Thanks for wanting to help support us on tour! Tell us a bit about how you'd like to get involved and we'll be in touch.",
-                                                description: "Leave blank to use the default message shown above as a placeholder.",
-                                                maxLength: 300,
-                                            }}
-                                            formField={field}
-                                            control={form.control as unknown as Control}
-                                        />
-                                    )}
-                                />
-                            </div>
-                        )}
-
                         <Controller
                             name="content"
                             control={form.control as unknown as Control}
@@ -1033,6 +987,57 @@ export function AboutSettingsForm({
                     artist/venue-only and hidden), so this never lands adjacent to another checkpoint
                     with nothing between them. */}
                 {renderSaveButton()}
+
+                {isCrewEligibleCircle && (
+                    // Moved to sit directly before Artist Identity (was previously inline between
+                    // Description and Content in Basic Information) — reads as artist-facing
+                    // configuration alongside Artist Identity rather than a general About field.
+                    // isCrewEligibleCircle is broader than isPeerifyManagedArtistCircle (also
+                    // covers non-managed circles with artist intent), so this can render even when
+                    // the Artist Identity card below doesn't — still a sensible position either
+                    // way, right after the Basic Information checkpoint.
+                    // id + scrollMarginTop let the "Edit your Crew welcome message" link on the
+                    // Crew Applications settings page (crew-applications.tsx) deep-link straight
+                    // here via #crew-welcome-message — same scroll-offset convention post-list.tsx
+                    // uses for its #post-{id} anchors, so the field doesn't land tucked under the
+                    // fixed header. Next.js's router already scrolls a navigated-to hash into view
+                    // on its own; this just gives it a target and clears the header.
+                    // Bordered container matches the Organization Claim section's convention
+                    // (space-y-4 rounded-lg border bg-slate-50 p-4 + heading/description) — this is
+                    // a distinct, Crew-specific setting, not just another general About field.
+                    // Presentation only — no on/off toggle here, that's deliberately deferred.
+                    <div
+                        id="crew-welcome-message"
+                        style={{ scrollMarginTop: "140px" }}
+                        className="space-y-4 rounded-lg border bg-slate-50 p-4"
+                    >
+                        <div className="space-y-1">
+                            <h3 className="font-medium">Crew</h3>
+                            <p className="text-sm text-muted-foreground">
+                                Shown to fans before they apply to join your Crew.
+                            </p>
+                        </div>
+                        <Controller
+                            name="crewWelcomeMessage"
+                            control={form.control as unknown as Control}
+                            render={({ field }) => (
+                                <DynamicTextareaField
+                                    field={{
+                                        name: "crewWelcomeMessage",
+                                        type: "textarea",
+                                        label: "Welcome Message",
+                                        placeholder:
+                                            "Thanks for wanting to help support us on tour! Tell us a bit about how you'd like to get involved and we'll be in touch.",
+                                        description: "Leave blank to use the default message shown above as a placeholder.",
+                                        maxLength: 300,
+                                    }}
+                                    formField={field}
+                                    control={form.control as unknown as Control}
+                                />
+                            )}
+                        />
+                    </div>
+                )}
 
                 {isPeerifyManagedArtistCircle ? (
                     <Card>
