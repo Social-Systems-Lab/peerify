@@ -1,7 +1,7 @@
 // broadcast-to-crew-dialog.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { Circle } from "@/models/models";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -25,21 +25,32 @@ export default function BroadcastToCrewDialog({ circle }: BroadcastToCrewDialogP
     const [open, setOpen] = useState(false);
     const [message, setMessage] = useState("");
     const [isSending, setIsSending] = useState(false);
+    // Same real, confirmed race as crew-composer.tsx's handleSubmit: setIsSending(true) doesn't
+    // reach the Send button's disabled attribute synchronously, so two clicks close enough
+    // together both ran to completion first — reproduced live (2 broadcast posts from one rapid
+    // double-click before this guard). A ref closes the window; state updates can't.
+    const isSendingRef = useRef(false);
 
     const onSend = async () => {
+        if (isSendingRef.current) return;
+        isSendingRef.current = true;
         setIsSending(true);
-        const result = await broadcastToCrewAction(circle, message);
-        setIsSending(false);
+        try {
+            const result = await broadcastToCrewAction(circle, message);
 
-        if (result.success) {
-            toast({
-                title: "Message sent",
-                description: `Sent to ${result.recipientCount} Crew member${result.recipientCount === 1 ? "" : "s"}.`,
-            });
-            setMessage("");
-            setOpen(false);
-        } else {
-            toast({ title: "Error", description: result.message, variant: "destructive" });
+            if (result.success) {
+                toast({
+                    title: "Message sent",
+                    description: `Sent to ${result.recipientCount} Crew member${result.recipientCount === 1 ? "" : "s"}.`,
+                });
+                setMessage("");
+                setOpen(false);
+            } else {
+                toast({ title: "Error", description: result.message, variant: "destructive" });
+            }
+        } finally {
+            isSendingRef.current = false;
+            setIsSending(false);
         }
     };
 

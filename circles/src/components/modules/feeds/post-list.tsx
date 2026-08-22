@@ -870,25 +870,34 @@ export const PostItem = ({
                 isCompact || inPreview || embedded ? "" : "rounded-[15px] border-0 shadow-lg"
             } bg-white`}
         >
-            {/* isCrewMessage takes precedence over the plain "Pinned" badge — a broadcast is
+            {/* In-flow, not absolutely positioned — this card has no dedicated header row above
+                its content (media/title/text render immediately at the top), so an overlaid
+                badge here would sit directly on top of whatever renders first. Rendering it as a
+                normal block pushes that content down instead of covering it.
+                isCrewMessage takes precedence over the plain "Pinned" badge — a broadcast is
                 always pinned, but showing both would be redundant, and "Crew Message" is the
-                more specific, meaningful label of the two. */}
-            {post.isCrewMessage ? (
-                <div className="absolute left-3 top-3 z-20">
-                    <Badge variant="secondary" className="gap-1">
-                        <Megaphone className="h-3 w-3" />
-                        Crew Message
-                    </Badge>
-                </div>
-            ) : (
-                isPinned && (
-                    <div className="absolute left-3 top-3 z-20">
+                more specific, meaningful label of the two. --pc-orange is Peerify's brand orange
+                (defined on :root — see globals.css), used directly here rather than via the
+                .pilot-chrome-page-scoped auto-remap rules, since this badge should read as
+                urgent everywhere a Crew Message appears, not just within that pilot's current
+                page scope. */}
+            {(post.isCrewMessage || isPinned) && (
+                <div className="flex items-center gap-2 px-4 pt-4">
+                    {post.isCrewMessage ? (
+                        <Badge
+                            className="gap-1 border-transparent text-white hover:opacity-90"
+                            style={{ backgroundColor: "var(--pc-orange)" }}
+                        >
+                            <Megaphone className="h-3 w-3" />
+                            Crew Message
+                        </Badge>
+                    ) : (
                         <Badge variant="secondary" className="gap-1">
                             <Pin className="h-3 w-3" />
                             Pinned
                         </Badge>
-                    </div>
-                )
+                    )}
+                </div>
             )}
             {(showInlineClose || showAdminActions || isDetailView) && (
                 <div className="absolute right-2 top-2 z-20 flex items-center gap-1">
