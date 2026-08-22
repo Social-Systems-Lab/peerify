@@ -139,12 +139,25 @@ export type CrewOfferer = {
 // profile; this widget is about discovering peers'). Access control (who's allowed to call this
 // at all) lives in the caller (getCrewOffersAction) — this function only decides what a caller
 // with access sees, matching the existing getCrewMembers/getCrewProfileAccessAction split.
-export const getCrewOfferings = async (circleId: string, excludeUserDid?: string): Promise<CrewOfferer[]> => {
+// bypassCrewVisible mirrors the same admin/moderator bypass isSuppressedCrewMember's caller
+// applies to the member list — a peer viewer must not see an offer from someone who's hidden
+// their profile from Crew peers (crewVisible: false), but the circle's own admins/moderators
+// still see everything regardless of the toggle.
+export const getCrewOfferings = async (
+    circleId: string,
+    excludeUserDid?: string,
+    bypassCrewVisible: boolean = false,
+): Promise<CrewOfferer[]> => {
     if (!circleId) return [];
 
     const match: Record<string, any> = { circleId, userGroups: "crew" };
     if (excludeUserDid) {
         match.userDid = { $ne: excludeUserDid };
+    }
+    if (!bypassCrewVisible) {
+        // Same "missing/true counts as visible, only literal false is hidden" semantics as
+        // isSuppressedCrewMember's member.crewVisible === false check.
+        match.crewVisible = { $ne: false };
     }
 
     const offerers = await Members.aggregate([

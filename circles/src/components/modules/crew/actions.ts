@@ -55,8 +55,10 @@ export const getCrewMembershipStatusAction = async (
 
 // Binary crew-visibility rule for Offers, same relationship shape as
 // getCrewProfileAccessAction: the artist's own admins/moderators always see every crew member's
-// offerings for this circle; a plain approved crew member sees every OTHER approved crew
-// member's offerings (peer visibility, no further per-offer restriction — Phase 2 is binary
+// offerings for this circle, regardless of each member's own crewVisible toggle; a plain
+// approved crew member sees every OTHER approved crew member's offerings EXCEPT those who've
+// set crewVisible: false (same peer-suppression rule the member list already applies via
+// isSuppressedCrewMember — no further per-offer restriction beyond that, Phase 2 is binary
 // only, no field-level granularity). Anyone else (not crew, not admin/mod of this specific
 // circle — including a crew member of a *different* artist) gets nothing. eligible is
 // returned separately so the caller can distinguish "no offers to show" from "you can't see
@@ -76,7 +78,7 @@ export const getCrewOffersAction = async (
         return { eligible: false, offerers: [] };
     }
 
-    const offerers = await getCrewOfferings(circleId, isAdminOrMod ? undefined : viewerDid);
+    const offerers = await getCrewOfferings(circleId, isAdminOrMod ? undefined : viewerDid, isAdminOrMod);
     return { eligible: true, offerers };
 };
 
