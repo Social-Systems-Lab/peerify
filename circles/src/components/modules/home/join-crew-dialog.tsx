@@ -32,6 +32,11 @@ type Props = {
     onApplied?: () => void;
 };
 
+// Shown when the artist hasn't set circle.crewWelcomeMessage (Settings > About) — existing
+// artists see no change in this dialog until they opt in to a custom message.
+const JOIN_CREW_DEFAULT_WELCOME_MESSAGE =
+    "Thanks for wanting to help support us on tour! Tell us a bit about how you'd like to get involved and we'll be in touch.";
+
 export default function JoinCrewDialog({ open, onOpenChange, circle, onApplied }: Props) {
     const { toast } = useToast();
     const router = useRouter();
@@ -78,8 +83,7 @@ export default function JoinCrewDialog({ open, onOpenChange, circle, onApplied }
                     <div className="flex items-start gap-3 rounded-md border p-3">
                         <CirclePicture circle={circle} size="40px" />
                         <p className="text-sm text-muted-foreground">
-                            Thanks for wanting to help support us on tour! Tell us a bit about how you&apos;d like to
-                            get involved and we&apos;ll be in touch.
+                            {circle.crewWelcomeMessage?.trim() || JOIN_CREW_DEFAULT_WELCOME_MESSAGE}
                         </p>
                     </div>
 

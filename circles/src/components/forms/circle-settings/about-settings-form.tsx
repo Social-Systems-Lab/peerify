@@ -38,6 +38,7 @@ import {
     getPeerifyArtistProfile,
     getPeerifyVenueProfile,
     hasPeerifyArtistIntent,
+    isPeerifyArtistIdentity,
     isPeerifyManagedIdentity,
     isPeerifyVenueIdentity,
     PEERIFY_ARTIST_TYPE_OPTIONS,
@@ -57,6 +58,7 @@ type AboutSettingsFormValues = {
     description?: string;
     content?: string;
     mission?: string;
+    crewWelcomeMessage?: string;
     picture?: any;
     images?: ImageItem[];
     isPublic?: boolean;
@@ -497,6 +499,11 @@ export function AboutSettingsForm({
     const isPeerifyManagedVenueCircle = isPeerifyVenueIdentity(circle);
     const isPeerifyManagedArtistCircle = isPeerifyManagedIdentity(circle) && !isPeerifyManagedVenueCircle;
     const canEditPeerifyVenueProfile = isPeerifyManagedVenueCircle;
+    // Broader than isPeerifyManagedArtistCircle — also covers non-managed circles with artist
+    // intent, matching the same check Crew's own eligibility/force-enable logic uses
+    // (isModuleEnabled, circle-tabs.tsx), so this field shows up for every circle that can
+    // actually have a Crew.
+    const isCrewEligibleCircle = isPeerifyArtistIdentity(circle);
     const artistProfileDefaults = buildArtistProfileFormDefaults(circle);
     const venueProfileDefaults = buildVenueProfileFormDefaults(circle);
 
@@ -508,6 +515,7 @@ export function AboutSettingsForm({
             description: circle.description || "",
             content: circle.content || "",
             mission: circle.mission || "",
+            crewWelcomeMessage: circle.crewWelcomeMessage || "",
             picture: (circle.picture as any) || undefined, // Keep current picture for preview/update
             // cover: undefined as any, // Remove cover
             images:
@@ -943,6 +951,29 @@ export function AboutSettingsForm({
                                                 user: "Define your purpose and the change you want to see in the world.",
                                             },
                                             maxLength: 500,
+                                        }}
+                                        formField={field}
+                                        control={form.control as unknown as Control}
+                                    />
+                                )}
+                            />
+                        )}
+
+                        {isCrewEligibleCircle && (
+                            <Controller
+                                name="crewWelcomeMessage"
+                                control={form.control as unknown as Control}
+                                render={({ field }) => (
+                                    <DynamicTextareaField
+                                        field={{
+                                            name: "crewWelcomeMessage",
+                                            type: "textarea",
+                                            label: "Crew Welcome Message",
+                                            placeholder:
+                                                "Thanks for wanting to help support us on tour! Tell us a bit about how you'd like to get involved and we'll be in touch.",
+                                            description:
+                                                "Shown to fans before they apply to join your Crew. Leave blank to use the default message shown above as a placeholder.",
+                                            maxLength: 300,
                                         }}
                                         formField={field}
                                         control={form.control as unknown as Control}

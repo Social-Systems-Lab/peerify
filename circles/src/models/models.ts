@@ -587,6 +587,9 @@ export const circleSchema = z.object({
     description: z.string().optional(),
     content: z.string().optional(),
     mission: z.string().optional(),
+    // Shown to fans in join-crew-dialog.tsx before they apply to Crew. Falls back to a generic
+    // default message when unset — see JOIN_CREW_DEFAULT_WELCOME_MESSAGE.
+    crewWelcomeMessage: z.string().optional(),
     isPublic: z.boolean().optional(),
     showAdminsPublicly: z.boolean().optional(),
     mapVisible: z.boolean().optional(),
