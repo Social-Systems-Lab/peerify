@@ -325,11 +325,10 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             row above, so either can be absent without leaving dead space or the
                             other looking like it's missing a sibling. */}
                         {isPeerifyArtistIdentity(circle) && (
-                            // gap-2 matches the equivalent Pledge/Crew row on the full artist page
-                            // (home-content.tsx) — gap-1 (copied from the Follow/Bookmark row above,
-                            // which suits small icon-only buttons) read too tight for this pair of
-                            // labeled buttons.
-                            <div className="flex flex-row justify-center gap-2">
+                            // gap-3 matches the equivalent Pledge/Crew row on the full artist page
+                            // (home-content.tsx) — kept in sync so both surfaces use identical
+                            // spacing for this same button pair.
+                            <div className="flex flex-row justify-center gap-3">
                                 <Button
                                     type="button"
                                     size="sm"
