@@ -13,7 +13,7 @@ import {
 import { UserPicture } from "../members/user-picture";
 import { CirclePicture } from "../circles/circle-picture";
 import { Button } from "@/components/ui/button";
-import { Edit, Heart, Link2, Loader2, MessageCircle, MoreHorizontal, MoreVertical, Pin, PinOff, Repeat2, Trash2, Users, X, MapPin } from "lucide-react"; // Added Users, MapPin
+import { Edit, Heart, Link2, Loader2, Megaphone, MessageCircle, MoreHorizontal, MoreVertical, Pin, PinOff, Repeat2, Trash2, Users, X, MapPin } from "lucide-react"; // Added Users, MapPin
 import { Badge } from "@/components/ui/badge"; // Added Badge import
 import { Carousel, CarouselApi, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import React, {
@@ -870,13 +870,25 @@ export const PostItem = ({
                 isCompact || inPreview || embedded ? "" : "rounded-[15px] border-0 shadow-lg"
             } bg-white`}
         >
-            {isPinned && (
+            {/* isCrewMessage takes precedence over the plain "Pinned" badge — a broadcast is
+                always pinned, but showing both would be redundant, and "Crew Message" is the
+                more specific, meaningful label of the two. */}
+            {post.isCrewMessage ? (
                 <div className="absolute left-3 top-3 z-20">
                     <Badge variant="secondary" className="gap-1">
-                        <Pin className="h-3 w-3" />
-                        Pinned
+                        <Megaphone className="h-3 w-3" />
+                        Crew Message
                     </Badge>
                 </div>
+            ) : (
+                isPinned && (
+                    <div className="absolute left-3 top-3 z-20">
+                        <Badge variant="secondary" className="gap-1">
+                            <Pin className="h-3 w-3" />
+                            Pinned
+                        </Badge>
+                    </div>
+                )
             )}
             {(showInlineClose || showAdminActions || isDetailView) && (
                 <div className="absolute right-2 top-2 z-20 flex items-center gap-1">
