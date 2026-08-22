@@ -12,7 +12,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, ChevronDown, Circle as CircleIcon, Loader2, Pin, PinOff, Star, Users } from "lucide-react";
+import { Bell, ChevronDown, Circle as CircleIcon, Loader2, Pin, PinOff, Star, Users, UsersRound } from "lucide-react";
 import { LuClipboardCheck, LuMail } from "react-icons/lu";
 import {
     authInfoAtom,
@@ -110,9 +110,22 @@ export const UserToolbox = () => {
         router.push(getCircleDefaultPath(circle));
     };
 
+    const openCrew = (circle: Circle) => {
+        closeToolbox();
+        router.push(`/circles/${circle.handle}/crew`);
+    };
+
     const circles =
         user?.memberships
             ?.filter((m) => m.circle.circleType === "circle" && m.circle.handle !== "default")
+            ?.map((membership) => membership.circle) || [];
+
+    // Approved Crew memberships only — userGroups gains "crew" on approval (see Crew Phase 1's
+    // approveCrewApplicationAction) and never gets removed on leave/removal-from-crew today, so
+    // this filter is the same "currently tagged crew" check the rest of the feature relies on.
+    const crews =
+        user?.memberships
+            ?.filter((m) => m.userGroups?.includes("crew"))
             ?.map((membership) => membership.circle) || [];
 
     const [events, setEvents] = useState<EventDisplay[]>([]);
@@ -713,7 +726,7 @@ export const UserToolbox = () => {
                     onValueChange={handleTabChange}
                     className="flex h-full flex-col"
                 >
-                    <TabsList className="grid h-auto w-full grid-cols-6 rounded-none border-b border-t-0 border-b-slate-200 border-t-slate-200 bg-white p-0 pb-2 pt-0">
+                    <TabsList className="grid h-auto w-full grid-cols-7 rounded-none border-b border-t-0 border-b-slate-200 border-t-slate-200 bg-white p-0 pb-2 pt-0">
                         {/* Existing TabsTriggers */}
                         <TabsTrigger
                             value="chat"
@@ -738,6 +751,12 @@ export const UserToolbox = () => {
                             className={toolboxActiveTabClassName}
                         >
                             <CircleIcon className="h-5 w-5" />
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="crews"
+                            className={toolboxActiveTabClassName}
+                        >
+                            <UsersRound className="h-5 w-5" />
                         </TabsTrigger>
                         <TabsTrigger
                             value="connections"
@@ -782,6 +801,29 @@ export const UserToolbox = () => {
                         ) : (
                             <div className="flex h-full items-center justify-center p-8 text-center text-muted-foreground">
                                 No communities followed
+                            </div>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="crews" className="m-0 flex-grow overflow-auto pt-1">
+                        {crews.length > 0 ? (
+                            crews.map((circle) => (
+                                <div
+                                    key={circle._id}
+                                    className="m-1 flex cursor-pointer items-center space-x-4 rounded-lg p-2 hover:bg-gray-100"
+                                    onClick={() => openCrew(circle)}
+                                >
+                                    <CirclePicture circle={circle} size="40px" />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium">{circle.name}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {circle.description ?? circle.mission}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="flex h-full items-center justify-center p-8 text-center text-muted-foreground">
+                                No crews joined yet
                             </div>
                         )}
                     </TabsContent>

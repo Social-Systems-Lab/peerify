@@ -1183,6 +1183,7 @@ export type UserToolboxTab =
     | "notifications"
     | "profile"
     | "circles"
+    | "crews"
     | "bookmarks"
     | "connections"
     | "tasks"
