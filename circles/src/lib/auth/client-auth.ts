@@ -178,7 +178,9 @@ export const isModuleEnabled = (circle: Circle, moduleHandle: string): boolean =
     // migration. Deliberately narrower than Community's circleType === "circle" check, though:
     // Crew is specifically an artist/band feature (matches Pledge/Offers' own scoping via
     // isPeerifyArtistIdentity) — venues and other non-artist circle types should not get it.
-    if (moduleHandle === "crew" && isPeerifyArtistIdentity(circle)) {
+    // crewEnabled defaults to true (missing = enabled) — an artist can hide Crew entirely via
+    // the About settings toggle without losing this force-enable for everyone else.
+    if (moduleHandle === "crew" && isPeerifyArtistIdentity(circle) && circle.crewEnabled !== false) {
         return true;
     }
 

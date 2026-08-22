@@ -77,7 +77,10 @@ export function CircleTabs({ circle }: CircleTabsProps) {
     // not a general circleType === "circle" one, so venues and other non-artist circles
     // shouldn't get the tab.
     const isArtistOrVenueCircle = circle.circleType === "circle";
-    const isCrewEligibleCircle = isPeerifyArtistIdentity(circle);
+    // crewEnabled defaults to true (missing = enabled) — see the matching gate in
+    // isModuleEnabled() (client-auth.ts), which this component deliberately duplicates rather
+    // than delegating to.
+    const isCrewEligibleCircle = isPeerifyArtistIdentity(circle) && circle.crewEnabled !== false;
 
     const enabledModules = useMemo(() => {
         // loop through all modules and check if they are enabled for the circle
