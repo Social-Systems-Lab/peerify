@@ -143,6 +143,7 @@ export const PEERIFY_ARTIST_TYPE_OPTIONS = [
 ] as const;
 
 export const PRIMARY_GENRE_OPTIONS = [
+    "Acoustic",
     "Alternative",
     "Ambient",
     "Blues",
