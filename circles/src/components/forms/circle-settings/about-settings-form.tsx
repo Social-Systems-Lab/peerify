@@ -59,6 +59,7 @@ type AboutSettingsFormValues = {
     content?: string;
     mission?: string;
     crewWelcomeMessage?: string;
+    crewEnabled?: boolean;
     picture?: any;
     images?: ImageItem[];
     isPublic?: boolean;
@@ -516,6 +517,7 @@ export function AboutSettingsForm({
             content: circle.content || "",
             mission: circle.mission || "",
             crewWelcomeMessage: circle.crewWelcomeMessage || "",
+            crewEnabled: circle.crewEnabled !== false,
             picture: (circle.picture as any) || undefined, // Keep current picture for preview/update
             // cover: undefined as any, // Remove cover
             images:
@@ -1005,7 +1007,6 @@ export function AboutSettingsForm({
                     // Bordered container matches the Organization Claim section's convention
                     // (space-y-4 rounded-lg border bg-slate-50 p-4 + heading/description) — this is
                     // a distinct, Crew-specific setting, not just another general About field.
-                    // Presentation only — no on/off toggle here, that's deliberately deferred.
                     <div
                         id="crew-welcome-message"
                         style={{ scrollMarginTop: "140px" }}
@@ -1017,6 +1018,22 @@ export function AboutSettingsForm({
                                 Shown to fans before they apply to join your Crew.
                             </p>
                         </div>
+                        <Controller
+                            name="crewEnabled"
+                            control={form.control as unknown as Control}
+                            render={({ field }) => (
+                                <PeerifyCheckboxField
+                                    label="Enable Crew"
+                                    description={
+                                        field.value === false
+                                            ? "Crew is hidden from your page. Existing Crew members and applications are kept — just not visible to fans."
+                                            : "Fans can apply to join your Crew and see your Crew page."
+                                    }
+                                    value={field.value !== false}
+                                    onChange={field.onChange}
+                                />
+                            )}
+                        />
                         <Controller
                             name="crewWelcomeMessage"
                             control={form.control as unknown as Control}
