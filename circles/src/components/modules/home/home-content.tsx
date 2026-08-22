@@ -615,19 +615,28 @@ export default function HomeContent({
                                                 </Link>
                                             </Button>
                                         ) : null}
-                                        {crewMembershipStatus === "approved" ? (
-                                            <Button asChild size="sm" variant="outline">
-                                                <Link href={`/circles/${circle.handle}/crew`}>View Crew</Link>
-                                            </Button>
-                                        ) : crewMembershipStatus === "pending" ? (
-                                            <Button type="button" size="sm" variant="outline" disabled>
-                                                Application Pending
-                                            </Button>
-                                        ) : (
-                                            <Button type="button" size="sm" variant="outline" onClick={openJoinCrewDialog}>
-                                                Join Crew
-                                            </Button>
-                                        )}
+                                        {/* Hidden entirely (not just the "apply" state) when the artist has
+                                            turned Crew off — a "View Crew"/"Application Pending" button
+                                            would otherwise dangle to a route isModuleEnabled() now 404s. */}
+                                        {circle.crewEnabled !== false &&
+                                            (crewMembershipStatus === "approved" ? (
+                                                <Button asChild size="sm" variant="outline">
+                                                    <Link href={`/circles/${circle.handle}/crew`}>View Crew</Link>
+                                                </Button>
+                                            ) : crewMembershipStatus === "pending" ? (
+                                                <Button type="button" size="sm" variant="outline" disabled>
+                                                    Application Pending
+                                                </Button>
+                                            ) : (
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={openJoinCrewDialog}
+                                                >
+                                                    Join Crew
+                                                </Button>
+                                            ))}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {peerifyArtistProfile.primaryGenres.map((genre) => (
