@@ -960,26 +960,34 @@ export function AboutSettingsForm({
                         )}
 
                         {isCrewEligibleCircle && (
-                            <Controller
-                                name="crewWelcomeMessage"
-                                control={form.control as unknown as Control}
-                                render={({ field }) => (
-                                    <DynamicTextareaField
-                                        field={{
-                                            name: "crewWelcomeMessage",
-                                            type: "textarea",
-                                            label: "Crew Welcome Message",
-                                            placeholder:
-                                                "Thanks for wanting to help support us on tour! Tell us a bit about how you'd like to get involved and we'll be in touch.",
-                                            description:
-                                                "Shown to fans before they apply to join your Crew. Leave blank to use the default message shown above as a placeholder.",
-                                            maxLength: 300,
-                                        }}
-                                        formField={field}
-                                        control={form.control as unknown as Control}
-                                    />
-                                )}
-                            />
+                            // id + scrollMarginTop let the "Edit your Crew welcome message" link on the
+                            // Crew Applications settings page (crew-applications.tsx) deep-link straight
+                            // here via #crew-welcome-message — same scroll-offset convention post-list.tsx
+                            // uses for its #post-{id} anchors, so the field doesn't land tucked under the
+                            // fixed header. Next.js's router already scrolls a navigated-to hash into view
+                            // on its own; this just gives it a target and clears the header.
+                            <div id="crew-welcome-message" style={{ scrollMarginTop: "140px" }}>
+                                <Controller
+                                    name="crewWelcomeMessage"
+                                    control={form.control as unknown as Control}
+                                    render={({ field }) => (
+                                        <DynamicTextareaField
+                                            field={{
+                                                name: "crewWelcomeMessage",
+                                                type: "textarea",
+                                                label: "Crew Welcome Message",
+                                                placeholder:
+                                                    "Thanks for wanting to help support us on tour! Tell us a bit about how you'd like to get involved and we'll be in touch.",
+                                                description:
+                                                    "Shown to fans before they apply to join your Crew. Leave blank to use the default message shown above as a placeholder.",
+                                                maxLength: 300,
+                                            }}
+                                            formField={field}
+                                            control={form.control as unknown as Control}
+                                        />
+                                    )}
+                                />
+                            </div>
                         )}
 
                         <Controller
