@@ -5,12 +5,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { Circle } from "@/models/models";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useForm, Controller, Control, FieldValues } from "react-hook-form";
-import { saveAbout } from "@/app/circles/[handle]/settings/about/actions";
+import { saveAbout, setCrewEnabledAction } from "@/app/circles/[handle]/settings/about/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommunityGuidelinesSettingsCard } from "@/components/forms/circle-settings/community-guidelines-settings-card";
@@ -59,7 +60,6 @@ type AboutSettingsFormValues = {
     content?: string;
     mission?: string;
     crewWelcomeMessage?: string;
-    crewEnabled?: boolean;
     picture?: any;
     images?: ImageItem[];
     isPublic?: boolean;
@@ -356,6 +356,56 @@ const PeerifyCheckboxField = ({
     </label>
 );
 
+// Deliberately NOT part of the react-hook-form state the rest of this form shares — this
+// toggle auto-saves on click via its own server action (setCrewEnabledAction), the same
+// pattern crew-member-rail.tsx's crewVisible Switch already uses (optimistic flip, revert +
+// toast only on failure, no success toast for something this minor). Staying out of the shared
+// form means neither direction of accidental interference is possible: clicking this never
+// saves/discards unrelated unsaved Description/Content/Welcome Message edits, and clicking the
+// form's own Save Changes button never resets this back to a stale default value.
+const CrewEnabledToggle = ({ circleId, initialValue }: { circleId: string; initialValue: boolean }) => {
+    const { toast } = useToast();
+    const [enabled, setEnabled] = useState(initialValue);
+    const [isSaving, setIsSaving] = useState(false);
+    const [justSaved, setJustSaved] = useState(false);
+
+    const onToggle = async (checked: boolean) => {
+        setIsSaving(true);
+        setJustSaved(false);
+        setEnabled(checked);
+        const res = await setCrewEnabledAction(circleId, checked);
+        setIsSaving(false);
+        if (!res.success) {
+            setEnabled(!checked);
+            toast({
+                title: "Error",
+                description: res.message || "Failed to update Crew setting",
+                variant: "destructive",
+            });
+            return;
+        }
+        setJustSaved(true);
+        window.setTimeout(() => setJustSaved(false), 1500);
+    };
+
+    return (
+        <div className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
+            <Label htmlFor="crew-enabled-toggle">
+                <span className="block font-medium">Enable Crew</span>
+                <span className="mt-1 block text-muted-foreground">
+                    {enabled
+                        ? "Fans can apply to join your Crew and see your Crew page."
+                        : "Crew is hidden from your page. Existing Crew members and applications are kept — just not visible to fans."}
+                </span>
+            </Label>
+            <div className="flex shrink-0 items-center gap-2">
+                {justSaved && <span className="text-xs text-muted-foreground">Saved</span>}
+                <Switch id="crew-enabled-toggle" checked={enabled} onCheckedChange={onToggle} disabled={isSaving} />
+            </div>
+        </div>
+    );
+};
+
 const VENUE_TYPE_OPTIONS = [
     { value: "", label: "Select venue type" },
     { value: "Bar", label: "Bar" },
@@ -517,7 +567,6 @@ export function AboutSettingsForm({
             content: circle.content || "",
             mission: circle.mission || "",
             crewWelcomeMessage: circle.crewWelcomeMessage || "",
-            crewEnabled: circle.crewEnabled !== false,
             picture: (circle.picture as any) || undefined, // Keep current picture for preview/update
             // cover: undefined as any, // Remove cover
             images:
@@ -1018,21 +1067,9 @@ export function AboutSettingsForm({
                                 Shown to fans before they apply to join your Crew.
                             </p>
                         </div>
-                        <Controller
-                            name="crewEnabled"
-                            control={form.control as unknown as Control}
-                            render={({ field }) => (
-                                <PeerifyCheckboxField
-                                    label="Enable Crew"
-                                    description={
-                                        field.value === false
-                                            ? "Crew is hidden from your page. Existing Crew members and applications are kept — just not visible to fans."
-                                            : "Fans can apply to join your Crew and see your Crew page."
-                                    }
-                                    value={field.value !== false}
-                                    onChange={field.onChange}
-                                />
-                            )}
+                        <CrewEnabledToggle
+                            circleId={circle._id ?? ""}
+                            initialValue={circle.crewEnabled !== false}
                         />
                         <Controller
                             name="crewWelcomeMessage"

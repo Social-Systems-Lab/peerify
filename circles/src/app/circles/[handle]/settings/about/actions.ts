@@ -180,6 +180,39 @@ async function updateCirclePublishStatus(circleId: string, publishStatus: "publi
     return { success: true, message: "Circle workflow updated successfully" };
 }
 
+// Deliberately its own action rather than a field on saveAbout() — the Crew card's on/off
+// toggle auto-saves on click (see the CrewEnabledToggle component in about-settings-form.tsx),
+// so it must not be bundled into the same form state as Description/Content/Welcome Message,
+// which only save when the shared Save Changes button is clicked. Kept crewEnabled entirely out
+// of saveAbout()'s whitelist for the same reason in reverse: submitting the main form must never
+// silently reset this toggle back to a stale form-default value.
+export async function setCrewEnabledAction(circleId: string, crewEnabled: boolean): Promise<FormSubmitResponse> {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to edit circle settings" };
+    }
+
+    const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+    if (!authorized) {
+        return { success: false, message: "You are not authorized to edit circle settings" };
+    }
+
+    try {
+        await updateCircle({ _id: circleId, crewEnabled }, userDid);
+    } catch (error) {
+        return { success: false, message: "Failed to update Crew setting. " + error?.toString() };
+    }
+
+    const circle = await getCircleById(circleId);
+    const circlePath = circle ? await getCirclePath(circle) : null;
+    if (circlePath) {
+        revalidatePath(circlePath);
+        revalidatePath(`${circlePath}settings/about`);
+    }
+
+    return { success: true };
+}
+
 export async function publishCircleAction(formData: FormData) {
     const circleId = String(formData.get("circleId") || "");
     if (!circleId) {
@@ -599,7 +632,6 @@ export async function saveAbout(values: {
     content?: string;
     mission?: string;
     crewWelcomeMessage?: string;
-    crewEnabled?: boolean;
     picture?: any;
     // cover?: any; // Removed cover
     images?: ImageItem[]; // Added images
@@ -627,7 +659,6 @@ export async function saveAbout(values: {
         content: values.content,
         mission: values.mission,
         crewWelcomeMessage: values.crewWelcomeMessage?.trim() || undefined,
-        crewEnabled: values.crewEnabled !== false,
         isPublic: values.isPublic,
         showAdminsPublicly: values.showAdminsPublicly,
         mapVisible: values.mapVisible === true,
