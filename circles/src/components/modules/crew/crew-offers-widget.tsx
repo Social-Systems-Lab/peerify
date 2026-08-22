@@ -18,6 +18,11 @@ type WidgetState =
     | { loading: false; isAdminOrMod: true; offerers: CrewOfferer[] }
     | { loading: false; isAdminOrMod: false; aggregate: CrewOfferAggregateEntry[] };
 
+// Same cap-with-"+N" treatment as the member rail, applied on both mobile and desktop for the
+// same reason — a plain crew member's aggregate is meant to be a glanceable summary, not a full
+// category listing.
+const VISIBLE_TAG_CAP = 5;
+
 // Two very different shapes depending on viewer role, both sourced from getCrewOffersAction
 // (which decides server-side which one to even compute — a plain crew member's response never
 // contains other members' names or avatars at all, not just a rendering choice):
@@ -27,6 +32,7 @@ type WidgetState =
 //   context rather than a competing section — no names, no avatars.
 export default function CrewOffersWidget({ circle }: CrewOffersWidgetProps) {
     const [state, setState] = useState<WidgetState>({ loading: true });
+    const [showAllTags, setShowAllTags] = useState(false);
 
     useEffect(() => {
         let isCurrent = true;
@@ -75,12 +81,30 @@ export default function CrewOffersWidget({ circle }: CrewOffersWidgetProps) {
             ) : state.aggregate.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No Crew offers yet.</p>
             ) : (
-                <div className="flex flex-wrap gap-2">
-                    {state.aggregate.map((entry) => (
+                <div className="flex flex-wrap items-center gap-2">
+                    {(showAllTags ? state.aggregate : state.aggregate.slice(0, VISIBLE_TAG_CAP)).map((entry) => (
                         <Badge key={entry.type} variant="offering">
                             {entry.count} offering {entry.label}
                         </Badge>
                     ))}
+                    {!showAllTags && state.aggregate.length > VISIBLE_TAG_CAP && (
+                        <button
+                            type="button"
+                            onClick={() => setShowAllTags(true)}
+                            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                        >
+                            +{state.aggregate.length - VISIBLE_TAG_CAP} more
+                        </button>
+                    )}
+                    {showAllTags && state.aggregate.length > VISIBLE_TAG_CAP && (
+                        <button
+                            type="button"
+                            onClick={() => setShowAllTags(false)}
+                            className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                        >
+                            Show less
+                        </button>
+                    )}
                 </div>
             )}
         </div>
