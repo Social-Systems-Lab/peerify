@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
 import { Circle, MemberDisplay } from "@/models/models";
@@ -10,9 +11,21 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Lock } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Lock, LogOut } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { getCrewProfileAccessAction, setCrewVisibilityAction } from "./actions";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { getCrewProfileAccessAction, setCrewVisibilityAction, leaveCrewAction } from "./actions";
 
 type CrewMemberRailProps = {
     circle: Circle;
@@ -29,6 +42,7 @@ const CrewRailAvatar: React.FC<{ circle: Circle; member: MemberDisplay; viewerDi
     viewerDid,
 }) => {
     const { toast } = useToast();
+    const router = useRouter();
     const ownerRestrictsVisibility = isSuppressedCrewMember(member);
     const isSelf = viewerDid === member.userDid;
 
@@ -61,6 +75,25 @@ const CrewRailAvatar: React.FC<{ circle: Circle; member: MemberDisplay; viewerDi
         setIsSaving(false);
         if (!res.success) {
             setCrewVisibleState(!checked);
+            toast({ title: "Error", description: res.message, variant: "destructive" });
+        }
+    };
+
+    const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
+    const [isLeaving, setIsLeaving] = useState(false);
+
+    // router.refresh() re-runs crew.tsx's server-side isEligible check with the now-updated
+    // membership, which is what actually swaps the whole page over to CrewLanding — removing
+    // this member from local state wouldn't be enough on its own, since the feed/Offers widget
+    // live one level up in a sibling tree this component doesn't control.
+    const onLeaveCrew = async () => {
+        setIsLeaving(true);
+        const res = await leaveCrewAction(circle._id ?? "");
+        setIsLeaving(false);
+        if (res.success) {
+            setIsLeaveDialogOpen(false);
+            router.refresh();
+        } else {
             toast({ title: "Error", description: res.message, variant: "destructive" });
         }
     };
@@ -104,6 +137,39 @@ const CrewRailAvatar: React.FC<{ circle: Circle; member: MemberDisplay; viewerDi
                             disabled={isSaving}
                         />
                     </div>
+                    <Separator className="my-3" />
+                    <AlertDialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto w-full justify-start gap-2 p-0 text-sm font-normal text-destructive hover:bg-transparent hover:text-destructive"
+                            onClick={() => setIsLeaveDialogOpen(true)}
+                        >
+                            <LogOut className="h-3.5 w-3.5" />
+                            Leave Crew
+                        </Button>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Leave {circle.name}&apos;s Crew?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    You&apos;ll lose access to the Crew feed and Offers, and other Crew members won&apos;t
+                                    see you in the list anymore. You&apos;ll still follow {circle.name} as normal, and
+                                    can apply to rejoin Crew at any time.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel disabled={isLeaving}>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                    disabled={isLeaving}
+                                    onClick={onLeaveCrew}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                    {isLeaving ? "Leaving…" : "Leave Crew"}
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </PopoverContent>
             </Popover>
         );
