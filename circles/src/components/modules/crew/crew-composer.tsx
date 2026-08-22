@@ -52,7 +52,19 @@ export function CrewComposer({ circle, feed, onPostCreated }: CrewComposerProps)
         return () => document.removeEventListener("mousedown", handlePointerDown);
     }, [isExpanded, content, images]);
 
+    // Guards against a real, confirmed duplicate-post bug: two clicks fired close enough
+    // together (a genuine rapid double-click, or a double-tap) both ran to completion before
+    // React's next render committed isPending=true to the Button's disabled attribute, so both
+    // called createPostAction independently. isPending updates asynchronously (it's scheduled by
+    // startTransition, not applied synchronously), so relying on disabled={isPending} alone
+    // leaves that race window open. A ref is checked/set synchronously in the same tick as the
+    // click, closing it — reproduced and confirmed fixed via two raw dispatched click events
+    // before this guard existed (2 Post docs) vs. after (1).
+    const isSubmittingRef = useRef(false);
+
     const handleSubmit = () => {
+        if (isSubmittingRef.current) return;
+
         if (!content.trim() && images.length === 0) {
             toast({
                 title: "Error",
@@ -62,6 +74,7 @@ export function CrewComposer({ circle, feed, onPostCreated }: CrewComposerProps)
             return;
         }
 
+        isSubmittingRef.current = true;
         startTransition(async () => {
             const formData = new FormData();
             formData.append("circleId", circle._id);
@@ -77,20 +90,24 @@ export function CrewComposer({ circle, feed, onPostCreated }: CrewComposerProps)
                 }
             });
 
-            const response = await createPostAction(formData);
-            if (!response.success) {
-                toast({
-                    title: response.message || "Failed to create post",
-                    variant: "destructive",
-                });
-                return;
-            }
+            try {
+                const response = await createPostAction(formData);
+                if (!response.success) {
+                    toast({
+                        title: response.message || "Failed to create post",
+                        variant: "destructive",
+                    });
+                    return;
+                }
 
-            toast({ title: "Posted to Crew", variant: "success" });
-            setContent("");
-            setImages([]);
-            setIsExpanded(false);
-            onPostCreated();
+                toast({ title: "Posted to Crew", variant: "success" });
+                setContent("");
+                setImages([]);
+                setIsExpanded(false);
+                onPostCreated();
+            } finally {
+                isSubmittingRef.current = false;
+            }
         });
     };
 
