@@ -121,19 +121,52 @@ const CrewRailAvatar: React.FC<{ circle: Circle; member: MemberDisplay; viewerDi
     );
 };
 
+// Capped on both mobile and desktop, not just mobile — even at desktop's md:col-span-1 sidebar
+// width, a large Crew doesn't need every avatar rendered up front; a compact rail with a "+N"
+// reveal reads as ambient context rather than a competing section, matching the layout brief.
+// A simple expand-in-place (local state, no modal/sheet) was chosen over Radix's Collapsible:
+// there's no height-animation concern here worth its measurement machinery for a flex-wrap row
+// of small circular avatars — a plain conditional slice is simpler and more predictable.
+const VISIBLE_CAP = 5;
+
 const CrewMemberRail: React.FC<CrewMemberRailProps> = ({ circle, members }) => {
     const [user] = useAtom(userAtom);
+    const [showAll, setShowAll] = useState(false);
 
     if (members.length === 0) {
         return <p className="text-sm text-muted-foreground">No Crew members yet.</p>;
     }
 
+    // Your own avatar (where the visibility toggle lives) should always be reachable without
+    // needing to expand the rail first.
+    const ordered = [...members].sort((a, b) => (a.userDid === user?.did ? -1 : b.userDid === user?.did ? 1 : 0));
+    const visibleMembers = showAll ? ordered : ordered.slice(0, VISIBLE_CAP);
+    const hiddenCount = ordered.length - visibleMembers.length;
+
     return (
         <TooltipProvider>
             <div className="flex flex-wrap items-center gap-2">
-                {members.map((member) => (
+                {visibleMembers.map((member) => (
                     <CrewRailAvatar key={member.userDid} circle={circle} member={member} viewerDid={user?.did} />
                 ))}
+                {hiddenCount > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setShowAll(true)}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-white bg-muted text-xs font-medium text-muted-foreground shadow-sm hover:bg-muted/80"
+                    >
+                        +{hiddenCount}
+                    </button>
+                )}
+                {showAll && ordered.length > VISIBLE_CAP && (
+                    <button
+                        type="button"
+                        onClick={() => setShowAll(false)}
+                        className="text-xs text-muted-foreground underline-offset-2 hover:underline"
+                    >
+                        Show less
+                    </button>
+                )}
             </div>
         </TooltipProvider>
     );
