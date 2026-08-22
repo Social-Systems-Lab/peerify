@@ -79,6 +79,7 @@ const CrewRailAvatar: React.FC<{ circle: Circle; member: MemberDisplay; viewerDi
         }
     };
 
+    const [isPopoverOpen, setIsPopoverOpen] = useState(false);
     const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false);
     const [isLeaving, setIsLeaving] = useState(false);
 
@@ -119,59 +120,72 @@ const CrewRailAvatar: React.FC<{ circle: Circle; member: MemberDisplay; viewerDi
     // your own avatar keeps this self-contained without inventing new navigation for one toggle).
     if (isSelf) {
         return (
-            <Popover>
-                <PopoverTrigger asChild>
-                    <button type="button" aria-label="Your Crew visibility settings">
-                        {avatar}
-                    </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-64">
-                    <div className="flex items-center justify-between gap-3">
-                        <Label htmlFor={`crew-visible-${member.userDid}`} className="text-sm">
-                            Visible to other Crew members
-                        </Label>
-                        <Switch
-                            id={`crew-visible-${member.userDid}`}
-                            checked={crewVisible}
-                            onCheckedChange={onToggle}
-                            disabled={isSaving}
-                        />
-                    </div>
-                    <Separator className="my-3" />
-                    <AlertDialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
+            <>
+                <Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+                    <PopoverTrigger asChild>
+                        <button type="button" aria-label="Your Crew visibility settings">
+                            {avatar}
+                        </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64">
+                        <div className="flex items-center justify-between gap-3">
+                            <Label htmlFor={`crew-visible-${member.userDid}`} className="text-sm">
+                                Visible to other Crew members
+                            </Label>
+                            <Switch
+                                id={`crew-visible-${member.userDid}`}
+                                checked={crewVisible}
+                                onCheckedChange={onToggle}
+                                disabled={isSaving}
+                            />
+                        </div>
+                        <Separator className="my-3" />
                         <Button
                             type="button"
                             variant="ghost"
                             size="sm"
                             className="h-auto w-full justify-start gap-2 p-0 text-sm font-normal text-destructive hover:bg-transparent hover:text-destructive"
-                            onClick={() => setIsLeaveDialogOpen(true)}
+                            onClick={() => {
+                                // The AlertDialog is rendered as a sibling below, OUTSIDE this
+                                // Popover — nesting it inside PopoverContent looked right but was
+                                // the actual bug: closing the Popover unmounts PopoverContent and
+                                // everything inside it, including a nested AlertDialog, before it
+                                // ever gets a chance to render, regardless of the AlertDialog's
+                                // own open state. Confirmed live: with the AlertDialog nested,
+                                // clicking this never opened it at all once the Popover-close call
+                                // was added — no role="alertdialog" ever appeared in the DOM.
+                                setIsPopoverOpen(false);
+                                setIsLeaveDialogOpen(true);
+                            }}
                         >
                             <LogOut className="h-3.5 w-3.5" />
                             Leave Crew
                         </Button>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Leave {circle.name}&apos;s Crew?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    You&apos;ll lose access to the Crew feed and Offers, and other Crew members won&apos;t
-                                    see you in the list anymore. You&apos;ll still follow {circle.name} as normal, and
-                                    can apply to rejoin Crew at any time.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel disabled={isLeaving}>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                    disabled={isLeaving}
-                                    onClick={onLeaveCrew}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                    {isLeaving ? "Leaving…" : "Leave Crew"}
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                </PopoverContent>
-            </Popover>
+                    </PopoverContent>
+                </Popover>
+                <AlertDialog open={isLeaveDialogOpen} onOpenChange={setIsLeaveDialogOpen}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Leave {circle.name}&apos;s Crew?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                You&apos;ll lose access to the Crew feed and Offers, and other Crew members won&apos;t
+                                see you in the list anymore. You&apos;ll still follow {circle.name} as normal, and can
+                                apply to rejoin Crew at any time.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel disabled={isLeaving}>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                                disabled={isLeaving}
+                                onClick={onLeaveCrew}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                                {isLeaving ? "Leaving…" : "Leave Crew"}
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            </>
         );
     }
 

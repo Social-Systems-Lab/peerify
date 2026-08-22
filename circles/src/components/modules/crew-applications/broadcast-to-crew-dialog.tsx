@@ -40,7 +40,7 @@ export default function BroadcastToCrewDialog({ circle }: BroadcastToCrewDialogP
 
             if (result.success) {
                 toast({
-                    title: "Message sent",
+                    title: "Broadcast sent",
                     description: `Sent to ${result.recipientCount} Crew member${result.recipientCount === 1 ? "" : "s"}.`,
                 });
                 setMessage("");
@@ -59,12 +59,12 @@ export default function BroadcastToCrewDialog({ circle }: BroadcastToCrewDialogP
             <DialogTrigger asChild>
                 <Button variant="outline" size="sm" className="w-fit">
                     <Megaphone className="mr-2 h-4 w-4" />
-                    Message the Crew
+                    Send Broadcast
                 </Button>
             </DialogTrigger>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Message the Crew</DialogTitle>
+                    <DialogTitle>Send Broadcast</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-2">
                     <Label htmlFor="crew-broadcast-message">Message</Label>
@@ -86,7 +86,7 @@ export default function BroadcastToCrewDialog({ circle }: BroadcastToCrewDialogP
                     </Button>
                     <Button onClick={onSend} disabled={isSending || !message.trim()}>
                         {isSending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        {isSending ? "Sending…" : "Send to Crew"}
+                        {isSending ? "Sending…" : "Send Broadcast"}
                     </Button>
                 </DialogFooter>
             </DialogContent>
