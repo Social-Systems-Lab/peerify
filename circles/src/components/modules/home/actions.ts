@@ -166,6 +166,13 @@ export const applyForCrewMembership = async (circle: Circle, message: string): P
             return { success: false, message: "Circle not found" };
         }
 
+        // Re-check server-side, not just trust that the Join Crew button was hidden client-side —
+        // a stale open dialog or a direct call could otherwise still submit an application after
+        // the artist has turned Crew off.
+        if (updatedCircle.crewEnabled === false) {
+            return { success: false, message: "Crew is not currently available for this circle" };
+        }
+
         const existingMember = await getMember(userDid, updatedCircle._id ?? "");
         if (existingMember?.userGroups?.includes("crew")) {
             return { success: true, message: "You are already in this circle's Crew", pending: false };

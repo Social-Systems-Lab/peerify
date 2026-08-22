@@ -334,30 +334,34 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                 >
                                     Pledge
                                 </Button>
-                                {crewMembershipStatus === "approved" ? (
-                                    <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setContentPreview(undefined);
-                                            window.setTimeout(() => {
-                                                router.push(`/circles/${circle.handle}/crew`);
-                                            }, closeDelayMs);
-                                        }}
-                                    >
-                                        View Crew
-                                    </Button>
-                                ) : crewMembershipStatus === "pending" ? (
-                                    <Button type="button" size="sm" variant="outline" disabled>
-                                        Application Pending
-                                    </Button>
-                                ) : (
-                                    <Button type="button" size="sm" variant="outline" onClick={openJoinCrewDialog}>
-                                        Join Crew
-                                    </Button>
-                                )}
+                                {/* Hidden entirely (not just the "apply" state) when the artist has
+                                    turned Crew off — a "View Crew"/"Application Pending" button
+                                    would otherwise dangle to a route isModuleEnabled() now 404s. */}
+                                {circle.crewEnabled !== false &&
+                                    (crewMembershipStatus === "approved" ? (
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setContentPreview(undefined);
+                                                window.setTimeout(() => {
+                                                    router.push(`/circles/${circle.handle}/crew`);
+                                                }, closeDelayMs);
+                                            }}
+                                        >
+                                            View Crew
+                                        </Button>
+                                    ) : crewMembershipStatus === "pending" ? (
+                                        <Button type="button" size="sm" variant="outline" disabled>
+                                            Application Pending
+                                        </Button>
+                                    ) : (
+                                        <Button type="button" size="sm" variant="outline" onClick={openJoinCrewDialog}>
+                                            Join Crew
+                                        </Button>
+                                    ))}
                             </div>
                         )}
 
