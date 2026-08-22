@@ -3,7 +3,7 @@
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getCirclePath, ensureCrewUserGroupOnCircle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
-import { getMember, addMember, updateMemberUserGroups } from "@/lib/data/member";
+import { getMember, addMember, updateMemberUserGroups, getCrewMembers } from "@/lib/data/member";
 import {
     getAllCrewApplications,
     getCrewApplication,
@@ -128,5 +128,49 @@ export const rejectCrewApplicationAction = async (
         return { success: true };
     } catch (error) {
         return { success: false, message: "Failed to reject Crew application. " + error?.toString() };
+    }
+};
+
+type BroadcastToCrewResponse = {
+    success: boolean;
+    message?: string;
+    recipientCount?: number;
+};
+
+// Same permission as managing applications — whoever can approve/reject Crew applications can
+// also message the Crew as a whole. Reuses sendNotifications' existing multi-recipient support
+// (already dedupes by did and fans out one Notification doc + push per recipient) rather than
+// introducing new fan-out logic. Deliberately independent of crewVisible: that flag only governs
+// whether OTHER crew members can see a given member in the rail/offers list, not whether the
+// artist can reach them — getCrewMembers doesn't filter on it, so neither does this.
+export const broadcastToCrewAction = async (circle: Circle, message: string): Promise<BroadcastToCrewResponse> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to message the Crew" };
+    }
+
+    const trimmedMessage = message?.trim();
+    if (!trimmedMessage) {
+        return { success: false, message: "Message cannot be empty" };
+    }
+
+    try {
+        const authorized = await isAuthorized(userDid, circle._id ?? "", features.general.manage_crew_applications);
+        if (!authorized) {
+            return { success: false, message: "You are not authorized to message the Crew" };
+        }
+
+        const members = await getCrewMembers(circle._id);
+        const recipients = members.map((member) => ({ did: member.userDid }));
+
+        if (recipients.length === 0) {
+            return { success: false, message: "There are no Crew members to message yet" };
+        }
+
+        await sendNotifications("crew_broadcast", recipients, { circle, messageBody: trimmedMessage });
+
+        return { success: true, recipientCount: recipients.length };
+    } catch (error) {
+        return { success: false, message: "Failed to send message to Crew. " + error?.toString() };
     }
 };

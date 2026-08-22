@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { Circle, CrewApplication } from "@/models/models";
 import CrewApplicationsTable from "./crew-applications-table";
 import RejectedCrewApplicationsTable from "./rejected-crew-applications-table";
+import BroadcastToCrewDialog from "./broadcast-to-crew-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsCompact } from "@/components/utils/use-is-compact";
 
@@ -34,16 +35,20 @@ const CrewApplicationsGateway: React.FC<CrewApplicationsGatewayProps> = ({
                 <div className="flex flex-1 flex-col">
                     <h1 className="m-0 p-0 pb-3 text-3xl font-bold">Crew Applications</h1>
                     <p className="text-gray-500">Manage and control incoming Crew applications.</p>
-                    {/* Discoverability fix: the welcome message field itself still lives in About
-                        settings (no duplicate field/save path) — this just points people here first,
-                        since Crew Applications is the natural first stop when setting up Crew. */}
-                    <Link
-                        href={`/circles/${circle.handle}/settings/about#crew-welcome-message`}
-                        className="mb-8 mt-2 inline-flex w-fit items-center gap-1 text-sm font-medium text-primary hover:underline"
-                    >
-                        Edit your Crew welcome message
-                        <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
+                    <div className="mb-8 mt-2 flex flex-wrap items-center gap-4">
+                        {/* Discoverability fix: the welcome message field itself still lives in About
+                            settings (no duplicate field/save path) — this just points people here
+                            first, since Crew Applications is the natural first stop when setting up
+                            Crew. */}
+                        <Link
+                            href={`/circles/${circle.handle}/settings/about#crew-welcome-message`}
+                            className="inline-flex w-fit items-center gap-1 text-sm font-medium text-primary hover:underline"
+                        >
+                            Edit your Crew welcome message
+                            <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                        <BroadcastToCrewDialog circle={circle} />
+                    </div>
                     <Tabs defaultValue="pending" className="w-full">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="pending">Pending Applications</TabsTrigger>

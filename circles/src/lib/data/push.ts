@@ -48,6 +48,7 @@ export const PUSH_NOTIFICATION_CATEGORIES: Record<
             "follow_accepted",
             "crew_application",
             "crew_application_approved",
+            "crew_broadcast",
         ],
     },
 };
@@ -118,6 +119,7 @@ export const resolvePushUrl = (type: string, payload: any): string | undefined =
         case "crew_application":
             return circleHandle ? `/circles/${circleHandle}/settings/crew-applications` : undefined;
         case "crew_application_approved":
+        case "crew_broadcast":
             return circleHandle ? `/circles/${circleHandle}/crew` : undefined;
         case "new_follower":
             return payload?.user?.handle ? `/circles/${payload.user.handle}` : undefined;

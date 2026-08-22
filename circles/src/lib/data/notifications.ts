@@ -98,6 +98,11 @@ export const buildNotificationBody = (type: string, payload: any): string => {
             return `${actorName} applied to join ${circleName}'s Crew`;
         case "crew_application_approved":
             return `You're now part of ${circleName}'s Crew!`;
+        case "crew_broadcast":
+            // Always sent with an explicit payload.messageBody (the artist's own text) — this
+            // fallback mirrors user_verification_request/proof_of_humanity_verified's defensive
+            // convention and should never actually be reached in practice.
+            return payload?.messageBody || `${actorName} sent an update to ${circleName}'s Crew`;
         case "new_follower":
             return `${actorName} is now following ${circleName}`;
         case "follow_accepted":
