@@ -599,7 +599,10 @@ export default function HomeContent({
                                 <div
                                     className={`flex w-full flex-col ${isCompact ? "items-center gap-2 py-1" : "items-start gap-3 py-2"}`}
                                 >
-                                    <div className="flex flex-wrap gap-2">
+                                    {/* gap-3 kept in sync with the equivalent Pledge/Crew row on the
+                                        map popup card (content-preview.tsx) — same button pair, same
+                                        spacing on both surfaces. */}
+                                    <div className="flex flex-wrap gap-3">
                                         <Button
                                             type="button"
                                             size="sm"
