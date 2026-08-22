@@ -1,7 +1,7 @@
 "use server";
 
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
-import { getMember, setCrewVisibility, getCrewOfferings, CrewOfferer } from "@/lib/data/member";
+import { getMember, setCrewVisibility, getCrewOfferings, CrewOfferer, updateMemberUserGroups } from "@/lib/data/member";
 import { getUserPendingCrewApplication } from "@/lib/data/crew-applications";
 import { tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
 
@@ -136,5 +136,38 @@ export const setCrewVisibilityAction = async (
         return { success: true };
     } catch (error) {
         return { success: false, message: "Failed to update your Crew visibility. " + error?.toString() };
+    }
+};
+
+type LeaveCrewResponse = {
+    success: boolean;
+    message?: string;
+};
+
+// Modeled on leaveCircle's authorization shape (home/actions.ts) — purely "acting on your own
+// membership," no admin/moderator check needed, since a user can always remove themselves from a
+// group they're in. Unlike leaveCircle (removeMember, strips ALL membership and unfollows the
+// circle entirely), this only drops the "crew" tag and keeps every other group the caller holds
+// (e.g. "members") — leaving Crew shouldn't touch their follower relationship with the artist.
+// getCrewMembershipStatusAction/applyForCrewMembership both key off userGroups.includes("crew")
+// and a "pending"-only application lookup, so re-applying afterward falls out naturally with no
+// separate application-record cleanup needed here.
+export const leaveCrewAction = async (circleId: string): Promise<LeaveCrewResponse> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to leave Crew" };
+    }
+
+    try {
+        const member = await getMember(userDid, circleId);
+        if (!member?.userGroups?.includes("crew")) {
+            return { success: false, message: "You're not a Crew member of this circle" };
+        }
+
+        const newGroups = member.userGroups.filter((group) => group !== "crew");
+        await updateMemberUserGroups(userDid, circleId, newGroups);
+        return { success: true };
+    } catch (error) {
+        return { success: false, message: "Failed to leave Crew. " + error?.toString() };
     }
 };
