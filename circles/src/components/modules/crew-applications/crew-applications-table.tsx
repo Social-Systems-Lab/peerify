@@ -9,6 +9,8 @@ import { approveCrewApplicationAction, rejectCrewApplicationAction } from "./act
 import { Eye, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CirclePicture } from "@/components/modules/circles/circle-picture";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 
 interface CrewApplicationsTableProps {
     circle: Circle;
@@ -22,10 +24,13 @@ const CrewApplicationsTable: React.FC<CrewApplicationsTableProps> = ({ circle, a
     const { toast } = useToast();
     const [loadingStates, setLoadingStates] = useState<{ [key: string]: boolean }>({});
     const [openDialogs, setOpenDialogs] = useState<{ [key: string]: boolean }>({});
+    // Only reachable from the View Details dialog's Approve button — the row's quick-Approve
+    // button stays a no-note shortcut for artists who don't want to write one.
+    const [approvalNotes, setApprovalNotes] = useState<{ [key: string]: string }>({});
 
-    const handleApprove = async (applicationId: string) => {
+    const handleApprove = async (applicationId: string, note?: string) => {
         setLoadingStates((prev) => ({ ...prev, [applicationId]: true }));
-        const result = await approveCrewApplicationAction(applicationId, circle);
+        const result = await approveCrewApplicationAction(applicationId, circle, note);
         setLoadingStates((prev) => ({ ...prev, [applicationId]: false }));
         setOpenDialogs((prev) => ({ ...prev, [applicationId]: false }));
 
@@ -138,10 +143,30 @@ const CrewApplicationsTable: React.FC<CrewApplicationsTableProps> = ({ circle, a
                                             <h3 className="mb-2 font-semibold">How can I help?</h3>
                                             <p className="whitespace-pre-wrap text-sm">{application.message}</p>
                                         </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor={`approval-note-${application._id}`}>
+                                                Note to {application.name} (optional)
+                                            </Label>
+                                            <Textarea
+                                                id={`approval-note-${application._id}`}
+                                                value={approvalNotes[application._id!] || ""}
+                                                onChange={(e) =>
+                                                    setApprovalNotes((prev) => ({
+                                                        ...prev,
+                                                        [application._id!]: e.target.value,
+                                                    }))
+                                                }
+                                                placeholder="Add a personal note to include with the approval notification…"
+                                                maxLength={500}
+                                                className="min-h-[80px]"
+                                            />
+                                        </div>
                                         <DialogFooter className="sm:justify-start">
                                             <Button
                                                 variant="default"
-                                                onClick={() => handleApprove(application._id!)}
+                                                onClick={() =>
+                                                    handleApprove(application._id!, approvalNotes[application._id!])
+                                                }
                                                 disabled={loadingStates[application._id!]}
                                             >
                                                 {loadingStates[application._id!] ? (

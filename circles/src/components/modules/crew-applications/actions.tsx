@@ -9,7 +9,7 @@ import {
     getCrewApplication,
     updatePendingCrewApplicationStatus,
 } from "@/lib/data/crew-applications";
-import { sendNotifications } from "@/lib/data/notifications";
+import { sendNotifications, buildNotificationBody } from "@/lib/data/notifications";
 import { getUserPrivate } from "@/lib/data/user";
 import { Circle, CrewApplication } from "@/models/models";
 import { revalidatePath } from "next/cache";
@@ -52,6 +52,7 @@ type UpdateCrewApplicationResponse = {
 export const approveCrewApplicationAction = async (
     applicationId: string,
     circle: Circle,
+    note?: string,
 ): Promise<UpdateCrewApplicationResponse> => {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -86,7 +87,14 @@ export const approveCrewApplicationAction = async (
 
         const applicant = await getUserPrivate(application.userDid);
         if (applicant) {
-            await sendNotifications("crew_application_approved", [applicant], { circle });
+            // Optional artist-written note, appended to the standard approval message rather than
+            // replacing it — the applicant still sees the normal "You're now part of the Crew!"
+            // confirmation, plus whatever the artist chose to add.
+            const trimmedNote = note?.trim();
+            const messageBody = trimmedNote
+                ? `${buildNotificationBody("crew_application_approved", { circle })}\n\n"${trimmedNote}"`
+                : undefined;
+            await sendNotifications("crew_application_approved", [applicant], { circle, messageBody });
         }
 
         return { success: true };

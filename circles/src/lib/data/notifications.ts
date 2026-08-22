@@ -77,7 +77,10 @@ const getNotificationPreferenceContext = (
     return { entityType: "CIRCLE", entityId: String(circleId), summaryType };
 };
 
-const buildNotificationBody = (type: string, payload: any): string => {
+// Exported so callers that want to prepend/append custom text to a templated notification body
+// (e.g. an artist's optional note on Crew approval) can build the base text themselves and pass
+// the combined result via payload.messageBody, rather than duplicating the template string.
+export const buildNotificationBody = (type: string, payload: any): string => {
     const actorName = payload?.user?.name || payload?.author?.name || "Someone";
     const circleName = payload?.circle?.name || payload?.project?.name || "a circle";
     const proposalName = payload?.proposalName || payload?.proposal?.name || "a proposal";
