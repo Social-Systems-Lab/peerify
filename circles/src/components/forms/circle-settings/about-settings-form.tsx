@@ -400,7 +400,17 @@ const CrewEnabledToggle = ({ circleId, initialValue }: { circleId: string; initi
             </Label>
             <div className="flex shrink-0 items-center gap-2">
                 {justSaved && <span className="text-xs text-muted-foreground">Saved</span>}
-                <Switch id="crew-enabled-toggle" checked={enabled} onCheckedChange={onToggle} disabled={isSaving} />
+                <Switch
+                    id="crew-enabled-toggle"
+                    checked={enabled}
+                    onCheckedChange={onToggle}
+                    disabled={isSaving}
+                    // Scoped to this instance only (not switch.tsx's default styling) — matches the
+                    // brand green used by Save Changes/Pledge Interest/Post (--button-primary), not
+                    // Switch's own default on-color (--primary, a dark navy). Every other Switch in
+                    // the app renders bare with no className override, so none is affected.
+                    className="data-[state=checked]:bg-[hsl(var(--button-primary))]"
+                />
             </div>
         </div>
     );
