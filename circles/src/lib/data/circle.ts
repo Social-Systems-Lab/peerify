@@ -14,6 +14,7 @@ import { getServerSettings } from "./server-settings";
 import { Circles, Members, MembershipRequests, Feeds, Posts, ChatRooms } from "./db";
 import { ObjectId } from "mongodb";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
+import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
 import { deleteVbdCircle, deleteVbdPost, upsertVbdCircles } from "./vdb";
 import { createDefaultChatRooms, getChatRoomByHandle, updateChatRoom } from "./chat";
@@ -422,6 +423,18 @@ export const createCircle = async (circle: Circle, authenticatedUserDid: string)
 
     // Set default enabled modules based on circle type
     let defaultModules = getDefaultModules(circle.circleType ?? "circle");
+
+    // Community and Crew used to be force-shown in the nav regardless of enabledModules
+    // (see circle-tabs.tsx / isModuleEnabled()) rather than being real defaults here — that
+    // hack is gone now, so new circles must actually get them enabled at creation to keep the
+    // same out-of-the-box visibility. Existing circles are backfilled separately (one-time
+    // migration), since this only runs on insert.
+    if ((circle.circleType ?? "circle") === "circle") {
+        defaultModules = [...defaultModules, "community"];
+    }
+    if (isPeerifyArtistIdentity(circle)) {
+        defaultModules = [...defaultModules, "crew"];
+    }
 
     // Set the enabledModules
     circle.enabledModules = circle.enabledModules || defaultModules;

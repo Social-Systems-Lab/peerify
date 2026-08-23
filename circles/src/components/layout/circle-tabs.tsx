@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
-import { isPeerifyVenueIdentity, isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 
 type CircleTabsProps = {
     circle: Circle;
@@ -64,28 +64,17 @@ export function CircleTabs({ circle }: CircleTabsProps) {
         [circle.accessRules, userGroups],
     );
 
-    // Community is force-enabled for every artist/venue circle (circleType "circle"),
-    // the same way isPeerifyVenueIdentity force-injects "events" below — deliberately
-    // NOT gated by the stored enabledModules array, so existing circles (created
-    // before this module existed) get it with no backfill script. Matches the
-    // lazy-create-not-backfill convention already used for the Community feed itself.
-    // Crew is force-enabled too — this tab bar has its own local enabled-modules computation
-    // rather than delegating to isModuleEnabled() in client-auth.ts, so that function's
-    // force-enable for "crew" doesn't automatically cover this component; it has to be added
-    // here too. Deliberately its OWN condition, narrower than Community's — Crew is an
-    // artist/band-specific feature (matches Pledge/Offers' isPeerifyArtistIdentity scoping),
-    // not a general circleType === "circle" one, so venues and other non-artist circles
-    // shouldn't get the tab.
-    const isArtistOrVenueCircle = circle.circleType === "circle";
-    // crewEnabled defaults to true (missing = enabled) — see the matching gate in
-    // isModuleEnabled() (client-auth.ts), which this component deliberately duplicates rather
-    // than delegating to.
-    const isCrewEligibleCircle = isPeerifyArtistIdentity(circle) && circle.crewEnabled !== false;
+    // Community and Crew used to be force-enabled here regardless of the stored enabledModules
+    // array (backfill-avoidance hacks from when those modules first shipped). Now that every
+    // circle has been backfilled to actually store them (see the one-time migration run
+    // alongside this change) and new circles get them set at creation (createCircle() in
+    // circle.ts), enabledModules is the single source of truth — same as every other module
+    // below — so Settings → Modules toggles reliably control tab visibility.
 
     const enabledModules = useMemo(() => {
         // loop through all modules and check if they are enabled for the circle
         let moduleList: string[] = [];
-        if (!circle.enabledModules && !isPeerifyVenueIdentity(circle) && !isArtistOrVenueCircle) {
+        if (!circle.enabledModules && !isPeerifyVenueIdentity(circle)) {
             return moduleList;
         }
 
@@ -93,10 +82,16 @@ export function CircleTabs({ circle }: CircleTabsProps) {
             new Set([
                 ...(circle.enabledModules ?? []),
                 ...(isPeerifyVenueIdentity(circle) ? ["events"] : []),
-                ...(isArtistOrVenueCircle ? ["community"] : []),
-                ...(isCrewEligibleCircle ? ["crew"] : []),
             ]),
-        );
+        ).filter((moduleHandle) => {
+            // Crew has a second, independent control on top of enabledModules: the About
+            // settings page's crewEnabled boolean, which also gates Crew UI elsewhere (profile
+            // preview, home widgets) — matches the same veto in isModuleEnabled() (client-auth.ts).
+            if (moduleHandle === "crew" && circle.crewEnabled === false) {
+                return false;
+            }
+            return true;
+        });
 
         for (let moduleHandle of modules.map((m) => m.handle)) {
             let isModuleEnabled = effectiveEnabledModules?.includes(moduleHandle);

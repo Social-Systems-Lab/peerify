@@ -1,7 +1,6 @@
 import { Circle, Feature, MemberDisplay, UserPrivate } from "@/models/models";
 import { features, maxAccessLevel } from "../data/constants";
 import { isVerifiedUser } from "./verification";
-import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 
 export const getMemberAccessLevel = (user: UserPrivate | MemberDisplay | undefined, circle: Circle): number => {
     if (!user) return maxAccessLevel;
@@ -161,27 +160,20 @@ function getDefaultAllowedUserGroups(
  * @returns True if the module is enabled, false otherwise
  */
 export const isModuleEnabled = (circle: Circle, moduleHandle: string): boolean => {
-    // Community is force-enabled for every artist/venue circle (circleType
-    // "circle"), regardless of the stored enabledModules array — so existing
-    // circles (created before this module existed) get it with no backfill
-    // script, same convention as the Community feed's own lazy-create. This
-    // function is the single choke point checked by both circle-tabs.tsx's
-    // tab bar and the /api/access middleware route guard, so fixing it here
-    // covers the actual page route, not just the tab's visibility.
-    if (moduleHandle === "community" && circle.circleType === "circle") {
-        return true;
-    }
-
-    // Crew is force-enabled too, same backfill-avoidance rationale as Community above — Crew
-    // Phase 1's role/application/approval pieces already work retroactively on existing circles
-    // via self-heal on approval, so this route shouldn't be the one piece that needs a
-    // migration. Deliberately narrower than Community's circleType === "circle" check, though:
-    // Crew is specifically an artist/band feature (matches Pledge/Offers' own scoping via
-    // isPeerifyArtistIdentity) — venues and other non-artist circle types should not get it.
-    // crewEnabled defaults to true (missing = enabled) — an artist can hide Crew entirely via
-    // the About settings toggle without losing this force-enable for everyone else.
-    if (moduleHandle === "crew" && isPeerifyArtistIdentity(circle) && circle.crewEnabled !== false) {
-        return true;
+    // Community and Crew used to be force-enabled here regardless of the stored
+    // enabledModules array (backfill-avoidance hacks from when those modules first shipped).
+    // Every circle has since been backfilled to actually store them, and new circles get them
+    // set at creation (createCircle() in circle.ts), so enabledModules below is now the single
+    // source of truth for both — same as every other module. This function is the single
+    // choke point checked by both circle-tabs.tsx's tab bar and the /api/access middleware
+    // route guard, so fixing it here covers the actual page route, not just the tab.
+    //
+    // Crew still has a second, independent control on top of that: the About settings page's
+    // crewEnabled boolean (CrewEnabledToggle), which also gates Crew UI elsewhere (profile
+    // preview, home widgets) — so an explicit crewEnabled === false must still win even if
+    // "crew" is present in enabledModules.
+    if (moduleHandle === "crew" && circle.crewEnabled === false) {
+        return false;
     }
 
     // First check enabledModules array if it exists
