@@ -100,6 +100,11 @@ export function PagesSettingsForm({ circle }: PagesSettingsFormProps): React.Rea
                                             module.readOnly ||
                                             (module.handle === "funding" && (!user?.isAdmin || circle.circleType !== "circle"))
                                         }
+                                        // Scoped to this instance only (not switch.tsx's default styling) — matches the
+                                        // brand green used by Save Changes/Pledge Interest/Post (--button-primary), not
+                                        // Switch's own default on-color (--primary, a dark navy). Every other Switch in
+                                        // the app renders bare with no className override, so none is affected.
+                                        className="data-[state=checked]:bg-[hsl(var(--button-primary))]"
                                     />
                                 </div>
                                 <CardDescription>
