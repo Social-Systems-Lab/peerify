@@ -1,16 +1,13 @@
 "use client";
 
-import React from "react";
-import { Button } from "@/components/ui/button";
+import React, { useState } from "react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { Circle, ModuleInfo } from "@/models/models";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { useForm } from "react-hook-form";
-import { savePages } from "@/app/circles/[handle]/settings/pages/actions";
+import { setModuleEnabledAction } from "@/app/circles/[handle]/settings/pages/actions";
 import { hiddenPublicModuleHandles, modules } from "@/lib/data/constants";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
@@ -21,109 +18,92 @@ interface PagesSettingsFormProps {
 }
 
 export function PagesSettingsForm({ circle }: PagesSettingsFormProps): React.ReactElement {
-    const { toast } = useToast();
-    const router = useRouter();
-    const [user, setUser] = useAtom(userAtom);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
     // Get all available modules from features
     const availableModules: ModuleInfo[] = modules.filter(
         (module) => !hiddenPublicModuleHandles.includes(module.handle),
     );
 
-    const form = useForm({
-        defaultValues: { _id: circle._id, enabledModules: circle.enabledModules || ["general", "settings"] },
-    });
+    return (
+        <div className="formatted space-y-6">
+            <div className="space-y-4">
+                {availableModules.map((module) => (
+                    <ModuleEnabledToggle key={module.handle} circle={circle} module={module} />
+                ))}
+            </div>
+        </div>
+    );
+}
 
-    const enabledModules = form.watch("enabledModules");
+// Mirrors CrewEnabledToggle in about-settings-form.tsx — each module toggle auto-saves on
+// click instead of going through a shared Save Changes button, so toggling one module never
+// requires or triggers a save of any other module's state.
+const ModuleEnabledToggle = ({ circle, module }: { circle: Circle; module: ModuleInfo }) => {
+    const { toast } = useToast();
+    const router = useRouter();
+    const [user, setUser] = useAtom(userAtom);
+    const [enabled, setEnabled] = useState((circle.enabledModules ?? []).includes(module.handle));
+    const [isSaving, setIsSaving] = useState(false);
+    const [justSaved, setJustSaved] = useState(false);
 
-    const handleToggle = (moduleHandle: string, enabled: boolean) => {
-        let updatedModules = [...enabledModules];
+    const isLocked =
+        module.readOnly || (module.handle === "funding" && (!user?.isAdmin || circle.circleType !== "circle"));
 
-        if (enabled && !updatedModules.includes(moduleHandle)) {
-            updatedModules.push(moduleHandle);
-        } else if (!enabled) {
-            updatedModules = updatedModules.filter((m) => m !== moduleHandle);
+    const onToggle = async (checked: boolean) => {
+        setIsSaving(true);
+        setJustSaved(false);
+        setEnabled(checked);
+        const res = await setModuleEnabledAction(circle._id ?? "", module.handle, checked);
+        setIsSaving(false);
+        if (!res.success) {
+            setEnabled(!checked);
+            toast({
+                title: "Error",
+                description: res.message || "Failed to update module setting",
+                variant: "destructive",
+            });
+            return;
         }
 
-        form.setValue("enabledModules", updatedModules);
-    };
+        // enabledModules also drives the app's nav, so refresh the user atom and the
+        // server-rendered page the same way the old batch save did.
+        const userData = await getUserPrivateAction();
+        setUser(userData);
+        router.refresh();
 
-    const onSubmit = async (data: { _id: any; enabledModules: string[] }) => {
-        setIsSubmitting(true);
-        try {
-            // Make sure general and settings are always included
-            if (!data.enabledModules.includes("general")) {
-                data.enabledModules.push("general");
-            }
-            if (!data.enabledModules.includes("settings")) {
-                data.enabledModules.push("settings");
-            }
-
-            const result = await savePages(data);
-            if (result.success) {
-                toast({ title: "Success", description: "Modules settings updated successfully" });
-                let userData = await getUserPrivateAction();
-                setUser(userData);
-                router.refresh();
-            } else {
-                toast({
-                    title: "Error",
-                    description: result.message || "Failed to update modules settings",
-                    variant: "destructive",
-                });
-            }
-        } catch (error) {
-            toast({ title: "Error", description: "An unexpected error occurred", variant: "destructive" });
-        } finally {
-            setIsSubmitting(false);
-        }
+        setJustSaved(true);
+        window.setTimeout(() => setJustSaved(false), 1500);
     };
 
     return (
-        <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="formatted space-y-6">
-                <div className="space-y-4">
-                    {availableModules.map((module) => (
-                        <Card key={module.handle}>
-                            <CardHeader className="pb-2">
-                                <div className="flex items-center justify-between">
-                                    <CardTitle className="text-lg">{module.name}</CardTitle>
-                                    <Switch
-                                        checked={enabledModules.includes(module.handle)}
-                                        onCheckedChange={(checked) => handleToggle(module.handle, checked)}
-                                        disabled={
-                                            module.readOnly ||
-                                            (module.handle === "funding" && (!user?.isAdmin || circle.circleType !== "circle"))
-                                        }
-                                        aria-readonly={
-                                            module.readOnly ||
-                                            (module.handle === "funding" && (!user?.isAdmin || circle.circleType !== "circle"))
-                                        }
-                                        // Scoped to this instance only (not switch.tsx's default styling) — matches the
-                                        // brand green used by Save Changes/Pledge Interest/Post (--button-primary), not
-                                        // Switch's own default on-color (--primary, a dark navy). Every other Switch in
-                                        // the app renders bare with no className override, so none is affected.
-                                        className="data-[state=checked]:bg-[hsl(var(--button-primary))]"
-                                    />
-                                </div>
-                                <CardDescription>
-                                    {module.description}
-                                    {module.handle === "funding" ? (
-                                        <span className="mt-1.5 block">
-                                            MVP: circles only. Super Admins only.
-                                        </span>
-                                    ) : null}
-                                </CardDescription>
-                            </CardHeader>
-                        </Card>
-                    ))}
+        <Card>
+            <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">
+                        <Label htmlFor={`module-toggle-${module.handle}`}>{module.name}</Label>
+                    </CardTitle>
+                    <div className="flex shrink-0 items-center gap-2">
+                        {justSaved && <span className="text-xs text-muted-foreground">Saved</span>}
+                        <Switch
+                            id={`module-toggle-${module.handle}`}
+                            checked={enabled}
+                            onCheckedChange={onToggle}
+                            disabled={isLocked || isSaving}
+                            aria-readonly={isLocked}
+                            // Scoped to this instance only (not switch.tsx's default styling) — matches the
+                            // brand green used by Save Changes/Pledge Interest/Post (--button-primary), not
+                            // Switch's own default on-color (--primary, a dark navy). Every other Switch in
+                            // the app renders bare with no className override, so none is affected.
+                            className="data-[state=checked]:bg-[hsl(var(--button-primary))]"
+                        />
+                    </div>
                 </div>
-
-                <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? "Saving..." : "Save Changes"}
-                </Button>
-            </form>
-        </Form>
+                <CardDescription>
+                    {module.description}
+                    {module.handle === "funding" ? (
+                        <span className="mt-1.5 block">MVP: circles only. Super Admins only.</span>
+                    ) : null}
+                </CardDescription>
+            </CardHeader>
+        </Card>
     );
-}
+};
