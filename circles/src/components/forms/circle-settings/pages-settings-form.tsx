@@ -79,7 +79,11 @@ const ModuleEnabledToggle = ({ circle, module }: { circle: Circle; module: Modul
             <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">
-                        <Label htmlFor={`module-toggle-${module.handle}`}>{module.name}</Label>
+                        {/* Label's own default text-sm/font-medium would otherwise override CardTitle's
+                            text-lg on this element — restore the original heading size/weight explicitly. */}
+                        <Label htmlFor={`module-toggle-${module.handle}`} className="text-lg font-semibold tracking-tight">
+                            {module.name}
+                        </Label>
                     </CardTitle>
                     <div className="flex shrink-0 items-center gap-2">
                         {justSaved && <span className="text-xs text-muted-foreground">Saved</span>}
