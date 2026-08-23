@@ -12,7 +12,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, ChevronDown, Circle as CircleIcon, HeartHandshake, Loader2, Pin, PinOff, Star, Users } from "lucide-react";
+import { Bell, BookUser, ChevronDown, Circle as CircleIcon, Loader2, Pin, PinOff, Star, UsersRound } from "lucide-react";
 import { LuClipboardCheck, LuMail } from "react-icons/lu";
 import {
     authInfoAtom,
@@ -756,13 +756,13 @@ export const UserToolbox = () => {
                             value="crews"
                             className={toolboxActiveTabClassName}
                         >
-                            <HeartHandshake className="h-5 w-5" />
+                            <UsersRound className="h-5 w-5" />
                         </TabsTrigger>
                         <TabsTrigger
                             value="connections"
                             className={toolboxActiveTabClassName}
                         >
-                            <Users className="h-5 w-5" />
+                            <BookUser className="h-5 w-5" />
                         </TabsTrigger>
                         <TabsTrigger
                             value="bookmarks"
