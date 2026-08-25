@@ -929,12 +929,15 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
 
     const mobileTopControlsLeft = 12;
     // Reserve space on mobile for whatever's in the top-right profile-menu slot
-    // (fixed right-6, i.e. 24px from the edge — see profile-menu.tsx). 128px only
-    // covered the authenticated single-avatar case; measured overlap on staging
-    // confirmed the unauthenticated "Log in"/"Sign up" button pair actually needs
-    // ~193px (169px wide + the 24px right-6 offset) — bumped with a small buffer
-    // so the search/filter controls never render underneath either state.
-    const mobileTopControlsRight = 205;
+    // (fixed right-6, i.e. 24px from the edge — see profile-menu.tsx). Logged out,
+    // that's the "Log in"/"Sign up" button pair, which measured overlap on staging
+    // confirmed needs ~193px (169px wide + the 24px right-6 offset) — bumped with a
+    // small buffer. Logged in, only the avatar renders by default there (mail/
+    // clipboard/bell stay hidden on mobile Explore — see isMobileExplore in
+    // profile-menu.tsx, and its fan-out is a temporary tap-triggered overlay, not
+    // part of normal layout flow, so it isn't accounted for here), which only needs
+    // ~64px (24px offset + 40px avatar) — round up a bit for breathing room.
+    const mobileTopControlsRight = user ? 76 : 205;
 
     const advancedFiltersContent = (
         <div className="space-y-3">
