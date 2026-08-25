@@ -147,7 +147,7 @@ const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: strin
         <div className={cn("relative inline-flex min-w-0 items-center", className)}>
             <div
                 ref={scrollAreaRef}
-                className="no-scrollbar flex max-w-full items-center gap-2 overflow-x-auto overflow-y-hidden mx-2 md:mx-[22px] px-1 scroll-smooth"
+                className="no-scrollbar flex max-w-full items-center gap-2 overflow-x-auto overflow-y-hidden mx-0 px-0 md:mx-[22px] md:px-1 scroll-smooth"
                 style={{ maskImage: edgeFadeMask, WebkitMaskImage: edgeFadeMask }}
             >
                 <CategoryFilter {...props} />
