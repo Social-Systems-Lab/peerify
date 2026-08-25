@@ -1,7 +1,8 @@
 // profile-menu.tsx
 "use client";
 
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "../ui/button";
 import {
@@ -13,7 +14,7 @@ import {
 } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import { UserPicture } from "../modules/members/user-picture";
-import { Bell, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { Bell, Check, ChevronDown, ChevronRight, UserRound } from "lucide-react";
 import { Circle, UserToolboxTab } from "@/models/models";
 import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { LuClipboardCheck, LuMail } from "react-icons/lu";
@@ -36,6 +37,87 @@ import { ACTING_IDENTITY_STORAGE_KEY } from "@/lib/data/atoms";
 import { isPilotChromePath } from "@/lib/peerify/pilot-chrome";
 import { cn } from "@/lib/utils";
 
+// Shared by the mail/clipboard/bell icon buttons (and, on the mobile Explore
+// fan-out avatar, the combined-count badge) — was previously two near-identical
+// inline absolutely-positioned spans.
+const UnreadCountBadge: React.FC<{ count: number }> = ({ count }) => {
+    if (count <= 0) return null;
+    return (
+        <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+            {count}
+        </span>
+    );
+};
+
+// The identity-switcher's list body — shared by the desktop avatar popover and the
+// mobile Explore fan-out's profile-switcher slot, so there's one place listing
+// "Personal profile" / managed identities / "Go to profiles", not two copies.
+const IdentitySwitcherPopoverContent: React.FC<{
+    user: Circle;
+    managedIdentities: Circle[];
+    openProfile: (target: Circle) => void;
+    renderCurrentOrActAs: (target: Circle, actAsTarget: Circle | undefined) => React.ReactNode;
+    onGoToProfiles: () => void;
+}> = ({ user, managedIdentities, openProfile, renderCurrentOrActAs, onGoToProfiles }) => (
+    <div className="flex flex-col">
+        <div className="flex w-full items-center gap-2 rounded-md p-2 hover:bg-muted">
+            <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                onClick={() => openProfile(user)}
+            >
+                <UserPicture
+                    name={user.name}
+                    picture={user.picture?.url ?? PEERIFY_DEFAULT_PROFILE_AVATAR_URL}
+                    size="36px"
+                    circleType="user"
+                />
+                <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">{user.name}</div>
+                    <div className="truncate text-xs text-muted-foreground">Personal profile</div>
+                </div>
+            </button>
+            {renderCurrentOrActAs(user, undefined)}
+        </div>
+
+        {managedIdentities.length > 0 && (
+            <div className="mt-1 border-t pt-1">
+                {managedIdentities.map((identity) => (
+                    <div key={identity._id} className="flex w-full items-center gap-2 rounded-md p-2 hover:bg-muted">
+                        <button
+                            type="button"
+                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                            onClick={() => openProfile(identity)}
+                        >
+                            <UserPicture
+                                name={identity.name}
+                                picture={getPeerifyIdentityAvatarUrl(identity)}
+                                size="36px"
+                                circleType="circle"
+                            />
+                            <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-semibold">{identity.name}</div>
+                                <div className="truncate text-xs text-muted-foreground">Public profile</div>
+                            </div>
+                        </button>
+                        {renderCurrentOrActAs(identity, identity)}
+                    </div>
+                ))}
+            </div>
+        )}
+
+        <Button
+            type="button"
+            variant="ghost"
+            className="mt-1 justify-between border-t pt-3 text-sm"
+            onClick={onGoToProfiles}
+        >
+            Go to profiles
+            <ChevronRight className="h-4 w-4" />
+        </Button>
+    </div>
+);
+
 const ProfileMenuBar = () => {
     const router = useRouter();
     const [authInfo] = useAtom(authInfoAtom);
@@ -49,6 +131,42 @@ const ProfileMenuBar = () => {
     const isMobile = useIsMobile();
     const currentVisibleIdentity = useActingIdentity();
     const setActingIdentity = useSetActingIdentity();
+
+    // Mobile Explore only: tapping the avatar fans the mail/clipboard/bell icons out
+    // to its left instead of opening the identity-switcher popover (see isMobileExplore
+    // below — those icons are hidden by default only on this page).
+    const [mobileIconsExpanded, setMobileIconsExpanded] = useState(false);
+    const mobileFanRef = useRef<HTMLDivElement>(null);
+
+    // Tracks the profile-switcher slot's own Popover open state, lifted out of Radix's
+    // uncontrolled default so it can be paired with mobileIconsExpanded (see below).
+    const [profileSwitcherOpen, setProfileSwitcherOpen] = useState(false);
+
+    // While the profile-switcher popover is open, it renders its content through a Radix
+    // Portal — outside mobileFanRef's DOM subtree — so the plain "outside pointerdown"
+    // check below can't tell a tap inside the popover from a tap outside the whole fan;
+    // it would collapse mobileIconsExpanded (unmounting the still-open Popover along with
+    // it) before the tap's own click handler ("Act as", "Go to profiles", ...) ever runs.
+    // Radix's own dismiss logic already knows the difference, so defer to it entirely
+    // while the popover is open (see the Popover's onOpenChange below) instead of racing
+    // it with this listener.
+    useEffect(() => {
+        if (!mobileIconsExpanded || profileSwitcherOpen) return;
+        const onOutsidePointerDown = (event: PointerEvent) => {
+            if (mobileFanRef.current && !mobileFanRef.current.contains(event.target as Node)) {
+                setMobileIconsExpanded(false);
+            }
+        };
+        document.addEventListener("pointerdown", onOutsidePointerDown);
+        return () => document.removeEventListener("pointerdown", onOutsidePointerDown);
+    }, [mobileIconsExpanded, profileSwitcherOpen]);
+
+    useEffect(() => {
+        if (!(isMobile && pathname === "/explore")) {
+            setMobileIconsExpanded(false);
+            setProfileSwitcherOpen(false);
+        }
+    }, [isMobile, pathname]);
 
     // Fixes hydration errors
     const [isMounted, setIsMounted] = useState(false);
@@ -232,11 +350,7 @@ const ProfileMenuBar = () => {
                                         onClick={() => router.push("/chat")}
                                     >
                                         <LuMail className="h-5 w-5" />
-                                        {messageUnreadCount > 0 && (
-                                            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs text-white">
-                                                {messageUnreadCount}
-                                            </span>
-                                        )}
+                                        <UnreadCountBadge count={messageUnreadCount} />
                                     </Button>
                                     <Button
                                         variant="ghost"
@@ -254,104 +368,185 @@ const ProfileMenuBar = () => {
                                         onClick={() => openUserToolbox("notifications")}
                                     >
                                         <Bell className="h-5 w-5" />
-                                        {notificationUnreadCount > 0 && (
-                                            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs text-white">
-                                                {notificationUnreadCount}
-                                            </span>
-                                        )}
+                                        <UnreadCountBadge count={notificationUnreadCount} />
                                     </Button>
                                 </>
                             )}
 
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button className="relative h-auto w-auto rounded-full p-0" variant="ghost">
+                            {isMobileExplore && (
+                                <div ref={mobileFanRef} className="flex items-center gap-1">
+                                    <AnimatePresence>
+                                        {mobileIconsExpanded && (
+                                            <>
+                                                <motion.div
+                                                    key="fan-chat"
+                                                    initial={{ opacity: 0, scale: 0.5 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.5 }}
+                                                    transition={{ duration: 0.3, ease: "easeOut", delay: 0 * 0.05 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                >
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="relative h-9 w-9 rounded-full bg-[#f1f1f1] hover:bg-[#cecece]"
+                                                        onClick={() => {
+                                                            setMobileIconsExpanded(false);
+                                                            openUserToolbox("chat");
+                                                        }}
+                                                    >
+                                                        <LuMail className="h-5 w-5" />
+                                                        <UnreadCountBadge count={messageUnreadCount} />
+                                                    </Button>
+                                                </motion.div>
+                                                <motion.div
+                                                    key="fan-events"
+                                                    initial={{ opacity: 0, scale: 0.5 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.5 }}
+                                                    transition={{ duration: 0.3, ease: "easeOut", delay: 1 * 0.05 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                >
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="relative h-9 w-9 rounded-full bg-[#f1f1f1] hover:bg-[#cecece]"
+                                                        onClick={() => {
+                                                            setMobileIconsExpanded(false);
+                                                            openUserToolbox("events");
+                                                        }}
+                                                    >
+                                                        <LuClipboardCheck className="h-5 w-5" />
+                                                    </Button>
+                                                </motion.div>
+                                                <motion.div
+                                                    key="fan-notifications"
+                                                    initial={{ opacity: 0, scale: 0.5 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.5 }}
+                                                    transition={{ duration: 0.3, ease: "easeOut", delay: 2 * 0.05 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                >
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="relative h-9 w-9 rounded-full bg-[#f1f1f1] hover:bg-[#cecece]"
+                                                        onClick={() => {
+                                                            setMobileIconsExpanded(false);
+                                                            openUserToolbox("notifications");
+                                                        }}
+                                                    >
+                                                        <Bell className="h-5 w-5" />
+                                                        <UnreadCountBadge count={notificationUnreadCount} />
+                                                    </Button>
+                                                </motion.div>
+                                                <motion.div
+                                                    key="fan-profile-switcher"
+                                                    initial={{ opacity: 0, scale: 0.5 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    exit={{ opacity: 0, scale: 0.5 }}
+                                                    transition={{ duration: 0.3, ease: "easeOut", delay: 3 * 0.05 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                >
+                                                    {hasIdentityChoices ? (
+                                                        <Popover
+                                                            open={profileSwitcherOpen}
+                                                            onOpenChange={(open) => {
+                                                                setProfileSwitcherOpen(open);
+                                                                if (!open) setMobileIconsExpanded(false);
+                                                            }}
+                                                        >
+                                                            <PopoverTrigger asChild>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="relative h-9 w-9 rounded-full bg-[#f1f1f1] hover:bg-[#cecece]"
+                                                                >
+                                                                    <UserRound className="h-5 w-5" />
+                                                                </Button>
+                                                            </PopoverTrigger>
+                                                            <PopoverContent align="end" className="w-80 p-2">
+                                                                <IdentitySwitcherPopoverContent
+                                                                    user={user}
+                                                                    managedIdentities={managedIdentities}
+                                                                    openProfile={openProfile}
+                                                                    renderCurrentOrActAs={renderCurrentOrActAs}
+                                                                    onGoToProfiles={() => router.push("/profiles")}
+                                                                />
+                                                            </PopoverContent>
+                                                        </Popover>
+                                                    ) : (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="relative h-9 w-9 rounded-full bg-[#f1f1f1] hover:bg-[#cecece]"
+                                                            onClick={() => {
+                                                                setMobileIconsExpanded(false);
+                                                                openProfile(currentVisibleIdentity ?? user);
+                                                            }}
+                                                        >
+                                                            <UserRound className="h-5 w-5" />
+                                                        </Button>
+                                                    )}
+                                                </motion.div>
+                                            </>
+                                        )}
+                                    </AnimatePresence>
+
+                                    <Button
+                                        className="relative h-auto w-auto rounded-full p-0"
+                                        variant="ghost"
+                                        onClick={() => setMobileIconsExpanded((expanded) => !expanded)}
+                                    >
                                         <UserPicture
                                             name={currentVisibleIdentity?.name ?? user.name}
                                             picture={
-                                                currentVisibleIdentity && isPeerifyManagedIdentity(currentVisibleIdentity)
+                                                currentVisibleIdentity &&
+                                                isPeerifyManagedIdentity(currentVisibleIdentity)
                                                     ? getPeerifyIdentityAvatarUrl(currentVisibleIdentity)
-                                                    : user.picture?.url ?? PEERIFY_DEFAULT_PROFILE_AVATAR_URL
+                                                    : (user.picture?.url ?? PEERIFY_DEFAULT_PROFILE_AVATAR_URL)
                                             }
                                             size="40px"
                                             circleType={currentVisibleIdentity?.circleType ?? "user"}
                                         />
-                                        {hasIdentityChoices && (
-                                            <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-[#231f1a] text-white shadow-sm">
-                                                <ChevronDown className="h-3 w-3" />
-                                            </span>
-                                        )}
+                                        <UnreadCountBadge count={messageUnreadCount + notificationUnreadCount} />
                                     </Button>
-                                </PopoverTrigger>
-                                <PopoverContent align="end" className="w-80 p-2">
-                                    <div className="flex flex-col">
-                                        <div className="flex w-full items-center gap-2 rounded-md p-2 hover:bg-muted">
-                                            <button
-                                                type="button"
-                                                className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                                                onClick={() => openProfile(user)}
-                                            >
-                                                <UserPicture
-                                                    name={user.name}
-                                                    picture={user.picture?.url ?? PEERIFY_DEFAULT_PROFILE_AVATAR_URL}
-                                                    size="36px"
-                                                    circleType="user"
-                                                />
-                                                <div className="min-w-0 flex-1">
-                                                    <div className="truncate text-sm font-semibold">{user.name}</div>
-                                                    <div className="truncate text-xs text-muted-foreground">
-                                                        Personal profile
-                                                    </div>
-                                                </div>
-                                            </button>
-                                            {renderCurrentOrActAs(user, undefined)}
-                                        </div>
+                                </div>
+                            )}
 
-                                        {managedIdentities.length > 0 && (
-                                            <div className="mt-1 border-t pt-1">
-                                                {managedIdentities.map((identity) => (
-                                                    <div
-                                                        key={identity._id}
-                                                        className="flex w-full items-center gap-2 rounded-md p-2 hover:bg-muted"
-                                                    >
-                                                        <button
-                                                            type="button"
-                                                            className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                                                            onClick={() => openProfile(identity)}
-                                                        >
-                                                            <UserPicture
-                                                                name={identity.name}
-                                                                picture={getPeerifyIdentityAvatarUrl(identity)}
-                                                                size="36px"
-                                                                circleType="circle"
-                                                            />
-                                                            <div className="min-w-0 flex-1">
-                                                                <div className="truncate text-sm font-semibold">
-                                                                    {identity.name}
-                                                                </div>
-                                                                <div className="truncate text-xs text-muted-foreground">
-                                                                    Public profile
-                                                                </div>
-                                                            </div>
-                                                        </button>
-                                                        {renderCurrentOrActAs(identity, identity)}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            className="mt-1 justify-between border-t pt-3 text-sm"
-                                            onClick={() => router.push("/profiles")}
-                                        >
-                                            Go to profiles
-                                            <ChevronRight className="h-4 w-4" />
+                            {!isMobileExplore && (
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button className="relative h-auto w-auto rounded-full p-0" variant="ghost">
+                                            <UserPicture
+                                                name={currentVisibleIdentity?.name ?? user.name}
+                                                picture={
+                                                    currentVisibleIdentity &&
+                                                    isPeerifyManagedIdentity(currentVisibleIdentity)
+                                                        ? getPeerifyIdentityAvatarUrl(currentVisibleIdentity)
+                                                        : (user.picture?.url ?? PEERIFY_DEFAULT_PROFILE_AVATAR_URL)
+                                                }
+                                                size="40px"
+                                                circleType={currentVisibleIdentity?.circleType ?? "user"}
+                                            />
+                                            {hasIdentityChoices && (
+                                                <span className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-[#231f1a] text-white shadow-sm">
+                                                    <ChevronDown className="h-3 w-3" />
+                                                </span>
+                                            )}
                                         </Button>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
+                                    </PopoverTrigger>
+                                    <PopoverContent align="end" className="w-80 p-2">
+                                        <IdentitySwitcherPopoverContent
+                                            user={user}
+                                            managedIdentities={managedIdentities}
+                                            openProfile={openProfile}
+                                            renderCurrentOrActAs={renderCurrentOrActAs}
+                                            onGoToProfiles={() => router.push("/profiles")}
+                                        />
+                                    </PopoverContent>
+                                </Popover>
+                            )}
                         </>
                     )}
                 </div>
