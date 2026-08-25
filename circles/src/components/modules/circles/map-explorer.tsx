@@ -137,7 +137,7 @@ const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: strin
             <button
                 type="button"
                 className={cn(
-                    "absolute left-2 top-1/2 flex h-[28px] w-[28px] -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm transition hover:bg-white",
+                    "absolute left-2 top-1/2 hidden h-[28px] w-[28px] -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm transition hover:bg-white md:flex",
                     !canScrollLeft && "pointer-events-none opacity-0",
                 )}
                 onClick={() => handleArrowClick("left")}
@@ -148,7 +148,7 @@ const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: strin
             <button
                 type="button"
                 className={cn(
-                    "absolute right-2 top-1/2 flex h-[28px] w-[28px] -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm transition hover:bg-white",
+                    "absolute right-2 top-1/2 hidden h-[28px] w-[28px] -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm transition hover:bg-white md:flex",
                     !canScrollRight && "pointer-events-none opacity-0",
                 )}
                 onClick={() => handleArrowClick("right")}
@@ -1072,7 +1072,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 {viewMode === "explore" && !(sidePanelContentVisible === "toolbox" && isMobile) && (
                     <div className="flex min-w-0 flex-1 flex-col gap-2">
                         <div className="flex w-full flex-col gap-2 md:flex-row md:items-center md:gap-4">
-                            <div className="flex w-full max-w-[calc(100vw-140px)] md:w-[23.5rem] md:max-w-[23.5rem] md:flex-none items-center rounded-full bg-white/95 p-1 pl-4 shadow-md ring-1 ring-black/5 backdrop-blur-sm">
+                            <div className="flex w-full md:w-[23.5rem] md:max-w-[23.5rem] md:flex-none items-center rounded-full bg-white/95 p-1 pl-4 shadow-md ring-1 ring-black/5 backdrop-blur-sm">
                                 <input
                                     type="text"
                                     placeholder="Search artists, venues, and events"
