@@ -76,6 +76,23 @@ const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: strin
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
+    const isMobile = useIsMobile();
+
+    // Mobile-only fade hint (the arrow buttons that used to signal this are hidden
+    // below md — see their `hidden md:flex` below): fades whichever edge currently
+    // has more content to scroll toward, using the same canScrollLeft/canScrollRight
+    // state already driving those arrows. A CSS mask (not a positioned overlay div)
+    // so it fades the pills themselves rather than painting a box that would need to
+    // match whatever's behind this floating header (map tiles, not a solid color).
+    const edgeFadeMask = !isMobile
+        ? undefined
+        : canScrollLeft && canScrollRight
+          ? "linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent)"
+          : canScrollRight
+            ? "linear-gradient(to right, black, black calc(100% - 24px), transparent)"
+            : canScrollLeft
+              ? "linear-gradient(to right, transparent, black 24px, black)"
+              : undefined;
 
     const evaluateScrollability = useCallback(() => {
         const el = scrollAreaRef.current;
@@ -130,7 +147,8 @@ const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: strin
         <div className={cn("relative inline-flex min-w-0 items-center", className)}>
             <div
                 ref={scrollAreaRef}
-                className="no-scrollbar flex max-w-full items-center gap-2 overflow-x-auto overflow-y-hidden mx-[22px] px-1 scroll-smooth"
+                className="no-scrollbar flex max-w-full items-center gap-2 overflow-x-auto overflow-y-hidden mx-2 md:mx-[22px] px-1 scroll-smooth"
+                style={{ maskImage: edgeFadeMask, WebkitMaskImage: edgeFadeMask }}
             >
                 <CategoryFilter {...props} />
             </div>
