@@ -325,10 +325,12 @@ const ProfileMenuBar = () => {
 
     // Rendered either portaled into the mobile Explore search bar's trailing-end slot
     // (the normal case) or in place here — which lands it in the fixed top-right
-    // corner, same as before this feature — whenever that slot isn't currently
-    // mounted (e.g. the UserToolbox panel is open on mobile, which hides the search
-    // bar entirely; see map-explorer.tsx). Without this fallback the avatar would
-    // vanish while the toolbox is open, when today it stays visible/tappable above it.
+    // corner, same as before this feature — whenever that slot isn't currently mounted
+    // (e.g. the swipe-cards view, where the search bar doesn't render at all; see
+    // map-explorer.tsx). NOT used while the UserToolbox panel is open on mobile — see
+    // the render site below, which suppresses this entirely in that state instead of
+    // falling back to it, since the panel already shows its own avatar/name and this
+    // fixed-position copy only collided with the panel's "Sign out" button.
     const mobileExploreFanOut = user && (
         <div ref={mobileFanRef} className="flex items-center gap-1">
             <AnimatePresence>
@@ -528,7 +530,9 @@ const ProfileMenuBar = () => {
                             {isMobileExplore &&
                                 (mobileExploreAvatarSlot
                                     ? createPortal(mobileExploreFanOut, mobileExploreAvatarSlot)
-                                    : mobileExploreFanOut)}
+                                    : sidePanelContentVisible === "toolbox"
+                                      ? null
+                                      : mobileExploreFanOut)}
 
                             {!isMobileExplore && (
                                 <Popover>

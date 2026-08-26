@@ -935,7 +935,11 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
 
     if (!isMounted) return null;
 
-    const mobileTopControlsLeft = 12;
+    // Measured live on staging (375/390/430px): nothing residual (no safe-area-inset,
+    // no leftover container padding) sits between this and the true viewport edge —
+    // the entire gap was just this constant. 6px is the minimal intentional margin
+    // kept so the bar/pills don't sit flush against the edge.
+    const mobileTopControlsLeft = 6;
     // Logged in, the avatar now renders inside the search bar itself (see the
     // slot div at the bar's trailing end below) rather than floating in a fixed
     // top-right slot, so there's nothing left to reserve space for — mirror the
