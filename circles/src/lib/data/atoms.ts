@@ -35,7 +35,9 @@ export type SidePanelSearchState = {
     query: string;
     isSearching: boolean;
     hasSearched: boolean;
-    selectedCategory?: string | null;
+    // Empty array means "All" — mirrors MapExplorer's own selectedCategories state (the source
+    // of truth this is mirrored from), not a separate independent value.
+    selectedCategories?: string[];
     selectedDateLabel?: string | null;
     items: (Circle | MemberDisplay)[];
     counts?: { communities: number; projects: number; users: number; events: number };
@@ -47,7 +49,7 @@ export const sidePanelSearchStateAtom = atom<SidePanelSearchState>({
     query: "",
     isSearching: false,
     hasSearched: false,
-    selectedCategory: null,
+    selectedCategories: [],
     selectedDateLabel: null,
     items: [],
 });
