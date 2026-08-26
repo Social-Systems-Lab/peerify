@@ -193,14 +193,19 @@ export const SidePanel: React.FC = () => {
                         }`}
                     >
                         <UserToolbox />
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className={`absolute ${isMobile ? "right-6 top-[68px]" : "right-2 top-[48px]"} rounded-full bg-gray-100 md:top-2`}
-                            onClick={closeUsertoolbox}
-                        >
-                            <X className="h-4 w-4" />
-                        </Button>
+                        {/* Mobile: the close (X) now lives inline in UserToolbox's own header,
+                            beside "Sign out" — see user-toolbox.tsx. Desktop keeps this
+                            absolutely-positioned overlay as before. */}
+                        {!isMobile && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="absolute right-2 top-[48px] rounded-full bg-gray-100 md:top-2"
+                                onClick={closeUsertoolbox}
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>
