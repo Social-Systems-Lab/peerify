@@ -12,7 +12,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, BookUser, ChevronDown, Circle as CircleIcon, Loader2, Pin, PinOff, Star, UsersRound } from "lucide-react";
+import { Bell, BookUser, ChevronDown, Circle as CircleIcon, Loader2, Pin, PinOff, Star, UsersRound, X } from "lucide-react";
 import { LuClipboardCheck, LuMail } from "react-icons/lu";
 import {
     authInfoAtom,
@@ -669,7 +669,7 @@ export const UserToolbox = () => {
     return (
         <Card className="h-full overflow-auto border-0">
             <CardHeader className="p-4">
-                <div className="flex items-start justify-between gap-3 pr-12">
+                <div className={`flex items-start justify-between gap-3 ${isMobile ? "" : "pr-12"}`}>
                     <div className="flex min-w-0 flex-1 items-center space-x-4">
                         <Link href={`/circles/${user?.handle}`}>
                             <Avatar className="h-12 w-12">
@@ -709,15 +709,32 @@ export const UserToolbox = () => {
                             </div>
                         </div>
                     </div>
-                    <Button
-                        type="button"
-                        variant="default"
-                        size="sm"
-                        className="shrink-0 bg-black text-white hover:bg-[#1f1f1f]"
-                        onClick={() => void signOut()}
-                    >
-                        Sign out
-                    </Button>
+                    <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                            type="button"
+                            variant="default"
+                            size="sm"
+                            className="shrink-0 bg-black text-white hover:bg-[#1f1f1f]"
+                            onClick={() => void signOut()}
+                        >
+                            Sign out
+                        </Button>
+                        {/* Mobile only: on desktop the panel's own close (X) still lives in
+                            side-panel.tsx, absolutely positioned over this header — see
+                            side-panel.tsx for why (this header is shared by both). */}
+                        {isMobile && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0 rounded-full bg-gray-100"
+                                onClick={closeToolbox}
+                                aria-label="Close panel"
+                            >
+                                <X className="h-4 w-4" />
+                            </Button>
+                        )}
+                    </div>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
