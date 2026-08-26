@@ -13,6 +13,7 @@ import {
     authInfoAtom,
     notificationUnreadCountAtom,
     mobileExploreAvatarSlotAtom,
+    mobileExploreSearchFocusedAtom,
 } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import { UserPicture } from "../modules/members/user-picture";
@@ -130,6 +131,7 @@ const ProfileMenuBar = () => {
     const [notificationUnreadCount, setNotificationUnreadCount] = useAtom(notificationUnreadCountAtom);
     const [messageUnreadCount, setMessageUnreadCount] = useState(0);
     const [mobileExploreAvatarSlot] = useAtom(mobileExploreAvatarSlotAtom);
+    const [mobileExploreSearchFocused, setMobileExploreSearchFocused] = useAtom(mobileExploreSearchFocusedAtom);
     const pathname = usePathname();
     const isMobile = useIsMobile();
     const currentVisibleIdentity = useActingIdentity();
@@ -164,10 +166,20 @@ const ProfileMenuBar = () => {
         return () => document.removeEventListener("pointerdown", onOutsidePointerDown);
     }, [mobileIconsExpanded, profileSwitcherOpen]);
 
+    // Search-focus hides the embedded avatar/fan-out entirely (see the render site below) so
+    // the input can expand into that space — collapse the fan-out first if it was open, so it
+    // isn't left expanded-but-invisible underneath once focus is gained.
+    useEffect(() => {
+        if (mobileExploreSearchFocused) {
+            setMobileIconsExpanded(false);
+        }
+    }, [mobileExploreSearchFocused]);
+
     useEffect(() => {
         if (!(isMobile && pathname === "/explore")) {
             setMobileIconsExpanded(false);
             setProfileSwitcherOpen(false);
+            setMobileExploreSearchFocused(false);
         }
     }, [isMobile, pathname]);
 
@@ -529,7 +541,9 @@ const ProfileMenuBar = () => {
 
                             {isMobileExplore &&
                                 (mobileExploreAvatarSlot
-                                    ? createPortal(mobileExploreFanOut, mobileExploreAvatarSlot)
+                                    ? mobileExploreSearchFocused
+                                        ? null
+                                        : createPortal(mobileExploreFanOut, mobileExploreAvatarSlot)
                                     : sidePanelContentVisible === "toolbox"
                                       ? null
                                       : mobileExploreFanOut)}
