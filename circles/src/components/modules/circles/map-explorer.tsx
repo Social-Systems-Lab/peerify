@@ -109,7 +109,7 @@ const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: strin
     }, [
         evaluateScrollability,
         props.categories.length,
-        props.selectedCategory,
+        props.selectedCategories,
         props.hasSearched,
         props.categoryCounts,
         props.displayLabelMap,
@@ -1251,13 +1251,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     events: categoryCounts.events,
                                     users: categoryCounts.users,
                                 }}
-                                // Adapter onto the still-single-select CategoryFilter (Phase 2 build
-                                // sequence step 2 will swap this component out for a true multi-
-                                // highlight version) — selectedCategories only ever holds 0 or 1
-                                // entries until the Advanced Filters multi-select (step 3) exists,
-                                // so this is exactly equivalent to the old single-value wiring.
-                                selectedCategory={selectedCategories[0] ?? null}
-                                onSelectionChange={(value) => setSelectedCategories(value ? [value] : [])}
+                                selectedCategories={selectedCategories}
+                                onSelectionChange={setSelectedCategories}
                                 hasSearched={true}
                                 displayLabelMap={{ users: "Artists", communities: "Venues", events: "Events" }}
                             />
