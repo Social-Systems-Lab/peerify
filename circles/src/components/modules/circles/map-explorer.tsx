@@ -33,6 +33,7 @@ import {
     mapSearchCommandAtom,
     drawerContentAtom,
     mobileExploreAvatarSlotAtom,
+    mobileExploreSearchFocusedAtom,
 } from "@/lib/data/atoms";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -341,6 +342,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         (node: HTMLDivElement | null) => setMobileExploreAvatarSlot(node),
         [setMobileExploreAvatarSlot],
     );
+    const [, setMobileExploreSearchFocused] = useAtom(mobileExploreSearchFocusedAtom);
     const [lastSearchCmdTs, setLastSearchCmdTs] = useState<number>(-1);
 
     // --- Memos ---
@@ -1089,7 +1091,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                     onKeyDown={(e) => e.key === "Enter" && handleSearchTrigger()}
-                                    className="min-w-0 flex-1 border-none bg-transparent pl-1 text-sm outline-none focus:ring-0 sm:text-base"
+                                    onFocus={() => setMobileExploreSearchFocused(true)}
+                                    onBlur={() => setMobileExploreSearchFocused(false)}
+                                    className="min-w-0 flex-1 border-none bg-transparent pl-1 text-base outline-none focus:ring-0"
                                 />
                                 {isMobile ? (
                                     <Button

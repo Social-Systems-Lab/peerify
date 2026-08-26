@@ -87,6 +87,12 @@ export const mapSearchCommandAtom = atom<{ query: string; timestamp: number } | 
 // counts, fan-out expansion, outside-tap-to-collapse) stays owned by profile-menu.tsx.
 export const mobileExploreAvatarSlotAtom = atom<HTMLDivElement | null>(null);
 
+// True while the mobile Explore search input is focused: MapExplorer sets this on the
+// input's focus/blur, and profile-menu.tsx reads it to hide the embedded avatar/fan-out
+// (collapsing the fan-out first if it was open) so the input can expand into that space —
+// mirrors Google Maps hiding its account icon while search is active.
+export const mobileExploreSearchFocusedAtom = atom<boolean>(false);
+
 // Tracks whether the activity feed panel is docked (showing map alongside)
 export const feedPanelDockedAtom = atom<boolean>(false);
 
