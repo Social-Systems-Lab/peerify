@@ -11,6 +11,7 @@ import CircleSwipeCard from "./circle-swipe-card";
 import { MapDisplay } from "@/components/map/map";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -474,6 +475,18 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setDateRange(undefined);
         setSelectedGenres([]);
         setPhysicalOnly(false);
+    }, []);
+
+    // Deselecting down to zero naturally falls back to "All" — that's just the existing empty-
+    // array convention, no special-case needed. Left out of handleClearAdvancedFilters/
+    // activeAdvancedFilterCount deliberately: Category is also independently controlled by the
+    // top pills, and "Clear all" has never touched that state (today it only resets date/genre/
+    // physical) — keeping it that way here preserves today's exact behavior rather than
+    // introducing a new "Clear all also resets the active tab" side effect the spec didn't ask for.
+    const toggleSelectedCategory = useCallback((category: string) => {
+        setSelectedCategories((prev) =>
+            prev.includes(category) ? prev.filter((value) => value !== category) : [...prev, category],
+        );
     }, []);
 
     useEffect(() => {
@@ -1049,6 +1062,31 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                     </Button>
                 </div>
             )}
+
+            <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                <div className="text-sm font-semibold text-gray-900">Category</div>
+                {/* Pre-filled with whatever selectedCategories currently holds (including a
+                    single entry set by tapping a top pill) and fully bidirectional: editing here
+                    updates the same state the pills read, so a pill lights up the instant its
+                    type is checked here, with no separate sync step. */}
+                <div className="grid grid-cols-3 gap-2">
+                    {RESULT_TYPE_OPTIONS.map((option) => {
+                        const checked = selectedCategories.includes(option.value);
+                        return (
+                            <label
+                                key={option.value}
+                                className="flex items-center gap-2 rounded-xl border border-gray-200 p-2.5 text-sm text-gray-900"
+                            >
+                                <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={() => toggleSelectedCategory(option.value)}
+                                />
+                                {option.label}
+                            </label>
+                        );
+                    })}
+                </div>
+            </div>
 
             <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
                 <div className="text-sm font-semibold text-gray-900">Genre</div>
