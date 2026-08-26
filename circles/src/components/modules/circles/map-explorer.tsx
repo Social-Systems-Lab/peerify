@@ -32,6 +32,7 @@ import {
     sidePanelSearchStateAtom,
     mapSearchCommandAtom,
     drawerContentAtom,
+    mobileExploreAvatarSlotAtom,
 } from "@/lib/data/atoms";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -76,23 +77,6 @@ const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: strin
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
     const [canScrollRight, setCanScrollRight] = useState(false);
-    const isMobile = useIsMobile();
-
-    // Mobile-only fade hint (the arrow buttons that used to signal this are hidden
-    // below md — see their `hidden md:flex` below): fades whichever edge currently
-    // has more content to scroll toward, using the same canScrollLeft/canScrollRight
-    // state already driving those arrows. A CSS mask (not a positioned overlay div)
-    // so it fades the pills themselves rather than painting a box that would need to
-    // match whatever's behind this floating header (map tiles, not a solid color).
-    const edgeFadeMask = !isMobile
-        ? undefined
-        : canScrollLeft && canScrollRight
-          ? "linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent)"
-          : canScrollRight
-            ? "linear-gradient(to right, black, black calc(100% - 24px), transparent)"
-            : canScrollLeft
-              ? "linear-gradient(to right, transparent, black 24px, black)"
-              : undefined;
 
     const evaluateScrollability = useCallback(() => {
         const el = scrollAreaRef.current;
@@ -148,7 +132,6 @@ const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: strin
             <div
                 ref={scrollAreaRef}
                 className="no-scrollbar flex max-w-full items-center gap-2 overflow-x-auto overflow-y-hidden mx-0 px-0 md:mx-[22px] md:px-1 scroll-smooth"
-                style={{ maskImage: edgeFadeMask, WebkitMaskImage: edgeFadeMask }}
             >
                 <CategoryFilter {...props} />
             </div>
@@ -351,6 +334,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const [panelMode, setSidePanelMode] = useAtom(sidePanelModeAtom);
     const [, setSearchPanelState] = useAtom(sidePanelSearchStateAtom);
     const [mapSearchCommand] = useAtom(mapSearchCommandAtom);
+    const [, setMobileExploreAvatarSlot] = useAtom(mobileExploreAvatarSlotAtom);
+    // Stable identity so React doesn't null-then-reset the atom on every re-render
+    // (an inline ref callback's identity changes every render, which would do that).
+    const mobileExploreAvatarSlotRef = useCallback(
+        (node: HTMLDivElement | null) => setMobileExploreAvatarSlot(node),
+        [setMobileExploreAvatarSlot],
+    );
     const [lastSearchCmdTs, setLastSearchCmdTs] = useState<number>(-1);
 
     // --- Memos ---
@@ -946,16 +936,14 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     if (!isMounted) return null;
 
     const mobileTopControlsLeft = 12;
-    // Reserve space on mobile for whatever's in the top-right profile-menu slot
-    // (fixed right-6, i.e. 24px from the edge — see profile-menu.tsx). Logged out,
-    // that's the "Log in"/"Sign up" button pair, which measured overlap on staging
-    // confirmed needs ~193px (169px wide + the 24px right-6 offset) — bumped with a
-    // small buffer. Logged in, only the avatar renders by default there (mail/
-    // clipboard/bell stay hidden on mobile Explore — see isMobileExplore in
-    // profile-menu.tsx, and its fan-out is a temporary tap-triggered overlay, not
-    // part of normal layout flow, so it isn't accounted for here), which only needs
-    // ~64px (24px offset + 40px avatar) — round up a bit for breathing room.
-    const mobileTopControlsRight = user ? 76 : 205;
+    // Logged in, the avatar now renders inside the search bar itself (see the
+    // slot div at the bar's trailing end below) rather than floating in a fixed
+    // top-right slot, so there's nothing left to reserve space for — mirror the
+    // left inset. Logged out, the profile-menu's "Log in"/"Sign up" buttons still
+    // float in their fixed top-right slot (unchanged), so keep reserving space for
+    // that pair: measured overlap on staging confirmed it needs ~193px (169px wide
+    // + the 24px right-6 offset) — bumped with a small buffer.
+    const mobileTopControlsRight = user ? mobileTopControlsLeft : 205;
 
     const advancedFiltersContent = (
         <div className="space-y-3">
@@ -1163,6 +1151,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                 >
                                     {isSearching ? "..." : <Search className="h-4 w-4" />}
                                 </Button>
+
+                                {/* Mobile-only portal target: profile-menu.tsx renders its
+                                    isMobileExplore avatar/fan-out here instead of its usual
+                                    fixed top-right slot — see mobileExploreAvatarSlotAtom. */}
+                                {isMobile && user && (
+                                    <div ref={mobileExploreAvatarSlotRef} className="flex shrink-0 items-center" />
+                                )}
                             </div>
 
                             <CategoryFilterCarousel
