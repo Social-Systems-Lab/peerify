@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Hand, Home, Search, SlidersHorizontal, X, ChevronRight, ChevronLeft } from "lucide-react";
+import { Hand, Home, Search, SlidersHorizontal, X, ChevronRight, ChevronLeft, Check } from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { MdOutlineTravelExplore } from "react-icons/md";
@@ -980,14 +980,43 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // + the 24px right-6 offset) — bumped with a small buffer.
     const mobileTopControlsRight = user ? mobileTopControlsLeft : 205;
 
+    // Rendered both on the map view (its own floating row) and inside advancedFiltersContent
+    // (right below the genre selector) — same state, same JSX, so both surfaces (and the
+    // dropdown's checkmarks) can never drift out of sync with each other.
+    const genrePillsRow = selectedGenres.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+            {selectedGenres.map((genre) => (
+                <Badge
+                    key={genre}
+                    variant="secondary"
+                    className="flex items-center gap-1 rounded-full bg-white/95 py-1 pl-3 pr-1.5 shadow-sm ring-1 ring-black/5"
+                >
+                    {genre}
+                    <button
+                        type="button"
+                        onClick={() => removeSelectedGenre(genre)}
+                        className="rounded-full p-0.5 hover:bg-black/10"
+                        aria-label={`Remove ${genre} filter`}
+                    >
+                        <X className="h-3 w-3" />
+                    </button>
+                </Badge>
+            ))}
+        </div>
+    );
+
     const advancedFiltersContent = (
         <div className="space-y-3">
             {activeAdvancedFilterCount > 0 && (
-                <div className="flex justify-end">
+                // pr-12: clearance from the mobile Dialog's own circular close button (see its
+                // render site), which sits in this same top-right corner — bordered/pill styling
+                // (vs. that button's filled circle) keeps the two readable as distinct actions:
+                // this one destructive/clearing, that one neutral/closing.
+                <div className="flex justify-end pr-12">
                     <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
-                        className="h-8 rounded-full px-3 text-xs text-gray-600"
+                        className="h-8 rounded-full border-gray-300 px-3 text-xs text-gray-600 hover:bg-gray-50"
                         onClick={handleClearAdvancedFilters}
                     >
                         Clear all
@@ -1007,13 +1036,24 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                         <SelectValue placeholder={selectedGenres.length > 0 ? "Add another genre" : "All genres"} />
                     </SelectTrigger>
                     <SelectContent>
-                        {PRIMARY_GENRE_OPTIONS.filter((option) => !selectedGenres.includes(option)).map((option) => (
-                            <SelectItem key={option} value={option}>
-                                {option}
-                            </SelectItem>
-                        ))}
+                        {/* Selected genres stay in the list (not filtered out) so their checkmark
+                            is visible while scrolling/browsing — removal happens via the pills
+                            below, not by re-tapping here (addSelectedGenre already no-ops on an
+                            already-selected value, so tapping one here is harmless either way). */}
+                        {PRIMARY_GENRE_OPTIONS.map((option) => {
+                            const isGenreSelected = selectedGenres.includes(option);
+                            return (
+                                <SelectItem key={option} value={option}>
+                                    <span className="flex w-full items-center justify-between gap-2">
+                                        {option}
+                                        {isGenreSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                                    </span>
+                                </SelectItem>
+                            );
+                        })}
                     </SelectContent>
                 </Select>
+                {genrePillsRow}
             </div>
 
             <div className="flex items-center justify-between gap-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
@@ -1065,28 +1105,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                     </AccordionContent>
                 </AccordionItem>
             </Accordion>
-        </div>
-    );
-
-    const genrePillsRow = selectedGenres.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-            {selectedGenres.map((genre) => (
-                <Badge
-                    key={genre}
-                    variant="secondary"
-                    className="flex items-center gap-1 rounded-full bg-white/95 py-1 pl-3 pr-1.5 shadow-sm ring-1 ring-black/5"
-                >
-                    {genre}
-                    <button
-                        type="button"
-                        onClick={() => removeSelectedGenre(genre)}
-                        className="rounded-full p-0.5 hover:bg-black/10"
-                        aria-label={`Remove ${genre} filter`}
-                    >
-                        <X className="h-3 w-3" />
-                    </button>
-                </Badge>
-            ))}
         </div>
     );
 
@@ -1221,10 +1239,26 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
 
             {isMobile && (
                 <Dialog open={showAdvancedFilters} onOpenChange={setShowAdvancedFilters}>
-                    <DialogContent className="top-auto left-0 right-0 bottom-0 max-h-[85vh] max-w-none translate-x-0 translate-y-0 rounded-t-[28px] rounded-b-none border-0 p-0 sm:rounded-t-[28px]">
+                    <DialogContent
+                        hideClose
+                        className="top-auto left-0 right-0 bottom-0 max-h-[85vh] max-w-none translate-x-0 translate-y-0 rounded-t-[28px] rounded-b-none border-0 p-0 sm:rounded-t-[28px]"
+                    >
                         <DialogHeader className="sr-only">
                             <DialogTitle>Search filters</DialogTitle>
                         </DialogHeader>
+                        {/* Own circular close button (matching the UserToolbox close button's style)
+                            instead of the Dialog's plain default — kept visually distinct from
+                            "Clear all" below, which sits close to it in the same corner. */}
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-4 top-4 z-10 h-8 w-8 rounded-full bg-gray-100 hover:bg-gray-200"
+                            onClick={() => setShowAdvancedFilters(false)}
+                            aria-label="Close filters"
+                        >
+                            <X className="h-4 w-4" />
+                        </Button>
                         <div className="max-h-[calc(85vh-5rem)] overflow-y-auto bg-[#faf9f7] px-5 pb-6 pt-4">
                             {advancedFiltersContent}
                         </div>
