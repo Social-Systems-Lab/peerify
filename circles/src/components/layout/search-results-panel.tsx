@@ -15,6 +15,11 @@ const SEARCH_CATEGORY_LABELS: Record<string, string> = {
     events: "events",
 };
 
+// Empty array (or omitted) means "All" — mirrors selectedCategories' own empty-means-All
+// convention throughout map-explorer.tsx, this atom's writer.
+const getSearchCategoriesLabel = (categories: string[]) =>
+    categories.map((category) => SEARCH_CATEGORY_LABELS[category] ?? category).join(" & ");
+
 // Defense-in-depth only: searchable is already enforced at the query level
 // (searchDiscoverableCircles). This guard exists in case a personal profile
 // ever reaches this component via some other path. Mirrors map.tsx's
@@ -33,11 +38,14 @@ export default function SearchResultsPanel() {
     const viewerIsAdmin = user?.isAdmin === true;
 
     const items = searchState.items || [];
+    // Stable reference across renders (unlike a bare `?? []` fallback) so it doesn't defeat the
+    // useMemo hooks below that depend on it.
+    const selectedCategories = useMemo(() => searchState.selectedCategories ?? [], [searchState.selectedCategories]);
     const filterSummary = useMemo(() => {
         const parts: string[] = [];
 
-        if (searchState.selectedCategory) {
-            parts.push(SEARCH_CATEGORY_LABELS[searchState.selectedCategory] ?? searchState.selectedCategory);
+        if (selectedCategories.length > 0) {
+            parts.push(getSearchCategoriesLabel(selectedCategories));
         }
 
         if (searchState.selectedDateLabel) {
@@ -45,7 +53,7 @@ export default function SearchResultsPanel() {
         }
 
         return parts.join(" · ");
-    }, [searchState.selectedCategory, searchState.selectedDateLabel]);
+    }, [selectedCategories, searchState.selectedDateLabel]);
 
     const emptyState = useMemo(() => {
         const trimmedQuery = searchState.query.trim();
@@ -55,10 +63,8 @@ export default function SearchResultsPanel() {
             context.push(`for "${trimmedQuery}"`);
         }
 
-        if (searchState.selectedCategory) {
-            context.push(
-                `in ${SEARCH_CATEGORY_LABELS[searchState.selectedCategory] ?? searchState.selectedCategory}`,
-            );
+        if (selectedCategories.length > 0) {
+            context.push(`in ${getSearchCategoriesLabel(selectedCategories)}`);
         }
 
         if (searchState.selectedDateLabel) {
@@ -66,17 +72,13 @@ export default function SearchResultsPanel() {
         }
 
         return {
-            title: `No ${
-                searchState.selectedCategory
-                    ? SEARCH_CATEGORY_LABELS[searchState.selectedCategory] ?? searchState.selectedCategory
-                    : "results"
-            } found`,
+            title: `No ${selectedCategories.length > 0 ? getSearchCategoriesLabel(selectedCategories) : "results"} found`,
             description:
                 context.length > 0
                     ? `Nothing matched ${context.join(" ")}. Try broadening the query or removing a filter.`
                     : "Try a broader query or switch result types.",
         };
-    }, [searchState.query, searchState.selectedCategory, searchState.selectedDateLabel]);
+    }, [searchState.query, selectedCategories, searchState.selectedDateLabel]);
 
     // No header in side panel per design; keep internal state if needed later
 

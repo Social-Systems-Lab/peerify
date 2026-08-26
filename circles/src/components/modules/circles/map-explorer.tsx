@@ -188,21 +188,23 @@ const SEARCH_CATEGORY_LABELS: Record<string, string> = {
     events: "events",
 };
 
-const getSearchCategoryLabel = (category: string | null) => {
-    if (!category) return "results";
-    return SEARCH_CATEGORY_LABELS[category] ?? category;
+// Empty array (or omitted) means "All" throughout this file — mirrors selectedCategories'
+// own empty-means-All convention, not a separate falsy-value convention.
+const getSearchCategoriesLabel = (categories: string[]) => {
+    if (categories.length === 0) return "results";
+    return categories.map((category) => SEARCH_CATEGORY_LABELS[category] ?? category).join(" & ");
 };
 
 const buildSearchEmptyState = ({
     hasSearched,
     query,
-    selectedCategory,
+    selectedCategories,
     dateLabel,
     hasDateFilter,
 }: {
     hasSearched: boolean;
     query: string;
-    selectedCategory: string | null;
+    selectedCategories: string[];
     dateLabel: string;
     hasDateFilter: boolean;
 }) => {
@@ -220,8 +222,8 @@ const buildSearchEmptyState = ({
         context.push(`for "${trimmedQuery}"`);
     }
 
-    if (selectedCategory) {
-        context.push(`in ${getSearchCategoryLabel(selectedCategory)}`);
+    if (selectedCategories.length > 0) {
+        context.push(`in ${getSearchCategoriesLabel(selectedCategories)}`);
     }
 
     if (hasDateFilter) {
@@ -229,7 +231,7 @@ const buildSearchEmptyState = ({
     }
 
     return {
-        title: `No ${selectedCategory ? getSearchCategoryLabel(selectedCategory) : "results"} found`,
+        title: `No ${getSearchCategoriesLabel(selectedCategories)} found`,
         description:
             context.length > 0
                 ? `Nothing matched ${context.join(" ")}. Try widening a filter or switching result types.`
@@ -251,7 +253,11 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const searchParams = useSearchParams();
     const [viewMode, setViewMode] = useState<ViewMode>("explore");
     const [searchQuery, setSearchQuery] = useState("");
-    const [selectedCategory, setSelectedCategory] = useState<string | null>("users");
+    // Empty array means "All" (today's default is a single-element array, the equivalent of the
+    // old selectedCategory === "users" default). This is the actual source of truth for both map
+    // pins and results — the top Artists/Venues/Events pills are a "reset to exactly one" shortcut
+    // into this same state, not a separate concept (see setSelectedCategories usage below).
+    const [selectedCategories, setSelectedCategories] = useState<string[]>(["users"]);
     const [allSearchResults, setAllSearchResults] = useState<WithMetric<Circle>[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
@@ -377,19 +383,24 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // --- Memos ---
     const snapPoints = useMemo(() => [100, windowHeight * 0.4, windowHeight * 0.8, windowHeight], [windowHeight]);
 
-    const filterCirclesByCategory = useCallback((circles: WithMetric<Circle>[], category: string | null) => {
-        // ... (no changes) ...
-        if (!category) return circles;
+    const filterCirclesByCategory = useCallback((circles: WithMetric<Circle>[], categories: string[]) => {
+        // Empty array means "All" — unfiltered, same as the old null/falsy category.
+        if (categories.length === 0) return circles;
         // No circle document represents an event — events live in a separate dataset
-        // (eventsForMap/filteredEventsForMap) entirely. Returning circles unfiltered here (as
-        // this used to) leaked stale artist/venue results into anything that reads this result
-        // without its own events special-case, e.g. drawerListData (the results list under the
-        // map) — the map markers effect happened to already special-case "events" before ever
-        // touching this function's output, which is why only the list, not the map, was affected.
-        if (category === "events") return [];
-        if (category === "users") return circles.filter((circle) => isPeerifyArtistIdentity(circle));
-        if (category === "communities") return circles.filter((circle) => isPeerifyVenueIdentity(circle));
-        return circles;
+        // (eventsForMap/filteredEventsForMap) entirely, so an "events"-only selection (no other
+        // type alongside it) should never match any circle. OR-matches across every non-"events"
+        // type selected, so e.g. ["users", "communities"] returns artists AND venues together.
+        const nonEventTypes = categories.filter((category) => category !== "events");
+        if (nonEventTypes.length === 0) return [];
+        return circles.filter((circle) =>
+            nonEventTypes.some((category) =>
+                category === "users"
+                    ? isPeerifyArtistIdentity(circle)
+                    : category === "communities"
+                      ? isPeerifyVenueIdentity(circle)
+                      : false,
+            ),
+        );
     }, []);
 
     const displayedSwipeCircles = useMemo(() => {
@@ -407,29 +418,29 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     }, [allDiscoverableCircles, user]);
 
     const filteredSearchResults = useMemo(() => {
-        return filterCirclesByCategory(allSearchResults, selectedCategory);
-    }, [allSearchResults, selectedCategory, filterCirclesByCategory]);
+        return filterCirclesByCategory(allSearchResults, selectedCategories);
+    }, [allSearchResults, selectedCategories, filterCirclesByCategory]);
 
-    // What the search results list/panel should actually show: only an exclusive pill
-    // (Events, or a circle-type pill applied after a search already ran) narrows to one
-    // content type — with no pill active, search results span every type, same as the map
-    // markers effect below already does for baseCircles.
+    // What the search results list/panel should actually show: filteredSearchResults is already
+    // correctly scoped to whichever circle types are selected (or every type, if none are) via
+    // filterCirclesByCategory — only events need handling here explicitly, since they're a
+    // separate dataset filterCirclesByCategory never touches. "All" (empty array) always
+    // includes events, same as today.
     const searchDisplayItems = useMemo(() => {
-        if (selectedCategory === "events") return filteredEventsForMap;
-        if (selectedCategory) return filteredSearchResults;
-        return [...filteredSearchResults, ...filteredEventsForMap];
-    }, [selectedCategory, filteredSearchResults, filteredEventsForMap]);
+        const includesEvents = selectedCategories.length === 0 || selectedCategories.includes("events");
+        return [...filteredSearchResults, ...(includesEvents ? filteredEventsForMap : [])];
+    }, [selectedCategories, filteredSearchResults, filteredEventsForMap]);
 
     const searchEmptyState = useMemo(
         () =>
             buildSearchEmptyState({
                 hasSearched,
                 query: searchQuery,
-                selectedCategory,
+                selectedCategories,
                 dateLabel,
                 hasDateFilter,
             }),
-        [hasSearched, searchQuery, selectedCategory, dateLabel, hasDateFilter],
+        [hasSearched, searchQuery, selectedCategories, dateLabel, hasDateFilter],
     );
 
     const countsDatasetCircles = useMemo(() => {
@@ -474,7 +485,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             query: searchQuery,
             isSearching,
             hasSearched,
-            selectedCategory: selectedCategory ?? null,
+            selectedCategories,
             selectedDateLabel: hasDateFilter ? dateLabel : null,
             items: searchDisplayItems as any,
             counts: {
@@ -488,7 +499,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         hasSearched,
         searchQuery,
         isSearching,
-        selectedCategory,
+        selectedCategories,
         hasDateFilter,
         dateLabel,
         searchDisplayItems,
@@ -503,9 +514,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         if (hasSearched) {
             return filteredSearchResults;
         } else {
-            return filterCirclesByCategory(allDiscoverableCircles, selectedCategory);
+            return filterCirclesByCategory(allDiscoverableCircles, selectedCategories);
         }
-    }, [hasSearched, filteredSearchResults, allDiscoverableCircles, selectedCategory, filterCirclesByCategory]);
+    }, [hasSearched, filteredSearchResults, allDiscoverableCircles, selectedCategories, filterCirclesByCategory]);
 
     const drawerListData = useMemo(() => {
         let list = baseCircles;
@@ -544,7 +555,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             // If clearing search via empty query, reset state
             setAllSearchResults([]);
             setDisplayedContent(
-                filterCirclesByCategory(allDiscoverableCircles, selectedCategory)
+                filterCirclesByCategory(allDiscoverableCircles, selectedCategories)
                     .map(mapItemToContent)
                     .filter((c): c is Content => c !== null),
             );
@@ -558,7 +569,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 query: "",
                 isSearching: false,
                 hasSearched: false,
-                selectedCategory: null,
+                selectedCategories: [],
                 selectedDateLabel: null,
                 items: [],
                 counts: { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length },
@@ -577,10 +588,10 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         // pill debounce below, never by an actual text-query trigger) is the fix: it keeps this
         // reset doing exactly what the comment above already says it should.
         const isFreshSearch = !hasSearched && !options?.preserveActiveCategory;
-        if (isFreshSearch && selectedCategory) {
-            setSelectedCategory(null);
+        if (isFreshSearch && selectedCategories.length > 0) {
+            setSelectedCategories([]);
         }
-        const effectiveCategory = isFreshSearch ? null : selectedCategory;
+        const effectiveCategories = isFreshSearch ? [] : selectedCategories;
 
         // Open global left search panel in searching state (desktop UX)
         setSidePanelMode("search");
@@ -588,7 +599,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             query: searchQuery,
             isSearching: true,
             hasSearched: false,
-            selectedCategory: effectiveCategory,
+            selectedCategories: effectiveCategories,
             selectedDateLabel: hasDateFilter ? dateLabel : null,
             items: [],
             counts: { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length },
@@ -612,11 +623,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             setAllSearchResults(results);
 
             // Compute filtered list and counts for left panel now. Mirrors searchDisplayItems'
-            // rule: only an exclusive pill narrows to one content type; unscoped, results span
-            // every type — using effectiveCategory/results directly (not the searchDisplayItems
-            // memo) since those still reflect the previous render at this point in the closure.
-            const filtered = filterCirclesByCategory(results, effectiveCategory);
-            const items = effectiveCategory === "events" ? filteredEventsForMap : effectiveCategory ? filtered : [...filtered, ...filteredEventsForMap];
+            // rule (circle types via filterCirclesByCategory, events included whenever selected
+            // or nothing is) — using effectiveCategories/results directly (not the
+            // searchDisplayItems memo) since those still reflect the previous render at this
+            // point in the closure.
+            const filtered = filterCirclesByCategory(results, effectiveCategories);
+            const includesEvents = effectiveCategories.length === 0 || effectiveCategories.includes("events");
+            const items = [...filtered, ...(includesEvents ? filteredEventsForMap : [])];
             const counts = { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length };
             results.forEach((r: any) => {
                 if (isPeerifyVenueIdentity(r)) counts.communities++;
@@ -627,7 +640,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 query: searchQuery,
                 isSearching: false,
                 hasSearched: true,
-                selectedCategory: effectiveCategory,
+                selectedCategories: effectiveCategories,
                 selectedDateLabel: hasDateFilter ? dateLabel : null,
                 items: items as any,
                 counts,
@@ -645,7 +658,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 query: searchQuery,
                 isSearching: false,
                 hasSearched: true,
-                selectedCategory: effectiveCategory,
+                selectedCategories: effectiveCategories,
                 selectedDateLabel: hasDateFilter ? dateLabel : null,
                 items: [],
                 counts: { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length },
@@ -660,7 +673,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         selectedGenres,
         setDisplayedContent,
         allDiscoverableCircles,
-        selectedCategory,
+        selectedCategories,
         hasSearched,
         filterCirclesByCategory,
         setContentPreview,
@@ -686,12 +699,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setSearchQuery("");
         setAllSearchResults([]);
         setHasSearched(false);
-        setSelectedCategory(null);
+        setSelectedCategories([]);
         setDateRange(undefined);
         setSelectedGenres([]);
         setShowAdvancedFilters(false);
         setOpenAdvancedSection("");
-        const resetMapData = filterCirclesByCategory(allDiscoverableCircles, null)
+        const resetMapData = filterCirclesByCategory(allDiscoverableCircles, [])
             .map((circle) => mapItemToContent(circle))
             .filter((c): c is Content => c !== null);
         setDisplayedContent(resetMapData);
@@ -704,7 +717,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             query: "",
             isSearching: false,
             hasSearched: false,
-            selectedCategory: null,
+            selectedCategories: [],
             selectedDateLabel: null,
             items: [],
             counts: { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length },
@@ -762,14 +775,14 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         if (viewMode !== "explore") return;
         const cat = searchParams.get("category");
         if (cat === "events") {
-            setSelectedCategory("events");
+            setSelectedCategories(["events"]);
         }
     }, [searchParams, viewMode]);
 
     // When mobile drawer shows events, ensure events category is active on map
     useEffect(() => {
         if (drawerContent === "events") {
-            setSelectedCategory("events");
+            setSelectedCategories(["events"]);
         }
     }, [drawerContent]);
 
@@ -833,7 +846,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         const targetEvent = eventsForMap.find((evt) => getEventId(evt) === pendingFocusEventId);
         if (!targetEvent) return;
 
-        setSelectedCategory("events");
+        setSelectedCategories(["events"]);
         setZoomContent(targetEvent);
         setDisplayedContent((filteredEventsForMap.length ? filteredEventsForMap : [targetEvent]) as unknown as Content[]);
         setContentPreview({
@@ -866,7 +879,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setZoomContent,
         setContentPreview,
         setSidePanelMode,
-        setSelectedCategory,
+        setSelectedCategories,
         setDisplayedContent,
         filteredEventsForMap,
         router,
@@ -892,8 +905,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // Update map markers when in Explore mode
     useEffect(() => {
         if (viewMode === "explore") {
-            // When "events" category is selected OR side panel is in "events" mode, show only event markers
-            if (selectedCategory === "events" || panelMode === "events") {
+            // Side panel "events" mode (desktop left-nav Events panel) is an independent override —
+            // show only event markers regardless of selectedCategories.
+            if (panelMode === "events") {
                 setDisplayedContent(filteredEventsForMap as unknown as Content[]);
                 return;
             }
@@ -905,12 +919,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 .map((circle) => mapItemToContent(circle))
                 .filter((c): c is Content => c !== null);
 
-            // Only combine circles with events when no specific category pill is active — a
-            // circle-type pill (Artists/Venues) must exclude every other content type, events
-            // included, not just other circle types (baseCircles already handles that part).
-            const combined: Content[] = selectedCategory
-                ? mapData
-                : [...mapData, ...(filteredEventsForMap as unknown as Content[])];
+            // baseCircles is already correctly scoped to whichever circle types are selected (or
+            // every type, if none are) via filterCirclesByCategory — only events need handling
+            // here explicitly, since they're a separate dataset filterCirclesByCategory never
+            // touches. "All" (empty array) always includes events, same as today.
+            const includesEvents = selectedCategories.length === 0 || selectedCategories.includes("events");
+            const combined: Content[] = [...mapData, ...(includesEvents ? (filteredEventsForMap as unknown as Content[]) : [])];
             setDisplayedContent(combined);
         }
     }, [
@@ -919,7 +933,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         dateRange,
         withinDateRange,
         setDisplayedContent,
-        selectedCategory,
+        selectedCategories,
         filteredEventsForMap,
         panelMode, // Added dependency
     ]);
@@ -1237,8 +1251,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     events: categoryCounts.events,
                                     users: categoryCounts.users,
                                 }}
-                                selectedCategory={selectedCategory}
-                                onSelectionChange={setSelectedCategory}
+                                // Adapter onto the still-single-select CategoryFilter (Phase 2 build
+                                // sequence step 2 will swap this component out for a true multi-
+                                // highlight version) — selectedCategories only ever holds 0 or 1
+                                // entries until the Advanced Filters multi-select (step 3) exists,
+                                // so this is exactly equivalent to the old single-value wiring.
+                                selectedCategory={selectedCategories[0] ?? null}
+                                onSelectionChange={(value) => setSelectedCategories(value ? [value] : [])}
                                 hasSearched={true}
                                 displayLabelMap={{ users: "Artists", communities: "Venues", events: "Events" }}
                             />
@@ -1387,9 +1406,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                         {!isSearching &&
                             allSearchResults.length > 0 &&
                             filteredSearchResults.length === 0 &&
-                            selectedCategory && (
+                            selectedCategories.length > 0 && (
                                 <p className="text-sm text-gray-500">
-                                    No results found for category &quot;{selectedCategory}&quot;.
+                                    No results found for category &quot;{selectedCategories.join(", ")}&quot;.
                                 </p>
                             )}
                         {!isSearching && allSearchResults.length === 0 && hasSearched && (
