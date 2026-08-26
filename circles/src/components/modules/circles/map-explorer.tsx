@@ -380,7 +380,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const filterCirclesByCategory = useCallback((circles: WithMetric<Circle>[], category: string | null) => {
         // ... (no changes) ...
         if (!category) return circles;
-        if (category === "events") return circles;
+        // No circle document represents an event — events live in a separate dataset
+        // (eventsForMap/filteredEventsForMap) entirely. Returning circles unfiltered here (as
+        // this used to) leaked stale artist/venue results into anything that reads this result
+        // without its own events special-case, e.g. drawerListData (the results list under the
+        // map) — the map markers effect happened to already special-case "events" before ever
+        // touching this function's output, which is why only the list, not the map, was affected.
+        if (category === "events") return [];
         if (category === "users") return circles.filter((circle) => isPeerifyArtistIdentity(circle));
         if (category === "communities") return circles.filter((circle) => isPeerifyVenueIdentity(circle));
         return circles;
@@ -532,7 +538,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         [setZoomContent],
     );
 
-    const handleSearchTrigger = useCallback(async () => {
+    const handleSearchTrigger = useCallback(async (options?: { preserveActiveCategory?: boolean }) => {
         const searchCategoriesForBackend = ["circles", "users", "projects"];
         if (!searchQuery.trim() && selectedGenres.length === 0) {
             // If clearing search via empty query, reset state
@@ -560,11 +566,17 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             return;
         }
 
-        // A pill already active from browsing shouldn't silently pre-scope a *new* search —
+        // A pill already active from browsing shouldn't silently pre-scope a *new* text search —
         // reset it only on the transition into search (not on a refinement of an already-active
         // search, e.g. a genre pill change), so pills still work as a post-search narrowing tool
-        // rather than getting reset out from under a search the user is already looking at.
-        const isFreshSearch = !hasSearched;
+        // rather than getting reset out from under a search the user is already looking at. That
+        // "refinement" intent didn't actually hold for the very first genre pill tapped before any
+        // text search had ever run — isFreshSearch was true then too, silently wiping the active
+        // tab back to "All" and un-scoping Genre/Physical/Calendar right when a user picks a genre
+        // while browsing Artists/Venues/Events. preserveActiveCategory (passed only by the genre-
+        // pill debounce below, never by an actual text-query trigger) is the fix: it keeps this
+        // reset doing exactly what the comment above already says it should.
+        const isFreshSearch = !hasSearched && !options?.preserveActiveCategory;
         if (isFreshSearch && selectedCategory) {
             setSelectedCategory(null);
         }
@@ -667,7 +679,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     useEffect(() => {
         if (!genrePillChangedRef.current) return;
         genrePillChangedRef.current = false;
-        debouncedGenreSearch();
+        debouncedGenreSearch({ preserveActiveCategory: true });
     }, [selectedGenres, debouncedGenreSearch]);
 
     const handleClearSearch = useCallback(() => {
@@ -1199,7 +1211,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     </Button>
                                 ) : null}
                                 <Button
-                                    onClick={handleSearchTrigger}
+                                    onClick={() => handleSearchTrigger()}
                                     size="sm"
                                     variant="ghost"
                                     className="ml-1 h-9 w-9 rounded-full p-0"
