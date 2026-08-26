@@ -80,6 +80,13 @@ export const replyToMessageAtom = atom<ChatMessage | null>(null);
 // MapExplorer listens to this and runs the existing search/clear logic.
 export const mapSearchCommandAtom = atom<{ query: string; timestamp: number } | null>(null);
 
+// Portal target for the mobile Explore avatar/fan-out: MapExplorer publishes a ref to a
+// slot at the trailing end of its search bar, and profile-menu.tsx portals its
+// isMobileExplore UI into it instead of rendering in its usual fixed top-right position.
+// Lets the avatar live inside the search bar's own DOM/flex layout while its state (unread
+// counts, fan-out expansion, outside-tap-to-collapse) stays owned by profile-menu.tsx.
+export const mobileExploreAvatarSlotAtom = atom<HTMLDivElement | null>(null);
+
 // Tracks whether the activity feed panel is docked (showing map alongside)
 export const feedPanelDockedAtom = atom<boolean>(false);
 
