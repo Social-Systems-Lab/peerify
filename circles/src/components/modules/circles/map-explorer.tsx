@@ -309,6 +309,35 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setSelectedGenres((prev) => prev.filter((value) => value !== genre));
     }, []);
 
+    // The genre dropdown's own Select (Radix) closes itself the instant a window "resize"
+    // event fires — confirmed live: dispatching a single resize event closes it within one
+    // frame, even though the surrounding Dialog doesn't react to the same event at all, so
+    // this is Select-specific (likely its native-picker-dismiss emulation), not a repositioning
+    // side effect (position="item-aligned" doesn't avoid it either) or an app-level remount
+    // (the trigger/content DOM nodes are the same nodes before and after, only their Radix
+    // open-state flips). iOS Safari fires resize events continuously during any scroll gesture
+    // as its address bar collapses/expands — including a scroll gesture inside this dropdown's
+    // own long (31-item) list — so a long list like this one snaps shut mid-scroll, before a
+    // tap can land, while shorter Selects elsewhere in the app never trigger it. Controlled
+    // open state + ignoring a close request that arrives within a beat of a resize sidesteps
+    // it without touching Radix internals; a genuine dismiss (Escape, outside tap, selecting
+    // an item) never immediately follows a resize, so those still close it normally.
+    const [genreSelectOpen, setGenreSelectOpen] = useState(false);
+    const lastWindowResizeAtRef = useRef(0);
+    useEffect(() => {
+        const onWindowResize = () => {
+            lastWindowResizeAtRef.current = Date.now();
+        };
+        window.addEventListener("resize", onWindowResize);
+        return () => window.removeEventListener("resize", onWindowResize);
+    }, []);
+    const handleGenreSelectOpenChange = useCallback((open: boolean) => {
+        if (!open && Date.now() - lastWindowResizeAtRef.current < 250) {
+            return;
+        }
+        setGenreSelectOpen(open);
+    }, []);
+
     const withinDateRange = useCallback(
         (d?: Date | string) => {
             if (!dateRange?.from && !dateRange?.to) return true;
@@ -971,6 +1000,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 <Select
                     value=""
                     onValueChange={(value) => addSelectedGenre(value)}
+                    open={genreSelectOpen}
+                    onOpenChange={handleGenreSelectOpenChange}
                 >
                     <SelectTrigger>
                         <SelectValue placeholder={selectedGenres.length > 0 ? "Add another genre" : "All genres"} />
