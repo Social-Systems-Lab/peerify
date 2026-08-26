@@ -17,7 +17,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Hand, Home, Search, SlidersHorizontal, X, ChevronRight, ChevronLeft, Check } from "lucide-react";
+import {
+    Hand,
+    Home,
+    Search,
+    SlidersHorizontal,
+    X,
+    ChevronRight,
+    ChevronLeft,
+    Check,
+    Calendar as CalendarIcon,
+} from "lucide-react";
 import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { MdOutlineTravelExplore } from "react-icons/md";
@@ -538,6 +548,30 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         }
         return list;
     }, [baseCircles, dateRange, withinDateRange]);
+
+    // Sectioned mobile drawer view (per Category type), mirroring search-results-panel.tsx's
+    // desktop grouping. drawerListData is already circle-type-scoped via filterCirclesByCategory
+    // (baseCircles) — this just splits it into the three named buckets rather than one flat
+    // list, plus events, which drawerListData never carried at all before (it comes from the
+    // separate filteredEventsForMap dataset, included whenever "events" is selected or nothing
+    // is, same rule searchDisplayItems/the map-markers effect already use).
+    const drawerSections = useMemo(() => {
+        const includesEvents = selectedCategories.length === 0 || selectedCategories.includes("events");
+        const artists: WithMetric<Circle>[] = [];
+        const venues: WithMetric<Circle>[] = [];
+        const other: WithMetric<Circle>[] = [];
+        drawerListData.forEach((circle) => {
+            if (isPeerifyVenueIdentity(circle)) venues.push(circle);
+            else if (isPeerifyArtistIdentity(circle)) artists.push(circle);
+            else other.push(circle);
+        });
+        return { artists, venues, events: includesEvents ? filteredEventsForMap : [], other };
+    }, [drawerListData, filteredEventsForMap, selectedCategories]);
+    const drawerHasResults =
+        drawerSections.artists.length > 0 ||
+        drawerSections.venues.length > 0 ||
+        drawerSections.events.length > 0 ||
+        drawerSections.other.length > 0;
 
     // --- Callbacks ---
     const handleSwiped = useCallback((circle: Circle, direction: "left" | "right") => {
@@ -1172,6 +1206,95 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         </div>
     );
 
+    // Mobile drawer's circle row — unchanged from before the Category multi-select work, just
+    // extracted so it can be reused across the Artists/Venues/Other sections below instead of
+    // one flat list.
+    const renderDrawerCircleItem = (item: WithMetric<Circle>) => (
+        <li
+            key={item._id}
+            className="flex cursor-pointer items-center gap-2 rounded pb-2 pt-1 hover:bg-gray-100"
+            onClick={() => {
+                // drawerListData is hasSearched ? filteredSearchResults (searchable-gated)
+                // : allDiscoverableCircles (mapVisible-gated) — tag source accordingly.
+                const previewData: ContentPreviewData = {
+                    type: (item.circleType || "circle") as any,
+                    content: item as any,
+                    props: { source: hasSearched ? "search" : "map" },
+                } as any;
+                setContentPreview(previewData);
+                if (item.location?.lngLat) {
+                    handleSetZoomContent(item);
+                }
+            }}
+            title={item.location?.lngLat ? "Click to focus map and view details" : "Click to view details"}
+        >
+            <div className="relative">
+                <CirclePicture circle={item} size="60px" showTypeIndicator={true} />
+            </div>
+            <div className="relative flex-1 overflow-hidden pl-4">
+                <div className="truncate p-0 text-xl font-medium">{item.name || "Untitled"}</div>
+                <div className="text-md mt-1 line-clamp-2 p-0 text-gray-500">
+                    {item.description || item.mission || ""}
+                </div>
+                {item.metrics && (
+                    <div className="flex flex-row pt-1">
+                        <Indicators className="pointer-events-none" metrics={item.metrics} />
+                        <div className="flex-1" />
+                    </div>
+                )}
+            </div>
+            <div className="relative">
+                <HiChevronRight className="h-4 w-4" />
+            </div>
+        </li>
+    );
+
+    // New: events previously never appeared in this drawer at all (only via the separate
+    // MobileEventsPanel, reached through the bottom nav — see drawerContent === "events" above).
+    // Matches the circle row's footprint/click behavior; the "picture" slot is a calendar icon
+    // instead of CirclePicture since an event isn't a circle and has no picture field.
+    const renderDrawerEventItem = (event: EventDisplay) => (
+        <li
+            key={(event as any)._id}
+            className="flex cursor-pointer items-center gap-2 rounded pb-2 pt-1 hover:bg-gray-100"
+            onClick={() => {
+                const previewData: ContentPreviewData = {
+                    type: "event",
+                    content: event as any,
+                    props: { circleHandle: event.circle?.handle || "" },
+                } as any;
+                setContentPreview(previewData);
+                if ((event as any).location?.lngLat) {
+                    handleSetZoomContent(event as any);
+                }
+            }}
+            title="Click to view details"
+        >
+            <div className="relative flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded-full bg-gray-100">
+                <CalendarIcon className="h-6 w-6 text-gray-500" />
+            </div>
+            <div className="relative flex-1 overflow-hidden pl-4">
+                <div className="truncate p-0 text-xl font-medium">{event.title || "Untitled"}</div>
+                <div className="text-md mt-1 line-clamp-2 p-0 text-gray-500">
+                    {format(new Date(event.startAt), "PPp")}
+                    {event.endAt ? ` — ${format(new Date(event.endAt), "PPp")}` : ""}
+                </div>
+            </div>
+            <div className="relative">
+                <HiChevronRight className="h-4 w-4" />
+            </div>
+        </li>
+    );
+
+    // Section order mirrors the top Artists/Venues/Events pills, same convention as
+    // search-results-panel.tsx's desktop grouping.
+    const drawerSectionList: { key: string; label: string; items: any[]; renderItem: (item: any) => React.ReactNode }[] = [
+        { key: "artists", label: "Artists", items: drawerSections.artists, renderItem: renderDrawerCircleItem },
+        { key: "venues", label: "Venues", items: drawerSections.venues, renderItem: renderDrawerCircleItem },
+        { key: "events", label: "Events", items: drawerSections.events, renderItem: renderDrawerEventItem },
+        { key: "other", label: "Other", items: drawerSections.other, renderItem: renderDrawerCircleItem },
+    ];
+
     // --- Render ---
     return (
         <div className="relative flex w-full flex-row overflow-hidden md:h-full">
@@ -1591,7 +1714,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                         <div className="flex-1 rounded-t-[10px] bg-white pt-0">
                             <div className="mx-0 px-4 pb-4">
                                 {isSearching && <p className="py-4 text-center">Loading...</p>}
-                                {!isSearching && drawerListData.length === 0 && (
+                                {!isSearching && !drawerHasResults && (
                                     <div className="py-6 text-center">
                                         <p className="text-sm font-medium text-gray-900">{searchEmptyState.title}</p>
                                         <p className="mx-auto mt-2 max-w-sm text-sm text-gray-500">
@@ -1599,57 +1722,20 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                         </p>
                                     </div>
                                 )}
-                                {!isSearching && drawerListData.length > 0 && (
-                                    <ul className="space-y-2">
-                                        {drawerListData.map((item) => (
-                                            <li
-                                                key={item._id}
-                                                className="flex cursor-pointer items-center gap-2 rounded pb-2 pt-1 hover:bg-gray-100"
-                                                onClick={() => {
-                                                    // drawerListData is hasSearched ? filteredSearchResults (searchable-gated)
-                                                    // : allDiscoverableCircles (mapVisible-gated) — tag source accordingly.
-                                                    const previewData: ContentPreviewData = {
-                                                        type: (item.circleType || "circle") as any,
-                                                        content: item as any,
-                                                        props: { source: hasSearched ? "search" : "map" },
-                                                    } as any;
-                                                    setContentPreview(previewData);
-                                                    if (item.location?.lngLat) {
-                                                        handleSetZoomContent(item);
-                                                    }
-                                                }}
-                                                title={
-                                                    item.location?.lngLat
-                                                        ? "Click to focus map and view details"
-                                                        : "Click to view details"
-                                                }
-                                            >
-                                                <div className="relative">
-                                                    <CirclePicture circle={item} size="60px" showTypeIndicator={true} />
-                                                </div>
-                                                <div className="relative flex-1 overflow-hidden pl-4">
-                                                    <div className="truncate p-0 text-xl font-medium">
-                                                        {item.name || "Untitled"}
+                                {!isSearching && drawerHasResults && (
+                                    <div>
+                                        {drawerSectionList.map(({ key, label, items, renderItem }) => {
+                                            if (items.length === 0) return null;
+                                            return (
+                                                <div key={key}>
+                                                    <div className="px-1 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-gray-500 first:pt-0">
+                                                        {label} · {items.length}
                                                     </div>
-                                                    <div className="text-md mt-1 line-clamp-2 p-0 text-gray-500">
-                                                        {item.description || item.mission || ""}
-                                                    </div>
-                                                    {item.metrics && (
-                                                        <div className="flex flex-row pt-1">
-                                                            <Indicators
-                                                                className="pointer-events-none"
-                                                                metrics={item.metrics}
-                                                            />
-                                                            <div className="flex-1" />
-                                                        </div>
-                                                    )}
+                                                    <ul className="space-y-2">{items.map((item) => renderItem(item))}</ul>
                                                 </div>
-                                                <div className="relative">
-                                                    <HiChevronRight className="h-4 w-4" />
-                                                </div>
-                                            </li>
-                                        ))}
-                                    </ul>
+                                            );
+                                        })}
+                                    </div>
                                 )}
                             </div>
                         </div>

@@ -8,6 +8,7 @@ import Indicators from "@/components/utils/indicators";
 import { CirclePicture } from "@/components/modules/circles/circle-picture";
 import { Content, ContentPreviewData, EventDisplay } from "@/models/models";
 import { format } from "date-fns";
+import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 
 const SEARCH_CATEGORY_LABELS: Record<string, string> = {
     users: "artists",
@@ -30,6 +31,97 @@ const getSearchCategoriesLabel = (categories: string[]) =>
 const isSuppressedSearchProfile = (item: any, viewerIsAdmin: boolean): boolean =>
     !viewerIsAdmin && item?.circleType === "user" && item?.searchable !== true;
 
+const isEventItem = (item: any): boolean => "startAt" in item && Boolean(item?.title);
+
+// Section order mirrors the top Artists/Venues/Events pills. "Other" catches everything a
+// Category multi-select can't target directly (plain personal/fan profiles, projects, posts) —
+// items filterCirclesByCategory already lets through unfiltered under "All" today; sectioning
+// the list must not make those silently disappear, so they get their own catch-all section
+// rather than being dropped.
+const RESULT_SECTIONS: { key: "artists" | "venues" | "events" | "other"; label: string }[] = [
+    { key: "artists", label: "Artists" },
+    { key: "venues", label: "Venues" },
+    { key: "events", label: "Events" },
+    { key: "other", label: "Other" },
+];
+
+const groupSearchResultItems = (items: any[]) => {
+    const groups: Record<"artists" | "venues" | "events" | "other", any[]> = {
+        artists: [],
+        venues: [],
+        events: [],
+        other: [],
+    };
+    for (const item of items) {
+        if (isEventItem(item)) {
+            groups.events.push(item);
+        } else if (isPeerifyVenueIdentity(item)) {
+            groups.venues.push(item);
+        } else if (isPeerifyArtistIdentity(item)) {
+            groups.artists.push(item);
+        } else {
+            groups.other.push(item);
+        }
+    }
+    return groups;
+};
+
+const ResultListItem: React.FC<{ item: any; viewerIsAdmin: boolean; onClick: (item: any) => void }> = ({
+    item,
+    viewerIsAdmin,
+    onClick,
+}) => {
+    const suppressed = isSuppressedSearchProfile(item, viewerIsAdmin);
+    const pictureItem = suppressed ? { ...item, name: "Unavailable", picture: undefined, images: undefined } : item;
+
+    return (
+        <li
+            className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 hover:bg-gray-100"
+            onClick={() => onClick(item)}
+            title={item.location?.lngLat ? "Click to focus map and view details" : "Click to view details"}
+        >
+            <div className="relative">
+                <CirclePicture circle={pictureItem} size="40px" showTypeIndicator={true} />
+            </div>
+            <div className="relative flex-1 overflow-hidden pl-2">
+                <div className="truncate p-0 text-sm font-medium">
+                    {"startAt" in item && (item as any).title ? (
+                        <span className="inline-flex items-center gap-1">
+                            <CalendarIcon className="h-3.5 w-3.5 text-gray-600" />
+                            {(item as any).title}
+                        </span>
+                    ) : suppressed ? (
+                        "Unavailable"
+                    ) : (
+                        "name" in item && item.name ? item.name : "Post"
+                    )}
+                </div>
+                <div className="mt-1 line-clamp-2 p-0 text-xs text-gray-500">
+                    {"startAt" in item && (item as any).startAt
+                        ? `${format(new Date((item as any).startAt), "PPpp")}${
+                              "endAt" in item && (item as any).endAt
+                                  ? " — " + format(new Date((item as any).endAt), "PPpp")
+                                  : ""
+                          }`
+                        : suppressed
+                          ? ""
+                          : "description" in item
+                            ? (item.description ?? ("mission" in item ? (item as any).mission : "") ?? "")
+                            : "content" in item && typeof (item as any).content === "string"
+                              ? (item as any).content.substring(0, 70) + ((item as any).content.length > 70 ? "..." : "")
+                              : ""}
+                </div>
+                {"metrics" in item && item.metrics && (
+                    <div className="flex flex-row pt-1">
+                        <Indicators className="pointer-events-none" metrics={item.metrics} />
+                        <div className="flex-1" />
+                    </div>
+                )}
+            </div>
+        </li>
+    );
+};
+
 export default function SearchResultsPanel() {
     const [searchState] = useAtom(sidePanelSearchStateAtom);
     const [, setContentPreview] = useAtom(contentPreviewAtom);
@@ -37,7 +129,10 @@ export default function SearchResultsPanel() {
     const [user] = useAtom(userAtom);
     const viewerIsAdmin = user?.isAdmin === true;
 
-    const items = searchState.items || [];
+    // Stable reference across renders (unlike a bare `|| []` fallback) so it doesn't defeat the
+    // useMemo hooks below that depend on it.
+    const items = useMemo(() => searchState.items || [], [searchState.items]);
+    const groupedItems = useMemo(() => groupSearchResultItems(items), [items]);
     // Stable reference across renders (unlike a bare `?? []` fallback) so it doesn't defeat the
     // useMemo hooks below that depend on it.
     const selectedCategories = useMemo(() => searchState.selectedCategories ?? [], [searchState.selectedCategories]);
@@ -129,67 +224,29 @@ export default function SearchResultsPanel() {
                     </div>
                 )}
                 {!searchState.isSearching && items.length > 0 && (
-                    <ul className="space-y-1">
-                        {items.map((item: any) => {
-                            const suppressed = isSuppressedSearchProfile(item, viewerIsAdmin);
-                            const pictureItem = suppressed ? { ...item, name: "Unavailable", picture: undefined, images: undefined } : item;
-
+                    <div className="pb-2">
+                        {RESULT_SECTIONS.map(({ key, label }) => {
+                            const sectionItems = groupedItems[key];
+                            if (sectionItems.length === 0) return null;
                             return (
-                                <li
-                                    key={item._id}
-                                    className="flex cursor-pointer items-center gap-2 rounded px-3 py-2 hover:bg-gray-100"
-                                    onClick={() => handleItemClick(item)}
-                                    title={
-                                        item.location?.lngLat
-                                            ? "Click to focus map and view details"
-                                            : "Click to view details"
-                                    }
-                                >
-                                    <div className="relative">
-                                        <CirclePicture circle={pictureItem} size="40px" showTypeIndicator={true} />
+                                <div key={key}>
+                                    <div className="px-3 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                        {label} · {sectionItems.length}
                                     </div>
-                                    <div className="relative flex-1 overflow-hidden pl-2">
-                                        <div className="truncate p-0 text-sm font-medium">
-                                            {"startAt" in item && (item as any).title ? (
-                                                <span className="inline-flex items-center gap-1">
-                                                    <CalendarIcon className="h-3.5 w-3.5 text-gray-600" />
-                                                    {(item as any).title}
-                                                </span>
-                                            ) : suppressed ? (
-                                                "Unavailable"
-                                            ) : (
-                                                ("name" in item && item.name ? item.name : "Post")
-                                            )}
-                                        </div>
-                                        <div className="mt-1 line-clamp-2 p-0 text-xs text-gray-500">
-                                            {"startAt" in item && (item as any).startAt
-                                                ? `${format(new Date((item as any).startAt), "PPpp")}${
-                                                      "endAt" in item && (item as any).endAt
-                                                          ? " — " + format(new Date((item as any).endAt), "PPpp")
-                                                          : ""
-                                                  }`
-                                                : suppressed
-                                                  ? ""
-                                                  : ("description" in item
-                                                        ? (item.description ??
-                                                              ("mission" in item ? (item as any).mission : "") ??
-                                                              "")
-                                                        : ("content" in item && typeof (item as any).content === "string"
-                                                              ? (item as any).content.substring(0, 70) +
-                                                                ((item as any).content.length > 70 ? "..." : "")
-                                                              : ""))}
-                                        </div>
-                                        {"metrics" in item && item.metrics && (
-                                            <div className="flex flex-row pt-1">
-                                                <Indicators className="pointer-events-none" metrics={item.metrics} />
-                                                <div className="flex-1" />
-                                            </div>
-                                        )}
-                                    </div>
-                                </li>
+                                    <ul className="space-y-1">
+                                        {sectionItems.map((item: any) => (
+                                            <ResultListItem
+                                                key={item._id}
+                                                item={item}
+                                                viewerIsAdmin={viewerIsAdmin}
+                                                onClick={handleItemClick}
+                                            />
+                                        ))}
+                                    </ul>
+                                </div>
                             );
                         })}
-                    </ul>
+                    </div>
                 )}
             </div>
         </div>
