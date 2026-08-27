@@ -11,6 +11,7 @@ import {
     removeArtistFromEvent,
     setArtistAdminStatus,
     getEventArtistsAction,
+    getCircleDefaultEventTagsAction,
 } from "@/app/circles/[handle]/events/actions";
 import {
     Circle,
@@ -85,6 +86,8 @@ import { CreatableItemDetail, creatableItemsList } from "@/components/global-cre
 import EventArtistPicker, { SelectedArtistBand } from "@/components/modules/events/event-artist-picker";
 import { getPeerifyArtistProfile } from "@/lib/peerify/artist-profile";
 import { cn } from "@/lib/utils";
+import { EventTagsSettings } from "@/components/forms/controls/event-tags-settings";
+import type { EventTagsValue } from "@/lib/peerify/event-tags";
 
 const EVENT_CURRENCY_OPTIONS = ["EUR", "USD", "GBP", "SEK"];
 
@@ -196,6 +199,12 @@ export default function EventForm({
     const [capacity, setCapacity] = useState<string>(event?.capacity ? String(event.capacity) : "");
     const [isPrivate, setIsPrivate] = useState<boolean>(event?.visibility === "private");
     const [location, setLocation] = useState<Location | undefined>(event?.location);
+    // Edit mode seeds straight from the event's own stored tags (its independent, already-
+    // snapshotted value) and never touches the circle again. Create mode starts empty and gets
+    // pre-filled from the circle's defaultEventTags below (handleCircleSelected for the
+    // CircleSelector flow, or the effect further down for the direct circleHandle flow) — either
+    // way that's just this form's initial state, not a live binding to the circle.
+    const [tags, setTags] = useState<EventTagsValue | undefined>(event?.tags);
     const [images, setImages] = useState<ImageItem[]>([]);
     const [artistBands, setArtistBands] = useState<SelectedArtistBand[]>([]);
     const originalArtistBandsRef = useRef<{ ids: string[]; adminIds: string[] }>({ ids: [], adminIds: [] });
@@ -312,6 +321,28 @@ export default function EventForm({
     // documents for audience reset) — only prefill from that first call, never on a later manual
     // circle switch, so we don't clobber a location the user already typed.
     const hasReceivedInitialCircleSelection = useRef(false);
+    const hasPrefilledDefaultEventTagsRef = useRef(false);
+
+    // Prefill the tag picker for the direct "New Event" flow (a fixed circleHandle prop, no
+    // CircleSelector) — that flow never calls handleCircleSelected, so it has no full Circle
+    // object to read defaultEventTags off of the way the picker flow does. Only for new events;
+    // guarded so a later re-render never overwrites tags the host has since edited.
+    useEffect(() => {
+        if (event || showCirclePicker || !circleHandle || hasPrefilledDefaultEventTagsRef.current) return;
+        hasPrefilledDefaultEventTagsRef.current = true;
+
+        let cancelled = false;
+        (async () => {
+            const defaultTags = await getCircleDefaultEventTagsAction(circleHandle);
+            if (!cancelled && defaultTags) {
+                setTags(defaultTags);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [event, showCirclePicker, circleHandle]);
 
     const insertMarkdown = (prefix: string, suffix: string = "") => {
         const textarea = textareaRef.current;
@@ -430,6 +461,9 @@ export default function EventForm({
                     const circleCurrency = circle ? getPeerifyArtistProfile(circle).bookingSettings.currency : "";
                     if (circleCurrency && EVENT_CURRENCY_OPTIONS.includes(circleCurrency)) {
                         setCurrency(circleCurrency);
+                    }
+                    if (circle?.defaultEventTags) {
+                        setTags(circle.defaultEventTags);
                     }
                 }
             }
@@ -568,6 +602,10 @@ export default function EventForm({
 
                 if (location) {
                     fd.set("location", JSON.stringify(location));
+                }
+
+                if (tags) {
+                    fd.set("tags", JSON.stringify(tags));
                 }
 
                 fd.set("isVirtual", isVirtual ? "on" : "");
@@ -969,6 +1007,18 @@ export default function EventForm({
                                 : "Saved privately. Public visitors will see the public map area instead."}{" "}
                             For online events, toggle &quot;Virtual&quot; in More options below.
                         </p>
+                    </div>
+
+                    <div className="space-y-4 rounded-lg border p-4">
+                        <div>
+                            <h3 className="text-sm font-medium">Event tags</h3>
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                {event
+                                    ? "Editing these only changes this event — it never changes the circle's defaults."
+                                    : "Pre-filled from this circle's default event tags. Change anything before saving."}
+                            </p>
+                        </div>
+                        <EventTagsSettings value={tags} onChange={setTags} />
                     </div>
 
                     <div className="space-y-4 rounded-lg border p-4">

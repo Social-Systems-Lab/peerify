@@ -15,7 +15,7 @@ import { saveAbout, setCrewEnabledAction } from "@/app/circles/[handle]/settings
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommunityGuidelinesSettingsCard } from "@/components/forms/circle-settings/community-guidelines-settings-card";
-import { EventTagsSettings } from "@/components/forms/circle-settings/event-tags-settings";
+import { EventTagsSettings } from "@/components/forms/controls/event-tags-settings";
 import type { EventTagsValue } from "@/lib/peerify/event-tags";
 import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
 import { hasAboutText, hasCustomPicture, type VerificationReadiness } from "@/lib/verification-readiness";
