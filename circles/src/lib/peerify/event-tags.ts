@@ -43,23 +43,40 @@ const normalizeMultiSelect = <T extends string>(value: unknown, options: readonl
 };
 
 // Validates/cleans an arbitrary value against the category option lists, dropping anything
-// that isn't a recognized option. Used both for user input and for cloning a Circle's
-// defaultEventTags onto a new Event (the returned object is always a fresh value, never a
-// reference to any part of `value`).
+// that isn't a recognized option (including `null` — MongoDB's Node driver persists an
+// explicit `undefined` property as literal BSON null with this project's MongoClient options,
+// so an event/circle document read back from the DB routinely has null-valued keys for
+// whichever categories were never set; normalizeSingleSelect/normalizeMultiSelect already treat
+// anything that isn't a recognized string/array as absent, null included). Used both for user
+// input and for cloning a Circle's defaultEventTags onto a new Event (the returned object is
+// always a fresh value, never a reference to any part of `value`).
 export const normalizeEventTags = (value: unknown): EventTagsValue | undefined => {
     if (!value || typeof value !== "object") return undefined;
     const source = value as Record<string, unknown>;
 
+    const age = normalizeSingleSelect(source.age, EVENT_TAG_AGE_OPTIONS);
+    const alcohol = normalizeSingleSelect(source.alcohol, EVENT_TAG_ALCOHOL_OPTIONS);
+    const venueType = normalizeSingleSelect(source.venueType, EVENT_TAG_VENUE_TYPE_OPTIONS);
+    const food = normalizeMultiSelect(source.food, EVENT_TAG_FOOD_OPTIONS);
+    const seating = normalizeMultiSelect(source.seating, EVENT_TAG_SEATING_OPTIONS);
+    const setting = normalizeMultiSelect(source.setting, EVENT_TAG_SETTING_OPTIONS);
+    const accessibility = normalizeSingleSelect(source.accessibility, EVENT_TAG_ACCESSIBILITY_OPTIONS);
+
+    // Only include keys that actually have a value, rather than setting them to `undefined` —
+    // an object with `{alcohol: undefined}` is exactly the shape that turns into
+    // `{alcohol: null}` once MongoDB writes it, which then fails eventTagsSchema's strict
+    // z.enum().optional() (accepts undefined, not null) the next time this event is saved.
+    // Omitting the key entirely means an unset category is simply absent, in memory and once
+    // persisted, closing the loop rather than reproducing the same bug on every future save.
     const normalized: EventTagsValue = {
-        age: normalizeSingleSelect(source.age, EVENT_TAG_AGE_OPTIONS),
-        alcohol: normalizeSingleSelect(source.alcohol, EVENT_TAG_ALCOHOL_OPTIONS),
-        venueType: normalizeSingleSelect(source.venueType, EVENT_TAG_VENUE_TYPE_OPTIONS),
-        food: normalizeMultiSelect(source.food, EVENT_TAG_FOOD_OPTIONS),
-        seating: normalizeMultiSelect(source.seating, EVENT_TAG_SEATING_OPTIONS),
-        setting: normalizeMultiSelect(source.setting, EVENT_TAG_SETTING_OPTIONS),
-        accessibility: normalizeSingleSelect(source.accessibility, EVENT_TAG_ACCESSIBILITY_OPTIONS),
+        ...(age !== undefined && { age }),
+        ...(alcohol !== undefined && { alcohol }),
+        ...(venueType !== undefined && { venueType }),
+        ...(food !== undefined && { food }),
+        ...(seating !== undefined && { seating }),
+        ...(setting !== undefined && { setting }),
+        ...(accessibility !== undefined && { accessibility }),
     };
 
-    const hasAnyValue = Object.values(normalized).some((v) => v !== undefined);
-    return hasAnyValue ? normalized : undefined;
+    return Object.keys(normalized).length > 0 ? normalized : undefined;
 };
