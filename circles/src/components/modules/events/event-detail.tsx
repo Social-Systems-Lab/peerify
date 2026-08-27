@@ -56,6 +56,7 @@ import RsvpDialog from "./rsvp-dialog";
 import EventTasksPanel from "./event-tasks-panel";
 import { getEventJoinState } from "./event-join-state";
 import { getPeerifyEventDisclosureDisplay, getPeerifySafeEventLocationText } from "./peerify-event-disclosure-display";
+import { EventTagBadgeList, getEventTagBadges } from "./event-tag-badges";
 import { CommentSection } from "../feeds/CommentSection";
 import RichText from "../feeds/RichText";
 import { userAtom, mapboxKeyAtom, zoomContentAtom, triggerMapOpenAtom } from "@/lib/data/atoms";
@@ -167,6 +168,7 @@ export default function EventDetail({
     const hasDisclosureDetails =
         disclosureDisplay.detailBadges.length > 0 || Boolean(disclosureDisplay.publicLocationLabel);
     const accessBadge = disclosureDisplay.cardBadges.find((badge) => badge.key === "access");
+    const hasEventTagBadges = getEventTagBadges(event.tags).length > 0;
 
     const locationText = event.isVirtual && event.virtualUrl ? "" : getPeerifySafeEventLocationText(event) || "";
     const locationLabel = event.isVirtual && !locationText ? "Virtual" : locationText;
@@ -479,6 +481,7 @@ export default function EventDetail({
                             ))}
                         </div>
                     )}
+                    <EventTagBadgeList tags={event.tags} className="mt-2 flex flex-wrap items-center gap-1.5" />
                 </div>
 
                 <div className="px-4">
@@ -846,6 +849,13 @@ export default function EventDetail({
                             </div>
                         )}
                     </div>
+
+                    {hasEventTagBadges && (
+                        <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
+                            <div className="mb-2 text-sm font-medium text-muted-foreground">Event tags</div>
+                            <EventTagBadgeList tags={event.tags} />
+                        </div>
+                    )}
 
                     {event.description && (
                         <div className="rounded-lg border bg-white/70 p-5 shadow-sm">

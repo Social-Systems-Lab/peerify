@@ -2,27 +2,6 @@
 
 import React from "react";
 import type { LucideIcon } from "lucide-react";
-import {
-    Accessibility,
-    Armchair,
-    Backpack,
-    Building2,
-    CircleHelp,
-    DoorClosed,
-    Footprints,
-    Home,
-    IdCard,
-    Mic2,
-    PersonStanding,
-    ShoppingBag,
-    Sofa,
-    Store,
-    TreePine,
-    UtensilsCrossed,
-    Users,
-    Wine,
-    WineOff,
-} from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
     EVENT_TAG_ACCESSIBILITY_OPTIONS,
@@ -32,72 +11,28 @@ import {
     EVENT_TAG_SEATING_OPTIONS,
     EVENT_TAG_SETTING_OPTIONS,
     EVENT_TAG_VENUE_TYPE_OPTIONS,
-    type EventTagAccessibility,
-    type EventTagAge,
-    type EventTagAlcohol,
-    type EventTagFood,
-    type EventTagSeating,
-    type EventTagSetting,
     type EventTagsValue,
-    type EventTagVenueType,
 } from "@/lib/peerify/event-tags";
+import {
+    ACCESSIBILITY_ICON_META,
+    AGE_ICON_META,
+    ALCOHOL_ICON_META,
+    FOOD_ICON_META,
+    SEATING_ICON_META,
+    SETTING_ICON_META,
+    VENUE_TYPE_ICON_META,
+    toEventTagIconOptions,
+} from "@/lib/peerify/event-tag-icons";
 
-type IconMeta = { label: string; icon: LucideIcon };
 type IconOption<T extends string> = { value: T; label: string; icon: LucideIcon };
 
-// A Record<Category, IconMeta> per category — keying by the category's own union type means
-// adding/removing a value in EVENT_TAG_*_OPTIONS (src/lib/peerify/event-tags.ts) without
-// updating the matching icon/label here is a compile error, not a silent missing icon.
-const AGE_ICON_META: Record<EventTagAge, IconMeta> = {
-    all_ages: { label: "All ages", icon: Users },
-    "18_plus": { label: "18+", icon: IdCard },
-};
-
-const ALCOHOL_ICON_META: Record<EventTagAlcohol, IconMeta> = {
-    byo: { label: "BYO", icon: Backpack },
-    served: { label: "Served", icon: Wine },
-    not_permitted: { label: "Not permitted", icon: WineOff },
-};
-
-const VENUE_TYPE_ICON_META: Record<EventTagVenueType, IconMeta> = {
-    home: { label: "Home", icon: Home },
-    studio: { label: "Studio", icon: Mic2 },
-    local_business: { label: "Local business", icon: Store },
-    public_venue: { label: "Public venue", icon: Building2 },
-};
-
-const FOOD_ICON_META: Record<EventTagFood, IconMeta> = {
-    available: { label: "Food available", icon: UtensilsCrossed },
-    byo_snacks: { label: "BYO snacks", icon: ShoppingBag },
-};
-
-const SEATING_ICON_META: Record<EventTagSeating, IconMeta> = {
-    floor_cushions: { label: "Floor cushions", icon: Sofa },
-    seated: { label: "Seated", icon: Armchair },
-    standing: { label: "Standing", icon: PersonStanding },
-};
-
-const SETTING_ICON_META: Record<EventTagSetting, IconMeta> = {
-    indoor: { label: "Indoor", icon: DoorClosed },
-    outdoor: { label: "Outdoor", icon: TreePine },
-};
-
-const ACCESSIBILITY_ICON_META: Record<EventTagAccessibility, IconMeta> = {
-    accessible: { label: "Accessible", icon: Accessibility },
-    stairs_involved: { label: "Stairs involved", icon: Footprints },
-    not_specified: { label: "Not specified", icon: CircleHelp },
-};
-
-const toOptions = <T extends string>(values: readonly T[], meta: Record<T, IconMeta>): IconOption<T>[] =>
-    values.map((value) => ({ value, ...meta[value] }));
-
-const AGE_OPTIONS = toOptions(EVENT_TAG_AGE_OPTIONS, AGE_ICON_META);
-const ALCOHOL_OPTIONS = toOptions(EVENT_TAG_ALCOHOL_OPTIONS, ALCOHOL_ICON_META);
-const VENUE_TYPE_OPTIONS = toOptions(EVENT_TAG_VENUE_TYPE_OPTIONS, VENUE_TYPE_ICON_META);
-const FOOD_OPTIONS = toOptions(EVENT_TAG_FOOD_OPTIONS, FOOD_ICON_META);
-const SEATING_OPTIONS = toOptions(EVENT_TAG_SEATING_OPTIONS, SEATING_ICON_META);
-const SETTING_OPTIONS = toOptions(EVENT_TAG_SETTING_OPTIONS, SETTING_ICON_META);
-const ACCESSIBILITY_OPTIONS = toOptions(EVENT_TAG_ACCESSIBILITY_OPTIONS, ACCESSIBILITY_ICON_META);
+const AGE_OPTIONS = toEventTagIconOptions(EVENT_TAG_AGE_OPTIONS, AGE_ICON_META);
+const ALCOHOL_OPTIONS = toEventTagIconOptions(EVENT_TAG_ALCOHOL_OPTIONS, ALCOHOL_ICON_META);
+const VENUE_TYPE_OPTIONS = toEventTagIconOptions(EVENT_TAG_VENUE_TYPE_OPTIONS, VENUE_TYPE_ICON_META);
+const FOOD_OPTIONS = toEventTagIconOptions(EVENT_TAG_FOOD_OPTIONS, FOOD_ICON_META);
+const SEATING_OPTIONS = toEventTagIconOptions(EVENT_TAG_SEATING_OPTIONS, SEATING_ICON_META);
+const SETTING_OPTIONS = toEventTagIconOptions(EVENT_TAG_SETTING_OPTIONS, SETTING_ICON_META);
+const ACCESSIBILITY_OPTIONS = toEventTagIconOptions(EVENT_TAG_ACCESSIBILITY_OPTIONS, ACCESSIBILITY_ICON_META);
 
 // Same tint-circle treatment as the action icons in profile-menu.tsx (Button variant="ghost"
 // size="icon", h-9 w-9 rounded-full, bg-[#f1f1f1]/hover:bg-[#cecece], no literal border) — here
