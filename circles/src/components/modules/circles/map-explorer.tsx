@@ -313,9 +313,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // Primary genre filter — a real server-side query param, unlike the client-side date/category filters.
     // Multi-select: matches circles with ANY of the selected genres (Mongo $in overlap), no maximum here.
     const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
-    // Distinguishes a pill click from the other code paths that reset selectedGenres
-    // (handleClearSearch, handleClearAdvancedFilters), which already perform their own
-    // synchronous reset and shouldn't also fire the debounced live-search effect below.
+    // Distinguishes a pill click (and handleClearAdvancedFilters, which reuses this same
+    // flag) from handleClearSearch, which performs its own synchronous full reset and
+    // shouldn't also fire the debounced live-search effect below.
     const genrePillChangedRef = useRef(false);
     const addSelectedGenre = useCallback((genre: string) => {
         genrePillChangedRef.current = true;
@@ -491,6 +491,10 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
 
     const handleClearAdvancedFilters = useCallback(() => {
         setDateRange(undefined);
+        // Genre is a server-side filter baked into allSearchResults, so clearing it here alone
+        // wouldn't refresh the (now-stale) fetched results — flag it so the debounced effect
+        // below re-runs handleSearchTrigger once selectedGenres actually commits to [].
+        genrePillChangedRef.current = true;
         setSelectedGenres([]);
         setPhysicalOnly(false);
         // Back to the same single-category shape the page loads with (Artists only) — the
