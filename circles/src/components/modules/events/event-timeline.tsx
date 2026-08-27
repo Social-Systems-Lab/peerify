@@ -17,6 +17,7 @@ import { userAtom } from "@/lib/data/atoms";
 import { hideCancelledEventAction } from "@/app/circles/[handle]/events/actions";
 import { getEventJoinState } from "./event-join-state";
 import { getPeerifyEventDisclosureDisplay, getPeerifySafeEventLocationText } from "./peerify-event-disclosure-display";
+import { EventTagBadgeList } from "./event-tag-badges";
 import { getShiftConfirmedSummary, getShiftDisplayStatus, getShiftPendingSummary } from "../tasks/shift-task-utils";
 
 type Props = {
@@ -256,6 +257,8 @@ const EventCard: React.FC<{
                                 </span>
                             )}
                         </div>
+
+                        <EventTagBadgeList tags={e.tags} className="mt-1.5 flex flex-wrap items-center gap-1.5" />
                     </div>
                 </CardContent>
             </Link>

@@ -11,6 +11,7 @@ import type { EventDisplay, Cause as SDG } from "@/models/models";
 import { CalendarIcon, Clock, MapPin, Users } from "lucide-react";
 import { format } from "date-fns";
 import { getPeerifyEventDisclosureDisplay, getPeerifySafeEventLocationText } from "./peerify-event-disclosure-display";
+import { EventTagBadgeList } from "./event-tag-badges";
 
 function fmtRange(startAt?: Date | string, endAt?: Date | string, allDay?: boolean): string {
     if (!startAt || !endAt) return "";
@@ -138,6 +139,7 @@ const MobileEventRow: React.FC<{ e: EventDisplay }> = ({ e }) => {
                             </span>
                         )}
                     </div>
+                    <EventTagBadgeList tags={e.tags} className="mt-1 flex flex-wrap items-center gap-1" size="xs" />
                 </div>
                 {e.stage === "review" && (
                     <span className="ml-auto inline-flex items-center rounded border border-yellow-400 bg-yellow-100 px-1.5 py-0.5 text-[10px] text-yellow-800">
