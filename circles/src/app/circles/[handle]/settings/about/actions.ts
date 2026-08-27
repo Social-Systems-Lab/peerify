@@ -49,6 +49,7 @@ import {
     ABOUT_IMAGE_UPLOAD_TOO_LARGE_MESSAGE,
     formatFileSizeMB,
 } from "@/lib/image-upload-limits";
+import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
 
 const normalizeWebsiteUrl = (url?: string) => {
     if (!url) return undefined;
@@ -648,6 +649,7 @@ export async function saveAbout(values: {
     peerifyArtistIntent?: boolean;
     peerifyArtistProfile?: PeerifyArtistProfile;
     peerifyVenueProfile?: PeerifyVenueProfile;
+    defaultEventTags?: EventTagsValue;
 }): Promise<FormSubmitResponse> {
     console.log("Saving circle about with values (images length):", values.images?.length);
 
@@ -665,6 +667,7 @@ export async function saveAbout(values: {
         searchable: values.searchable === true,
         location: values.location,
         socialLinks: sanitizeSocialLinks(values.socialLinks),
+        defaultEventTags: normalizeEventTags(values.defaultEventTags),
     };
 
     // Normalize website URL and include if present

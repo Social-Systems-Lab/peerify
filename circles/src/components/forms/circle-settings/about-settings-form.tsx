@@ -15,6 +15,8 @@ import { saveAbout, setCrewEnabledAction } from "@/app/circles/[handle]/settings
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommunityGuidelinesSettingsCard } from "@/components/forms/circle-settings/community-guidelines-settings-card";
+import { EventTagsSettings } from "@/components/forms/circle-settings/event-tags-settings";
+import type { EventTagsValue } from "@/lib/peerify/event-tags";
 import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
 import { hasAboutText, hasCustomPicture, type VerificationReadiness } from "@/lib/verification-readiness";
 import { VerificationReadinessChecklist } from "@/components/modules/verification/verification-readiness-checklist";
@@ -75,6 +77,7 @@ type AboutSettingsFormValues = {
     peerifyArtistIntent?: boolean;
     primaryGenres?: string[];
     primaryGenreOther?: string;
+    defaultEventTags?: EventTagsValue;
     peerifyArtistProfile: {
         artistTypes: string[];
         genresText: string;
@@ -601,6 +604,7 @@ export function AboutSettingsForm({
             peerifyArtistIntent: hasPeerifyArtistIntent(circle),
             primaryGenres: getPeerifyArtistProfile(circle).primaryGenres || [],
             primaryGenreOther: getPeerifyArtistProfile(circle).primaryGenreOther || "",
+            defaultEventTags: circle.defaultEventTags || {},
             peerifyArtistProfile: artistProfileDefaults,
             peerifyVenueProfile: venueProfileDefaults,
         },
@@ -1042,12 +1046,26 @@ export function AboutSettingsForm({
                     </CardContent>
                 </Card>
 
-                {/* Section-level checkpoint after Basic Information. Renders for every circle type —
-                    for personal profiles specifically, the next visible content is the Discoverability
-                    card and then the Images card further down (everything else in between is
-                    artist/venue-only and hidden), so this never lands adjacent to another checkpoint
-                    with nothing between them. */}
+                {/* Section-level checkpoint after Basic Information. Renders for every circle type. */}
                 {renderSaveButton()}
+
+                {/* Unconditional — every circle type can create events (createEventAction has no
+                    circle-type gate), and Venue type includes "home", so personal profiles hosting
+                    their own shows are a real case too. Snapshotted onto each new Event at creation
+                    (createEventAction, circles/[handle]/events/actions.ts) via
+                    circle.defaultEventTags; independently overridable per event afterward. */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Default event tags</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Controller
+                            name="defaultEventTags"
+                            control={form.control}
+                            render={({ field }) => <EventTagsSettings value={field.value} onChange={field.onChange} />}
+                        />
+                    </CardContent>
+                </Card>
 
                 {isCrewEligibleCircle && (
                     // Moved to sit directly before Artist Identity (was previously inline between
