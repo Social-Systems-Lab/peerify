@@ -17,6 +17,7 @@ import {
     EventStage,
     CircleType,
     eventVisibilitySchema,
+    eventTagsSchema,
     peerifyEventMetadataSchema,
     Post,
     TaskDisplay,
@@ -33,7 +34,7 @@ import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate, getPrivateUserByDid, updateUser } from "@/lib/data/user";
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
 import { features } from "@/lib/data/constants";
-import { normalizeEventTags } from "@/lib/peerify/event-tags";
+import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
 
 // Data layer
 import {
@@ -134,6 +135,21 @@ const createEventSchema = z.object({
     allDay: z.string().optional(), // "on" / undefined
     categories: z.array(z.string()).optional(),
     causes: z.array(z.string()).optional(),
+    tags: z
+        .string()
+        .optional()
+        .refine(
+            (val) => {
+                if (!val) return true;
+                try {
+                    eventTagsSchema.parse(JSON.parse(val));
+                    return true;
+                } catch {
+                    return false;
+                }
+            },
+            { message: "Invalid event tags format" },
+        ),
     capacity: z.string().optional(), // parse to number
     visibility: eventVisibilitySchema.optional(),
     peerifyEventMetadata: z
@@ -511,6 +527,7 @@ export async function createEventAction(
             allDay: (formData.get("allDay") as string) ?? undefined,
             categories: formData.getAll("categories"),
             causes: formData.getAll("causes"),
+            tags: (formData.get("tags") as string) ?? undefined,
             capacity: (formData.get("capacity") as string) ?? undefined,
             visibility: (formData.get("visibility") as string) ?? undefined,
             peerifyEventMetadata: (formData.get("peerifyEventMetadata") as string) ?? undefined,
@@ -545,6 +562,15 @@ export async function createEventAction(
             if (recurrenceData?.endDate) {
                 recurrenceData.endDate = normalizeRecurrenceEndDate(new Date(recurrenceData.endDate));
             }
+        }
+
+        // The create form seeds its tag picker from circle.defaultEventTags and lets the host
+        // edit it before submitting (see event-form.tsx), so a submitted value here reflects
+        // that possibly-edited selection and takes precedence. Falling back to the circle's
+        // current default only covers callers that never send a "tags" field at all.
+        let submittedTags: EventTagsValue | undefined;
+        if (data.tags) {
+            submittedTags = JSON.parse(data.tags);
         }
 
         const metadata = parsePeerifyEventMetadata(data.peerifyEventMetadata)?.metadata;
@@ -594,8 +620,9 @@ export async function createEventAction(
             causes: (data.causes as string[])?.filter(Boolean),
             // Snapshot (not reference) the host circle's default feature-icon tags onto the new
             // event; normalizeEventTags builds a fresh, validated object, so this is never the
-            // same object as circle.defaultEventTags. Independently overridable after creation.
-            tags: normalizeEventTags(circle.defaultEventTags),
+            // same object as circle.defaultEventTags or as submittedTags. Independently
+            // overridable after creation.
+            tags: normalizeEventTags(submittedTags ?? circle.defaultEventTags),
             capacity,
             visibility: (data.visibility as any) ?? "public",
             metadata,
@@ -676,6 +703,7 @@ export async function updateEventAction(
             allDay: (formData.get("allDay") as string) ?? undefined,
             categories: formData.getAll("categories"),
             causes: formData.getAll("causes"),
+            tags: (formData.get("tags") as string) ?? undefined,
             capacity: (formData.get("capacity") as string) ?? undefined,
             visibility: (formData.get("visibility") as string) ?? undefined,
             peerifyEventMetadata: (formData.get("peerifyEventMetadata") as string) ?? undefined,
@@ -693,6 +721,19 @@ export async function updateEventAction(
         if (data.location) {
             try {
                 locationData = JSON.parse(data.location);
+            } catch {
+                /* already validated */
+            }
+        }
+
+        // Tags are edited independently of the circle's defaultEventTags once an event exists —
+        // fall back to the event's own current tags (never the circle) when the form doesn't
+        // submit a value, so a circle default changed later can't leak into an already-created
+        // event on save.
+        let tagsData: EventTagsValue | undefined = event.tags;
+        if (data.tags) {
+            try {
+                tagsData = JSON.parse(data.tags);
             } catch {
                 /* already validated */
             }
@@ -778,6 +819,7 @@ export async function updateEventAction(
             endAt,
             categories: (data.categories as string[])?.filter(Boolean),
             causes: (data.causes as string[])?.filter(Boolean),
+            tags: normalizeEventTags(tagsData),
             capacity:
                 typeof data.capacity === "string" && data.capacity.trim().length > 0
                     ? Number(data.capacity)
@@ -1802,6 +1844,23 @@ export async function getEventWithCommentsAction(eventId: string) {
 
     const discussion = await getDiscussionWithComments(event.commentPostId);
     return { ...event, comments: discussion?.comments || [] };
+}
+
+/**
+ * Lightweight lookup for the event creation form: read just circle.defaultEventTags (not the
+ * whole Circle) so the tag picker can be pre-filled with the host circle's defaults before the
+ * event is even saved. Only needed when the form doesn't already have a full Circle object on
+ * hand from CircleSelector (see handleCircleSelected in event-form.tsx, which reads
+ * defaultEventTags directly off the Circle it's already given).
+ */
+export async function getCircleDefaultEventTagsAction(circleHandle: string): Promise<EventTagsValue | undefined> {
+    try {
+        const circle = await getCircleByHandle(circleHandle);
+        return circle?.defaultEventTags;
+    } catch (error) {
+        console.error("Error in getCircleDefaultEventTagsAction:", error);
+        return undefined;
+    }
 }
 
 /**
