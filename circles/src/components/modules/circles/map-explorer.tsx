@@ -473,26 +473,32 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         return counts;
     }, [countsDatasetCircles, filteredEventsForMap.length]);
 
+    // A plain single-category selection (any one pill tapped, including the default Artists-only
+    // landing state) is the neutral/"not filtering" shape for Category — exactly like tapping
+    // between pills has never itself counted as an active filter. Only a genuine deviation from
+    // that shape — deselected down to "All" (0 selected) or multi-selected via Advanced Filters
+    // (2-3 selected) — counts, so Clear all doesn't appear just from ordinary pill-tapping.
+    const isCategoryFilterActive = selectedCategories.length !== 1;
+
     const activeAdvancedFilterCount = useMemo(() => {
         let count = 0;
         if (hasDateFilter) count += 1;
         if (selectedGenres.length > 0) count += 1;
         if (physicalOnly) count += 1;
+        if (isCategoryFilterActive) count += 1;
         return count;
-    }, [hasDateFilter, selectedGenres, physicalOnly]);
+    }, [hasDateFilter, selectedGenres, physicalOnly, isCategoryFilterActive]);
 
     const handleClearAdvancedFilters = useCallback(() => {
         setDateRange(undefined);
         setSelectedGenres([]);
         setPhysicalOnly(false);
+        // Back to the same single-category shape the page loads with (Artists only) — the
+        // "not active" state per isCategoryFilterActive above, so Clear all correctly
+        // disappears again immediately after clicking it, not just for the other three filters.
+        setSelectedCategories(["users"]);
     }, []);
 
-    // Deselecting down to zero naturally falls back to "All" — that's just the existing empty-
-    // array convention, no special-case needed. Left out of handleClearAdvancedFilters/
-    // activeAdvancedFilterCount deliberately: Category is also independently controlled by the
-    // top pills, and "Clear all" has never touched that state (today it only resets date/genre/
-    // physical) — keeping it that way here preserves today's exact behavior rather than
-    // introducing a new "Clear all also resets the active tab" side effect the spec didn't ask for.
     const toggleSelectedCategory = useCallback((category: string) => {
         setSelectedCategories((prev) =>
             prev.includes(category) ? prev.filter((value) => value !== category) : [...prev, category],
