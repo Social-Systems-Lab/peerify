@@ -33,6 +33,7 @@ import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate, getPrivateUserByDid, updateUser } from "@/lib/data/user";
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
 import { features } from "@/lib/data/constants";
+import { normalizeEventTags } from "@/lib/peerify/event-tags";
 
 // Data layer
 import {
@@ -591,6 +592,10 @@ export async function createEventAction(
             allDay,
             categories: (data.categories as string[])?.filter(Boolean),
             causes: (data.causes as string[])?.filter(Boolean),
+            // Snapshot (not reference) the host circle's default feature-icon tags onto the new
+            // event; normalizeEventTags builds a fresh, validated object, so this is never the
+            // same object as circle.defaultEventTags. Independently overridable after creation.
+            tags: normalizeEventTags(circle.defaultEventTags),
             capacity,
             visibility: (data.visibility as any) ?? "public",
             metadata,
