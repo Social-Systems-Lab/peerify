@@ -87,7 +87,7 @@ import EventArtistPicker, { SelectedArtistBand } from "@/components/modules/even
 import { getPeerifyArtistProfile } from "@/lib/peerify/artist-profile";
 import { cn } from "@/lib/utils";
 import { EventTagsSettings } from "@/components/forms/controls/event-tags-settings";
-import type { EventTagsValue } from "@/lib/peerify/event-tags";
+import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
 
 const EVENT_CURRENCY_OPTIONS = ["EUR", "USD", "GBP", "SEK"];
 
@@ -204,7 +204,13 @@ export default function EventForm({
     // pre-filled from the circle's defaultEventTags below (handleCircleSelected for the
     // CircleSelector flow, or the effect further down for the direct circleHandle flow) — either
     // way that's just this form's initial state, not a live binding to the circle.
-    const [tags, setTags] = useState<EventTagsValue | undefined>(event?.tags);
+    // Passed through normalizeEventTags rather than used raw: MongoDB persists an unset
+    // category as literal null (this project's MongoClient has no ignoreUndefined option), so
+    // an already-saved event's tags routinely comes back from the server with null-valued
+    // fields for whichever categories were never set. normalizeEventTags treats null exactly
+    // like unset and drops it, so this form's state — and therefore what gets resubmitted on an
+    // untouched save — never carries nulls forward.
+    const [tags, setTags] = useState<EventTagsValue | undefined>(normalizeEventTags(event?.tags));
     const [images, setImages] = useState<ImageItem[]>([]);
     const [artistBands, setArtistBands] = useState<SelectedArtistBand[]>([]);
     const originalArtistBandsRef = useRef<{ ids: string[]; adminIds: string[] }>({ ids: [], adminIds: [] });
@@ -462,8 +468,9 @@ export default function EventForm({
                     if (circleCurrency && EVENT_CURRENCY_OPTIONS.includes(circleCurrency)) {
                         setCurrency(circleCurrency);
                     }
-                    if (circle?.defaultEventTags) {
-                        setTags(circle.defaultEventTags);
+                    const circleDefaultTags = normalizeEventTags(circle?.defaultEventTags);
+                    if (circleDefaultTags) {
+                        setTags(circleDefaultTags);
                     }
                 }
             }

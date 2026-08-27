@@ -17,7 +17,6 @@ import {
     EventStage,
     CircleType,
     eventVisibilitySchema,
-    eventTagsSchema,
     peerifyEventMetadataSchema,
     Post,
     TaskDisplay,
@@ -135,6 +134,15 @@ const createEventSchema = z.object({
     allDay: z.string().optional(), // "on" / undefined
     categories: z.array(z.string()).optional(),
     causes: z.array(z.string()).optional(),
+    // Deliberately loose: just confirm this is valid JSON shaped like an object, rather than
+    // strictly matching eventTagsSchema here. A real stored event's tags field routinely comes
+    // back from MongoDB with null values for whichever categories were never set (this
+    // project's MongoClient has no ignoreUndefined option, so writing `{alcohol: undefined}`
+    // persists as `{alcohol: null}`) — eventTagsSchema's z.enum().optional() fields only accept
+    // undefined, not null, so parsing raw Mongo-shaped data against it here would reject a
+    // completely untouched, valid-looking submission. normalizeEventTags (called after
+    // validation succeeds, see below) is the actual authority on shape/enum correctness and
+    // already treats null exactly like an unset field.
     tags: z
         .string()
         .optional()
@@ -142,8 +150,8 @@ const createEventSchema = z.object({
             (val) => {
                 if (!val) return true;
                 try {
-                    eventTagsSchema.parse(JSON.parse(val));
-                    return true;
+                    const parsed = JSON.parse(val);
+                    return parsed === null || (typeof parsed === "object" && !Array.isArray(parsed));
                 } catch {
                     return false;
                 }
@@ -187,6 +195,30 @@ const createEventSchema = z.object({
 const updateEventSchema = createEventSchema;
 
 // ----- Helpers -----
+
+// Most zod validation failures on this form (missing title, bad URL, etc.) already produce a
+// specific, actionable message worth showing verbatim. Tags are the exception: the technical
+// message ("Invalid event tags format") doesn't tell a host anything they can act on, so this
+// swaps in a plain-language one for that specific field while still logging the raw submitted
+// value and zod issues server-side for debugging.
+function buildEventValidationErrorResponse(
+    validated: { success: false; error: z.ZodError },
+    context: string,
+    rawTags: FormDataEntryValue | null,
+): { success: false; message: string } {
+    const tagsIssue = validated.error.errors.find((issue) => issue.path[0] === "tags");
+    if (tagsIssue) {
+        console.error(`[${context}] Invalid event tags submitted:`, rawTags, JSON.stringify(validated.error.errors));
+        return {
+            success: false,
+            message: "We couldn't save your event tags — please check your selections and try again.",
+        };
+    }
+    return {
+        success: false,
+        message: `Invalid input: ${validated.error.errors.map((e) => e.message).join(", ")}`,
+    };
+}
 
 function parseBool(val?: string): boolean | undefined {
     if (!val) return undefined;
@@ -534,10 +566,7 @@ export async function createEventAction(
             recurrence: (formData.get("recurrence") as string) ?? undefined,
         });
         if (!validated.success) {
-            return {
-                success: false,
-                message: `Invalid input: ${validated.error.errors.map((e) => e.message).join(", ")}`,
-            };
+            return buildEventValidationErrorResponse(validated, "createEventAction", formData.get("tags"));
         }
         const data = validated.data;
 
@@ -710,10 +739,7 @@ export async function updateEventAction(
             recurrence: (formData.get("recurrence") as string) ?? undefined,
         });
         if (!validated.success) {
-            return {
-                success: false,
-                message: `Invalid input: ${validated.error.errors.map((e) => e.message).join(", ")}`,
-            };
+            return buildEventValidationErrorResponse(validated, "updateEventAction", formData.get("tags"));
         }
         const data = validated.data;
 
@@ -1856,7 +1882,11 @@ export async function getEventWithCommentsAction(eventId: string) {
 export async function getCircleDefaultEventTagsAction(circleHandle: string): Promise<EventTagsValue | undefined> {
     try {
         const circle = await getCircleByHandle(circleHandle);
-        return circle?.defaultEventTags;
+        // Run through normalizeEventTags rather than returned raw — an unset category on an
+        // already-saved circle can come back from MongoDB as a literal null value (see
+        // normalizeEventTags's own comment), which this action's callers would otherwise carry
+        // straight into the create form's tags state.
+        return normalizeEventTags(circle?.defaultEventTags);
     } catch (error) {
         console.error("Error in getCircleDefaultEventTagsAction:", error);
         return undefined;

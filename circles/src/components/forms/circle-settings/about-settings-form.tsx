@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommunityGuidelinesSettingsCard } from "@/components/forms/circle-settings/community-guidelines-settings-card";
 import { EventTagsSettings } from "@/components/forms/controls/event-tags-settings";
-import type { EventTagsValue } from "@/lib/peerify/event-tags";
+import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
 import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
 import { hasAboutText, hasCustomPicture, type VerificationReadiness } from "@/lib/verification-readiness";
 import { VerificationReadinessChecklist } from "@/components/modules/verification/verification-readiness-checklist";
@@ -604,7 +604,7 @@ export function AboutSettingsForm({
             peerifyArtistIntent: hasPeerifyArtistIntent(circle),
             primaryGenres: getPeerifyArtistProfile(circle).primaryGenres || [],
             primaryGenreOther: getPeerifyArtistProfile(circle).primaryGenreOther || "",
-            defaultEventTags: circle.defaultEventTags || {},
+            defaultEventTags: normalizeEventTags(circle.defaultEventTags) || {},
             peerifyArtistProfile: artistProfileDefaults,
             peerifyVenueProfile: venueProfileDefaults,
         },
