@@ -88,6 +88,7 @@ export const SAFE_CIRCLE_PROJECTION = {
     skills: 1,
     primaryGenres: 1,
     primaryGenreOther: 1,
+    defaultEventTags: 1,
     offers: 1,
     engagements: 1,
     needs: 1,

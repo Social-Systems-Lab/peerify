@@ -2,6 +2,15 @@ import { Toast } from "@/components/ui/use-toast";
 import type { ChatAttachment } from "@/lib/chat/mongo-types";
 import type { SystemMessageMetadata } from "@/lib/chat/system-messages";
 import { COMMUNITY_GUIDELINE_RULE_IDS } from "@/lib/community-guidelines";
+import {
+    EVENT_TAG_ACCESSIBILITY_OPTIONS,
+    EVENT_TAG_AGE_OPTIONS,
+    EVENT_TAG_ALCOHOL_OPTIONS,
+    EVENT_TAG_FOOD_OPTIONS,
+    EVENT_TAG_SEATING_OPTIONS,
+    EVENT_TAG_SETTING_OPTIONS,
+    EVENT_TAG_VENUE_TYPE_OPTIONS,
+} from "@/lib/peerify/event-tags";
 import { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { ReadonlyURLSearchParams } from "next/navigation";
 import { z } from "zod";
@@ -580,6 +589,31 @@ export const communityGuidelineAgreementStateSchema = z.object({
     responsibility: communityGuidelineAgreementSchema,
 });
 
+// Fixed-enum venue/event feature-icon tags. Shared shape for Circle.defaultEventTags (the
+// per-circle default, editable in Circle settings) and Event.tags (a value snapshot copied
+// from defaultEventTags at event-creation time, then independently overridable per event).
+// Option lists live in src/lib/peerify/event-tags.ts, the single source of truth also used by
+// normalizeEventTags and (eventually) UI selectors.
+export const eventTagAgeSchema = z.enum(EVENT_TAG_AGE_OPTIONS);
+export const eventTagAlcoholSchema = z.enum(EVENT_TAG_ALCOHOL_OPTIONS);
+export const eventTagVenueTypeSchema = z.enum(EVENT_TAG_VENUE_TYPE_OPTIONS);
+export const eventTagFoodSchema = z.enum(EVENT_TAG_FOOD_OPTIONS);
+export const eventTagSeatingSchema = z.enum(EVENT_TAG_SEATING_OPTIONS);
+export const eventTagSettingSchema = z.enum(EVENT_TAG_SETTING_OPTIONS);
+export const eventTagAccessibilitySchema = z.enum(EVENT_TAG_ACCESSIBILITY_OPTIONS);
+
+export const eventTagsSchema = z.object({
+    age: eventTagAgeSchema.optional(),
+    alcohol: eventTagAlcoholSchema.optional(),
+    venueType: eventTagVenueTypeSchema.optional(),
+    food: z.array(eventTagFoodSchema).optional(),
+    seating: z.array(eventTagSeatingSchema).optional(),
+    setting: z.array(eventTagSettingSchema).optional(),
+    accessibility: eventTagAccessibilitySchema.optional(),
+});
+
+export type EventTags = z.infer<typeof eventTagsSchema>;
+
 export const circleSchema = z.object({
     _id: z.any().optional(),
     did: didSchema.optional(),
@@ -622,6 +656,9 @@ export const circleSchema = z.object({
     skills: z.array(z.string()).optional(),
     primaryGenres: z.array(z.string()).max(3).optional(),
     primaryGenreOther: z.string().optional(),
+    // Default venue/event feature-icon tags, snapshotted (copied, not referenced) onto each
+    // new Event created under this circle; overridable per event after creation.
+    defaultEventTags: eventTagsSchema.optional(),
     offers: offersSchema.optional(),
     engagements: engagementSchema.optional(),
     needs: needsSchema.optional(),
@@ -1941,6 +1978,10 @@ export const eventSchema = z.object({
     // Classification
     categories: z.array(z.string()).optional(),
     causes: z.array(z.string()).optional(),
+    // Fixed-enum venue/event feature-icon tags, snapshotted from the host Circle's
+    // defaultEventTags at creation time (see createEventAction) and independently overridable
+    // per event thereafter.
+    tags: eventTagsSchema.optional(),
     // Capacity
     capacity: z.number().optional(),
     // Invitations
