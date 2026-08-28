@@ -483,7 +483,7 @@ export default function EventDetail({
                     )}
                     <EventTagBadgeList
                         tags={event.tags}
-                        className="mt-2 flex flex-wrap items-center gap-2.5"
+                        className="mt-2 flex flex-wrap items-start gap-x-1.5 gap-y-2"
                         variant="tint"
                     />
                 </div>
@@ -685,7 +685,11 @@ export default function EventDetail({
                 controls, so hosts and visitors see them immediately rather than having to scroll
                 past When/Where/RSVP/Artists first. */}
             {hasEventTagBadges && (
-                <EventTagBadgeList tags={event.tags} className="flex flex-wrap items-center gap-3" variant="tint" />
+                <EventTagBadgeList
+                    tags={event.tags}
+                    className="flex flex-wrap items-start gap-x-1.5 gap-y-2"
+                    variant="tint"
+                />
             )}
 
             {/* Stage controls — admin/author only. The block itself has no per-button relevance

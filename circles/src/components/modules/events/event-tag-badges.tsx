@@ -49,11 +49,11 @@ export function getEventTagBadges(tags: EventTagsValue | undefined | null): Even
 // peerify-event-disclosure-display.ts's consumers) — a bordered stone pill with a small neutral
 // tint circle, so a new tag badge reads as part of the same badge family rather than a
 // competing visual language. "tint" instead mirrors the SELECTED state of the edit-mode picker
-// (IconTagButton in event-tags-settings.tsx) verbatim — icon on a solid
-// bg-[hsl(var(--button-primary))] circle, plain dark label, no bordered pill — used only on the
-// event detail page (event-detail.tsx), where these badges are a headline feature of the page
-// rather than a small secondary indicator, per Issue 2. event-timeline.tsx and mobile-events-
-// panel.tsx keep "outline" (the default) unchanged.
+// (IconTagButton in event-tags-settings.tsx) for the icon circle only — same size, same solid
+// bg-[hsl(var(--button-primary))] fill, same icon size — but stacks a small muted caption below
+// it instead of beside it, so a full row of 5+ tags reads as a dense strip rather than a row of
+// wide pills. Used only on the event detail page (event-detail.tsx) today; event-timeline.tsx
+// and mobile-events-panel.tsx keep "outline" (the default) unchanged.
 const BADGE_VARIANT_CLASSES = {
     sm: {
         outline: {
@@ -63,11 +63,11 @@ const BADGE_VARIANT_CLASSES = {
             label: "",
         },
         tint: {
-            pill: "inline-flex items-center gap-1.5",
+            pill: "flex w-16 flex-col items-center gap-1",
             iconWrapper:
                 "flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--button-primary))] text-white",
             icon: "h-3.5 w-3.5",
-            label: "text-xs font-medium text-foreground",
+            label: "text-center text-[11px] leading-tight text-muted-foreground",
         },
     },
     // Mobile map-panel row — matches that row's own micro type scale (text-[10px]/text-[12px],
@@ -81,11 +81,11 @@ const BADGE_VARIANT_CLASSES = {
             label: "",
         },
         tint: {
-            pill: "inline-flex items-center gap-1",
+            pill: "flex w-12 flex-col items-center gap-0.5",
             iconWrapper:
                 "flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[hsl(var(--button-primary))] text-white",
             icon: "h-2.5 w-2.5",
-            label: "text-[10px] font-medium text-foreground",
+            label: "text-center text-[10px] leading-tight text-muted-foreground",
         },
     },
 } as const;
@@ -117,7 +117,11 @@ export function EventTagBadgeList({
                         <span className={variantClasses.iconWrapper}>
                             <Icon className={variantClasses.icon} />
                         </span>
-                        {variantClasses.label ? <span className={variantClasses.label}>{badge.label}</span> : badge.label}
+                        {variantClasses.label ? (
+                            <span className={variantClasses.label}>{badge.label}</span>
+                        ) : (
+                            badge.label
+                        )}
                     </span>
                 );
             })}
