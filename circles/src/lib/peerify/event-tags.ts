@@ -6,7 +6,10 @@
 export const EVENT_TAG_AGE_OPTIONS = ["all_ages", "18_plus"] as const;
 export const EVENT_TAG_ALCOHOL_OPTIONS = ["byo", "served", "not_permitted"] as const;
 export const EVENT_TAG_VENUE_TYPE_OPTIONS = ["home", "studio", "local_business", "public_venue"] as const;
-export const EVENT_TAG_FOOD_OPTIONS = ["available", "byo_snacks"] as const;
+// "available" and "not_allowed" are mutually exclusive (enforced in the picker UI —
+// event-tags-settings.tsx's handleFoodChange — and again below as a data-integrity backstop);
+// "byo_snacks" toggles independently of both.
+export const EVENT_TAG_FOOD_OPTIONS = ["available", "byo_snacks", "not_allowed"] as const;
 export const EVENT_TAG_SEATING_OPTIONS = ["floor_cushions", "seated", "standing"] as const;
 export const EVENT_TAG_SETTING_OPTIONS = ["indoor", "outdoor"] as const;
 export const EVENT_TAG_ACCESSIBILITY_OPTIONS = ["accessible", "stairs_involved", "not_specified"] as const;
@@ -57,7 +60,13 @@ export const normalizeEventTags = (value: unknown): EventTagsValue | undefined =
     const age = normalizeSingleSelect(source.age, EVENT_TAG_AGE_OPTIONS);
     const alcohol = normalizeSingleSelect(source.alcohol, EVENT_TAG_ALCOHOL_OPTIONS);
     const venueType = normalizeSingleSelect(source.venueType, EVENT_TAG_VENUE_TYPE_OPTIONS);
-    const food = normalizeMultiSelect(source.food, EVENT_TAG_FOOD_OPTIONS);
+    // "available" and "not_allowed" are mutually exclusive; the picker UI already prevents
+    // selecting both, but a submission that bypasses it (a stale client, a direct API call)
+    // shouldn't be able to persist a contradictory state. "not_allowed" wins as the stronger,
+    // safer-to-trust claim if both somehow arrive together.
+    const rawFood = normalizeMultiSelect(source.food, EVENT_TAG_FOOD_OPTIONS);
+    const food =
+        rawFood && rawFood.includes("not_allowed") ? rawFood.filter((value) => value !== "available") : rawFood;
     const seating = normalizeMultiSelect(source.seating, EVENT_TAG_SEATING_OPTIONS);
     const setting = normalizeMultiSelect(source.setting, EVENT_TAG_SETTING_OPTIONS);
     const accessibility = normalizeSingleSelect(source.accessibility, EVENT_TAG_ACCESSIBILITY_OPTIONS);

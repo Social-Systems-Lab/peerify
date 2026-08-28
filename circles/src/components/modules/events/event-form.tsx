@@ -235,9 +235,7 @@ export default function EventForm({
     // Existing events currently all have userGroups: [] (the schema default, from before this
     // control existed) — unlike post-form.tsx's equivalent seed, `event?.userGroups || [...]`
     // can't be used here since an empty array is truthy and would leave nothing selected.
-    const [userGroups, setUserGroups] = useState<string[]>(
-        event?.userGroups?.length ? event.userGroups : ["everyone"],
-    );
+    const [userGroups, setUserGroups] = useState<string[]>(event?.userGroups?.length ? event.userGroups : ["everyone"]);
     const [isUserGroupsDialogOpen, setIsUserGroupsDialogOpen] = useState(false);
     const peerifyMetadata = event?.metadata?.peerify;
     const [venueDisclosure, setVenueDisclosure] = useState<PeerifyEventVenueDisclosure>(
@@ -971,8 +969,8 @@ export default function EventForm({
                                 <Label htmlFor="publishToNoticeboard">Share this event on the Noticeboard</Label>
                                 <p className="text-sm text-muted-foreground">
                                     Create or update one linked Noticeboard post for this event. The post is only
-                                    published once this event is opened — nothing is posted while it&apos;s in Draft
-                                    or Review.
+                                    published once this event is opened — nothing is posted while it&apos;s in Draft or
+                                    Review.
                                 </p>
                                 {publishToNoticeboard && (
                                     <Button
@@ -1015,164 +1013,166 @@ export default function EventForm({
                             For online events, toggle &quot;Virtual&quot; in More options below.
                         </p>
                     </div>
+                </div>
+            </div>
+            {/* Event tags + Venue & location privacy: paired side by side so neither
+                sits alone with blank space beside it — see Batch A. */}
+            <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-4 rounded-lg border p-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Event tags</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            {event
+                                ? "Editing these only changes this event — it never changes the circle's defaults."
+                                : "Pre-filled from this circle's default event tags. Change anything before saving."}
+                        </p>
+                    </div>
+                    <EventTagsSettings value={tags} onChange={setTags} />
+                </div>
 
-                    <div className="space-y-4 rounded-lg border p-4">
-                        <div>
-                            <h3 className="text-sm font-medium">Event tags</h3>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                                {event
-                                    ? "Editing these only changes this event — it never changes the circle's defaults."
-                                    : "Pre-filled from this circle's default event tags. Change anything before saving."}
-                            </p>
-                        </div>
-                        <EventTagsSettings value={tags} onChange={setTags} />
+                <div className="space-y-4 rounded-lg border p-4">
+                    <div>
+                        <h3 className="text-sm font-medium">Venue & location privacy</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            Choose what people can see before they are accepted, ticketed, or invited. Venue / host
+                            display controls the name or identity of the place. Address & map display controls the exact
+                            address and map pin.
+                        </p>
                     </div>
 
-                    <div className="space-y-4 rounded-lg border p-4">
-                        <div>
-                            <h3 className="text-sm font-medium">Venue & location privacy</h3>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                                Choose what people can see before they are accepted, ticketed, or invited. Venue / host
-                                display controls the name or identity of the place. Address & map display controls the
-                                exact address and map pin.
+                    <div className="flex items-center gap-2">
+                        <Switch
+                            id="isPrivateHomeEvent"
+                            checked={isPrivateHomeEvent}
+                            onCheckedChange={handlePrivateHomeEventToggle}
+                        />
+                        <Label htmlFor="isPrivateHomeEvent">This is a private/home event</Label>
+                    </div>
+
+                    <div className={cn("space-y-4", !isPrivateHomeEvent && "hidden")}>
+                        <div className="space-y-2">
+                            <Label htmlFor="venueDisclosure">Venue / host display</Label>
+                            <Select
+                                value={venueDisclosure}
+                                onValueChange={(value) => setVenueDisclosure(value as PeerifyEventVenueDisclosure)}
+                            >
+                                <SelectTrigger id="venueDisclosure">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {VENUE_DISCLOSURE_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                {getSelectedHelper(VENUE_DISCLOSURE_OPTIONS, venueDisclosure)}
                             </p>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            <Switch
-                                id="isPrivateHomeEvent"
-                                checked={isPrivateHomeEvent}
-                                onCheckedChange={handlePrivateHomeEventToggle}
-                            />
-                            <Label htmlFor="isPrivateHomeEvent">This is a private/home event</Label>
-                        </div>
-
-                        <div className={cn("space-y-4", !isPrivateHomeEvent && "hidden")}>
-                            <div className="space-y-2">
-                                <Label htmlFor="venueDisclosure">Venue / host display</Label>
-                                <Select
-                                    value={venueDisclosure}
-                                    onValueChange={(value) => setVenueDisclosure(value as PeerifyEventVenueDisclosure)}
-                                >
-                                    <SelectTrigger id="venueDisclosure">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {VENUE_DISCLOSURE_OPTIONS.map((option) => (
-                                            <SelectItem key={option.value} value={option.value}>
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    {getSelectedHelper(VENUE_DISCLOSURE_OPTIONS, venueDisclosure)}
-                                </p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="locationDisclosure">Address & map display</Label>
-                                <Select
-                                    value={locationDisclosure}
-                                    onValueChange={(value) =>
-                                        setLocationDisclosure(value as PeerifyEventLocationDisclosure)
-                                    }
-                                >
-                                    <SelectTrigger id="locationDisclosure">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {LOCATION_DISCLOSURE_OPTIONS.map((option) => (
-                                            <SelectItem key={option.value} value={option.value}>
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    {getSelectedHelper(LOCATION_DISCLOSURE_OPTIONS, locationDisclosure)}
-                                </p>
-                            </div>
-
-                            {locationDisclosure !== "public" && (
-                                <div className="space-y-2">
-                                    <Label>Public map area</Label>
-                                    <LocationPicker
-                                        value={publicMapLocation}
-                                        onChange={(val) => setPublicMapLocation(val)}
-                                        compact
-                                    />
-                                    <div className="space-y-1 text-xs font-medium text-muted-foreground">
-                                        <p>
-                                            This is not the venue address. It is only the approximate area shown on
-                                            Explore while the exact address is hidden or not yet announced.
-                                        </p>
-                                        <p>
-                                            Use a neighbourhood, city area, or general meeting area, not a private home
-                                            address.
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="space-y-2">
-                                <Label htmlFor="accessMode">Access mode</Label>
-                                <Select
-                                    value={accessMode}
-                                    onValueChange={(value) => setAccessMode(value as PeerifyEventAccessMode)}
-                                >
-                                    <SelectTrigger id="accessMode">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {ACCESS_MODE_OPTIONS.map((option) => (
-                                            <SelectItem key={option.value} value={option.value}>
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground">
-                                    {getSelectedHelper(ACCESS_MODE_OPTIONS, accessMode)}
-                                </p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="publicLocationLabel">Public area / address label</Label>
-                                <Input
-                                    id="publicLocationLabel"
-                                    value={publicLocationLabel}
-                                    onChange={(e) => setPublicLocationLabel(e.target.value)}
-                                    placeholder="Stockholm venue TBA"
-                                />
-                                <p
-                                    className={`text-xs ${
-                                        locationDisclosure === "public"
-                                            ? "text-muted-foreground"
-                                            : "font-medium text-muted-foreground"
-                                    }`}
-                                >
-                                    Shown publicly when the exact address is approximate, secret, or to be announced.
-                                    Examples: Cape Town city bowl, Stockholm venue TBA, or Address shared after
-                                    approval.
-                                </p>
-                            </div>
                         </div>
 
                         <div className="space-y-2">
-                            <Label htmlFor="privateLocationNote">Private organiser note</Label>
-                            <Textarea
-                                id="privateLocationNote"
-                                value={privateLocationNote}
-                                onChange={(e) => setPrivateLocationNote(e.target.value)}
-                                className="min-h-[90px]"
-                                placeholder="Internal organiser note"
-                            />
+                            <Label htmlFor="locationDisclosure">Address & map display</Label>
+                            <Select
+                                value={locationDisclosure}
+                                onValueChange={(value) =>
+                                    setLocationDisclosure(value as PeerifyEventLocationDisclosure)
+                                }
+                            >
+                                <SelectTrigger id="locationDisclosure">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {LOCATION_DISCLOSURE_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                             <p className="text-xs text-muted-foreground">
-                                Internal note about the exact address, access instructions, or reveal conditions. This
-                                is not shown publicly.
+                                {getSelectedHelper(LOCATION_DISCLOSURE_OPTIONS, locationDisclosure)}
                             </p>
                         </div>
+
+                        {locationDisclosure !== "public" && (
+                            <div className="space-y-2">
+                                <Label>Public map area</Label>
+                                <LocationPicker
+                                    value={publicMapLocation}
+                                    onChange={(val) => setPublicMapLocation(val)}
+                                    compact
+                                />
+                                <div className="space-y-1 text-xs font-medium text-muted-foreground">
+                                    <p>
+                                        This is not the venue address. It is only the approximate area shown on Explore
+                                        while the exact address is hidden or not yet announced.
+                                    </p>
+                                    <p>
+                                        Use a neighbourhood, city area, or general meeting area, not a private home
+                                        address.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <Label htmlFor="accessMode">Access mode</Label>
+                            <Select
+                                value={accessMode}
+                                onValueChange={(value) => setAccessMode(value as PeerifyEventAccessMode)}
+                            >
+                                <SelectTrigger id="accessMode">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {ACCESS_MODE_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                {getSelectedHelper(ACCESS_MODE_OPTIONS, accessMode)}
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="publicLocationLabel">Public area / address label</Label>
+                            <Input
+                                id="publicLocationLabel"
+                                value={publicLocationLabel}
+                                onChange={(e) => setPublicLocationLabel(e.target.value)}
+                                placeholder="Stockholm venue TBA"
+                            />
+                            <p
+                                className={`text-xs ${
+                                    locationDisclosure === "public"
+                                        ? "text-muted-foreground"
+                                        : "font-medium text-muted-foreground"
+                                }`}
+                            >
+                                Shown publicly when the exact address is approximate, secret, or to be announced.
+                                Examples: Cape Town city bowl, Stockholm venue TBA, or Address shared after approval.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="privateLocationNote">Private organiser note</Label>
+                        <Textarea
+                            id="privateLocationNote"
+                            value={privateLocationNote}
+                            onChange={(e) => setPrivateLocationNote(e.target.value)}
+                            className="min-h-[90px]"
+                            placeholder="Internal organiser note"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Internal note about the exact address, access instructions, or reveal conditions. This is
+                            not shown publicly.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -1364,7 +1364,6 @@ export default function EventForm({
                             </div>
                         )}
                     </div>
-
                 </CollapsibleContent>
             </Collapsible>
 

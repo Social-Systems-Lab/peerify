@@ -11,6 +11,7 @@ import {
     EVENT_TAG_SEATING_OPTIONS,
     EVENT_TAG_SETTING_OPTIONS,
     EVENT_TAG_VENUE_TYPE_OPTIONS,
+    type EventTagFood,
     type EventTagsValue,
 } from "@/lib/peerify/event-tags";
 import {
@@ -159,6 +160,23 @@ export function EventTagsSettings({ value, onChange }: EventTagsSettingsProps): 
         onChange({ ...tags, [key]: next });
     };
 
+    // "Food available" and "Food not allowed" contradict each other, so selecting one always
+    // deselects the other — "BYO snacks" is unrelated to either and keeps toggling on its own.
+    // Whichever option is newly present in `next` (wasn't in the previous selection) is the one
+    // that was just clicked on; deselecting a currently-selected option never adds anything to
+    // `next`, so this only ever fires when turning an option on, not off.
+    const handleFoodChange = (next: EventTagFood[]) => {
+        const previous = tags.food || [];
+        const justSelected = next.find((v) => !previous.includes(v));
+        const result =
+            justSelected === "available"
+                ? next.filter((v) => v !== "not_allowed")
+                : justSelected === "not_allowed"
+                  ? next.filter((v) => v !== "available")
+                  : next;
+        setField("food", result.length > 0 ? result : undefined);
+    };
+
     return (
         <div className="space-y-6">
             <p className="text-sm text-muted-foreground">
@@ -189,7 +207,7 @@ export function EventTagsSettings({ value, onChange }: EventTagsSettingsProps): 
                     label="Food"
                     options={FOOD_OPTIONS}
                     values={tags.food || []}
-                    onChange={(next) => setField("food", next.length > 0 ? next : undefined)}
+                    onChange={handleFoodChange}
                 />
                 <MultiSelectTagGroup
                     label="Seating"
