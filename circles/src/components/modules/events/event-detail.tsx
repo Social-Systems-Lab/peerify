@@ -550,7 +550,7 @@ export default function EventDetail({
                                 ) : (
                                     <>
                                         <Button size="sm" disabled={isPending} onClick={() => setRsvpDialogOpen(true)}>
-                                            I&apos;m going
+                                            Attend
                                         </Button>
                                         <Button
                                             size="sm"
@@ -580,7 +580,7 @@ export default function EventDetail({
                             Attendees (going): {event.attendees ?? 0}
                         </div>
                         {effectiveUser && event.userRsvpStatus && event.userRsvpStatus !== "none" && (
-                            <div className="mt-1 text-xs">Your status: {event.userRsvpStatus}</div>
+                            <div className="mt-1 text-xs">Your status: {event.userRsvpStatus === "going" ? "attending" : event.userRsvpStatus}</div>
                         )}
                     </div>
                 </div>
@@ -884,7 +884,7 @@ export default function EventDetail({
                                 ) : (
                                     <>
                                         <Button size="sm" disabled={isPending} onClick={() => setRsvpDialogOpen(true)}>
-                                            I&apos;m going
+                                            Attend
                                         </Button>
                                         <Button
                                             size="sm"
@@ -914,7 +914,7 @@ export default function EventDetail({
                             Attendees (going): {event.attendees ?? 0}
                         </div>
                         {effectiveUser && event.userRsvpStatus && event.userRsvpStatus !== "none" && (
-                            <div className="mt-1 text-sm">Your status: {event.userRsvpStatus}</div>
+                            <div className="mt-1 text-sm">Your status: {event.userRsvpStatus === "going" ? "attending" : event.userRsvpStatus}</div>
                         )}
                     </div>
                     <EventArtistList

@@ -58,7 +58,7 @@ export default function RsvpDialog({ open, onOpenChange, circleHandle, eventId, 
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[525px]">
                 <DialogHeader>
-                    <DialogTitle>RSVP: I&apos;m going</DialogTitle>
+                    <DialogTitle>RSVP: Attend</DialogTitle>
                     <DialogDescription>
                         Add an optional message and choose if you want to appear publicly in the participants list.
                     </DialogDescription>
