@@ -530,6 +530,16 @@ export default function EventDetail({
                                         >
                                             Interested
                                         </Button>
+                                        {event.userRsvpStatus && event.userRsvpStatus !== "none" && (
+                                            <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                disabled={isPending}
+                                                onClick={onCancelRsvp}
+                                            >
+                                                Cancel RSVP
+                                            </Button>
+                                        )}
                                     </>
                                 )}
                             </div>
@@ -853,6 +863,16 @@ export default function EventDetail({
                                         >
                                             Interested
                                         </Button>
+                                        {event.userRsvpStatus && event.userRsvpStatus !== "none" && (
+                                            <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                disabled={isPending}
+                                                onClick={onCancelRsvp}
+                                            >
+                                                Cancel RSVP
+                                            </Button>
+                                        )}
                                     </>
                                 )}
                             </div>
