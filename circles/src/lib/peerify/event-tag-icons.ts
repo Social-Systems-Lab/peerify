@@ -8,6 +8,7 @@ import {
     Accessibility,
     Armchair,
     Backpack,
+    Ban,
     Building2,
     CircleHelp,
     DoorClosed,
@@ -53,13 +54,14 @@ export const ALCOHOL_ICON_META: Record<EventTagAlcohol, EventTagIconMeta> = {
 export const VENUE_TYPE_ICON_META: Record<EventTagVenueType, EventTagIconMeta> = {
     home: { label: "Home", icon: Home },
     studio: { label: "Studio", icon: Mic2 },
-    local_business: { label: "Local business", icon: Store },
+    local_business: { label: "Business", icon: Store },
     public_venue: { label: "Public venue", icon: Building2 },
 };
 
 export const FOOD_ICON_META: Record<EventTagFood, EventTagIconMeta> = {
     available: { label: "Food available", icon: UtensilsCrossed },
     byo_snacks: { label: "BYO snacks", icon: ShoppingBag },
+    not_allowed: { label: "Food not allowed", icon: Ban },
 };
 
 export const SEATING_ICON_META: Record<EventTagSeating, EventTagIconMeta> = {
