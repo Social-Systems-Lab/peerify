@@ -44,6 +44,7 @@ import {
     Users,
     ChevronDown,
     SlidersHorizontal,
+    Tags,
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -88,6 +89,7 @@ import { getPeerifyArtistProfile } from "@/lib/peerify/artist-profile";
 import { cn } from "@/lib/utils";
 import { EventTagsSettings } from "@/components/forms/controls/event-tags-settings";
 import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
+import { getEventTagBadges } from "@/components/modules/events/event-tag-badges";
 
 const EVENT_CURRENCY_OPTIONS = ["EUR", "USD", "GBP", "SEK"];
 
@@ -231,6 +233,11 @@ export default function EventForm({
                 event?.recurrence,
         ),
     );
+    // Same smart-default reasoning as isMoreOptionsOpen above: closed for a brand-new event (the
+    // form's own async circle-defaults prefill hasn't necessarily landed by this first render
+    // anyway), but open if editing an event that already has at least one tag selected, so
+    // existing selections are never hidden behind a collapsed section by default.
+    const [isEventTagsOpen, setIsEventTagsOpen] = useState<boolean>(getEventTagBadges(event?.tags).length > 0);
     const [user] = useAtom(userAtom);
     // Existing events currently all have userGroups: [] (the schema default, from before this
     // control existed) — unlike post-form.tsx's equivalent seed, `event?.userGroups || [...]`
@@ -1018,17 +1025,33 @@ export default function EventForm({
             {/* Event tags + Venue & location privacy: paired side by side so neither
                 sits alone with blank space beside it — see Batch A. */}
             <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-4 rounded-lg border p-4">
-                    <div>
-                        <h3 className="text-sm font-medium">Event tags</h3>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            {event
-                                ? "Editing these only changes this event — it never changes the circle's defaults."
-                                : "Pre-filled from this circle's default event tags. Change anything before saving."}
-                        </p>
-                    </div>
-                    <EventTagsSettings value={tags} onChange={setTags} />
-                </div>
+                <Collapsible open={isEventTagsOpen} onOpenChange={setIsEventTagsOpen}>
+                    <CollapsibleTrigger asChild>
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            className="flex w-full items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-left text-sm font-medium text-stone-700 hover:bg-stone-100"
+                        >
+                            <span className="flex items-center gap-2">
+                                <Tags className="h-4 w-4" />
+                                Event tags
+                            </span>
+                            <ChevronDown
+                                className={cn("h-4 w-4 transition-transform", isEventTagsOpen && "rotate-180")}
+                            />
+                        </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-4">
+                        <div className="space-y-4 rounded-lg border p-4">
+                            <p className="text-xs text-muted-foreground">
+                                {event
+                                    ? "Editing these only changes this event — it never changes the circle's defaults."
+                                    : "Pre-filled from this circle's default event tags. Change anything before saving."}
+                            </p>
+                            <EventTagsSettings value={tags} onChange={setTags} />
+                        </div>
+                    </CollapsibleContent>
+                </Collapsible>
 
                 <div className="space-y-4 rounded-lg border p-4">
                     <div>
