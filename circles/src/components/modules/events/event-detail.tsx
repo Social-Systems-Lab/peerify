@@ -688,86 +688,91 @@ export default function EventDetail({
                 <EventTagBadgeList tags={event.tags} className="flex flex-wrap items-center gap-3" variant="tint" />
             )}
 
-            {/* Stage controls */}
-            <div
-                className={cn(
-                    "flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 shadow-sm",
-                    event.stage === "draft" ? "border-[#E8732C]/50 bg-[#F8E2CE]" : "bg-white/70",
-                )}
-            >
-                <div className="flex flex-col gap-1">
-                    {event.stage === "draft" ? (
-                        <div className="flex items-center gap-2 text-sm text-[#1A1612]">
-                            <EyeOff className="h-4 w-4 text-[#E8732C]" />
-                            <span className="font-bold uppercase tracking-wide">
-                                Draft — not visible to the public
-                            </span>
-                        </div>
-                    ) : (
-                        <div className="text-sm text-muted-foreground">
-                            Status: <span className="font-medium capitalize">{event.stage}</span>
-                        </div>
+            {/* Stage controls — admin/author only. The block itself has no per-button relevance
+                to a plain viewer (status text, noticeboard-audience text, and every action
+                button below are all host/moderator concerns), so the whole card is gated here
+                rather than relying on each button's own gate to make it look empty. */}
+            {(canEdit || canModerate || canReview || isAuthor) && (
+                <div
+                    className={cn(
+                        "flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4 shadow-sm",
+                        event.stage === "draft" ? "border-[#E8732C]/50 bg-[#F8E2CE]" : "bg-white/70",
                     )}
-                    {event.publishToNoticeboard && (
-                        <div className="text-xs text-muted-foreground">
-                            Noticeboard post visible to:{" "}
-                            <span className="font-medium">{getNoticeboardAudienceLabel()}</span>
-                        </div>
-                    )}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                    {event.stage === "draft" && isAuthor && !canReview && (
-                        <Button disabled={isPending} variant="secondary" onClick={onSubmitForReview}>
-                            Submit for review
-                        </Button>
-                    )}
-                    {(event.stage === "draft" || event.stage === "review") && canReview && (
-                        <Button disabled={isPending} onClick={onOpenNow}>
-                            Publish
-                        </Button>
-                    )}
-                    {event.stage === "draft" && (isAuthor || canModerate) && (
-                        <Button
-                            disabled={isPending}
-                            variant="destructive"
-                            onClick={() => setDeleteDialogOpen(true)}
-                        >
-                            Delete
-                        </Button>
-                    )}
-                    {event.stage === "draft" && (isAuthor || canModerate) && (
-                        <Button variant="outline" asChild>
-                            <Link
-                                href={`/circles/${circleHandle}/events/${(event as any)._id?.toString?.() || ""}/preview`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                >
+                    <div className="flex flex-col gap-1">
+                        {event.stage === "draft" ? (
+                            <div className="flex items-center gap-2 text-sm text-[#1A1612]">
+                                <EyeOff className="h-4 w-4 text-[#E8732C]" />
+                                <span className="font-bold uppercase tracking-wide">
+                                    Draft — not visible to the public
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="text-sm text-muted-foreground">
+                                Status: <span className="font-medium capitalize">{event.stage}</span>
+                            </div>
+                        )}
+                        {event.publishToNoticeboard && (
+                            <div className="text-xs text-muted-foreground">
+                                Noticeboard post visible to:{" "}
+                                <span className="font-medium">{getNoticeboardAudienceLabel()}</span>
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {event.stage === "draft" && isAuthor && !canReview && (
+                            <Button disabled={isPending} variant="secondary" onClick={onSubmitForReview}>
+                                Submit for review
+                            </Button>
+                        )}
+                        {(event.stage === "draft" || event.stage === "review") && canReview && (
+                            <Button disabled={isPending} onClick={onOpenNow}>
+                                Publish
+                            </Button>
+                        )}
+                        {event.stage === "draft" && (isAuthor || canModerate) && (
+                            <Button
+                                disabled={isPending}
+                                variant="destructive"
+                                onClick={() => setDeleteDialogOpen(true)}
                             >
-                                <Eye className="mr-2 h-4 w-4" />
-                                Preview as a fan would see it
-                            </Link>
-                        </Button>
-                    )}
-                    {isAuthor && (
-                        <Button
-                            variant="outline"
-                            disabled={isPending}
-                            onClick={() => setChangeHostDialogOpen(true)}
-                        >
-                            Change host
-                        </Button>
-                    )}
-                    {event.stage === "open" && (canReview || canModerate) && (
-                        <Button disabled={isPending} variant="destructive" onClick={onCancelEvent}>
-                            Cancel
-                        </Button>
-                    )}
-                    {(event.stage === "cancelled" || isEventHidden) && (
-                        <Button variant="outline" disabled={hideUpdating} onClick={onToggleHidden}>
-                            {hideUpdating ? "Updating…" : isEventHidden ? "Show again" : "Hide"}
-                        </Button>
-                    )}
+                                Delete
+                            </Button>
+                        )}
+                        {event.stage === "draft" && (isAuthor || canModerate) && (
+                            <Button variant="outline" asChild>
+                                <Link
+                                    href={`/circles/${circleHandle}/events/${(event as any)._id?.toString?.() || ""}/preview`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                >
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Preview as a fan would see it
+                                </Link>
+                            </Button>
+                        )}
+                        {isAuthor && (
+                            <Button
+                                variant="outline"
+                                disabled={isPending}
+                                onClick={() => setChangeHostDialogOpen(true)}
+                            >
+                                Change host
+                            </Button>
+                        )}
+                        {event.stage === "open" && (canReview || canModerate) && (
+                            <Button disabled={isPending} variant="destructive" onClick={onCancelEvent}>
+                                Cancel
+                            </Button>
+                        )}
+                        {(event.stage === "cancelled" || isEventHidden) && (
+                            <Button variant="outline" disabled={hideUpdating} onClick={onToggleHidden}>
+                                {hideUpdating ? "Updating…" : isEventHidden ? "Show again" : "Hide"}
+                            </Button>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
 
             <div className="grid gap-6 md:grid-cols-3">
                 <div className="space-y-6 md:col-span-2">
@@ -1009,8 +1014,8 @@ export default function EventDetail({
                     </DialogHeader>
                     <p className="text-sm text-muted-foreground">
                         Pick a new circle to host this event. If you administer that circle, the change happens
-                        immediately. Otherwise, its admins will need to approve it first — RSVPs, comments, and
-                        tasks stay exactly as they are either way.
+                        immediately. Otherwise, its admins will need to approve it first — RSVPs, comments, and tasks
+                        stay exactly as they are either way.
                     </p>
                     {eventItemDetail && (
                         <CircleSelector
