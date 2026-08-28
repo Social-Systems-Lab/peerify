@@ -481,7 +481,11 @@ export default function EventDetail({
                             ))}
                         </div>
                     )}
-                    <EventTagBadgeList tags={event.tags} className="mt-2 flex flex-wrap items-center gap-1.5" />
+                    <EventTagBadgeList
+                        tags={event.tags}
+                        className="mt-2 flex flex-wrap items-center gap-2.5"
+                        variant="tint"
+                    />
                 </div>
 
                 <div className="px-4">
@@ -677,6 +681,13 @@ export default function EventDetail({
                 </div>
             </div>
 
+            {/* Event tags — placed right under the header (title/date/location), above Stage
+                controls, so hosts and visitors see them immediately rather than having to scroll
+                past When/Where/RSVP/Artists first. */}
+            {hasEventTagBadges && (
+                <EventTagBadgeList tags={event.tags} className="flex flex-wrap items-center gap-3" variant="tint" />
+            )}
+
             {/* Stage controls */}
             <div
                 className={cn(
@@ -849,13 +860,6 @@ export default function EventDetail({
                             </div>
                         )}
                     </div>
-
-                    {hasEventTagBadges && (
-                        <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
-                            <div className="mb-2 text-sm font-medium text-muted-foreground">Event tags</div>
-                            <EventTagBadgeList tags={event.tags} />
-                        </div>
-                    )}
 
                     {event.description && (
                         <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
