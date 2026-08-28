@@ -12,7 +12,7 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 
 ## §0. Build Status — current reality
 
-*Last updated: 2026-08-18.*
+*Last updated: 2026-08-28.*
 
 ### Live on production right now (peerify.one)
 - **Song comments** (Phases 0/1/1b, promoted to prod before 2026-08-18): fans can comment on tracks — flat (no threading; "reply" is just a new top-level comment with an optional quote), verification-gated (`music.comment`, reuses the standard `needsToBeVerified` mechanic), @-mentions, bell notifications to the artist circle's admins and to mentioned/quoted circles. Surfaced on both the artist's own page (`Music.tsx`/`track-row.tsx`) and the map-popup track-preview surface (`TrackPreviewList`/`track-preview-row.tsx`).
@@ -27,6 +27,7 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 - **Advanced Filters / category-aware search — as of 2026-08-27.** The Explore map's Advanced Filters panel (Genre, Physical-events-only, Calendar date range) now also has a real multi-select **Category** filter (Artists/Venues/Events, plus an "Other" catch-all for personal profiles/projects/posts), backed by a `selectedCategories: string[]` array rather than the old single-value model — any combination can be active at once, both via the top pills and the Advanced Filters checkbox card, kept in sync with each other. Desktop and mobile results lists are both sectioned by category (mobile drawer previously only ever surfaced Events through a separate, disconnected panel). Full detail: `SESSION_LOG.md`, 2026-08-26/27 entry ("Category-aware search Phase 2, plus two Clear-all fixes").
 - **Personal-profile settings cleaned up**: the "Peerify Artist Profile" section (checkbox + all artist metadata fields) removed from the personal-profile About settings page. Replaced with a calm amber info banner ("This is your personal profile… use the + Create button") with a persistent localStorage dismiss. Artist/band/venue creation continues via the Create button flow — settings page no longer suggests otherwise.
 - **Peerify-branded default avatars live**: `default-user-picture.png`, `default-artist-avatar.png`, `default-band-avatar.png`, `default-venue-avatar.png` replaced with Peerify orange-on-dark 512×512 versions (~32–52 KB, pngquant-optimized, down from ~1.6 MB each).
+- **Venue/event feature-icon tags — as of 2026-08-28.** Fixed-enum tags (Age, Alcohol, Food, Seating, Setting, Accessibility, Venue type) on Circles (`defaultEventTags`, editable in Circle settings) and Events (snapshotted from the circle at creation, independently overridable per event via a collapsible picker on the edit page). Read-only icon+caption badges render on the event detail page, timeline card, and mobile map-panel row. Full detail: `SESSION_LOG.md`, 2026-08-28 entry.
 
 ### Infrastructure reality (important — supersedes older notes)
 - **Server:** Hetzner, `tim@peerify` (65.21.91.96). Kamooni is a *separate* machine (`ubuntu@91.123.202.241`) — never cross commands.
