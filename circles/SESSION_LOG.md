@@ -3430,3 +3430,26 @@ Building on Phase 1 (`9f79bb00`/`98e6f9c4`, already live on prod from a prior se
 **Verification:** every item was manually verified live on staging (Playwright against `https://staging.peerify.one`, throwaway test accounts via the login-link technique, cleaned up after each check) at mobile widths plus desktop. The two Clear-all fixes were verified specifically against their reported repros — genre-only (pill count 1 → 7 immediately after Clear all, no refresh) and Category-also-active (Artists+Venues + a genre, Clear all correctly resetting both the category checkboxes and the result count together). All promoted to prod via the standard cherry-pick + `deploy-peerify.sh` pipeline; each prod deploy's live `BUILD_ID` was independently confirmed by grepping it out of a real HTTP response, not just trusting the deploy script's own summary, and `peerify-staging`'s pid/uptime was confirmed unchanged after every prod deploy.
 
 **Status:** all of the above (Phase 2's four commits, both Clear-all fixes) are live on `main`/prod as of 2026-08-27. `staging` and `main` are in sync for everything covered here.
+
+## 2026-08-28 — Venue/event tags feature: complete and live on prod
+
+Fixed-enum venue/event feature-icon tags (Age, Alcohol, Food, Seating, Setting, Accessibility,
+Venue type) — schema/snapshot plumbing, a Circle-level `defaultEventTags` (editable in Circle
+settings, snapshotted onto each new event at creation), an event create/edit picker (collapsible
+on the edit page, matching the existing "More options" pattern), and read-only icon+caption
+display badges on the event detail page, the timeline card, and the mobile map-panel row.
+Bundled with three fixes found and shipped alongside it: a Stage-controls permission leak (the
+admin-only status/action card was rendering for every viewer, not just admins/authors), the
+When/Where cards repositioned to the bottom of the event detail page (previously duplicated the
+compact header line before the reader reached RSVP/Artists), and the "Preview as a fan" button
+made permanently visible to admins regardless of event stage (the underlying route never had a
+stage restriction — only the button's visibility did). 13 commits (staging `83ad4e0b`..`dfb88d84`
+→ main `76cd5ffc`..`bcd63e42`), cherry-picked and promoted via the standard pipeline;
+`deploy-peerify.sh` succeeded, `peerify-staging`'s pid/uptime confirmed unchanged after the prod
+deploy.
+
+**Open follow-ups, not yet scoped:**
+- RSVP status can't be changed once set — bug, not yet investigated.
+- Tag-based event search/filter — feature request, not yet scoped.
+
+**Status:** live on `main`/prod as of 2026-08-28.
