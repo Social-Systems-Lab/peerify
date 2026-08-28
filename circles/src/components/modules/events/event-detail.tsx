@@ -776,96 +776,6 @@ export default function EventDetail({
 
             <div className="grid gap-6 md:grid-cols-3">
                 <div className="space-y-6 md:col-span-2">
-                    <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
-                        <div className="mb-1 text-sm font-medium text-muted-foreground">When</div>
-                        <div className="text-base font-semibold">
-                            {startFmt}
-                            {endFmt ? ` — ${endFmt}` : ""}
-                            {event.allDay ? " (All day)" : ""}
-                        </div>
-                    </div>
-
-                    <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
-                        <div className="mb-1 text-sm font-medium text-muted-foreground">Where</div>
-                        <div className="text-base font-semibold">
-                            {event.isVirtual ? (
-                                <div className="flex flex-col gap-2">
-                                    {joinState ? (
-                                        <span className="w-fit" title={joinState.title}>
-                                            <Button
-                                                type="button"
-                                                variant={joinState.isEnabled ? "default" : "outline"}
-                                                disabled={!joinState.isEnabled}
-                                                className={cn(
-                                                    joinState.isEnabled && "bg-green-600 text-white hover:bg-green-700",
-                                                    !joinState.isEnabled &&
-                                                        !joinState.isMissingLink &&
-                                                        "border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-100 disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-700 disabled:opacity-100",
-                                                    joinState.isMissingLink &&
-                                                        "border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-100 disabled:border-amber-300 disabled:bg-amber-100 disabled:text-amber-900 disabled:opacity-100",
-                                                )}
-                                                onClick={() => {
-                                                    if (joinState.isEnabled && joinState.href) {
-                                                        window.open(joinState.href, "_blank", "noopener,noreferrer");
-                                                    }
-                                                }}
-                                            >
-                                                {joinState.label}
-                                            </Button>
-                                        </span>
-                                    ) : null}
-                                    {event.virtualUrl ? (
-                                        <a
-                                            className="break-all text-blue-600 underline"
-                                            href={event.virtualUrl}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                        >
-                                            {event.virtualUrl}
-                                        </a>
-                                    ) : (
-                                        <div className="text-sm font-normal text-muted-foreground">
-                                            Join link not added yet.
-                                        </div>
-                                    )}
-                                </div>
-                            ) : event.location ? (
-                                <>
-                                    {event.location.city || event.location.region || event.location.country
-                                        ? [event.location.city, event.location.region, event.location.country]
-                                              .filter(Boolean)
-                                              .join(", ")
-                                        : "Location provided"}
-                                </>
-                            ) : (
-                                "Not specified"
-                            )}
-                            {event.isHybrid ? <div className="text-xs text-muted-foreground">Hybrid</div> : null}
-                        </div>
-                        {hasDisclosureDetails && (
-                            <div className="mt-3 border-t pt-3">
-                                {disclosureDisplay.publicLocationLabel && (
-                                    <div className="mb-2 text-sm font-medium text-stone-800">
-                                        {disclosureDisplay.publicLocationLabel}
-                                    </div>
-                                )}
-                                <div className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                                    Location privacy
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {disclosureDisplay.detailBadges.map((badge) => (
-                                        <span
-                                            key={badge.key}
-                                            className="rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-xs font-medium text-stone-700"
-                                        >
-                                            {badge.label}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-
                     {event.description && (
                         <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
                             <div className="prose max-w-none">
@@ -965,6 +875,102 @@ export default function EventDetail({
                         />
                     )}
                     <EventTasksPanel circleHandle={circleHandle} eventId={event._id!.toString()} />
+                </div>
+            </div>
+
+            {/* When/Where — moved down here from the top of the page: for most events they just
+                repeat what the compact header line under the title already shows, so they no
+                longer need to interrupt the page before RSVP/Artists/Attendees/Tasks. Content and
+                the Where card's disclosure-badge logic are unchanged, only the position moved. */}
+            <div className="grid gap-6 md:grid-cols-2">
+                <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
+                    <div className="mb-1 text-sm font-medium text-muted-foreground">When</div>
+                    <div className="text-base font-semibold">
+                        {startFmt}
+                        {endFmt ? ` — ${endFmt}` : ""}
+                        {event.allDay ? " (All day)" : ""}
+                    </div>
+                </div>
+
+                <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
+                    <div className="mb-1 text-sm font-medium text-muted-foreground">Where</div>
+                    <div className="text-base font-semibold">
+                        {event.isVirtual ? (
+                            <div className="flex flex-col gap-2">
+                                {joinState ? (
+                                    <span className="w-fit" title={joinState.title}>
+                                        <Button
+                                            type="button"
+                                            variant={joinState.isEnabled ? "default" : "outline"}
+                                            disabled={!joinState.isEnabled}
+                                            className={cn(
+                                                joinState.isEnabled && "bg-green-600 text-white hover:bg-green-700",
+                                                !joinState.isEnabled &&
+                                                    !joinState.isMissingLink &&
+                                                    "border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-100 disabled:border-slate-300 disabled:bg-slate-100 disabled:text-slate-700 disabled:opacity-100",
+                                                joinState.isMissingLink &&
+                                                    "border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-100 disabled:border-amber-300 disabled:bg-amber-100 disabled:text-amber-900 disabled:opacity-100",
+                                            )}
+                                            onClick={() => {
+                                                if (joinState.isEnabled && joinState.href) {
+                                                    window.open(joinState.href, "_blank", "noopener,noreferrer");
+                                                }
+                                            }}
+                                        >
+                                            {joinState.label}
+                                        </Button>
+                                    </span>
+                                ) : null}
+                                {event.virtualUrl ? (
+                                    <a
+                                        className="break-all text-blue-600 underline"
+                                        href={event.virtualUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                    >
+                                        {event.virtualUrl}
+                                    </a>
+                                ) : (
+                                    <div className="text-sm font-normal text-muted-foreground">
+                                        Join link not added yet.
+                                    </div>
+                                )}
+                            </div>
+                        ) : event.location ? (
+                            <>
+                                {event.location.city || event.location.region || event.location.country
+                                    ? [event.location.city, event.location.region, event.location.country]
+                                          .filter(Boolean)
+                                          .join(", ")
+                                    : "Location provided"}
+                            </>
+                        ) : (
+                            "Not specified"
+                        )}
+                        {event.isHybrid ? <div className="text-xs text-muted-foreground">Hybrid</div> : null}
+                    </div>
+                    {hasDisclosureDetails && (
+                        <div className="mt-3 border-t pt-3">
+                            {disclosureDisplay.publicLocationLabel && (
+                                <div className="mb-2 text-sm font-medium text-stone-800">
+                                    {disclosureDisplay.publicLocationLabel}
+                                </div>
+                            )}
+                            <div className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                                Location privacy
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                                {disclosureDisplay.detailBadges.map((badge) => (
+                                    <span
+                                        key={badge.key}
+                                        className="rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-xs font-medium text-stone-700"
+                                    >
+                                        {badge.label}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
