@@ -82,6 +82,11 @@ type Props = {
     // identity leak through. Permission props (canEdit/canModerate/etc.) already independently
     // control host-only actions; this only affects the anonymous-visitor-identity parts.
     previewAsAnonymous?: boolean;
+    // Fired with the freshly re-fetched event after a successful RSVP change, in addition to the
+    // contentPreviewAtom patch refreshOpenEventPreview already does — lets any other client-side
+    // list holding its own stale copy of this event (e.g. MobileEventsPanel's local state) patch
+    // itself in place instead of only refreshing the ContentPreview popup.
+    onEventUpdated?: (updatedEvent: EventDisplay) => void;
 };
 
 function googleCalendarUrl(e: EventDisplay) {
@@ -114,6 +119,7 @@ export default function EventDetail({
     isAuthor,
     canRemoveSelfAsArtist,
     previewAsAnonymous,
+    onEventUpdated,
 }: Props) {
     const { toast } = useToast();
     const [user, setUser] = useAtom(userAtom);
@@ -227,6 +233,7 @@ export default function EventDetail({
             }
             return { ...currentPreview, content: updatedEvent };
         });
+        onEventUpdated?.(updatedEvent);
     };
 
     const onRsvp = (status: "going" | "interested" | "waitlist") => {
