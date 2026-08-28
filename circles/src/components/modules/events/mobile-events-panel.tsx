@@ -54,7 +54,10 @@ import EventDetail from "./event-detail";
 
 // ... existing imports ...
 
-const MobileEventRow: React.FC<{ e: EventDisplay }> = ({ e }) => {
+const MobileEventRow: React.FC<{ e: EventDisplay; onEventUpdated?: (updated: EventDisplay) => void }> = ({
+    e,
+    onEventUpdated,
+}) => {
     const [, setZoomContent] = useAtom(zoomContentAtom);
     const [, setTriggerOpen] = useAtom(triggerMapOpenAtom);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -79,6 +82,7 @@ const MobileEventRow: React.FC<{ e: EventDisplay }> = ({ e }) => {
                     circleHandle={e.circle?.handle || ""}
                     isPreview={true}
                     onClose={() => setIsExpanded(false)}
+                    onEventUpdated={onEventUpdated}
                 />
             </div>
         );
@@ -184,6 +188,16 @@ export default function MobileEventsPanel() {
         };
     }, []);
 
+    // Each row's expanded EventDetail fetches its own fresh copy after an RSVP change (see
+    // refreshOpenEventPreview in event-detail.tsx) but only patches contentPreviewAtom by
+    // default -- this list is a separate, locally-fetched-once copy that atom doesn't touch, so
+    // without this the row falls back to showing stale RSVP status until the panel remounts.
+    const handleEventUpdated = (updated: EventDisplay) => {
+        setEvents((prev) =>
+            prev.map((ev) => ((ev as any)._id?.toString?.() === (updated as any)._id?.toString?.() ? updated : ev)),
+        );
+    };
+
     const userLngLat: [number, number] | undefined = (() => {
         const loc: any = (user as any)?.location;
         const ll = loc?.lngLat;
@@ -277,7 +291,7 @@ export default function MobileEventsPanel() {
             <div className="flex-1 overflow-y-auto pb-2">
                 <div className="flex flex-col gap-1">
                     {filteredSorted.map((e) => (
-                        <MobileEventRow key={(e as any)._id} e={e} />
+                        <MobileEventRow key={(e as any)._id} e={e} onEventUpdated={handleEventUpdated} />
                     ))}
                 </div>
             </div>

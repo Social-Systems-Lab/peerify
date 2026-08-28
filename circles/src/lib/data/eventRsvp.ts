@@ -61,8 +61,12 @@ export const upsertRsvp = async (
  */
 export const cancelRsvp = async (eventId: string, userDid: string): Promise<boolean> => {
     try {
+        // Idempotent, same as upsertRsvp below: acknowledged means the write was accepted,
+        // regardless of whether a document actually matched. A cancel on an already-cancelled
+        // RSVP (e.g. a double-click race) has already reached the desired end state, so it
+        // should report success, not "Failed to cancel RSVP".
         const result = await EventRsvps.deleteOne({ eventId, userDid });
-        return result.deletedCount > 0;
+        return result.acknowledged === true;
     } catch (error) {
         console.error("Error cancelling RSVP:", error);
         return false;
