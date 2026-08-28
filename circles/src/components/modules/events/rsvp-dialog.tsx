@@ -22,9 +22,10 @@ type Props = {
     onOpenChange: (open: boolean) => void;
     circleHandle: string;
     eventId: string;
+    onSuccess?: () => void;
 };
 
-export default function RsvpDialog({ open, onOpenChange, circleHandle, eventId }: Props) {
+export default function RsvpDialog({ open, onOpenChange, circleHandle, eventId, onSuccess }: Props) {
     const { toast } = useToast();
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
@@ -41,6 +42,7 @@ export default function RsvpDialog({ open, onOpenChange, circleHandle, eventId }
             if (res.success) {
                 toast({ title: "RSVP updated" });
                 onOpenChange(false);
+                await onSuccess?.();
                 router.refresh();
             } else {
                 toast({

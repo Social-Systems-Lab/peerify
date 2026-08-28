@@ -13,6 +13,7 @@ import {
     unhideCancelledEventAction,
     deleteEventAction,
     changeEventHostAction,
+    getEventAction,
 } from "@/app/circles/[handle]/events/actions";
 import {
     AlertDialog,
@@ -59,7 +60,7 @@ import { getPeerifyEventDisclosureDisplay, getPeerifySafeEventLocationText } fro
 import { EventTagBadgeList, getEventTagBadges } from "./event-tag-badges";
 import { CommentSection } from "../feeds/CommentSection";
 import RichText from "../feeds/RichText";
-import { userAtom, mapboxKeyAtom, zoomContentAtom, triggerMapOpenAtom } from "@/lib/data/atoms";
+import { userAtom, mapboxKeyAtom, zoomContentAtom, triggerMapOpenAtom, contentPreviewAtom } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import { formatFundingAmount } from "@/components/modules/funding/funding-shared";
 
@@ -123,6 +124,7 @@ export default function EventDetail({
     const [mapboxKey] = useAtom(mapboxKeyAtom);
     const [, setZoomContent] = useAtom(zoomContentAtom);
     const [, setTriggerOpen] = useAtom(triggerMapOpenAtom);
+    const [, setContentPreview] = useAtom(contentPreviewAtom);
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [isInviteModalOpen, setInviteModalOpen] = useState(false);
@@ -208,11 +210,31 @@ export default function EventDetail({
                   } as Media,
               ];
 
+    // ContentPreview (map-explorer's event popup) holds its own `event` in a client-side atom
+    // that router.refresh() doesn't touch, so RSVP changes made from that surface never show up
+    // without a full reload unless we patch the atom ourselves. Mirrors refreshOpenIssuePreview /
+    // refreshOpenTaskPreview in issue-detail.tsx / task-detail.tsx.
+    const refreshOpenEventPreview = async () => {
+        if (!isPreview) return;
+        const updatedEvent = await getEventAction(circleHandle, (event as any)._id?.toString?.() || "");
+        if (!updatedEvent) return;
+        setContentPreview((currentPreview) => {
+            if (
+                currentPreview?.type !== "event" ||
+                (currentPreview.content as any)._id?.toString?.() !== (updatedEvent as any)._id?.toString?.()
+            ) {
+                return currentPreview;
+            }
+            return { ...currentPreview, content: updatedEvent };
+        });
+    };
+
     const onRsvp = (status: "going" | "interested" | "waitlist") => {
         startTransition(async () => {
             const res = await rsvpEventAction(circleHandle, (event as any)._id?.toString?.() || "", status);
             if (res.success) {
                 toast({ title: "RSVP updated" });
+                await refreshOpenEventPreview();
                 router.refresh();
             } else {
                 toast({ title: "Error", description: res.message || "Failed to RSVP", variant: "destructive" });
@@ -225,6 +247,7 @@ export default function EventDetail({
             const res = await cancelRsvpAction(circleHandle, (event as any)._id?.toString?.() || "");
             if (res.success) {
                 toast({ title: "RSVP cancelled" });
+                await refreshOpenEventPreview();
                 router.refresh();
             } else {
                 toast({ title: "Error", description: res.message || "Failed to cancel RSVP", variant: "destructive" });
@@ -591,6 +614,7 @@ export default function EventDetail({
                     eventId={event._id!.toString()}
                     open={isRsvpDialogOpen}
                     onOpenChange={setRsvpDialogOpen}
+                    onSuccess={refreshOpenEventPreview}
                 />
             </div>
         );
@@ -1013,6 +1037,7 @@ export default function EventDetail({
                 eventId={event._id!.toString()}
                 open={isRsvpDialogOpen}
                 onOpenChange={setRsvpDialogOpen}
+                onSuccess={refreshOpenEventPreview}
             />
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent>
