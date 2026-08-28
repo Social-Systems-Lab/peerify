@@ -58,7 +58,10 @@ import EventDetail from "../modules/events/event-detail";
 
 // ... existing imports ...
 
-const EventRow: React.FC<{ e: EventDisplay }> = ({ e }) => {
+const EventRow: React.FC<{ e: EventDisplay; onEventUpdated?: (updated: EventDisplay) => void }> = ({
+    e,
+    onEventUpdated,
+}) => {
     const [, setZoomContent] = useAtom(zoomContentAtom);
     const [, setTriggerOpen] = useAtom(triggerMapOpenAtom);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -83,6 +86,7 @@ const EventRow: React.FC<{ e: EventDisplay }> = ({ e }) => {
                     circleHandle={e.circle?.handle || ""}
                     isPreview={true}
                     onClose={() => setIsExpanded(false)}
+                    onEventUpdated={onEventUpdated}
                 />
             </div>
         );
@@ -193,6 +197,16 @@ export default function EventsPanel() {
             canceled = true;
         };
     }, []);
+
+    // Same fix as MobileEventsPanel (commit 6eb44014): each row's expanded EventDetail fetches
+    // a fresh copy of itself after an RSVP change but only patches contentPreviewAtom by
+    // default -- this panel's `events` is a separate, locally-fetched-once copy that atom
+    // doesn't touch, so without this the row falls back to showing stale RSVP status.
+    const handleEventUpdated = (updated: EventDisplay) => {
+        setEvents((prev) =>
+            prev.map((ev) => ((ev as any)._id?.toString?.() === (updated as any)._id?.toString?.() ? updated : ev)),
+        );
+    };
 
     const userLngLat: [number, number] | undefined = (() => {
         const loc: any = (user as any)?.location;
@@ -305,7 +319,7 @@ export default function EventsPanel() {
                 )}
                 <div className="flex flex-col gap-2">
                     {filteredSorted.map((e) => (
-                        <EventRow key={(e as any)._id} e={e} />
+                        <EventRow key={(e as any)._id} e={e} onEventUpdated={handleEventUpdated} />
                     ))}
                 </div>
             </div>
