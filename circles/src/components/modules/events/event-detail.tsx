@@ -739,7 +739,11 @@ export default function EventDetail({
                                 Delete
                             </Button>
                         )}
-                        {event.stage === "draft" && (isAuthor || canModerate) && (
+                        {/* Available regardless of stage — the /preview route itself has no
+                            stage restriction (it forces stage: "open" on the sanitized render
+                            either way), and admins can still edit a live event, so there's no
+                            reason this should disappear once the event leaves Draft. */}
+                        {(isAuthor || canModerate) && (
                             <Button variant="outline" asChild>
                                 <Link
                                     href={`/circles/${circleHandle}/events/${(event as any)._id?.toString?.() || ""}/preview`}
