@@ -27,6 +27,10 @@ export type PeerifyMusicLinkKey =
 
 export type PeerifyArtistProfile = {
     artistTypes: string[];
+    // Custom labels entered when "Other" is checked in artistTypes. General-purpose multi-tag
+    // input, not a migration-only artifact — a new signup can add more than one (e.g. a
+    // comedian-musician hybrid act checks "Other" and adds both "Comedian" and "Musician").
+    artistTypeOtherLabels: string[];
     baseCity: string;
     genres: string[];
     primaryGenres: string[];
@@ -130,17 +134,7 @@ export type PeerifyBookingEnquiryInput = {
     message?: string;
 };
 
-export const PEERIFY_ARTIST_TYPE_OPTIONS = [
-    "Solo artist",
-    "Band",
-    "DJ",
-    "Musician",
-    "Singer-songwriter",
-    "Live electronic",
-    "Acoustic act",
-    "Collective",
-    "Cover artist",
-] as const;
+export const PEERIFY_ARTIST_TYPE_OPTIONS = ["Solo artist", "Band", "DJ", "Other"] as const;
 
 export const PRIMARY_GENRE_OPTIONS = [
     "Acoustic",
@@ -268,6 +262,7 @@ export const PEERIFY_MUSIC_LINK_LABELS: Record<PeerifyMusicLinkKey, string> = {
 
 const DEFAULT_ARTIST_PROFILE: PeerifyArtistProfile = {
     artistTypes: [],
+    artistTypeOtherLabels: [],
     baseCity: "",
     genres: [],
     primaryGenres: [],
@@ -367,6 +362,13 @@ const normalizePrimaryGenres = (value: unknown): string[] => {
     return Array.from(new Set(nextValues)).slice(0, PRIMARY_GENRE_MAX_SELECTIONS);
 };
 
+const normalizeArtistTypeOtherLabels = (value: unknown): string[] => {
+    const nextValues = asStringArray(value)
+        .map((label) => label.trim())
+        .filter(Boolean);
+    return Array.from(new Set(nextValues));
+};
+
 const normalizeVenueAddressVisibility = (value: unknown): PeerifyVenueAddressVisibility => {
     const nextValue = asString(value);
     return nextValue === "city_area" || nextValue === "public" || nextValue === "private" ? nextValue : "private";
@@ -406,6 +408,7 @@ export const normalizePeerifyArtistProfile = (value: unknown): PeerifyArtistProf
 
     return {
         artistTypes: asStringArray(input.artistTypes),
+        artistTypeOtherLabels: normalizeArtistTypeOtherLabels(input.artistTypeOtherLabels),
         baseCity: asString(input.baseCity),
         genres: asStringArray(input.genres),
         primaryGenres: normalizePrimaryGenres(input.primaryGenres),
@@ -560,7 +563,12 @@ export const getPeerifyArtistIdentityLabel = (circle?: Partial<Circle> | null): 
 };
 
 export const getPeerifyArtistTypeBadges = (circle?: Partial<Circle> | null): string[] => {
-    const artistTypes = getPeerifyArtistProfile(circle).artistTypes;
+    const artistProfile = getPeerifyArtistProfile(circle);
+    // "Other" isn't itself a meaningful badge — swap it for the custom labels entered alongside
+    // it (there can be more than one, see artistTypeOtherLabels).
+    const artistTypes = artistProfile.artistTypes.flatMap((type) =>
+        type === "Other" ? artistProfile.artistTypeOtherLabels : [type],
+    );
     if (artistTypes.length > 0) {
         return artistTypes;
     }

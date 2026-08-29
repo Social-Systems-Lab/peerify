@@ -28,6 +28,7 @@ import {
     DynamicSwitchField,
     DynamicLocationField,
     DynamicArrayField,
+    DynamicTagsField,
 } from "@/components/forms/dynamic-field";
 import { getUserPrivateAction } from "@/components/modules/home/actions";
 import { useAtom } from "jotai";
@@ -80,6 +81,7 @@ type AboutSettingsFormValues = {
     defaultEventTags?: EventTagsValue;
     peerifyArtistProfile: {
         artistTypes: string[];
+        artistTypeOtherLabels: string[];
         genresText: string;
         baseCity: string;
         musicLinks: Record<string, string>;
@@ -126,6 +128,7 @@ const buildArtistProfileFormDefaults = (circle: Circle): AboutSettingsFormValues
 
     return {
         artistTypes: artistProfile.artistTypes,
+        artistTypeOtherLabels: artistProfile.artistTypeOtherLabels || [],
         genresText: artistProfile.genres.join(", "),
         baseCity: artistProfile.baseCity,
         musicLinks: {
@@ -613,6 +616,7 @@ export function AboutSettingsForm({
     const representsOrganization = form.watch("representsOrganization");
     const peerifyArtistIntent = form.watch("peerifyArtistIntent");
     const primaryGenres = form.watch("primaryGenres");
+    const artistTypes = form.watch("peerifyArtistProfile.artistTypes");
     const bookingEnabled = form.watch("peerifyArtistProfile.bookingEnabled");
     const venueBookingEnabled = form.watch("peerifyVenueProfile.bookingEnquiriesEnabled");
     const venueAddressVisibility = form.watch("peerifyVenueProfile.addressVisibility");
@@ -622,6 +626,9 @@ export function AboutSettingsForm({
         try {
             const peerifyArtistProfile: PeerifyArtistProfile = {
                 artistTypes: data.peerifyArtistProfile.artistTypes,
+                artistTypeOtherLabels: data.peerifyArtistProfile.artistTypes.includes("Other")
+                    ? data.peerifyArtistProfile.artistTypeOtherLabels
+                    : [],
                 baseCity: data.peerifyArtistProfile.baseCity.trim(),
                 genres: parseDelimitedList(data.peerifyArtistProfile.genresText),
                 primaryGenres: (data.primaryGenres || []).slice(0, PRIMARY_GENRE_MAX_SELECTIONS),
@@ -1157,6 +1164,26 @@ export function AboutSettingsForm({
                                             />
                                         )}
                                     />
+
+                                    {(artistTypes || []).includes("Other") ? (
+                                        <Controller
+                                            name="peerifyArtistProfile.artistTypeOtherLabels"
+                                            control={form.control}
+                                            render={({ field }) => (
+                                                <DynamicTagsField
+                                                    field={{
+                                                        name: "peerifyArtistProfile.artistTypeOtherLabels",
+                                                        type: "tags",
+                                                        label: "Other (describe your act)",
+                                                        description:
+                                                            "Add one or more labels — press Enter after each (e.g. Comedian, Poet).",
+                                                    }}
+                                                    formField={field}
+                                                    control={form.control as unknown as Control}
+                                                />
+                                            )}
+                                        />
+                                    ) : null}
 
                                     <Controller
                                         name="primaryGenres"
