@@ -1049,23 +1049,27 @@ export function AboutSettingsForm({
                 {/* Section-level checkpoint after Basic Information. Renders for every circle type. */}
                 {renderSaveButton()}
 
-                {/* Unconditional — every circle type can create events (createEventAction has no
-                    circle-type gate), and Venue type includes "home", so personal profiles hosting
-                    their own shows are a real case too. Snapshotted onto each new Event at creation
-                    (createEventAction, circles/[handle]/events/actions.ts) via
-                    circle.defaultEventTags; independently overridable per event afterward. */}
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Default event tags</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <Controller
-                            name="defaultEventTags"
-                            control={form.control}
-                            render={({ field }) => <EventTagsSettings value={field.value} onChange={field.onChange} />}
-                        />
-                    </CardContent>
-                </Card>
+                {/* Venue-only: a circle-level default only makes sense for a fixed venue space.
+                    Personal profiles and Artist-type circles (Solo Artist/Band/DJ/Producer) host
+                    one-off or infrequent events in varying spaces, so they tag each event
+                    individually instead (see event-form.tsx's per-event tag picker). Snapshotted
+                    onto each new Event at creation (createEventAction,
+                    circles/[handle]/events/actions.ts) via circle.defaultEventTags; independently
+                    overridable per event afterward. */}
+                {isPeerifyManagedVenueCircle && (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Default event tags</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <Controller
+                                name="defaultEventTags"
+                                control={form.control}
+                                render={({ field }) => <EventTagsSettings value={field.value} onChange={field.onChange} />}
+                            />
+                        </CardContent>
+                    </Card>
+                )}
 
                 {isCrewEligibleCircle && (
                     // Moved to sit directly before Artist Identity (was previously inline between
