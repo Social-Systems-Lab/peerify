@@ -71,7 +71,7 @@ import { addCommentToDiscussion, getDiscussionWithComments } from "@/lib/data/di
 import { Comment } from "@/models/models";
 import { getTasksByEventId } from "@/lib/data/task";
 import { listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
-import { isPeerifyManagedIdentity, isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyManagedIdentity, isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 
 // ----- Types -----
 
@@ -650,8 +650,9 @@ export async function createEventAction(
             // Snapshot (not reference) the host circle's default feature-icon tags onto the new
             // event; normalizeEventTags builds a fresh, validated object, so this is never the
             // same object as circle.defaultEventTags or as submittedTags. Independently
-            // overridable after creation.
-            tags: normalizeEventTags(submittedTags ?? circle.defaultEventTags),
+            // overridable after creation. Only Venue circles have a meaningful circle-level
+            // default (see about-settings-form.tsx) — other circle types fall back to no tags.
+            tags: normalizeEventTags(submittedTags ?? (isPeerifyVenueIdentity(circle) ? circle.defaultEventTags : undefined)),
             capacity,
             visibility: (data.visibility as any) ?? "public",
             metadata,
@@ -1882,6 +1883,9 @@ export async function getEventWithCommentsAction(eventId: string) {
 export async function getCircleDefaultEventTagsAction(circleHandle: string): Promise<EventTagsValue | undefined> {
     try {
         const circle = await getCircleByHandle(circleHandle);
+        // Only Venue circles have a meaningful circle-level default (see
+        // about-settings-form.tsx) — every other circle type prefills nothing.
+        if (!isPeerifyVenueIdentity(circle)) return undefined;
         // Run through normalizeEventTags rather than returned raw — an unset category on an
         // already-saved circle can come back from MongoDB as a literal null value (see
         // normalizeEventTags's own comment), which this action's callers would otherwise carry

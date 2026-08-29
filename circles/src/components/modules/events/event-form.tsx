@@ -85,7 +85,7 @@ function toUtcEndOfDayIso(dateOnly: string) {
 import CircleSelector from "@/components/global-create/circle-selector";
 import { CreatableItemDetail, creatableItemsList } from "@/components/global-create/global-create-dialog-content";
 import EventArtistPicker, { SelectedArtistBand } from "@/components/modules/events/event-artist-picker";
-import { getPeerifyArtistProfile } from "@/lib/peerify/artist-profile";
+import { getPeerifyArtistProfile, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import { cn } from "@/lib/utils";
 import { EventTagsSettings } from "@/components/forms/controls/event-tags-settings";
 import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
@@ -473,7 +473,10 @@ export default function EventForm({
                     if (circleCurrency && EVENT_CURRENCY_OPTIONS.includes(circleCurrency)) {
                         setCurrency(circleCurrency);
                     }
-                    const circleDefaultTags = normalizeEventTags(circle?.defaultEventTags);
+                    // Only Venue circles have a meaningful circle-level default (see
+                    // about-settings-form.tsx) — every other circle type starts blank.
+                    const circleDefaultTags =
+                        circle && isPeerifyVenueIdentity(circle) ? normalizeEventTags(circle.defaultEventTags) : undefined;
                     if (circleDefaultTags) {
                         setTags(circleDefaultTags);
                     }
