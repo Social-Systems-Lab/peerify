@@ -1071,6 +1071,13 @@ export function AboutSettingsForm({
                     </Card>
                 )}
 
+                {/* Venue's form is long enough that the top Save Changes button scrolls out of
+                    view by the time the tags section is filled in — a second one here (gated the
+                    same as the tags card, so it only shows where that scroll distance exists)
+                    saves a trip back to the top. Same renderSaveButton() as every other call site
+                    in this form, not a separate submit path. */}
+                {isPeerifyManagedVenueCircle && renderSaveButton()}
+
                 {isCrewEligibleCircle && (
                     // Moved to sit directly before Artist Identity (was previously inline between
                     // Description and Content in Basic Information) — reads as artist-facing
