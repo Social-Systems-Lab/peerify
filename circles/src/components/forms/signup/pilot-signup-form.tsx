@@ -80,7 +80,7 @@ function getErrors(state: PilotSignupState, role: SignupRole | null): PilotSignu
     }
 
     if (role === "artist" && !state.bandOrVenueName.trim()) {
-        errors.bandOrVenueName = "Band name is required.";
+        errors.bandOrVenueName = "Performing name is required.";
     }
 
     const handle = sanitizeHandle(state.handle);
@@ -328,15 +328,15 @@ export function PilotSignupForm() {
 
                         {role === "artist" ? (
                             <div className="space-y-2">
-                                <Label htmlFor="pilot-signup-band-name">Band name</Label>
+                                <Label htmlFor="pilot-signup-performing-name">Performing name</Label>
                                 <Input
-                                    id="pilot-signup-band-name"
+                                    id="pilot-signup-performing-name"
                                     value={state.bandOrVenueName}
                                     onChange={(event) => updateField("bandOrVenueName", event.target.value)}
-                                    placeholder="e.g. The Night Owls"
+                                    placeholder="e.g. Jane Doe"
                                 />
                                 <p className="text-sm text-[#6b5f52]">
-                                    This becomes the name of your public artist profile.
+                                    The name you or your group perform under.
                                 </p>
                                 {errors.bandOrVenueName ? (
                                     <p className="text-sm text-red-600">{errors.bandOrVenueName}</p>
