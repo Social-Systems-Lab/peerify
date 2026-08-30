@@ -103,6 +103,9 @@ export default async function AboutSettingsPage(props: PageProps) {
         ownAutoProvisionedArtistCircleAny && ownAutoProvisionedArtistCircleAny.publishStatus !== "published"
             ? ownAutoProvisionedArtistCircleAny
             : null;
+    // Peerify-managed identities (Artist/Band/DJ/Producer/Venue) read naturally as a "profile" in
+    // this card's copy; a plain community Circle or a Project doesn't, so those keep "circle".
+    const workflowEntityLabel = isPeerifyManagedCircle ? "profile" : "circle";
     const statusCopy =
         publishStatus === "draft"
             ? "Draft"
@@ -144,8 +147,8 @@ export default async function AboutSettingsPage(props: PageProps) {
                                     </div>
                                     <p className="text-sm text-muted-foreground">
                                         {publishStatus === "draft"
-                                            ? "This circle is saved as a draft and is not publicly live yet."
-                                            : "This circle is waiting for verification and is not publicly live yet."}
+                                            ? `This ${workflowEntityLabel} is saved as a draft and is not publicly live yet.`
+                                            : `This ${workflowEntityLabel} is waiting for verification and is not publicly live yet.`}
                                     </p>
                                     {!isProfileCircle && circle.representsOrganization ? (
                                         <p className="text-sm text-muted-foreground">
@@ -167,7 +170,7 @@ export default async function AboutSettingsPage(props: PageProps) {
                                 <form action={publishCircleAction}>
                                     <input type="hidden" name="circleId" value={circle._id} />
                                     <Button type="submit" disabled={!pilotArtistCirclePublishReady}>
-                                        Publish circle
+                                        Publish {workflowEntityLabel}
                                     </Button>
                                 </form>
                             ) : (
