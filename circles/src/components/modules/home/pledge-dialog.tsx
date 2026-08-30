@@ -38,6 +38,9 @@ export type PledgeFormState = {
     maximumTicketAmount: string;
     preferredEventType: string;
     helpOptions: string[];
+    // Only meaningful when helpOptions includes "Host" — see the reveal field below. Replaces the
+    // old standalone "Space for 20-30 people" checkbox.
+    hostingCapacity: string;
     note: string;
 };
 
@@ -46,6 +49,7 @@ const EMPTY_PLEDGE_FORM: PledgeFormState = {
     maximumTicketAmount: "",
     preferredEventType: "",
     helpOptions: [],
+    hostingCapacity: "",
     note: "",
 };
 
@@ -287,6 +291,25 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                                         </label>
                                     ))}
                                 </div>
+                                {/* Same automatic reveal pattern as Booking enquiries' dependent
+                                    fields — driven by the "Host" checkbox itself, no separate
+                                    trigger. Replaces the old standalone "Space for 20-30 people"
+                                    checkbox with a free-text field that still reaches the same
+                                    downstream consumers (Pledge Dashboard, chat-enquiry message). */}
+                                <Collapsible open={pledgeForm.helpOptions.includes("Host")}>
+                                    <CollapsibleContent className="pt-3">
+                                        <Input
+                                            placeholder="Approximate capacity (e.g. 20-30 people)"
+                                            value={pledgeForm.hostingCapacity}
+                                            onChange={(event) =>
+                                                setPledgeForm((current) => ({
+                                                    ...current,
+                                                    hostingCapacity: event.target.value,
+                                                }))
+                                            }
+                                        />
+                                    </CollapsibleContent>
+                                </Collapsible>
                             </CollapsibleContent>
                         </Collapsible>
                         <Textarea

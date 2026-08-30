@@ -118,6 +118,9 @@ export type PeerifyPledgeEnquiryInput = {
     maximumTicketAmount?: string;
     preferredEventType?: string;
     helpOptions?: string[];
+    // Only meaningful when helpOptions includes "Host" — see pledge-dialog.tsx's reveal field.
+    // Replaces the old standalone "Space for 20-30 people" checkbox.
+    hostingCapacity?: string;
     note?: string;
 };
 
@@ -234,16 +237,13 @@ export const PEERIFY_EVENT_TYPE_OPTIONS = [
 ] as const;
 
 // "Attend" was removed (redundant — pledging already implies interest in attending). "Space for
-// 20-30 people" is pending a removal decision — see the 2026-08-30 Pledge dialog polish session:
-// it's read by the Pledge Dashboard's per-option breakdown and the chat-enquiry fallback message,
-// so pruning it needs the same downstream check "Maybe host" -> "Host" below didn't get (a plain
-// rename, not a removal — reported instead as a heads-up: any historical pledge already recorded
-// as "Maybe host" will simply stop being counted in that same breakdown, since it filters this
-// live list, not stored values).
+// 20-30 people" was removed as its own checkbox and replaced by the free-text `hostingCapacity`
+// field (PeerifyPledgeEnquiryInput below), revealed only when "Host" is checked — see
+// pledge-dialog.tsx. That field feeds the same places this checkbox used to (Pledge Dashboard,
+// chat-enquiry fallback message), so nothing downstream lost visibility into hosting capacity.
 export const PEERIFY_PLEDGE_HELP_OPTIONS = [
     "Promote",
     "Host",
-    "Space for 20-30 people",
     "Local transport",
     "Spare room",
     "Food / hospitality",
@@ -656,6 +656,9 @@ export const formatPeerifyPledgeEnquiryMessage = (
         `Preferred event type: ${withFallback(enquiry.preferredEventType)}`,
         "Can help with:",
         formatBulletLines(helpOptions),
+        ...(helpOptions.includes("Host")
+            ? [`Approximate hosting capacity: ${withFallback(enquiry.hostingCapacity)}`]
+            : []),
         "",
         `Note: ${withFallback(enquiry.note, "None")}`,
     ].join("\n");
