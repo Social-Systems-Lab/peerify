@@ -23,7 +23,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { sendPeerifyArtistEnquiryAction } from "@/components/modules/chat/mongo-actions";
-import { createPeerifyPledgeAction } from "@/components/modules/home/peerify-pledge-actions";
+import { createPeerifyPledgeAction, getMyPeerifyPledgeAction } from "@/components/modules/home/peerify-pledge-actions";
 import {
     getPeerifyArtistProfile,
     isPeerifyArtistIdentity,
@@ -70,6 +70,12 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
     const [pledgeError, setPledgeError] = React.useState("");
     const [isSubmittingPledge, setIsSubmittingPledge] = React.useState(false);
     const [isHelpOptionsOpen, setIsHelpOptionsOpen] = React.useState(false);
+    // Whether this fan already has a pledge on file for this artist — drives the pre-fill below
+    // and the "editing, not creating" copy/labels. One pledge per (artist, fan): a resubmit
+    // updates the existing record in place (see createPeerifyPledge's upsert), so without this the
+    // dialog would reopen blank and a resubmit would silently overwrite fields the fan didn't
+    // bother re-entering.
+    const [hasExistingPledge, setHasExistingPledge] = React.useState(false);
     const [isJoinCrewDialogOpen, setIsJoinCrewDialogOpen] = React.useState(false);
     // Same fresh-read-on-mount approach as content-preview.tsx/home-content.tsx's identical
     // check (see getCrewMembershipStatusAction) — not derived from the client-side userAtom,
@@ -91,11 +97,44 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
         }
     }, [open]);
 
+    // Structured pledges only (isPeerifyManagedArtistIdentity) — the chat-enquiry fallback path
+    // for other circles never persists a re-editable record, so there's nothing to pre-fill from.
     React.useEffect(() => {
-        if (open && userLocationText) {
+        if (!open || !isPeerifyManagedArtistIdentity) {
+            setHasExistingPledge(false);
+            return;
+        }
+        let isCurrent = true;
+        getMyPeerifyPledgeAction(String(circle._id || "")).then((result) => {
+            if (!isCurrent) return;
+            if (result.pledge) {
+                setHasExistingPledge(true);
+                setPledgeForm({
+                    fanLocation: result.pledge.fanLocation,
+                    maximumTicketAmount: result.pledge.maximumTicketAmount,
+                    helpOptions: result.pledge.helpOptions,
+                    hostingCapacity: result.pledge.hostingCapacity,
+                    note: result.pledge.note,
+                });
+                if (result.pledge.helpOptions.length > 0) {
+                    setIsHelpOptionsOpen(true);
+                }
+            } else {
+                setHasExistingPledge(false);
+            }
+        });
+        return () => {
+            isCurrent = false;
+        };
+    }, [open, isPeerifyManagedArtistIdentity, circle]);
+
+    // Profile-location fallback for a genuinely new pledge only — skipped once an existing pledge
+    // is found so its own saved location isn't clobbered by this.
+    React.useEffect(() => {
+        if (open && userLocationText && !hasExistingPledge) {
             setPledgeForm((current) => (current.fanLocation ? current : { ...current, fanLocation: userLocationText }));
         }
-    }, [open, userLocationText]);
+    }, [open, userLocationText, hasExistingPledge]);
 
     React.useEffect(() => {
         if (!open || !canJoinCrew || !user?.did || !circle?._id) {
@@ -151,7 +190,7 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                 setPledgeForm(EMPTY_PLEDGE_FORM);
                 onOpenChange(false);
                 toast({
-                    title: "Pledge added",
+                    title: hasExistingPledge ? "Pledge updated" : "Pledge added",
                     description: result.message || "Thanks — your pledge has been added to this artist's support map.",
                 });
                 router.refresh();
@@ -199,7 +238,9 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                     <DialogHeader>
                         <DialogTitle>Pledge interest for {circle.name}</DialogTitle>
                         <DialogDescription>
-                            A pledge is not a ticket purchase. It helps signal local demand and support.
+                            {hasExistingPledge
+                                ? "You've already pledged — update it below."
+                                : "A pledge is not a ticket purchase. It helps signal local demand and support."}
                         </DialogDescription>
                     </DialogHeader>
                     <form
@@ -331,10 +372,14 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                             >
                                 {isSubmittingPledge
                                     ? isPeerifyManagedArtistIdentity
-                                        ? "Adding..."
+                                        ? hasExistingPledge
+                                            ? "Updating..."
+                                            : "Adding..."
                                         : "Sending..."
                                     : isPeerifyManagedArtistIdentity
-                                      ? "Add Pledge"
+                                      ? hasExistingPledge
+                                          ? "Update Pledge"
+                                          : "Add Pledge"
                                       : "Send Pledge Enquiry"}
                             </Button>
                         </DialogFooter>
