@@ -241,7 +241,7 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                             </div>
                         </div>
                         <Input
-                            placeholder="Preferred event type"
+                            placeholder="Event type"
                             value={pledgeForm.preferredEventType}
                             onChange={(event) =>
                                 setPledgeForm((current) => ({ ...current, preferredEventType: event.target.value }))
