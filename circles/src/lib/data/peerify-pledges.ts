@@ -16,6 +16,7 @@ export type PeerifyPledgeRecord = {
     maximumTicketAmount: string;
     preferredEventType: string;
     helpOptions: string[];
+    hostingCapacity: string;
     note: string;
     createdAt: Date;
     updatedAt: Date;
@@ -72,6 +73,7 @@ export async function createPeerifyPledge(input: PeerifyPledgeInput): Promise<Pe
         maximumTicketAmount: clampText(input.pledge.maximumTicketAmount, 80),
         preferredEventType: clampText(input.pledge.preferredEventType, 80),
         helpOptions: clampStringArray(input.pledge.helpOptions, 8, 80),
+        hostingCapacity: clampText(input.pledge.hostingCapacity, 80),
         note: clampText(input.pledge.note, 1000),
         createdAt: now,
         updatedAt: now,

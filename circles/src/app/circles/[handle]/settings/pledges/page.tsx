@@ -450,6 +450,13 @@ function PledgeTable({ pledges }: { pledges: PeerifyPledgeRecord[] }) {
                             ) : (
                                 "-"
                             )}
+                            {/* Free-text replacement for the old "Space for 20-30 people" checkbox
+                                — only ever set alongside the "Host" badge above. */}
+                            {pledge.hostingCapacity ? (
+                                <div className="mt-1 max-w-xs text-xs text-muted-foreground">
+                                    Capacity: {pledge.hostingCapacity}
+                                </div>
+                            ) : null}
                         </TableCell>
                         <TableCell className="max-w-xs whitespace-pre-wrap">{pledge.note || "-"}</TableCell>
                         <TableCell>{formatDate(pledge.createdAt)}</TableCell>
