@@ -13,6 +13,7 @@ import { useState, useEffect } from "react";
 import { useForm, Controller, Control, FieldValues } from "react-hook-form";
 import { saveAbout, setCrewEnabledAction } from "@/app/circles/[handle]/settings/about/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import {
     Dialog,
     DialogContent,
@@ -55,7 +56,6 @@ import {
     PEERIFY_ARTIST_TYPE_OPTIONS,
     PEERIFY_CURRENCY_OPTIONS,
     PEERIFY_EVENT_TYPE_OPTIONS,
-    PEERIFY_LOOKING_FOR_OPTIONS,
     PRIMARY_GENRE_OPTIONS,
     PRIMARY_GENRE_MAX_SELECTIONS,
     type PeerifyArtistProfile,
@@ -1227,168 +1227,182 @@ export function AboutSettingsForm({
                                             />
                                         )}
                                     />
-
-                                    <Controller
-                                        name="peerifyArtistProfile.bookingEnabled"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <div className="space-y-2 rounded-lg border p-4">
-                                                <Label>Booking enquiries</Label>
-                                                <div className="flex items-center gap-3">
-                                                    <Checkbox
-                                                        checked={field.value}
-                                                        onCheckedChange={(checked) => field.onChange(checked === true)}
-                                                    />
-                                                    <p className="text-sm text-muted-foreground">
-                                                        Show a public booking enquiry flow on this artist profile.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    />
-
-                                    {bookingEnabled ? (
-                                        <div className="space-y-6 rounded-lg border bg-slate-50 p-4">
-                                            <div className="grid gap-4 md:grid-cols-2">
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.localBookingsOnly"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <div className="space-y-2 rounded-lg border bg-white p-4">
-                                                            <Label>Local bookings only</Label>
-                                                            <div className="flex items-center gap-3">
-                                                                <Checkbox
-                                                                    checked={field.value}
-                                                                    onCheckedChange={(checked) =>
-                                                                        field.onChange(checked === true)
-                                                                    }
-                                                                />
-                                                                <p className="text-sm text-muted-foreground">
-                                                                    Limit public bookings to local events.
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                />
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.travelRadiusKm"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <ArtistTextField
-                                                            label="Travel radius (km)"
-                                                            type="number"
-                                                            value={field.value}
-                                                            onChange={field.onChange}
-                                                        />
-                                                    )}
-                                                />
-                                            </div>
-
-                                            <Controller
-                                                name="peerifyArtistProfile.bookingSettings.preferredEventTypes"
-                                                control={form.control}
-                                                render={({ field }) => (
-                                                    <CheckboxGroup
-                                                        label="Preferred event types"
-                                                        options={PEERIFY_EVENT_TYPE_OPTIONS}
-                                                        values={field.value || []}
-                                                        onChange={field.onChange}
-                                                    />
-                                                )}
-                                            />
-
-                                            <div className="grid gap-4 md:grid-cols-2">
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.baseFee"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <ArtistTextField
-                                                            label="Base fee"
-                                                            type="number"
-                                                            value={field.value}
-                                                            onChange={field.onChange}
-                                                        />
-                                                    )}
-                                                />
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.currency"
-                                                    control={form.control}
-                                                    render={({ field }) => {
-                                                        const currencyOptions = field.value
-                                                            ? CURRENCY_OPTIONS.some(
-                                                                  (option) => option.value === field.value,
-                                                              )
-                                                                ? CURRENCY_OPTIONS
-                                                                : [
-                                                                      ...CURRENCY_OPTIONS,
-                                                                      {
-                                                                          value: field.value,
-                                                                          label: `${field.value} (currently saved)`,
-                                                                      },
-                                                                  ]
-                                                            : CURRENCY_OPTIONS;
-                                                        return (
-                                                            <PeerifySelectField
-                                                                label="Currency"
-                                                                options={currencyOptions}
-                                                                value={field.value}
-                                                                onChange={field.onChange}
-                                                            />
-                                                        );
-                                                    }}
-                                                />
-                                            </div>
-
-                                            <div className="grid gap-4 md:grid-cols-2">
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.technicalNeeds"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <ArtistTextareaField
-                                                            label="Technical needs"
-                                                            placeholder="PA, microphones, backline, monitors..."
-                                                            value={field.value}
-                                                            onChange={field.onChange}
-                                                            rows={4}
-                                                        />
-                                                    )}
-                                                />
-                                                <Controller
-                                                    name="peerifyArtistProfile.bookingSettings.notes"
-                                                    control={form.control}
-                                                    render={({ field }) => (
-                                                        <ArtistTextareaField
-                                                            label="Booking notes"
-                                                            placeholder="Anything hosts should know before reaching out."
-                                                            value={field.value}
-                                                            onChange={field.onChange}
-                                                            rows={4}
-                                                        />
-                                                    )}
-                                                />
-                                            </div>
-                                        </div>
-                                    ) : null}
-
-                                    <Controller
-                                        name="peerifyArtistProfile.availability"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Availability / general booking note"
-                                                placeholder="Touring in Scandinavia this autumn, open to house concerts and community spaces."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
                                 </>
                             ) : null}
                         </CardContent>
                     </Card>
                 ) : null}
 
+                {/* Same renderSaveButton() as every other call site in this form (see the Venue
+                    equivalent above) — placed right after Primary Genre so it's reachable without
+                    scrolling back to the top of a long Artist Identity section. */}
                 {isPeerifyManagedArtistCircle ? renderSaveButton() : null}
+
+                {isPeerifyManagedArtistCircle ? (
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Booking enquiries</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                            <Controller
+                                name="peerifyArtistProfile.bookingEnabled"
+                                control={form.control}
+                                render={({ field }) => (
+                                    <div className="space-y-2 rounded-lg border p-4">
+                                        <Label>Booking enquiries</Label>
+                                        <div className="flex items-center gap-3">
+                                            <Checkbox
+                                                checked={field.value}
+                                                onCheckedChange={(checked) => field.onChange(checked === true)}
+                                            />
+                                            <p className="text-sm text-muted-foreground">
+                                                Show a public booking enquiry flow on this artist profile.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            />
+
+                            <Collapsible open={bookingEnabled}>
+                                <CollapsibleContent className="space-y-6">
+                                    <div className="space-y-6 rounded-lg border bg-slate-50 p-4">
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <Controller
+                                                name="peerifyArtistProfile.bookingSettings.localBookingsOnly"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <div className="space-y-2 rounded-lg border bg-white p-4">
+                                                        <Label>Local bookings only</Label>
+                                                        <div className="flex items-center gap-3">
+                                                            <Checkbox
+                                                                checked={field.value}
+                                                                onCheckedChange={(checked) =>
+                                                                    field.onChange(checked === true)
+                                                                }
+                                                            />
+                                                            <p className="text-sm text-muted-foreground">
+                                                                Limit public bookings to local events.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            />
+                                            <Controller
+                                                name="peerifyArtistProfile.bookingSettings.travelRadiusKm"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextField
+                                                        label="Travel radius (km)"
+                                                        type="number"
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+
+                                        <Controller
+                                            name="peerifyArtistProfile.bookingSettings.preferredEventTypes"
+                                            control={form.control}
+                                            render={({ field }) => (
+                                                <CheckboxGroup
+                                                    label="Preferred event types"
+                                                    options={PEERIFY_EVENT_TYPE_OPTIONS}
+                                                    values={field.value || []}
+                                                    onChange={field.onChange}
+                                                />
+                                            )}
+                                        />
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <Controller
+                                                name="peerifyArtistProfile.bookingSettings.baseFee"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextField
+                                                        label="Base fee"
+                                                        type="number"
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
+                                            />
+                                            <Controller
+                                                name="peerifyArtistProfile.bookingSettings.currency"
+                                                control={form.control}
+                                                render={({ field }) => {
+                                                    const currencyOptions = field.value
+                                                        ? CURRENCY_OPTIONS.some(
+                                                              (option) => option.value === field.value,
+                                                          )
+                                                            ? CURRENCY_OPTIONS
+                                                            : [
+                                                                  ...CURRENCY_OPTIONS,
+                                                                  {
+                                                                      value: field.value,
+                                                                      label: `${field.value} (currently saved)`,
+                                                                  },
+                                                              ]
+                                                        : CURRENCY_OPTIONS;
+                                                    return (
+                                                        <PeerifySelectField
+                                                            label="Currency"
+                                                            options={currencyOptions}
+                                                            value={field.value}
+                                                            onChange={field.onChange}
+                                                        />
+                                                    );
+                                                }}
+                                            />
+                                        </div>
+
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <Controller
+                                                name="peerifyArtistProfile.bookingSettings.technicalNeeds"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Technical needs"
+                                                        placeholder="PA, microphones, backline, monitors..."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                        rows={4}
+                                                    />
+                                                )}
+                                            />
+                                            <Controller
+                                                name="peerifyArtistProfile.bookingSettings.notes"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Booking notes"
+                                                        placeholder="Anything hosts should know before reaching out."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                        rows={4}
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                    </div>
+                                </CollapsibleContent>
+                            </Collapsible>
+
+                            <Controller
+                                name="peerifyArtistProfile.availability"
+                                control={form.control}
+                                render={({ field }) => (
+                                    <ArtistTextareaField
+                                        label="Availability / general booking note"
+                                        placeholder="Touring in Scandinavia this autumn, open to house concerts and community spaces."
+                                        value={field.value}
+                                        onChange={field.onChange}
+                                    />
+                                )}
+                            />
+                        </CardContent>
+                    </Card>
+                ) : null}
 
                 {isPeerifyManagedArtistCircle ? (
                     <Card>
@@ -1405,6 +1419,7 @@ export function AboutSettingsForm({
                             <div className="grid gap-4 md:grid-cols-2">
                                 {(
                                     [
+                                        ["spotify", "Spotify"],
                                         ["bandcamp", "Bandcamp"],
                                         ["soundcloud", "SoundCloud"],
                                         ["appleMusic", "Apple Music"],
@@ -1428,28 +1443,6 @@ export function AboutSettingsForm({
                                     />
                                 ))}
                             </div>
-                        </CardContent>
-                    </Card>
-                ) : null}
-
-                {isPeerifyManagedArtistCircle ? (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Looking for / Open to</CardTitle>
-                        </CardHeader>
-                        <CardContent className="space-y-6">
-                            <Controller
-                                name="peerifyArtistProfile.lookingFor"
-                                control={form.control}
-                                render={({ field }) => (
-                                    <CheckboxGroup
-                                        label="Looking for / open to"
-                                        options={PEERIFY_LOOKING_FOR_OPTIONS}
-                                        values={field.value || []}
-                                        onChange={field.onChange}
-                                    />
-                                )}
-                            />
                         </CardContent>
                     </Card>
                 ) : null}

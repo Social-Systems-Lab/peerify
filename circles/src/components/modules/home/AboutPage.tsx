@@ -5,7 +5,7 @@ import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/model
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MapPin, ExternalLink, CalendarRange, CheckCircle2 } from "lucide-react";
-import { SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
+import { SiSpotify, SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getSkillDefinitionByHandle, skillCategoryLabels } from "@/lib/data/skills";
 import { useIsCompact } from "@/components/utils/use-is-compact";
@@ -99,6 +99,7 @@ type BookingFormState = {
 };
 
 const PEERIFY_SOCIAL_LINK_ICONS: Partial<Record<PeerifyMusicLinkKey, React.ComponentType<{ className?: string }>>> = {
+    spotify: SiSpotify,
     bandcamp: SiBandcamp,
     soundcloud: SiSoundcloud,
     appleMusic: SiApplemusic,
