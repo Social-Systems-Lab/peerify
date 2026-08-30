@@ -36,7 +36,11 @@ import JoinCrewDialog from "@/components/modules/home/join-crew-dialog";
 export type PledgeFormState = {
     fanLocation: string;
     maximumTicketAmount: string;
-    preferredEventType: string;
+    // preferredEventType intentionally dropped — no longer collected (see the removed "Event
+    // type" input below). PeerifyPledgeEnquiryInput still declares it optional so this form state
+    // stays assignable there without it; historical pledge records keep whatever value they
+    // already have, and both downstream readers (Pledge Dashboard, chat-enquiry message) already
+    // render a blank/missing value gracefully.
     helpOptions: string[];
     // Only meaningful when helpOptions includes "Host" — see the reveal field below. Replaces the
     // old standalone "Space for 20-30 people" checkbox.
@@ -47,7 +51,6 @@ export type PledgeFormState = {
 const EMPTY_PLEDGE_FORM: PledgeFormState = {
     fanLocation: "",
     maximumTicketAmount: "",
-    preferredEventType: "",
     helpOptions: [],
     hostingCapacity: "",
     note: "",
@@ -248,13 +251,6 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                                 />
                             </div>
                         </div>
-                        <Input
-                            placeholder="Event type"
-                            value={pledgeForm.preferredEventType}
-                            onChange={(event) =>
-                                setPledgeForm((current) => ({ ...current, preferredEventType: event.target.value }))
-                            }
-                        />
                         <Collapsible open={isHelpOptionsOpen} onOpenChange={setIsHelpOptionsOpen}>
                             <CollapsibleTrigger asChild>
                                 <Button
