@@ -275,7 +275,7 @@ export async function submitCircleForVerificationAction(formData: FormData) {
     if ((circle.metadata as any)?.peerify?.autoProvisionedFromSignup === true) {
         return {
             success: false,
-            message: "This circle publishes automatically once its profile is complete — use the Publish circle button instead.",
+            message: "This profile publishes automatically once it's complete — use the Publish profile button instead.",
         };
     }
 
