@@ -253,7 +253,11 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                         <div className="relative h-[124px] w-[124px]">
                             <Image
                                 className="rounded-full border-2 border-white bg-white object-cover shadow-lg"
-                                src={suppressed ? PEERIFY_DEFAULT_PROFILE_AVATAR_URL : (circle?.picture?.url ?? "/images/default-user-picture.png")}
+                                src={
+                                    suppressed
+                                        ? PEERIFY_DEFAULT_PROFILE_AVATAR_URL
+                                        : (circle?.picture?.url ?? "/images/default-user-picture.png")
+                                }
                                 alt="Picture"
                                 fill
                                 onClick={
@@ -313,7 +317,9 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             </div>
                         )}
 
-                        {!suppressed && circle.description && <p className="text-sm text-gray-600">{circle.description}</p>}
+                        {!suppressed && circle.description && (
+                            <p className="text-sm text-gray-600">{circle.description}</p>
+                        )}
 
                         {/* Song preview (artist/band circles only) */}
                         {isPeerifyArtistIdentity(circle) && circle._id && (
@@ -345,7 +351,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                         <Button
                                             type="button"
                                             size="sm"
-                                            variant="outline"
+                                            className="bg-[#1A1612] text-white hover:bg-[#2b2621]"
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setContentPreview(undefined);
@@ -357,11 +363,21 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                             View Crew
                                         </Button>
                                     ) : crewMembershipStatus === "pending" ? (
-                                        <Button type="button" size="sm" variant="outline" disabled>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            disabled
+                                            className="bg-[#1A1612] text-white hover:bg-[#2b2621]"
+                                        >
                                             Application Pending
                                         </Button>
                                     ) : (
-                                        <Button type="button" size="sm" variant="outline" onClick={openJoinCrewDialog}>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            className="bg-[#1A1612] text-white hover:bg-[#2b2621]"
+                                            onClick={openJoinCrewDialog}
+                                        >
                                             Join Crew
                                         </Button>
                                     ))}

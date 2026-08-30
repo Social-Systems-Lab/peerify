@@ -141,7 +141,7 @@ export default function HomeContent({
     const showPledgesDashboardButton = authorizedToEdit && isPeerifyManagedArtistIdentity && Boolean(circle.handle);
     const circlePictureUrl = isPeerifyManagedArtistIdentity
         ? getPeerifyIdentityAvatarUrl(circle)
-        : circle?.picture?.url ?? "/images/default-picture.png";
+        : (circle?.picture?.url ?? "/images/default-picture.png");
     const isMember = useMemo(() => {
         if (!user) return false;
         const membership = user.memberships?.find((m) => m.circleId === circle._id);
@@ -277,42 +277,40 @@ export default function HomeContent({
                         <DialogDescription className="space-y-3">
                             {isOwnArtistCircleLive ? (
                                 <p>
-                                    You can switch between this profile and your personal profile anytime using
-                                    the <strong>profile switcher</strong> (tap your profile picture in the
-                                    top-right corner). Use the switcher to post as yourself or as{" "}
-                                    <strong>{circle.name}</strong>, and create more public profiles using the{" "}
-                                    <strong>Create</strong> button.
+                                    You can switch between this profile and your personal profile anytime using the{" "}
+                                    <strong>profile switcher</strong> (tap your profile picture in the top-right
+                                    corner). Use the switcher to post as yourself or as <strong>{circle.name}</strong>,
+                                    and create more public profiles using the <strong>Create</strong> button.
                                 </p>
                             ) : hasAutoProvisionedArtistCircle ? (
                                 <>
                                     <p>
-                                        Complete your <strong>personal profile</strong> with a picture and a short
-                                        bio to start posting, commenting, and messaging.
+                                        Complete your <strong>personal profile</strong> with a picture and a short bio
+                                        to start posting, commenting, and messaging.
                                     </p>
                                     <p>
-                                        You already have a public <strong>artist profile</strong> set up. Switch
-                                        between it and this personal profile anytime using the{" "}
-                                        <strong>profile switcher</strong> (tap your profile picture in the
-                                        top-right corner).
+                                        You already have a public <strong>artist profile</strong> set up. Switch between
+                                        it and this personal profile anytime using the <strong>profile switcher</strong>{" "}
+                                        (tap your profile picture in the top-right corner).
                                     </p>
                                 </>
                             ) : (
                                 <>
                                     <p>
-                                        <strong>Complete your profile</strong> with a picture and a short bio to
-                                        start posting, commenting, and messaging.
+                                        <strong>Complete your profile</strong> with a picture and a short bio to start
+                                        posting, commenting, and messaging.
                                     </p>
                                     <p>
                                         Your profile is <strong>private by default</strong>, but you can share it
-                                        through Settings &rarr; Discoverability. Just <strong>be mindful</strong>{" "}
-                                        about sharing personal details like your location publicly.
+                                        through Settings &rarr; Discoverability. Just <strong>be mindful</strong> about
+                                        sharing personal details like your location publicly.
                                     </p>
                                     <p>
-                                        Are you <strong>an artist</strong> or represent{" "}
-                                        <strong>a band or venue</strong>? You can also create a public profile
-                                        later — just use <strong>the Create button</strong> in the left
-                                        navigation bar whenever you&apos;re ready. You can easily switch between
-                                        your personal and public profiles.
+                                        Are you <strong>an artist</strong> or represent <strong>a band or venue</strong>
+                                        ? You can also create a public profile later — just use{" "}
+                                        <strong>the Create button</strong> in the left navigation bar whenever
+                                        you&apos;re ready. You can easily switch between your personal and public
+                                        profiles.
                                     </p>
                                 </>
                             )}
@@ -510,7 +508,11 @@ export default function HomeContent({
                                         {!isUser && !isPeerifyManagedArtistIdentity && <InviteButton circle={circle} />}
                                         {user && <FollowButton circle={circle} />}
                                         {user && !hidePilotBookmarkAndNotifications && (
-                                            <BookmarkButton circle={circle} iconOnly className={pilotActionIconClassName} />
+                                            <BookmarkButton
+                                                circle={circle}
+                                                iconOnly
+                                                className={pilotActionIconClassName}
+                                            />
                                         )}
                                         {!isPilotActionIconsContext && settingsButtonElement}
                                         {circle._id && user && !hidePilotBookmarkAndNotifications && (
@@ -606,6 +608,7 @@ export default function HomeContent({
                                         <Button
                                             type="button"
                                             size="sm"
+                                            className="bg-[#FE801B] text-white hover:bg-[#e57316]"
                                             onClick={() => openPeerifyArtistEnquiry("pledge")}
                                         >
                                             Pledge Interest
@@ -623,18 +626,27 @@ export default function HomeContent({
                                             would otherwise dangle to a route isModuleEnabled() now 404s. */}
                                         {circle.crewEnabled !== false &&
                                             (crewMembershipStatus === "approved" ? (
-                                                <Button asChild size="sm" variant="outline">
+                                                <Button
+                                                    asChild
+                                                    size="sm"
+                                                    className="bg-[#1A1612] text-white hover:bg-[#2b2621]"
+                                                >
                                                     <Link href={`/circles/${circle.handle}/crew`}>View Crew</Link>
                                                 </Button>
                                             ) : crewMembershipStatus === "pending" ? (
-                                                <Button type="button" size="sm" variant="outline" disabled>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    disabled
+                                                    className="bg-[#1A1612] text-white hover:bg-[#2b2621]"
+                                                >
                                                     Application Pending
                                                 </Button>
                                             ) : (
                                                 <Button
                                                     type="button"
                                                     size="sm"
-                                                    variant="outline"
+                                                    className="bg-[#1A1612] text-white hover:bg-[#2b2621]"
                                                     onClick={openJoinCrewDialog}
                                                 >
                                                     Join Crew
@@ -659,7 +671,7 @@ export default function HomeContent({
                                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600">
                                         <Link
                                             href={`/circles/${circle.handle}/followers`}
-                                            className="inline-flex items-center gap-2 transition-opacity hover:opacity-70 hover:underline"
+                                            className="inline-flex items-center gap-2 transition-opacity hover:underline hover:opacity-70"
                                         >
                                             <FaUsers />
                                             <span>
@@ -677,7 +689,7 @@ export default function HomeContent({
                             {!isUser && !isPeerifyArtistProfile && memberCount > 0 && (
                                 <Link
                                     href={`/circles/${circle.handle}/followers`}
-                                    className="flex flex-row items-center justify-center text-gray-600 transition-opacity hover:opacity-70 hover:underline"
+                                    className="flex flex-row items-center justify-center text-gray-600 transition-opacity hover:underline hover:opacity-70"
                                 >
                                     <FaUsers />
                                     <p className="m-0 ml-2">

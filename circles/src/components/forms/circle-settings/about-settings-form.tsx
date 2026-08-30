@@ -13,7 +13,14 @@ import { useState, useEffect } from "react";
 import { useForm, Controller, Control, FieldValues } from "react-hook-form";
 import { saveAbout, setCrewEnabledAction } from "@/app/circles/[handle]/settings/about/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { CommunityGuidelinesSettingsCard } from "@/components/forms/circle-settings/community-guidelines-settings-card";
 import { EventTagsSettings } from "@/components/forms/controls/event-tags-settings";
 import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
@@ -413,9 +420,9 @@ const CrewEnabledToggle = ({ circleId, initialValue }: { circleId: string; initi
                     onCheckedChange={onToggle}
                     disabled={isSaving}
                     // Scoped to this instance only (not switch.tsx's default styling) — matches the
-                    // brand green used by Save Changes/Pledge Interest/Post (--button-primary), not
-                    // Switch's own default on-color (--primary, a dark navy). Every other Switch in
-                    // the app renders bare with no className override, so none is affected.
+                    // brand green used by Save Changes/Post (--button-primary), not Switch's own
+                    // default on-color (--primary, a dark navy). Every other Switch in the app
+                    // renders bare with no className override, so none is affected.
                     className="data-[state=checked]:bg-[hsl(var(--button-primary))]"
                 />
             </div>
@@ -497,7 +504,9 @@ export function AboutSettingsForm({
     // there's no meaningful "next step" left, so the Step 1/Step 2 onboarding framing below
     // (including the persistent "Continue to Step 2" banner) must not keep showing.
     const isArtistOnboarding =
-        isUserProfile && Boolean(ownAutoProvisionedArtistCircle) && ownAutoProvisionedArtistCircle?.publishStatus !== "published";
+        isUserProfile &&
+        Boolean(ownAutoProvisionedArtistCircle) &&
+        ownAutoProvisionedArtistCircle?.publishStatus !== "published";
     const step1PictureDone = hasCustomPicture(circle);
     const step1AboutDone = hasAboutText(circle);
     const step1GuidelinesDone = isCommunityGuidelinesCompleted(user?.communityGuidelinesAcceptance);
@@ -746,8 +755,8 @@ export function AboutSettingsForm({
                                     <DialogHeader>
                                         <DialogTitle>Step 1 of 2 complete — your personal profile is ready</DialogTitle>
                                         <DialogDescription>
-                                            Next, finish your public artist profile: add a picture, add About text,
-                                            and set your map location.
+                                            Next, finish your public artist profile: add a picture, add About text, and
+                                            set your map location.
                                         </DialogDescription>
                                     </DialogHeader>
                                     <DialogFooter>
@@ -777,7 +786,7 @@ export function AboutSettingsForm({
                 ) : (
                     isUserProfile &&
                     !bannerDismissed && (
-                        <div className="rounded-lg border border-amber-200 border-l-4 border-l-amber-500 bg-amber-50 p-4 text-sm text-amber-950">
+                        <div className="rounded-lg border border-l-4 border-amber-200 border-l-amber-500 bg-amber-50 p-4 text-sm text-amber-950">
                             <p className="font-medium">This is your personal profile</p>
                             <p className="mt-1 text-amber-900">
                                 It&apos;s private by default and represents you as a person.
@@ -1023,7 +1032,9 @@ export function AboutSettingsForm({
                                         placeholder: isUserProfile
                                             ? "A longer description for the About section."
                                             : "Detailed information about your circle",
-                                        description: isUserProfile ? "This is your longer presentation text." : undefined,
+                                        description: isUserProfile
+                                            ? "This is your longer presentation text."
+                                            : undefined,
                                     }}
                                     formField={field}
                                     control={form.control as unknown as Control}
@@ -1052,7 +1063,9 @@ export function AboutSettingsForm({
                             <Controller
                                 name="defaultEventTags"
                                 control={form.control}
-                                render={({ field }) => <EventTagsSettings value={field.value} onChange={field.onChange} />}
+                                render={({ field }) => (
+                                    <EventTagsSettings value={field.value} onChange={field.onChange} />
+                                )}
                             />
                         </CardContent>
                     </Card>
@@ -1093,10 +1106,7 @@ export function AboutSettingsForm({
                                 Shown to fans before they apply to join your Crew.
                             </p>
                         </div>
-                        <CrewEnabledToggle
-                            circleId={circle._id ?? ""}
-                            initialValue={circle.crewEnabled !== false}
-                        />
+                        <CrewEnabledToggle circleId={circle._id ?? ""} initialValue={circle.crewEnabled !== false} />
                         <Controller
                             name="crewWelcomeMessage"
                             control={form.control as unknown as Control}
@@ -1108,7 +1118,8 @@ export function AboutSettingsForm({
                                         label: "Welcome Message",
                                         placeholder:
                                             "Thanks for wanting to help support us on tour! Tell us a bit about how you'd like to get involved and we'll be in touch.",
-                                        description: "Leave blank to use the default message shown above as a placeholder.",
+                                        description:
+                                            "Leave blank to use the default message shown above as a placeholder.",
                                         maxLength: 300,
                                     }}
                                     formField={field}
@@ -1175,11 +1186,9 @@ export function AboutSettingsForm({
                                                 description={
                                                     <>
                                                         Pick up to{" "}
-                                                        <strong>
-                                                            {PRIMARY_GENRE_MAX_SELECTIONS} genres
-                                                        </strong>{" "}
-                                                        that best identify this act. Used to match
-                                                        and filter this artist in search.
+                                                        <strong>{PRIMARY_GENRE_MAX_SELECTIONS} genres</strong> that best
+                                                        identify this act. Used to match and filter this artist in
+                                                        search.
                                                     </>
                                                 }
                                                 options={PRIMARY_GENRE_OPTIONS}

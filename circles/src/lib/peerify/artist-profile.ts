@@ -233,10 +233,16 @@ export const PEERIFY_EVENT_TYPE_OPTIONS = [
     "Workshop",
 ] as const;
 
+// "Attend" was removed (redundant — pledging already implies interest in attending). "Space for
+// 20-30 people" is pending a removal decision — see the 2026-08-30 Pledge dialog polish session:
+// it's read by the Pledge Dashboard's per-option breakdown and the chat-enquiry fallback message,
+// so pruning it needs the same downstream check "Maybe host" -> "Host" below didn't get (a plain
+// rename, not a removal — reported instead as a heads-up: any historical pledge already recorded
+// as "Maybe host" will simply stop being counted in that same breakdown, since it filters this
+// live list, not stored values).
 export const PEERIFY_PLEDGE_HELP_OPTIONS = [
-    "Attend",
     "Promote",
-    "Maybe host",
+    "Host",
     "Space for 20-30 people",
     "Local transport",
     "Spare room",
@@ -359,9 +365,7 @@ const asStringArray = (value: unknown): string[] => {
         return [];
     }
 
-    return value
-        .map((item) => asString(item))
-        .filter(Boolean);
+    return value.map((item) => asString(item)).filter(Boolean);
 };
 
 const asOptionalNumber = (value: unknown): number | undefined => {
@@ -379,8 +383,7 @@ const asOptionalNumber = (value: unknown): number | undefined => {
     return undefined;
 };
 
-const asOptionalBoolean = (value: unknown): boolean | undefined =>
-    typeof value === "boolean" ? value : undefined;
+const asOptionalBoolean = (value: unknown): boolean | undefined => (typeof value === "boolean" ? value : undefined);
 
 const normalizePrimaryGenres = (value: unknown): string[] => {
     const validOptions = PRIMARY_GENRE_OPTIONS as readonly string[];
@@ -443,15 +446,29 @@ export const normalizePeerifyArtistProfile = (value: unknown): PeerifyArtistProf
         lookingFor: asStringArray(input.lookingFor),
         bookingEnabled: input.bookingEnabled === true,
         bookingSettings: {
-            localBookingsOnly: asOptionalBoolean((input.bookingSettings as Record<string, unknown> | undefined)?.localBookingsOnly),
-            travelRadiusKm: asOptionalNumber((input.bookingSettings as Record<string, unknown> | undefined)?.travelRadiusKm),
-            preferredEventTypes: asStringArray((input.bookingSettings as Record<string, unknown> | undefined)?.preferredEventTypes),
-            minimumAudienceSize: asOptionalNumber((input.bookingSettings as Record<string, unknown> | undefined)?.minimumAudienceSize),
-            preferredAudienceSize: asOptionalNumber((input.bookingSettings as Record<string, unknown> | undefined)?.preferredAudienceSize),
+            localBookingsOnly: asOptionalBoolean(
+                (input.bookingSettings as Record<string, unknown> | undefined)?.localBookingsOnly,
+            ),
+            travelRadiusKm: asOptionalNumber(
+                (input.bookingSettings as Record<string, unknown> | undefined)?.travelRadiusKm,
+            ),
+            preferredEventTypes: asStringArray(
+                (input.bookingSettings as Record<string, unknown> | undefined)?.preferredEventTypes,
+            ),
+            minimumAudienceSize: asOptionalNumber(
+                (input.bookingSettings as Record<string, unknown> | undefined)?.minimumAudienceSize,
+            ),
+            preferredAudienceSize: asOptionalNumber(
+                (input.bookingSettings as Record<string, unknown> | undefined)?.preferredAudienceSize,
+            ),
             baseFee: asOptionalNumber((input.bookingSettings as Record<string, unknown> | undefined)?.baseFee),
             currency: asString((input.bookingSettings as Record<string, unknown> | undefined)?.currency),
-            needsAccommodation: asOptionalBoolean((input.bookingSettings as Record<string, unknown> | undefined)?.needsAccommodation),
-            needsTransport: asOptionalBoolean((input.bookingSettings as Record<string, unknown> | undefined)?.needsTransport),
+            needsAccommodation: asOptionalBoolean(
+                (input.bookingSettings as Record<string, unknown> | undefined)?.needsAccommodation,
+            ),
+            needsTransport: asOptionalBoolean(
+                (input.bookingSettings as Record<string, unknown> | undefined)?.needsTransport,
+            ),
             needsMeal: asOptionalBoolean((input.bookingSettings as Record<string, unknown> | undefined)?.needsMeal),
             technicalNeeds: asString((input.bookingSettings as Record<string, unknown> | undefined)?.technicalNeeds),
             notes: asString((input.bookingSettings as Record<string, unknown> | undefined)?.notes),
