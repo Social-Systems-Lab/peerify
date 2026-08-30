@@ -55,16 +55,18 @@ export default function CrewLanding({ circle }: CrewLandingProps) {
             <div>
                 <h1 className="text-xl font-semibold">{circle.name}&apos;s Crew</h1>
                 <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                    Crew members actively support {circle.name} — advice, local knowledge, spreading the word, and
-                    more. Apply to join and get involved.
+                    Crew members actively support {circle.name} — advice, local knowledge, spreading the word, and more.
+                    Apply to join and get involved.
                 </p>
             </div>
             {status === "pending" ? (
-                <Button disabled variant="outline">
+                <Button disabled className="bg-[#1A1612] text-white hover:bg-[#2b2621]">
                     Application Pending
                 </Button>
             ) : (
-                <Button onClick={openJoinCrewDialog}>Join Crew</Button>
+                <Button className="bg-[#1A1612] text-white hover:bg-[#2b2621]" onClick={openJoinCrewDialog}>
+                    Join Crew
+                </Button>
             )}
             <JoinCrewDialog
                 circle={circle}

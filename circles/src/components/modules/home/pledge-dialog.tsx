@@ -74,7 +74,9 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
     const userLocationText = user?.location
         ? [user.location.city, user.location.region, user.location.country].filter(Boolean).join(", ")
         : "";
-    const artistCurrency = getPeerifyArtistProfile(circle).bookingSettings.currency;
+    // Display-only fallback — never written back to the artist's own profile data, just what
+    // this popup shows next to the ticket-amount input when the artist hasn't configured one.
+    const artistCurrency = getPeerifyArtistProfile(circle).bookingSettings.currency || "EUR";
 
     React.useEffect(() => {
         if (open) {
@@ -190,7 +192,7 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                     <DialogHeader>
                         <DialogTitle>Pledge interest for {circle.name}</DialogTitle>
                         <DialogDescription>
-                            This is non-binding and not a ticket purchase. It helps signal local demand and support.
+                            A pledge is not a ticket purchase. It helps signal local demand and support.
                         </DialogDescription>
                     </DialogHeader>
                     <form
@@ -220,12 +222,14 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                                     </Button>
                                 )}
                             </div>
-                            <div className="flex items-center gap-2">
-                                {artistCurrency && (
-                                    <span className="flex h-10 shrink-0 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
-                                        {artistCurrency}
-                                    </span>
-                                )}
+                            {/* self-start: without it, this row gets vertically centered within the
+                                grid cell once the location column grows taller (the "Select different
+                                location?" link appearing below it) — self-start pins it to the same
+                                top edge as the location input instead of drifting toward mid-height. */}
+                            <div className="flex items-center gap-2 self-start">
+                                <span className="flex h-10 shrink-0 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
+                                    {artistCurrency}
+                                </span>
                                 <Input
                                     placeholder="Maximum ticket amount"
                                     type="number"
@@ -255,7 +259,7 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                                     className="flex w-full items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-left text-sm font-medium text-stone-700 hover:bg-stone-100"
                                 >
                                     <span>
-                                        Willingness to help
+                                        Contribute to tour
                                         {pledgeForm.helpOptions.length > 0 ? ` (${pledgeForm.helpOptions.length})` : ""}
                                     </span>
                                     <ChevronDown
@@ -301,24 +305,11 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                             >
                                 Cancel
                             </Button>
-                            {/* Hidden entirely (not just the "apply" state) when the artist has turned
-                            Crew off — same convention as the Pledge/Crew button row on the map
-                            popup and full artist page (content-preview.tsx/home-content.tsx). */}
-                            {canJoinCrew &&
-                                (crewMembershipStatus === "approved" ? (
-                                    <Button asChild variant="outline" onClick={() => onOpenChange(false)}>
-                                        <Link href={`/circles/${circle.handle}/crew`}>View Crew</Link>
-                                    </Button>
-                                ) : crewMembershipStatus === "pending" ? (
-                                    <Button type="button" variant="outline" disabled>
-                                        Application Pending
-                                    </Button>
-                                ) : (
-                                    <Button type="button" variant="outline" onClick={openJoinCrewDialog}>
-                                        Join Crew
-                                    </Button>
-                                ))}
-                            <Button type="submit" disabled={isSubmittingPledge}>
+                            <Button
+                                type="submit"
+                                className="bg-[#FE801B] text-white hover:bg-[#e57316]"
+                                disabled={isSubmittingPledge}
+                            >
                                 {isSubmittingPledge
                                     ? isPeerifyManagedArtistIdentity
                                         ? "Adding..."
@@ -328,6 +319,40 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                                       : "Send Pledge Enquiry"}
                             </Button>
                         </DialogFooter>
+                        {/* Separated from Cancel/Add Pledge on purpose — someone opening this dialog has
+                            already shown intent, making this the highest-relevance moment to prompt Crew
+                            membership. Hidden entirely (not just the "apply" state) when the artist has
+                            turned Crew off — same convention as the Pledge/Crew button row on the map
+                            popup and full artist page (content-preview.tsx/home-content.tsx). */}
+                        {canJoinCrew && (
+                            <div className="flex justify-center pt-1">
+                                {crewMembershipStatus === "approved" ? (
+                                    <Button
+                                        asChild
+                                        className="bg-[#1A1612] text-white hover:bg-[#2b2621]"
+                                        onClick={() => onOpenChange(false)}
+                                    >
+                                        <Link href={`/circles/${circle.handle}/crew`}>View Crew</Link>
+                                    </Button>
+                                ) : crewMembershipStatus === "pending" ? (
+                                    <Button
+                                        type="button"
+                                        disabled
+                                        className="bg-[#1A1612] text-white hover:bg-[#2b2621]"
+                                    >
+                                        Application Pending
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        type="button"
+                                        className="bg-[#1A1612] text-white hover:bg-[#2b2621]"
+                                        onClick={openJoinCrewDialog}
+                                    >
+                                        Join Crew
+                                    </Button>
+                                )}
+                            </div>
+                        )}
                     </form>
                 </DialogContent>
             </Dialog>

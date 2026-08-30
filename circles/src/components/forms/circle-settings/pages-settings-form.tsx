@@ -81,7 +81,10 @@ const ModuleEnabledToggle = ({ circle, module }: { circle: Circle; module: Modul
                     <CardTitle className="text-lg">
                         {/* Label's own default text-sm/font-medium would otherwise override CardTitle's
                             text-lg on this element — restore the original heading size/weight explicitly. */}
-                        <Label htmlFor={`module-toggle-${module.handle}`} className="text-lg font-semibold tracking-tight">
+                        <Label
+                            htmlFor={`module-toggle-${module.handle}`}
+                            className="text-lg font-semibold tracking-tight"
+                        >
                             {module.name}
                         </Label>
                     </CardTitle>
@@ -94,9 +97,9 @@ const ModuleEnabledToggle = ({ circle, module }: { circle: Circle; module: Modul
                             disabled={isLocked || isSaving}
                             aria-readonly={isLocked}
                             // Scoped to this instance only (not switch.tsx's default styling) — matches the
-                            // brand green used by Save Changes/Pledge Interest/Post (--button-primary), not
-                            // Switch's own default on-color (--primary, a dark navy). Every other Switch in
-                            // the app renders bare with no className override, so none is affected.
+                            // brand green used by Save Changes/Post (--button-primary), not Switch's own
+                            // default on-color (--primary, a dark navy). Every other Switch in the app
+                            // renders bare with no className override, so none is affected.
                             className="data-[state=checked]:bg-[hsl(var(--button-primary))]"
                         />
                     </div>
