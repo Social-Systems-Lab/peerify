@@ -18,6 +18,7 @@ const PEERIFY_LEGACY_DEFAULT_AVATAR_URLS = new Set([
 ]);
 
 export type PeerifyMusicLinkKey =
+    | "spotify"
     | "bandcamp"
     | "soundcloud"
     | "appleMusic"
@@ -252,6 +253,7 @@ export const PEERIFY_BOOKING_SUPPORT_OPTIONS = [
 ] as const;
 
 export const PEERIFY_MUSIC_LINK_LABELS: Record<PeerifyMusicLinkKey, string> = {
+    spotify: "Spotify",
     bandcamp: "Bandcamp",
     soundcloud: "SoundCloud",
     appleMusic: "Apple Music",

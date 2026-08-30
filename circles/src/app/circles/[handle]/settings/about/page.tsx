@@ -59,7 +59,12 @@ export default async function AboutSettingsPage(props: PageProps) {
         : null;
 
     const publishStatus = getCirclePublishStatus(circle);
-    const showWorkflowCard = circle.circleType !== "user";
+    // Once a circle reaches "published" there is no path back to draft (no artist-facing or
+    // admin unpublish toggle exists — see verification-workflow.ts's rejectVerificationRequest,
+    // the only other publishStatus writer, which only ever reverts a still-pending request back
+    // to draft, never a published circle). So this workflow card has nothing left to show or do
+    // once published — hide it entirely rather than displaying a static "Published" no-op.
+    const showWorkflowCard = circle.circleType !== "user" && publishStatus !== "published";
     const isUserProfile = circle.circleType === "user";
     const isPeerifyManagedCircle = isPeerifyManagedIdentity(circle);
     const isDraft = publishStatus === "draft";
@@ -123,26 +128,36 @@ export default async function AboutSettingsPage(props: PageProps) {
                 <div className="mb-6 rounded-lg border bg-white p-4 shadow-sm">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <div className="space-y-2">
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-muted-foreground">Status</span>
-                                <Badge className={statusClassName}>{statusCopy}</Badge>
-                            </div>
-                            <p className="text-sm text-muted-foreground">
-                                {publishStatus === "draft"
-                                    ? "This circle is saved as a draft and is not publicly live yet."
-                                    : publishStatus === "pending_verification"
-                                      ? "This circle is waiting for verification and is not publicly live yet."
-                                      : "This circle is live and behaves like existing published circles."}
-                            </p>
-                            {!isProfileCircle && circle.representsOrganization ? (
+                            {/* usesPilotPublishFlow is the simple one-way draft->published toggle
+                                (no admin verification step) — a bare status badge/description adds
+                                nothing once the outer card already only renders for drafts, so skip
+                                straight to the minimal copy + whatever the publish action needs. */}
+                            {isDraft && usesPilotPublishFlow ? (
                                 <p className="text-sm text-muted-foreground">
-                                    This verification will be reviewed as an organization claim using the website and
-                                    official email you provided.
+                                    Draft — not visible to others yet.
                                 </p>
-                            ) : null}
-                            {!usesPilotPublishFlow && isDraft && !verificationReadiness.isReady ? (
-                                <VerificationReadinessChecklist readiness={verificationReadiness} />
-                            ) : null}
+                            ) : (
+                                <>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-muted-foreground">Status</span>
+                                        <Badge className={statusClassName}>{statusCopy}</Badge>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                        {publishStatus === "draft"
+                                            ? "This circle is saved as a draft and is not publicly live yet."
+                                            : "This circle is waiting for verification and is not publicly live yet."}
+                                    </p>
+                                    {!isProfileCircle && circle.representsOrganization ? (
+                                        <p className="text-sm text-muted-foreground">
+                                            This verification will be reviewed as an organization claim using the
+                                            website and official email you provided.
+                                        </p>
+                                    ) : null}
+                                    {!usesPilotPublishFlow && isDraft && !verificationReadiness.isReady ? (
+                                        <VerificationReadinessChecklist readiness={verificationReadiness} />
+                                    ) : null}
+                                </>
+                            )}
                             {isDraft && isAutoProvisionedArtistCircle && pilotArtistCircleReadiness ? (
                                 <VerificationReadinessChecklist readiness={pilotArtistCircleReadiness} />
                             ) : null}
