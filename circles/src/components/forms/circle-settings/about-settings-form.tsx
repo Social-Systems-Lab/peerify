@@ -46,6 +46,7 @@ import {
     isPeerifyManagedIdentity,
     isPeerifyVenueIdentity,
     PEERIFY_ARTIST_TYPE_OPTIONS,
+    PEERIFY_CURRENCY_OPTIONS,
     PEERIFY_EVENT_TYPE_OPTIONS,
     PEERIFY_LOOKING_FOR_OPTIONS,
     PRIMARY_GENRE_OPTIONS,
@@ -449,30 +450,9 @@ const PEERIFY_FEE_COVERED_BY_OPTIONS = [
     { value: "shared", label: "Shared" },
 ];
 
-// Curated shortlist, not the full ISO 4217 list (~180 currencies) — covers the
-// currencies realistically expected from artists' likely locations without
-// scroll-hunting. If a circle already has a saved value outside this list
-// (e.g. from the old free-text field), it's appended as an extra option at
-// render time — see the `currency` Controller below — so it's never dropped.
-const CURRENCY_OPTIONS = [
-    { value: "", label: "Select currency" },
-    { value: "USD", label: "USD — US Dollar" },
-    { value: "EUR", label: "EUR — Euro" },
-    { value: "GBP", label: "GBP — British Pound" },
-    { value: "ZAR", label: "ZAR — South African Rand" },
-    { value: "SEK", label: "SEK — Swedish Krona" },
-    { value: "NOK", label: "NOK — Norwegian Krone" },
-    { value: "DKK", label: "DKK — Danish Krone" },
-    { value: "CHF", label: "CHF — Swiss Franc" },
-    { value: "CAD", label: "CAD — Canadian Dollar" },
-    { value: "AUD", label: "AUD — Australian Dollar" },
-    { value: "NGN", label: "NGN — Nigerian Naira" },
-    { value: "KES", label: "KES — Kenyan Shilling" },
-    { value: "BRL", label: "BRL — Brazilian Real" },
-    { value: "JPY", label: "JPY — Japanese Yen" },
-    { value: "INR", label: "INR — Indian Rupee" },
-    { value: "MXN", label: "MXN — Mexican Peso" },
-];
+// Shared with anywhere else that needs the same list — see PEERIFY_CURRENCY_OPTIONS in
+// artist-profile.ts for why this isn't the full ISO 4217 list.
+const CURRENCY_OPTIONS: Array<{ value: string; label: string }> = [...PEERIFY_CURRENCY_OPTIONS];
 
 interface AboutSettingsFormProps {
     circle: Circle;
