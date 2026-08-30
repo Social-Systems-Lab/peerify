@@ -4157,3 +4157,17 @@ deploy.
 - Tag-based event search/filter — feature request, not yet scoped.
 
 **Status:** live on `main`/prod as of 2026-08-28.
+
+## 2026-08-29 — Venue event-tags gating fix, second Save button, Artist type simplification + rename, and legacy-data migration — shipped to prod
+
+**Venue event-tags gating bug fix (commit `7499b04f` staging → `4ffc8c3f` main):** the "Default event tags" settings card (built 2026-08-28, see that entry) was rendering/applying unconditionally for every circle type — personal profiles, Artist/Band/DJ/Producer, Venue, plain circles, and Projects — instead of Venue-only as intended. Investigated and gated across every consumer found: the settings UI card (`about-settings-form.tsx`), the event create/edit pre-fill (`event-form.tsx`), `createEventAction`'s persistence fallback (`actions.ts`), and a 4th consumer surfaced only during the fix — `getCircleDefaultEventTagsAction` (`actions.ts:1882`), which had the same unconditional behavior and would have kept leaking defaults into non-Venue events even with the other three sites fixed. Deployed to staging, then cherry-picked to `main` and deployed to prod.
+
+**Second "Save Changes" button (commit `790d3c0e` staging → `4a43aadf` main):** added a second Save button below the Default event tags section on the About settings form, Venue circles only — the only circle type where the form is now long enough to need one. Reuses the existing submit handler; no duplicate save logic.
+
+**Artist type field simplification + rename (commit `ff4bcb6c` staging → `afed1458` main):** renamed the signup form's "Band name" field label/placeholder to "Performing name" — confirmed no schema rename was needed, since it's a shared `bandOrVenueName` variable, not a dedicated field. Simplified the Artist Identity settings "Artist types" checkbox list from 9 options (Solo artist, DJ, Singer-songwriter, Acoustic act, Band, Musician, Live electronic, Collective, Cover artist) down to 4 (Solo artist, Band, DJ, Other). Selecting "Other" reveals a multi-tag chip input (`artistTypeOtherLabels: string[]`) supporting multiple free-text labels — built as a general-purpose capability, not a migration-only shim.
+
+**Data migration:** ran a dry-run-then-write migration mapping legacy checkbox values onto the new schema — `Collective` → `Band`; `Singer-songwriter`/`Acoustic act`/`Live electronic`/`Cover artist`/`Musician` → `Other`, each preserved as its own distinct label in `artistTypeOtherLabels` rather than merged into a single string. Ran against staging (2 circles affected: `the-band`, `mingeltrubaduren`) and separately against prod (1 circle affected: `mingeltrubaduren` — prod's own distinct document, confirmed a different `_id` from staging's same-handle circle). Both runs were dry-run-reviewed and approved before writing. Verified 0 circles remain with legacy values in either environment post-migration.
+
+**Deploy-script path correction:** resolved recurring confusion over deploy-script locations — `deploy-peerify.sh`/`deploy-staging.sh` live in a `scripts/` subdirectory inside each worktree (`/home/tim/apps/peerify-app/circles/scripts/`, `/home/tim/apps/peerify-staging/circles/circles/scripts/`), not at the worktree root. Flagged a stale legacy copy at `/home/tim/apps/peerify/circles/scripts/` (the deprecated pre-split checkout) to avoid it being confused with the real prod path.
+
+**Status:** all of the above is live on `main`/prod as of 2026-08-29. `staging` and `main` are in sync for everything covered here.
