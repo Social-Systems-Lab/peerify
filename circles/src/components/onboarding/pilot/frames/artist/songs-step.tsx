@@ -1,6 +1,6 @@
 "use client";
 
-import { Music } from "lucide-react";
+import { Heart, Music } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TrackUploadForm } from "@/components/modules/music/track-upload-form";
 import type { Track } from "@/models/models";
@@ -52,7 +52,17 @@ export function SongsStep({ circleId, tracks, onContinue, onSkip }: SongsStepPro
                     Music tab.
                 </p>
             ) : (
-                <TrackUploadForm circleId={circleId} />
+                <>
+                    <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-950">
+                        <Heart className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                        <p className="text-sm font-semibold">
+                            Good enough to upload. Even a simple live recording works great — people want to hear
+                            you the way they&apos;d hear you if you played in their living room. You can always
+                            replace it with a better version later.
+                        </p>
+                    </div>
+                    <TrackUploadForm circleId={circleId} />
+                </>
             )}
 
             <div className="flex flex-col gap-3 pt-2 sm:flex-row">
