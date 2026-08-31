@@ -1,11 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useToast } from "@/components/ui/use-toast";
+import { cn } from "@/lib/utils";
+import { findOrCreateDMConversationAction } from "@/components/modules/chat/actions";
+import type { Circle } from "@/models/models";
 import type { PeerifyPledgeRecord } from "@/lib/data/peerify-pledges";
-import { ChevronDown, ChevronRight, Flame, HandHeart } from "lucide-react";
+import { ChevronDown, ChevronRight, Flame, HandHeart, Loader2 } from "lucide-react";
+import { TbMessage } from "react-icons/tb";
 
 // A location needs at least this many pledges before it's promoted from the plain list into
 // its own highlighted Momentum card (Layer 3). Named/exported so the threshold is easy to tune
@@ -289,8 +296,66 @@ function PledgeRow({ pledge, onSelect }: { pledge: PeerifyPledgeRecord; onSelect
             </div>
             <div className="shrink-0 text-sm font-medium text-[#231f1a]">{pledge.maximumTicketAmount || "-"}</div>
             <div className="hidden shrink-0 text-sm text-slate-500 sm:block">{formatDate(pledge.createdAt)}</div>
+            <MessagePledgerButton pledge={pledge} />
             <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
         </div>
+    );
+}
+
+function MessagePledgerButton({ pledge, compact = true }: { pledge: PeerifyPledgeRecord; compact?: boolean }) {
+    const router = useRouter();
+    const { toast } = useToast();
+    const [isSending, setIsSending] = useState(false);
+
+    const handleClick = async (event: React.MouseEvent) => {
+        event.stopPropagation();
+        if (!pledge.pledgerDid || isSending) {
+            return;
+        }
+
+        setIsSending(true);
+        try {
+            // Reuses the same DM-creation action MessageButton uses on profile pages
+            // (source: "profile" skips the contacts-only eligibility gate) — no new
+            // messaging infrastructure, just a lighter-weight trigger for a compact row.
+            const recipient: Circle = { did: pledge.pledgerDid };
+            const result = await findOrCreateDMConversationAction(recipient, { source: "profile" });
+            const conversationId = result.chatRoom?._id || result.chatRoom?.handle;
+            if (!result.success || !conversationId) {
+                toast({
+                    title: "Message",
+                    description: result.message || "Could not open the direct message",
+                    variant: "destructive",
+                });
+                return;
+            }
+
+            router.push(`/chat/${conversationId}`);
+        } catch (error) {
+            console.error("Failed to open pledge DM:", error);
+            toast({
+                title: "Message",
+                description: error instanceof Error ? error.message : "Could not open the direct message",
+                variant: "destructive",
+            });
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    return (
+        <Button
+            type="button"
+            variant={compact ? "ghost" : "outline"}
+            size={compact ? "icon" : "default"}
+            className={cn("shrink-0", compact ? "rounded-full text-slate-500 hover:text-[#231f1a]" : "gap-2 rounded-full")}
+            disabled={isSending}
+            onClick={handleClick}
+            aria-label={compact ? `Message ${pledge.pledgerName || "this pledger"}` : undefined}
+        >
+            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TbMessage className="h-4 w-4" />}
+            {!compact ? (isSending ? "Opening..." : "Message") : null}
+        </Button>
     );
 }
 
@@ -345,6 +410,9 @@ function PledgeDetailDialog({
                             </div>
                             <DetailRow label="Pledged" value={formatDate(pledge.createdAt)} />
                         </div>
+                        <DialogFooter>
+                            <MessagePledgerButton pledge={pledge} compact={false} />
+                        </DialogFooter>
                     </>
                 ) : null}
             </DialogContent>
