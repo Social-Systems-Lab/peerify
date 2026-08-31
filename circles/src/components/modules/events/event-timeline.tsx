@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { EventDisplay, TaskDisplay } from "@/models/models";
 import { Card, CardContent } from "@/components/ui/card";
@@ -476,22 +476,10 @@ export default function EventTimeline({
     onEventHidden,
     onNavigate,
 }: Props) {
-    const searchParams = useSearchParams();
     const { toast } = useToast();
     const [user, setUser] = useAtom(userAtom);
     const [locallyHiddenIds, setLocallyHiddenIds] = useState<string[]>([]);
     const [pendingHideId, setPendingHideId] = useState<string | null>(null);
-    const [itemFilter, setItemFilter] = useState<"all" | "events" | "shifts">("all");
-
-    useEffect(() => {
-        const filterParam = (searchParams.get("filter") || "").toLowerCase();
-        if (filterParam === "events" || filterParam === "shifts") {
-            setItemFilter(filterParam);
-            return;
-        }
-
-        setItemFilter("all");
-    }, [searchParams]);
 
     const handleHideCancelled = useCallback(
         async (eventId: string) => {
@@ -599,18 +587,13 @@ export default function EventTimeline({
         const overdueItems = allMilestones.filter((m) => m.date < startOfToday);
         const upcomingMilestones = allMilestones.filter((m) => m.date >= startOfToday);
 
-        const upcomingItems =
-            itemFilter === "events"
-                ? upcomingEventEntries
-                : itemFilter === "shifts"
-                  ? upcomingShiftEntries
-                  : [...upcomingEventEntries, ...upcomingShiftEntries, ...upcomingMilestones];
+        const upcomingItems = [...upcomingEventEntries, ...upcomingShiftEntries, ...upcomingMilestones];
         upcomingItems.sort((a, b) => a.date.getTime() - b.date.getTime());
         overdueItems.sort((a, b) => a.date.getTime() - b.date.getTime());
         pastEventEntries.sort((a, b) => b.date.getTime() - a.date.getTime());
 
         return { upcoming: upcomingItems, overdue: overdueItems, pastEvents: pastEventEntries };
-    }, [events, itemFilter, milestones, locallyHiddenIds, shifts]);
+    }, [events, milestones, locallyHiddenIds, shifts]);
 
     // Group by Year -> Month
     const grouped: Record<string, Record<number, typeof upcoming>> = useMemo(() => {
@@ -643,48 +626,19 @@ export default function EventTimeline({
 
     const pastYearKeys = useMemo(() => Object.keys(pastGrouped).sort((a, b) => Number(b) - Number(a)), [pastGrouped]);
 
-    const showOverdue = itemFilter === "all" && overdue.length > 0;
-    const showPastEvents = itemFilter !== "shifts" && pastEvents.length > 0;
+    const showOverdue = overdue.length > 0;
+    const showPastEvents = pastEvents.length > 0;
 
     if (upcoming.length === 0 && !showOverdue && !showPastEvents) {
         return (
             <div className="space-y-4 p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                    {(["all", "events", "shifts"] as const).map((value) => (
-                        <Button
-                            key={value}
-                            type="button"
-                            variant={itemFilter === value ? "default" : "outline"}
-                            className={cn(itemFilter === value && "bg-slate-900 text-white hover:bg-slate-800")}
-                            onClick={() => setItemFilter(value)}
-                        >
-                            {value === "all" ? "All" : value === "events" ? "Events" : "Shifts"}
-                        </Button>
-                    ))}
-                </div>
-                <div className="text-center text-muted-foreground">
-                    {itemFilter === "shifts" ? "No upcoming shifts found." : "No upcoming items found."}
-                </div>
+                <div className="text-center text-muted-foreground">No upcoming items found.</div>
             </div>
         );
     }
 
     return (
         <div className="relative pl-0 pr-2">
-            <div className="mb-4 flex flex-wrap items-center gap-2">
-                {(["all", "events", "shifts"] as const).map((value) => (
-                    <Button
-                        key={value}
-                        type="button"
-                        variant={itemFilter === value ? "default" : "outline"}
-                        className={cn(itemFilter === value && "bg-slate-900 text-white hover:bg-slate-800")}
-                        onClick={() => setItemFilter(value)}
-                    >
-                        {value === "all" ? "All" : value === "events" ? "Events" : "Shifts"}
-                    </Button>
-                ))}
-            </div>
-
             {/* Overdue Section */}
             {showOverdue && (
                 <div className="mb-8">
