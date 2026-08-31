@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PeerifyPledgeRecord } from "@/lib/data/peerify-pledges";
-import { Flame, HandHeart } from "lucide-react";
+import { ChevronDown, ChevronRight, Flame, HandHeart } from "lucide-react";
 
 // A location needs at least this many pledges before it's promoted from the plain list into
 // its own highlighted Momentum card (Layer 3). Named/exported so the threshold is easy to tune
@@ -113,12 +114,25 @@ type PledgeDashboardClientProps = {
 };
 
 export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
+    const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
+    const [detailPledgeId, setDetailPledgeId] = useState<string | null>(null);
+
     const clusters = useMemo(() => buildLocationClusters(pledges), [pledges]);
     const momentumClusters = useMemo(
         () => clusters.filter((cluster) => cluster.pledgeCount >= MOMENTUM_THRESHOLD),
         [clusters],
     );
     const momentumLabels = useMemo(() => new Set(momentumClusters.map((cluster) => cluster.label)), [momentumClusters]);
+
+    const pledgesByLocation = useMemo(() => {
+        const map = new Map<string, PeerifyPledgeRecord[]>();
+        pledges.forEach((pledge) => {
+            const label = getCityAreaLabel(pledge.fanLocation);
+            map.set(label, [...(map.get(label) ?? []), pledge]);
+        });
+        map.forEach((list, label) => map.set(label, sortByMostRecent(list)));
+        return map;
+    }, [pledges]);
 
     // Pledges belonging to a momentum-qualifying location live only inside that Momentum card
     // (see item 3) — the plain list only shows what's left over below the threshold.
@@ -127,26 +141,73 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
         [pledges, momentumLabels],
     );
 
+    const detailPledge = useMemo(
+        () => pledges.find((pledge) => pledge._id === detailPledgeId) ?? null,
+        [pledges, detailPledgeId],
+    );
+
+    const toggleCluster = (label: string) => {
+        setExpandedClusters((prev) => {
+            const next = new Set(prev);
+            if (next.has(label)) {
+                next.delete(label);
+            } else {
+                next.add(label);
+            }
+            return next;
+        });
+    };
+
     return (
         <div className="flex flex-col gap-4">
             {momentumClusters.map((cluster) => (
-                <MomentumCard key={cluster.label} cluster={cluster} />
+                <MomentumCard
+                    key={cluster.label}
+                    cluster={cluster}
+                    pledges={pledgesByLocation.get(cluster.label) ?? []}
+                    expanded={expandedClusters.has(cluster.label)}
+                    onToggle={() => toggleCluster(cluster.label)}
+                    onSelectPledge={setDetailPledgeId}
+                />
             ))}
 
             {plainListPledges.length > 0 ? (
                 <Card className="rounded-lg border-slate-200 bg-white shadow-none">
                     <CardContent className="divide-y divide-slate-100 p-0">
                         {plainListPledges.map((pledge) => (
-                            <PledgeRow key={pledge._id} pledge={pledge} />
+                            <PledgeRow
+                                key={pledge._id}
+                                pledge={pledge}
+                                onSelect={() => setDetailPledgeId(pledge._id ?? null)}
+                            />
                         ))}
                     </CardContent>
                 </Card>
             ) : null}
+
+            <PledgeDetailDialog
+                pledge={detailPledge}
+                onOpenChange={(open) => {
+                    if (!open) setDetailPledgeId(null);
+                }}
+            />
         </div>
     );
 }
 
-function MomentumCard({ cluster }: { cluster: PledgeLocationCluster }) {
+function MomentumCard({
+    cluster,
+    pledges,
+    expanded,
+    onToggle,
+    onSelectPledge,
+}: {
+    cluster: PledgeLocationCluster;
+    pledges: PeerifyPledgeRecord[];
+    expanded: boolean;
+    onToggle: () => void;
+    onSelectPledge: (id: string | null) => void;
+}) {
     const helpSummary =
         cluster.helpOfferCount > 0
             ? `${cluster.helpOfferCount} ${cluster.helpOfferCount === 1 ? "person" : "people"} offering: ${cluster.helpOptions
@@ -157,35 +218,64 @@ function MomentumCard({ cluster }: { cluster: PledgeLocationCluster }) {
 
     return (
         <Card className="overflow-hidden rounded-lg border-2 border-amber-200 bg-amber-50/60 shadow-none">
-            <div className="flex items-start gap-4 p-4">
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-white">
-                    {cluster.pledgeCount}
-                </span>
-                <div>
-                    <div className="flex items-center gap-2">
-                        <Flame className="h-4 w-4 text-amber-600" />
-                        <h3 className="font-semibold text-[#231f1a]">{cluster.label}</h3>
-                        <Badge variant="secondary" className="rounded-full">
-                            Momentum
-                        </Badge>
+            <button type="button" onClick={onToggle} className="flex w-full items-start justify-between gap-4 p-4 text-left">
+                <div className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-500 text-sm font-semibold text-white">
+                        {cluster.pledgeCount}
+                    </span>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <Flame className="h-4 w-4 text-amber-600" />
+                            <h3 className="font-semibold text-[#231f1a]">{cluster.label}</h3>
+                            <Badge variant="secondary" className="rounded-full">
+                                Momentum
+                            </Badge>
+                        </div>
+                        <p className="mt-1 text-sm text-slate-600">
+                            {cluster.pledgeCount} pledges &middot; ~{formatEstimatedTicketValue(cluster.estimatedTicketValue)}{" "}
+                            estimated value
+                        </p>
+                        <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                            <HandHeart className="h-3.5 w-3.5" />
+                            {helpSummary}
+                        </p>
                     </div>
-                    <p className="mt-1 text-sm text-slate-600">
-                        {cluster.pledgeCount} pledges &middot; ~{formatEstimatedTicketValue(cluster.estimatedTicketValue)}{" "}
-                        estimated value
-                    </p>
-                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                        <HandHeart className="h-3.5 w-3.5" />
-                        {helpSummary}
-                    </p>
                 </div>
-            </div>
+                {expanded ? (
+                    <ChevronDown className="h-5 w-5 shrink-0 text-slate-500" />
+                ) : (
+                    <ChevronRight className="h-5 w-5 shrink-0 text-slate-500" />
+                )}
+            </button>
+            {expanded ? (
+                <div className="divide-y divide-amber-100 border-t border-amber-100 bg-white">
+                    {pledges.map((pledge) => (
+                        <PledgeRow
+                            key={pledge._id}
+                            pledge={pledge}
+                            onSelect={() => onSelectPledge(pledge._id ?? null)}
+                        />
+                    ))}
+                </div>
+            ) : null}
         </Card>
     );
 }
 
-function PledgeRow({ pledge }: { pledge: PeerifyPledgeRecord }) {
+function PledgeRow({ pledge, onSelect }: { pledge: PeerifyPledgeRecord; onSelect: () => void }) {
     return (
-        <div className="flex w-full items-center gap-4 px-4 py-3">
+        <div
+            role="button"
+            tabIndex={0}
+            onClick={onSelect}
+            onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect();
+                }
+            }}
+            className="flex w-full cursor-pointer items-center gap-4 px-4 py-3 text-left transition hover:bg-slate-50"
+        >
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                     <span className="truncate font-medium text-[#231f1a]">
@@ -199,6 +289,65 @@ function PledgeRow({ pledge }: { pledge: PeerifyPledgeRecord }) {
             </div>
             <div className="shrink-0 text-sm font-medium text-[#231f1a]">{pledge.maximumTicketAmount || "-"}</div>
             <div className="hidden shrink-0 text-sm text-slate-500 sm:block">{formatDate(pledge.createdAt)}</div>
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
         </div>
+    );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center justify-between gap-4">
+            <span className="text-xs font-medium uppercase text-slate-500">{label}</span>
+            <span className="text-right text-slate-700">{value}</span>
+        </div>
+    );
+}
+
+function PledgeDetailDialog({
+    pledge,
+    onOpenChange,
+}: {
+    pledge: PeerifyPledgeRecord | null;
+    onOpenChange: (open: boolean) => void;
+}) {
+    return (
+        <Dialog open={pledge !== null} onOpenChange={onOpenChange}>
+            <DialogContent className="max-w-lg">
+                {pledge ? (
+                    <>
+                        <DialogHeader>
+                            <DialogTitle>{pledge.pledgerName || "Unknown supporter"}</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4 text-sm">
+                            <DetailRow label="Location" value={getCityAreaLabel(pledge.fanLocation)} />
+                            <DetailRow label="Max ticket" value={pledge.maximumTicketAmount || "-"} />
+                            <DetailRow label="Event type" value={pledge.preferredEventType || "-"} />
+                            <div>
+                                <div className="text-xs font-medium uppercase text-slate-500">Help offered</div>
+                                {pledge.helpOptions.length > 0 ? (
+                                    <div className="mt-1 flex flex-wrap gap-1">
+                                        {pledge.helpOptions.map((option) => (
+                                            <Badge key={option} variant="outline">
+                                                {option}
+                                            </Badge>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="mt-1 text-slate-500">-</p>
+                                )}
+                                {pledge.hostingCapacity ? (
+                                    <p className="mt-1 text-xs text-muted-foreground">Capacity: {pledge.hostingCapacity}</p>
+                                ) : null}
+                            </div>
+                            <div>
+                                <div className="text-xs font-medium uppercase text-slate-500">Note</div>
+                                <p className="mt-1 whitespace-pre-wrap text-slate-700">{pledge.note || "-"}</p>
+                            </div>
+                            <DetailRow label="Pledged" value={formatDate(pledge.createdAt)} />
+                        </div>
+                    </>
+                ) : null}
+            </DialogContent>
+        </Dialog>
     );
 }
