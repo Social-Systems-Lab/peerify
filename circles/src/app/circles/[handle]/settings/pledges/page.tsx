@@ -166,7 +166,6 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
     );
     const locationBreakdown = countBy(pledges.map((pledge) => pledge.fanLocation));
     const locationClusters = buildLocationClusters(pledges);
-    const offeredHelpCount = pledges.filter((pledge) => pledge.helpOptions.length > 0).length;
     const helpCounts = PEERIFY_PLEDGE_HELP_OPTIONS.map((option) => ({
         label: option,
         count: pledges.filter((pledge) => pledge.helpOptions.includes(option)).length,
@@ -213,18 +212,12 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
                 </div>
             </div>
 
-            <section className="grid gap-4 md:grid-cols-4">
+            <section className="grid gap-4 sm:grid-cols-2">
                 <StatCard label="Total pledges" value={pledges.length} description="Fans who raised their hand" />
                 <StatCard
                     label="Estimated ticket value"
-                    value={formatEstimatedTicketValue(estimatedTicketValue)}
-                    description="Sum of numeric max amounts"
-                />
-                <StatCard label="Locations" value={locationBreakdown.length} description="Distinct cities or areas" />
-                <StatCard
-                    label="People offering help"
-                    value={offeredHelpCount}
-                    description="Support beyond attending"
+                    value={`~${formatEstimatedTicketValue(estimatedTicketValue)}`}
+                    description="Signal so far, not confirmed bookings — sum of numeric max amounts fans entered"
                 />
             </section>
 
