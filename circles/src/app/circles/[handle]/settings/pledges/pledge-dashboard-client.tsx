@@ -6,13 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { findOrCreateDMConversationAction } from "@/components/modules/chat/actions";
 import type { Circle } from "@/models/models";
 import type { PeerifyPledgeRecord } from "@/lib/data/peerify-pledges";
-import { ChevronDown, ChevronRight, Flame, HandHeart, List, Loader2, MapPinned, Users } from "lucide-react";
+import { ChevronDown, ChevronRight, Flame, HandHeart, Loader2, MapPinned, Users } from "lucide-react";
 import { TbMessage } from "react-icons/tb";
 
 // A location needs at least this many pledges before it's promoted from the plain list into
@@ -130,7 +129,6 @@ type PledgeDashboardClientProps = {
 };
 
 export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
-    const [view, setView] = useState<"list" | "map">("list");
     const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
     const [detailPledgeId, setDetailPledgeId] = useState<string | null>(null);
 
@@ -177,59 +175,34 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between gap-4">
-                <h2 className="text-lg font-semibold text-[#231f1a]">Pledges</h2>
-                <ToggleGroup
-                    type="single"
-                    variant="outline"
-                    value={view}
-                    onValueChange={(value) => {
-                        // ToggleGroup allows deselecting the current item (empty string) — ignore
-                        // that so exactly one of List/Map is always selected.
-                        if (value === "list" || value === "map") setView(value);
-                    }}
-                >
-                    <ToggleGroupItem value="list" className="gap-1.5 px-3">
-                        <List className="h-4 w-4" />
-                        List
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="map" className="gap-1.5 px-3">
-                        <MapPinned className="h-4 w-4" />
-                        Map
-                    </ToggleGroupItem>
-                </ToggleGroup>
+            <h2 className="text-lg font-semibold text-[#231f1a]">Pledges</h2>
+
+            <div className="flex flex-col gap-4">
+                {momentumClusters.map((cluster) => (
+                    <MomentumCard
+                        key={cluster.label}
+                        cluster={cluster}
+                        pledges={pledgesByLocation.get(cluster.label) ?? []}
+                        expanded={expandedClusters.has(cluster.label)}
+                        onToggle={() => toggleCluster(cluster.label)}
+                        onSelectPledge={setDetailPledgeId}
+                    />
+                ))}
+
+                {plainListPledges.length > 0 ? (
+                    <Card className="rounded-lg border-slate-200 bg-white shadow-none">
+                        <CardContent className="divide-y divide-slate-100 p-0">
+                            {plainListPledges.map((pledge) => (
+                                <PledgeRow
+                                    key={pledge._id}
+                                    pledge={pledge}
+                                    onSelect={() => setDetailPledgeId(pledge._id ?? null)}
+                                />
+                            ))}
+                        </CardContent>
+                    </Card>
+                ) : null}
             </div>
-
-            {view === "map" ? (
-                <PledgeMapPreview clusters={clusters} />
-            ) : (
-                <div className="flex flex-col gap-4">
-                    {momentumClusters.map((cluster) => (
-                        <MomentumCard
-                            key={cluster.label}
-                            cluster={cluster}
-                            pledges={pledgesByLocation.get(cluster.label) ?? []}
-                            expanded={expandedClusters.has(cluster.label)}
-                            onToggle={() => toggleCluster(cluster.label)}
-                            onSelectPledge={setDetailPledgeId}
-                        />
-                    ))}
-
-                    {plainListPledges.length > 0 ? (
-                        <Card className="rounded-lg border-slate-200 bg-white shadow-none">
-                            <CardContent className="divide-y divide-slate-100 p-0">
-                                {plainListPledges.map((pledge) => (
-                                    <PledgeRow
-                                        key={pledge._id}
-                                        pledge={pledge}
-                                        onSelect={() => setDetailPledgeId(pledge._id ?? null)}
-                                    />
-                                ))}
-                            </CardContent>
-                        </Card>
-                    ) : null}
-                </div>
-            )}
 
             <PledgeDetailDialog
                 pledge={detailPledge}
