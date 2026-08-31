@@ -3,6 +3,9 @@
 import Image from "next/image"
 import Link from "next/link"
 import { useEffect } from "react"
+import { useAtom } from "jotai"
+import { userAtom } from "@/lib/data/atoms"
+import { getCircleDefaultPath } from "@/lib/utils/circle-routes"
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 // TODO: replace with appConfig.stats once wired to the database
@@ -63,6 +66,8 @@ const STEPS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function PeerifyLandingPage() {
+    const [user] = useAtom(userAtom)
+
     useEffect(() => {
         const observer = new IntersectionObserver(
             (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("visible") }),
@@ -93,7 +98,11 @@ export default function PeerifyLandingPage() {
                     </p>
                     <div className={"heroActions"}>
                         <Link href="/explore" className={"btnOrange"}>Explore the map</Link>
-                        <Link href="/signup/pilot" className={"btnGhost"}>Join the prototype</Link>
+                        {user ? (
+                            <Link href={getCircleDefaultPath(user)} className={"btnGhost"}>Go to profile</Link>
+                        ) : (
+                            <Link href="/signup/pilot" className={"btnGhost"}>Join the prototype</Link>
+                        )}
                     </div>
                 </div>
             </section>
