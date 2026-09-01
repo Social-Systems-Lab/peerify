@@ -79,7 +79,7 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
     const isUser = circle.circleType === "user";
     const [user] = useAtom(userAtom);
     const pathname = usePathname();
-    const hideSettingsNav = pathname.endsWith("/settings/pledges");
+    const hideSettingsNav = pathname.endsWith("/settings/pledges") || pathname.endsWith("/settings/crew");
     // On a personal profile's own Settings/About page, the banner's "Complete profile" button
     // links back to this same page (readinessSubject === circle here), making it a dead,
     // self-referential no-op. The checklist is redundant there too — the actual picture/About
