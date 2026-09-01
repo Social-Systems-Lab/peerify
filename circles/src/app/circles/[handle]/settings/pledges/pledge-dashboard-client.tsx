@@ -27,6 +27,24 @@ const parseTicketAmount = (value: string): number => {
 
 const formatEstimatedTicketValue = (value: number): string => (value > 0 ? value.toLocaleString("en") : "-");
 
+type CurrencyGroup = { currency: string; total: number };
+
+// Groups pledge amounts by currency instead of blending them into one number — pledges made
+// before the `currency` field existed fall back to the artist's *current* booking-settings
+// currency (matches what the dashboard implicitly assumed before this existed). In the common
+// single-currency case this collapses to exactly one group, same as today's single number.
+const groupAmountsByCurrency = (pledges: PeerifyPledgeRecord[], fallbackCurrency: string): CurrencyGroup[] => {
+    const totals = new Map<string, number>();
+    pledges.forEach((pledge) => {
+        const currency = pledge.currency || fallbackCurrency;
+        totals.set(currency, (totals.get(currency) ?? 0) + parseTicketAmount(pledge.maximumTicketAmount));
+    });
+
+    return Array.from(totals.entries())
+        .map(([currency, total]) => ({ currency, total }))
+        .sort((a, b) => b.total - a.total || a.currency.localeCompare(b.currency));
+};
+
 const getCityAreaLabel = (value: string): string => {
     const trimmed = value.trim();
     if (!trimmed) {
@@ -124,13 +142,57 @@ const buildLocationClusters = (pledges: PeerifyPledgeRecord[]): PledgeLocationCl
 const sortByMostRecent = (pledges: PeerifyPledgeRecord[]): PeerifyPledgeRecord[] =>
     [...pledges].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
+const StatCard = ({
+    label,
+    value,
+    description,
+}: {
+    label: string;
+    value: React.ReactNode;
+    description: string;
+}) => (
+    <Card className="rounded-lg border-slate-200 bg-white shadow-none">
+        <CardHeader className="p-4 pb-1">
+            <CardTitle className="text-xs font-medium text-slate-500">{label}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-0.5 p-4 pt-0">
+            <div className="text-xl font-semibold text-[#231f1a]">{value}</div>
+            <p className="text-xs text-slate-500">{description}</p>
+        </CardContent>
+    </Card>
+);
+
+const CurrencyGroupsValue = ({ groups }: { groups: CurrencyGroup[] }) => {
+    const nonZero = groups.filter((group) => group.total > 0);
+    if (nonZero.length === 0) {
+        return <>-</>;
+    }
+
+    return (
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            {nonZero.map((group) => (
+                <span key={group.currency}>
+                    ~{formatEstimatedTicketValue(group.total)}{" "}
+                    <span className="text-xs font-normal text-slate-500">{group.currency}</span>
+                </span>
+            ))}
+        </div>
+    );
+};
+
 type PledgeDashboardClientProps = {
     pledges: PeerifyPledgeRecord[];
     initialMessagedDids: string[];
     activePledgerDids: string[];
+    fallbackCurrency: string;
 };
 
-export function PledgeDashboardClient({ pledges, initialMessagedDids, activePledgerDids }: PledgeDashboardClientProps) {
+export function PledgeDashboardClient({
+    pledges,
+    initialMessagedDids,
+    activePledgerDids,
+    fallbackCurrency,
+}: PledgeDashboardClientProps) {
     const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
     const [detailPledgeId, setDetailPledgeId] = useState<string | null>(null);
     const [messagePledgeId, setMessagePledgeId] = useState<string | null>(null);
@@ -165,6 +227,11 @@ export function PledgeDashboardClient({ pledges, initialMessagedDids, activePled
         [pledges, momentumLabels],
     );
 
+    const totalValueGroups = useMemo(
+        () => groupAmountsByCurrency(pledges, fallbackCurrency),
+        [pledges, fallbackCurrency],
+    );
+
     const detailPledge = useMemo(
         () => pledges.find((pledge) => pledge._id === detailPledgeId) ?? null,
         [pledges, detailPledgeId],
@@ -193,6 +260,15 @@ export function PledgeDashboardClient({ pledges, initialMessagedDids, activePled
 
     return (
         <div className="flex flex-col gap-6">
+            <section className="grid gap-4 sm:grid-cols-2">
+                <StatCard label="Total pledges" value={pledges.length} description="Fans who raised their hand" />
+                <StatCard
+                    label="Estimated total value"
+                    value={<CurrencyGroupsValue groups={totalValueGroups} />}
+                    description="Signal so far, not confirmed bookings — sum of numeric max amounts fans entered"
+                />
+            </section>
+
             <h2 className="text-lg font-semibold text-[#231f1a]">Pledges</h2>
 
             <div className="flex flex-col gap-4">
@@ -207,6 +283,7 @@ export function PledgeDashboardClient({ pledges, initialMessagedDids, activePled
                         onMessagePledge={setMessagePledgeId}
                         messagedDids={messagedDids}
                         activePledgerDidSet={activePledgerDidSet}
+                        fallbackCurrency={fallbackCurrency}
                     />
                 ))}
 
@@ -258,6 +335,7 @@ function MomentumCard({
     onMessagePledge,
     messagedDids,
     activePledgerDidSet,
+    fallbackCurrency,
 }: {
     cluster: PledgeLocationCluster;
     pledges: PeerifyPledgeRecord[];
@@ -267,7 +345,9 @@ function MomentumCard({
     onMessagePledge: (id: string | null) => void;
     messagedDids: Set<string>;
     activePledgerDidSet: Set<string>;
+    fallbackCurrency: string;
 }) {
+    const valueGroups = groupAmountsByCurrency(pledges, fallbackCurrency);
     const helpSummary =
         cluster.helpOfferCount > 0
             ? `${cluster.helpOfferCount} ${cluster.helpOfferCount === 1 ? "person" : "people"} offering: ${cluster.helpOptions
@@ -292,8 +372,8 @@ function MomentumCard({
                             </Badge>
                         </div>
                         <p className="mt-1 text-sm text-slate-600">
-                            {cluster.pledgeCount} pledges &middot; ~{formatEstimatedTicketValue(cluster.estimatedTicketValue)}{" "}
-                            estimated value
+                            {cluster.pledgeCount} pledges &middot; <CurrencyGroupsValue groups={valueGroups} /> estimated
+                            value
                         </p>
                         <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                             <HandHeart className="h-3.5 w-3.5" />
