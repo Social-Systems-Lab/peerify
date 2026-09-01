@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getCircleByHandle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
+import { listMessagedRecipientDids } from "@/lib/data/mongo-chat";
 import { listPeerifyPledgesForArtist } from "@/lib/data/peerify-pledges";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 import { ArrowLeft, LockKeyhole, Pencil } from "lucide-react";
@@ -55,6 +56,9 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
         (total, pledge) => total + parseTicketAmount(pledge.maximumTicketAmount),
         0,
     );
+    const messagedPledgerDids = userDid
+        ? Array.from(await listMessagedRecipientDids(userDid, pledges.map((pledge) => pledge.pledgerDid)))
+        : [];
 
     return (
         <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
@@ -116,7 +120,7 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
                     </CardContent>
                 </Card>
             ) : (
-                <PledgeDashboardClient pledges={pledges} />
+                <PledgeDashboardClient pledges={pledges} initialMessagedDids={messagedPledgerDids} />
             )}
         </main>
     );
