@@ -118,6 +118,7 @@ export const getCrewMembers = async (circleId?: string): Promise<MemberDisplay[]
                 name: "$userDetails.name",
                 picture: "$userDetails.picture",
                 handle: "$userDetails.handle",
+                location: "$userDetails.location",
             },
         },
     ]).toArray();
