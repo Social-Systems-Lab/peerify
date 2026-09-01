@@ -1,6 +1,7 @@
 "use server";
 
-import { getAuthenticatedUserDid } from "@/lib/auth/auth";
+import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
+import { features } from "@/lib/data/constants";
 import { getCircleByDid, getCircleById } from "@/lib/data/circle";
 import { createPeerifyPledge, getPeerifyPledgeForFan, type PeerifyPledgeRecord } from "@/lib/data/peerify-pledges";
 import {
@@ -32,6 +33,14 @@ export async function createPeerifyPledgeAction({
 
     if (!isPeerifyArtistIdentity(artist) || !isPeerifyManagedIdentity(artist)) {
         return { success: false, message: "This profile is not accepting structured pledges yet" };
+    }
+
+    // Same check the Pledge Interest button's own visibility is gated on (see home-content.tsx's
+    // authorizedToEdit) — enforced here too, not just via the hidden button, so a direct call
+    // can't have this artist's own admin pledge to themselves and pollute their Pledge Dashboard.
+    const isArtistAdmin = await isAuthorized(userDid, artist._id, features.settings.edit_about);
+    if (isArtistAdmin) {
+        return { success: false, message: "You manage this profile, so you can't pledge to it yourself." };
     }
 
     const pledger = await getCircleByDid(userDid);

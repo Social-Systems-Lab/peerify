@@ -173,6 +173,14 @@ export const applyForCrewMembership = async (circle: Circle, message: string): P
             return { success: false, message: "Crew is not currently available for this circle" };
         }
 
+        // Same check the Join Crew button's own visibility is gated on (see home-content.tsx's
+        // authorizedToEdit) — enforced here too, not just via the hidden button, so a direct call
+        // can't have this circle's own admin apply to their own Crew.
+        const isCircleAdmin = await isAuthorized(userDid, updatedCircle._id ?? "", features.settings.edit_about);
+        if (isCircleAdmin) {
+            return { success: false, message: "You manage this profile, so you can't apply to its own Crew." };
+        }
+
         const existingMember = await getMember(userDid, updatedCircle._id ?? "");
         if (existingMember?.userGroups?.includes("crew")) {
             return { success: true, message: "You are already in this circle's Crew", pending: false };
