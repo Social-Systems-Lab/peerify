@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
-import { getCircleByHandle } from "@/lib/data/circle";
+import { getCircleByHandle, getCirclesByDids } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
 import { listMessagedRecipientDids } from "@/lib/data/mongo-chat";
 import { listPeerifyPledgesForArtist } from "@/lib/data/peerify-pledges";
@@ -56,9 +56,17 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
         (total, pledge) => total + parseTicketAmount(pledge.maximumTicketAmount),
         0,
     );
-    const messagedPledgerDids = userDid
-        ? Array.from(await listMessagedRecipientDids(userDid, pledges.map((pledge) => pledge.pledgerDid)))
-        : [];
+    const uniquePledgerDids = Array.from(new Set(pledges.map((pledge) => pledge.pledgerDid).filter(Boolean)));
+
+    const [messagedPledgerDidsResult, activeCircles] = await Promise.all([
+        userDid ? listMessagedRecipientDids(userDid, uniquePledgerDids) : Promise.resolve(new Set<string>()),
+        getCirclesByDids(uniquePledgerDids),
+    ]);
+    const messagedPledgerDids = Array.from(messagedPledgerDidsResult);
+    // A pledger's account may have been deleted and re-created since they pledged (same email,
+    // new did/handle) — the pledge row still renders fine from its own denormalized snapshot,
+    // but there's no live circle left to message. See the "Could not find recipient" investigation.
+    const activePledgerDids = activeCircles.map((activeCircle) => activeCircle.did).filter(Boolean) as string[];
 
     return (
         <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
@@ -120,7 +128,11 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
                     </CardContent>
                 </Card>
             ) : (
-                <PledgeDashboardClient pledges={pledges} initialMessagedDids={messagedPledgerDids} />
+                <PledgeDashboardClient
+                    pledges={pledges}
+                    initialMessagedDids={messagedPledgerDids}
+                    activePledgerDids={activePledgerDids}
+                />
             )}
         </main>
     );

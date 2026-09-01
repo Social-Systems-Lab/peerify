@@ -127,9 +127,10 @@ const sortByMostRecent = (pledges: PeerifyPledgeRecord[]): PeerifyPledgeRecord[]
 type PledgeDashboardClientProps = {
     pledges: PeerifyPledgeRecord[];
     initialMessagedDids: string[];
+    activePledgerDids: string[];
 };
 
-export function PledgeDashboardClient({ pledges, initialMessagedDids }: PledgeDashboardClientProps) {
+export function PledgeDashboardClient({ pledges, initialMessagedDids, activePledgerDids }: PledgeDashboardClientProps) {
     const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
     const [detailPledgeId, setDetailPledgeId] = useState<string | null>(null);
     const [messagePledgeId, setMessagePledgeId] = useState<string | null>(null);
@@ -137,6 +138,8 @@ export function PledgeDashboardClient({ pledges, initialMessagedDids }: PledgeDa
     // then updated optimistically the moment a send succeeds in this session so the indicator
     // doesn't wait for a reload; the server-derived value is still what actually persists.
     const [messagedDids, setMessagedDids] = useState<Set<string>>(() => new Set(initialMessagedDids));
+
+    const activePledgerDidSet = useMemo(() => new Set(activePledgerDids), [activePledgerDids]);
 
     const clusters = useMemo(() => buildLocationClusters(pledges), [pledges]);
     const momentumClusters = useMemo(
@@ -203,6 +206,7 @@ export function PledgeDashboardClient({ pledges, initialMessagedDids }: PledgeDa
                         onSelectPledge={setDetailPledgeId}
                         onMessagePledge={setMessagePledgeId}
                         messagedDids={messagedDids}
+                        activePledgerDidSet={activePledgerDidSet}
                     />
                 ))}
 
@@ -216,6 +220,7 @@ export function PledgeDashboardClient({ pledges, initialMessagedDids }: PledgeDa
                                     onSelect={() => setDetailPledgeId(pledge._id ?? null)}
                                     onMessage={() => setMessagePledgeId(pledge._id ?? null)}
                                     hasMessaged={messagedDids.has(pledge.pledgerDid)}
+                                    isRecipientActive={activePledgerDidSet.has(pledge.pledgerDid)}
                                 />
                             ))}
                         </CardContent>
@@ -226,6 +231,7 @@ export function PledgeDashboardClient({ pledges, initialMessagedDids }: PledgeDa
             <PledgeDetailDialog
                 pledge={detailPledge}
                 hasMessaged={detailPledge ? messagedDids.has(detailPledge.pledgerDid) : false}
+                isRecipientActive={detailPledge ? activePledgerDidSet.has(detailPledge.pledgerDid) : true}
                 onOpenChange={(open) => {
                     if (!open) setDetailPledgeId(null);
                 }}
@@ -251,6 +257,7 @@ function MomentumCard({
     onSelectPledge,
     onMessagePledge,
     messagedDids,
+    activePledgerDidSet,
 }: {
     cluster: PledgeLocationCluster;
     pledges: PeerifyPledgeRecord[];
@@ -259,6 +266,7 @@ function MomentumCard({
     onSelectPledge: (id: string | null) => void;
     onMessagePledge: (id: string | null) => void;
     messagedDids: Set<string>;
+    activePledgerDidSet: Set<string>;
 }) {
     const helpSummary =
         cluster.helpOfferCount > 0
@@ -308,6 +316,7 @@ function MomentumCard({
                             onSelect={() => onSelectPledge(pledge._id ?? null)}
                             onMessage={() => onMessagePledge(pledge._id ?? null)}
                             hasMessaged={messagedDids.has(pledge.pledgerDid)}
+                            isRecipientActive={activePledgerDidSet.has(pledge.pledgerDid)}
                         />
                     ))}
                 </div>
@@ -321,11 +330,13 @@ function PledgeRow({
     onSelect,
     onMessage,
     hasMessaged,
+    isRecipientActive,
 }: {
     pledge: PeerifyPledgeRecord;
     onSelect: () => void;
     onMessage: () => void;
     hasMessaged: boolean;
+    isRecipientActive: boolean;
 }) {
     return (
         <div
@@ -358,7 +369,11 @@ function PledgeRow({
                     <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-label="Already messaged" />
                 </span>
             ) : null}
-            <MessageTriggerButton pledgerName={pledge.pledgerName} onClick={onMessage} />
+            <MessageTriggerButton
+                pledgerName={pledge.pledgerName}
+                onClick={onMessage}
+                disabled={!isRecipientActive}
+            />
             <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
         </div>
     );
@@ -368,25 +383,41 @@ function MessageTriggerButton({
     pledgerName,
     onClick,
     compact = true,
+    disabled = false,
 }: {
     pledgerName: string;
     onClick: () => void;
     compact?: boolean;
+    disabled?: boolean;
 }) {
+    // The pledger's account may have been deleted (and possibly re-created under a different
+    // did/handle with the same email — see the "Could not find recipient" investigation) since
+    // they pledged. Rather than opening a compose dialog that would fail on send, disable the
+    // trigger up front with an explanation.
+    const label = disabled
+        ? "This fan's account no longer exists — they can't be messaged"
+        : `Message ${pledgerName || "this pledger"}`;
+
     return (
         <Button
             type="button"
             variant={compact ? "ghost" : "outline"}
             size={compact ? "icon" : "default"}
-            className={cn("shrink-0", compact ? "rounded-full text-slate-500 hover:text-[#231f1a]" : "gap-2 rounded-full")}
+            className={cn(
+                "shrink-0",
+                compact ? "rounded-full text-slate-500 hover:text-[#231f1a]" : "gap-2 rounded-full",
+                disabled && "cursor-not-allowed opacity-40",
+            )}
+            disabled={disabled}
             onClick={(event) => {
                 event.stopPropagation();
                 onClick();
             }}
-            aria-label={compact ? `Message ${pledgerName || "this pledger"}` : undefined}
+            aria-label={compact ? label : undefined}
+            title={disabled ? label : undefined}
         >
             <TbMessage className="h-4 w-4" />
-            {!compact ? "Message" : null}
+            {!compact ? (disabled ? "Account no longer exists" : "Message") : null}
         </Button>
     );
 }
@@ -521,11 +552,13 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 function PledgeDetailDialog({
     pledge,
     hasMessaged,
+    isRecipientActive,
     onOpenChange,
     onMessage,
 }: {
     pledge: PeerifyPledgeRecord | null;
     hasMessaged: boolean;
+    isRecipientActive: boolean;
     onOpenChange: (open: boolean) => void;
     onMessage: () => void;
 }) {
@@ -569,9 +602,19 @@ function PledgeDetailDialog({
                                     Already messaged
                                 </div>
                             ) : null}
+                            {!isRecipientActive ? (
+                                <p className="text-xs text-muted-foreground">
+                                    This fan&apos;s account no longer exists, so they can&apos;t be messaged.
+                                </p>
+                            ) : null}
                         </div>
                         <DialogFooter>
-                            <MessageTriggerButton pledgerName={pledge.pledgerName} onClick={onMessage} compact={false} />
+                            <MessageTriggerButton
+                                pledgerName={pledge.pledgerName}
+                                onClick={onMessage}
+                                compact={false}
+                                disabled={!isRecipientActive}
+                            />
                         </DialogFooter>
                     </>
                 ) : null}
