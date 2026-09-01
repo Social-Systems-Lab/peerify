@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import { findOrCreateDMConversationAction } from "@/components/modules/chat/actions";
+import { findOrCreateDMConversationAction, sendMongoMessageAction } from "@/components/modules/chat/actions";
 import type { Circle } from "@/models/models";
 import type { PeerifyPledgeRecord } from "@/lib/data/peerify-pledges";
 import { ChevronDown, ChevronRight, Flame, HandHeart, Loader2, MapPinned, Users } from "lucide-react";
@@ -131,6 +131,7 @@ type PledgeDashboardClientProps = {
 export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
     const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
     const [detailPledgeId, setDetailPledgeId] = useState<string | null>(null);
+    const [messagePledgeId, setMessagePledgeId] = useState<string | null>(null);
 
     const clusters = useMemo(() => buildLocationClusters(pledges), [pledges]);
     const momentumClusters = useMemo(
@@ -161,6 +162,11 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
         [pledges, detailPledgeId],
     );
 
+    const messagePledge = useMemo(
+        () => pledges.find((pledge) => pledge._id === messagePledgeId) ?? null,
+        [pledges, messagePledgeId],
+    );
+
     const toggleCluster = (label: string) => {
         setExpandedClusters((prev) => {
             const next = new Set(prev);
@@ -186,6 +192,7 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
                         expanded={expandedClusters.has(cluster.label)}
                         onToggle={() => toggleCluster(cluster.label)}
                         onSelectPledge={setDetailPledgeId}
+                        onMessagePledge={setMessagePledgeId}
                     />
                 ))}
 
@@ -197,6 +204,7 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
                                     key={pledge._id}
                                     pledge={pledge}
                                     onSelect={() => setDetailPledgeId(pledge._id ?? null)}
+                                    onMessage={() => setMessagePledgeId(pledge._id ?? null)}
                                 />
                             ))}
                         </CardContent>
@@ -209,6 +217,14 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
                 onOpenChange={(open) => {
                     if (!open) setDetailPledgeId(null);
                 }}
+                onMessage={() => setMessagePledgeId(detailPledge?._id ?? null)}
+            />
+
+            <MessageComposeDialog
+                pledge={messagePledge}
+                onOpenChange={(open) => {
+                    if (!open) setMessagePledgeId(null);
+                }}
             />
         </div>
     );
@@ -220,12 +236,14 @@ function MomentumCard({
     expanded,
     onToggle,
     onSelectPledge,
+    onMessagePledge,
 }: {
     cluster: PledgeLocationCluster;
     pledges: PeerifyPledgeRecord[];
     expanded: boolean;
     onToggle: () => void;
     onSelectPledge: (id: string | null) => void;
+    onMessagePledge: (id: string | null) => void;
 }) {
     const helpSummary =
         cluster.helpOfferCount > 0
@@ -273,6 +291,7 @@ function MomentumCard({
                             key={pledge._id}
                             pledge={pledge}
                             onSelect={() => onSelectPledge(pledge._id ?? null)}
+                            onMessage={() => onMessagePledge(pledge._id ?? null)}
                         />
                     ))}
                 </div>
@@ -281,7 +300,15 @@ function MomentumCard({
     );
 }
 
-function PledgeRow({ pledge, onSelect }: { pledge: PeerifyPledgeRecord; onSelect: () => void }) {
+function PledgeRow({
+    pledge,
+    onSelect,
+    onMessage,
+}: {
+    pledge: PeerifyPledgeRecord;
+    onSelect: () => void;
+    onMessage: () => void;
+}) {
     return (
         <div
             role="button"
@@ -308,66 +335,151 @@ function PledgeRow({ pledge, onSelect }: { pledge: PeerifyPledgeRecord; onSelect
             </div>
             <div className="shrink-0 text-sm font-medium text-[#231f1a]">{pledge.maximumTicketAmount || "-"}</div>
             <div className="hidden shrink-0 text-sm text-slate-500 sm:block">{formatDate(pledge.createdAt)}</div>
-            <MessagePledgerButton pledge={pledge} />
+            <MessageTriggerButton pledgerName={pledge.pledgerName} onClick={onMessage} />
             <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
         </div>
     );
 }
 
-function MessagePledgerButton({ pledge, compact = true }: { pledge: PeerifyPledgeRecord; compact?: boolean }) {
-    const router = useRouter();
-    const { toast } = useToast();
-    const [isSending, setIsSending] = useState(false);
-
-    const handleClick = async (event: React.MouseEvent) => {
-        event.stopPropagation();
-        if (!pledge.pledgerDid || isSending) {
-            return;
-        }
-
-        setIsSending(true);
-        try {
-            // Reuses the same DM-creation action MessageButton uses on profile pages
-            // (source: "profile" skips the contacts-only eligibility gate) — no new
-            // messaging infrastructure, just a lighter-weight trigger for a compact row.
-            const recipient: Circle = { did: pledge.pledgerDid };
-            const result = await findOrCreateDMConversationAction(recipient, { source: "profile" });
-            const conversationId = result.chatRoom?._id || result.chatRoom?.handle;
-            if (!result.success || !conversationId) {
-                toast({
-                    title: "Message",
-                    description: result.message || "Could not open the direct message",
-                    variant: "destructive",
-                });
-                return;
-            }
-
-            router.push(`/chat/${conversationId}`);
-        } catch (error) {
-            console.error("Failed to open pledge DM:", error);
-            toast({
-                title: "Message",
-                description: error instanceof Error ? error.message : "Could not open the direct message",
-                variant: "destructive",
-            });
-        } finally {
-            setIsSending(false);
-        }
-    };
-
+function MessageTriggerButton({
+    pledgerName,
+    onClick,
+    compact = true,
+}: {
+    pledgerName: string;
+    onClick: () => void;
+    compact?: boolean;
+}) {
     return (
         <Button
             type="button"
             variant={compact ? "ghost" : "outline"}
             size={compact ? "icon" : "default"}
             className={cn("shrink-0", compact ? "rounded-full text-slate-500 hover:text-[#231f1a]" : "gap-2 rounded-full")}
-            disabled={isSending}
-            onClick={handleClick}
-            aria-label={compact ? `Message ${pledge.pledgerName || "this pledger"}` : undefined}
+            onClick={(event) => {
+                event.stopPropagation();
+                onClick();
+            }}
+            aria-label={compact ? `Message ${pledgerName || "this pledger"}` : undefined}
         >
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <TbMessage className="h-4 w-4" />}
-            {!compact ? (isSending ? "Opening..." : "Message") : null}
+            <TbMessage className="h-4 w-4" />
+            {!compact ? "Message" : null}
         </Button>
+    );
+}
+
+function MessageComposeDialog({
+    pledge,
+    onOpenChange,
+}: {
+    pledge: PeerifyPledgeRecord | null;
+    onOpenChange: (open: boolean) => void;
+}) {
+    const { toast } = useToast();
+    const [message, setMessage] = useState("");
+    const [error, setError] = useState("");
+    const [isSending, setIsSending] = useState(false);
+
+    const handleOpenChange = (open: boolean) => {
+        if (!open) {
+            setMessage("");
+            setError("");
+        }
+        onOpenChange(open);
+    };
+
+    const handleSend = async () => {
+        const trimmed = message.trim();
+        if (!pledge?.pledgerDid || isSending) {
+            return;
+        }
+        if (!trimmed) {
+            setError("Please add a message before sending.");
+            return;
+        }
+
+        setIsSending(true);
+        setError("");
+        try {
+            // Same two actions the rest of the app's messaging already uses: find-or-create the
+            // DM (source: "profile" skips the contacts-only eligibility gate, same as
+            // MessageButton on profile pages) then send into it — no new messaging
+            // infrastructure, and no navigation away from the Dashboard.
+            const recipient: Circle = { did: pledge.pledgerDid };
+            const conversationResult = await findOrCreateDMConversationAction(recipient, { source: "profile" });
+            const conversationId = conversationResult.chatRoom?._id || conversationResult.chatRoom?.handle;
+            if (!conversationResult.success || !conversationId) {
+                setError(conversationResult.message || "Could not start the conversation.");
+                return;
+            }
+
+            const sendResult = await sendMongoMessageAction(conversationId, trimmed);
+            if (!sendResult.success) {
+                setError(sendResult.message || "Could not send the message.");
+                return;
+            }
+
+            toast({
+                title: "Message sent",
+                description: `Your message to ${pledge.pledgerName || "this pledger"} was sent.`,
+            });
+            handleOpenChange(false);
+        } catch (error) {
+            console.error("Failed to send pledge message:", error);
+            setError(error instanceof Error ? error.message : "Something went wrong. Please try again.");
+        } finally {
+            setIsSending(false);
+        }
+    };
+
+    return (
+        <Dialog open={pledge !== null} onOpenChange={handleOpenChange}>
+            <DialogContent className="sm:max-w-[520px]">
+                {pledge ? (
+                    <>
+                        <DialogHeader>
+                            <DialogTitle>Message {pledge.pledgerName || "this pledger"}</DialogTitle>
+                            <DialogDescription>
+                                This sends a direct message — a private conversation between just the two of you.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-2">
+                            <Textarea
+                                value={message}
+                                onChange={(event) => {
+                                    setMessage(event.target.value);
+                                    if (error) setError("");
+                                }}
+                                rows={5}
+                                placeholder="Write a short message..."
+                                disabled={isSending}
+                            />
+                            {error && <p className="text-sm text-destructive">{error}</p>}
+                        </div>
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => handleOpenChange(false)}
+                                disabled={isSending}
+                            >
+                                Cancel
+                            </Button>
+                            <Button type="button" onClick={handleSend} disabled={isSending || !message.trim()}>
+                                {isSending ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Sending...
+                                    </>
+                                ) : (
+                                    "Send Message"
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </>
+                ) : null}
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -383,9 +495,11 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 function PledgeDetailDialog({
     pledge,
     onOpenChange,
+    onMessage,
 }: {
     pledge: PeerifyPledgeRecord | null;
     onOpenChange: (open: boolean) => void;
+    onMessage: () => void;
 }) {
     return (
         <Dialog open={pledge !== null} onOpenChange={onOpenChange}>
@@ -423,7 +537,7 @@ function PledgeDetailDialog({
                             <DetailRow label="Pledged" value={formatDate(pledge.createdAt)} />
                         </div>
                         <DialogFooter>
-                            <MessagePledgerButton pledge={pledge} compact={false} />
+                            <MessageTriggerButton pledgerName={pledge.pledgerName} onClick={onMessage} compact={false} />
                         </DialogFooter>
                     </>
                 ) : null}
