@@ -26,11 +26,11 @@ const formatEstimatedTicketValue = (value: number): string => (value > 0 ? value
 
 const StatCard = ({ label, value, description }: { label: string; value: string | number; description: string }) => (
     <Card className="rounded-lg border-slate-200 bg-white shadow-none">
-        <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">{label}</CardTitle>
+        <CardHeader className="p-4 pb-1">
+            <CardTitle className="text-xs font-medium text-slate-500">{label}</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1">
-            <div className="text-2xl font-semibold text-[#231f1a]">{value}</div>
+        <CardContent className="space-y-0.5 p-4 pt-0">
+            <div className="text-xl font-semibold text-[#231f1a]">{value}</div>
             <p className="text-xs text-slate-500">{description}</p>
         </CardContent>
     </Card>
@@ -112,7 +112,7 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
             <section className="grid gap-4 sm:grid-cols-2">
                 <StatCard label="Total pledges" value={pledges.length} description="Fans who raised their hand" />
                 <StatCard
-                    label="Estimated ticket value"
+                    label="Estimated total value"
                     value={`~${formatEstimatedTicketValue(estimatedTicketValue)}`}
                     description="Signal so far, not confirmed bookings — sum of numeric max amounts fans entered"
                 />
