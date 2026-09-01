@@ -5,13 +5,15 @@ import { useAtom } from "jotai";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import { Circle } from "@/models/models";
+import { Circle, Location } from "@/models/models";
 import { userAtom } from "@/lib/data/atoms";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import LocationPicker from "@/components/forms/location-picker";
 import {
     Dialog,
     DialogContent,
@@ -25,17 +27,21 @@ import { cn } from "@/lib/utils";
 import { sendPeerifyArtistEnquiryAction } from "@/components/modules/chat/mongo-actions";
 import { createPeerifyPledgeAction, getMyPeerifyPledgeAction } from "@/components/modules/home/peerify-pledge-actions";
 import {
-    getPeerifyArtistProfile,
     isPeerifyArtistIdentity,
     isPeerifyManagedIdentity,
+    PEERIFY_CURRENCY_OPTIONS,
     PEERIFY_PLEDGE_HELP_OPTIONS,
 } from "@/lib/peerify/artist-profile";
+import { getCurrencyForCountryCode } from "@/lib/peerify/country-currency";
 import { getCrewMembershipStatusAction } from "@/components/modules/crew/actions";
 import JoinCrewDialog from "@/components/modules/home/join-crew-dialog";
 
 export type PledgeFormState = {
     fanLocation: string;
     maximumTicketAmount: string;
+    // Fan's own choice, defaulted from their location (see handleFanLocationChange) but always
+    // editable and always decoupled from the artist's own booking-settings currency.
+    currency: string;
     // preferredEventType intentionally dropped — no longer collected (see the removed "Event
     // type" input below). PeerifyPledgeEnquiryInput still declares it optional so this form state
     // stays assignable there without it; historical pledge records keep whatever value they
@@ -51,6 +57,7 @@ export type PledgeFormState = {
 const EMPTY_PLEDGE_FORM: PledgeFormState = {
     fanLocation: "",
     maximumTicketAmount: "",
+    currency: "",
     helpOptions: [],
     hostingCapacity: "",
     note: "",
@@ -76,20 +83,29 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
     // dialog would reopen blank and a resubmit would silently overwrite fields the fan didn't
     // bother re-entering.
     const [hasExistingPledge, setHasExistingPledge] = React.useState(false);
+    // Distinguishes "haven't checked yet" from "checked, and there isn't one" — the location
+    // fallback effect below must wait for this, otherwise it briefly prefills the picker with the
+    // fan's own profile location before the existing-pledge check resolves, and LocationPicker's
+    // marker never gets cleared back off the map once that value is reverted (it only ever moves
+    // the marker to a new lngLat, never removes it for a value going back to undefined).
+    const [hasCheckedExistingPledge, setHasCheckedExistingPledge] = React.useState(false);
     const [isJoinCrewDialogOpen, setIsJoinCrewDialogOpen] = React.useState(false);
     // Same fresh-read-on-mount approach as content-preview.tsx/home-content.tsx's identical
     // check (see getCrewMembershipStatusAction) — not derived from the client-side userAtom,
     // which never refreshes after login and so can't reflect an approval that happened in a
     // different session.
     const [crewMembershipStatus, setCrewMembershipStatus] = React.useState<"approved" | "pending" | "none">("none");
+    // Structured location backing the LocationPicker below — kept separate from
+    // pledgeForm.fanLocation (a plain display string, still what's actually persisted) because
+    // an existing pledge only has that string, not a re-usable Location object; see the
+    // "Currently set to" hint rendered when this is undefined but fanLocation isn't empty.
+    const [fanLocationValue, setFanLocationValue] = React.useState<Location | undefined>(undefined);
+    // Once the fan touches the currency dropdown directly, stop overwriting it every time the
+    // location changes — a ref (not state) since it's read inside handleFanLocationChange and
+    // must never itself trigger a re-render.
+    const currencyManuallyEditedRef = React.useRef(false);
     const isPeerifyManagedArtistIdentity = isPeerifyManagedIdentity(circle);
     const canJoinCrew = isPeerifyArtistIdentity(circle) && circle.crewEnabled !== false;
-    const userLocationText = user?.location
-        ? [user.location.city, user.location.region, user.location.country].filter(Boolean).join(", ")
-        : "";
-    // Display-only fallback — never written back to the artist's own profile data, just what
-    // this popup shows next to the ticket-amount input when the artist hasn't configured one.
-    const artistCurrency = getPeerifyArtistProfile(circle).bookingSettings.currency || "EUR";
 
     React.useEffect(() => {
         if (open) {
@@ -100,22 +116,41 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
     // Structured pledges only (isPeerifyManagedArtistIdentity) — the chat-enquiry fallback path
     // for other circles never persists a re-editable record, so there's nothing to pre-fill from.
     React.useEffect(() => {
-        if (!open || !isPeerifyManagedArtistIdentity) {
+        if (!open) {
             setHasExistingPledge(false);
+            setHasCheckedExistingPledge(false);
             return;
         }
+        if (!isPeerifyManagedArtistIdentity) {
+            // No structured-pledge concept for this circle type (chat-enquiry fallback path) —
+            // nothing to wait for, so the location fallback effect below is free to run right away.
+            setHasExistingPledge(false);
+            setHasCheckedExistingPledge(true);
+            return;
+        }
+        setHasCheckedExistingPledge(false);
         let isCurrent = true;
         getMyPeerifyPledgeAction(String(circle._id || "")).then((result) => {
             if (!isCurrent) return;
+            setHasCheckedExistingPledge(true);
             if (result.pledge) {
                 setHasExistingPledge(true);
                 setPledgeForm({
                     fanLocation: result.pledge.fanLocation,
                     maximumTicketAmount: result.pledge.maximumTicketAmount,
+                    currency: result.pledge.currency || "",
                     helpOptions: result.pledge.helpOptions,
                     hostingCapacity: result.pledge.hostingCapacity,
                     note: result.pledge.note,
                 });
+                // The existing pledge only has a display string, not a structured Location the
+                // picker can show a pin/search value for — leave it blank rather than guess.
+                // fanLocation itself is untouched above, so a resubmit that doesn't touch the
+                // picker still submits the fan's original location text unchanged.
+                setFanLocationValue(undefined);
+                // Editing an existing choice counts as "manual" — a location re-pick here
+                // shouldn't silently override a currency the fan already deliberately set.
+                currencyManuallyEditedRef.current = Boolean(result.pledge.currency);
                 if (result.pledge.helpOptions.length > 0) {
                     setIsHelpOptionsOpen(true);
                 }
@@ -128,13 +163,27 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
         };
     }, [open, isPeerifyManagedArtistIdentity, circle]);
 
-    // Profile-location fallback for a genuinely new pledge only — skipped once an existing pledge
-    // is found so its own saved location isn't clobbered by this.
+    // Profile-location fallback for a genuinely new pledge only — waits for the existing-pledge
+    // check above to actually finish (not just "not yet known to be true") before prefilling,
+    // otherwise this briefly sets the picker's value and its map marker never gets cleared back
+    // off once the real check comes back positive and reverts it (see hasCheckedExistingPledge).
+    // user.location is already a structured Location (set via this same LocationPicker
+    // elsewhere, e.g. onboarding), so it can prefill the picker directly — unlike an existing
+    // pledge's plain fanLocation string.
     React.useEffect(() => {
-        if (open && userLocationText && !hasExistingPledge) {
-            setPledgeForm((current) => (current.fanLocation ? current : { ...current, fanLocation: userLocationText }));
+        if (open && user?.location && hasCheckedExistingPledge && !hasExistingPledge) {
+            setPledgeForm((current) => {
+                if (current.fanLocation) {
+                    return current;
+                }
+                const displayText = [user.location?.city, user.location?.region, user.location?.country]
+                    .filter(Boolean)
+                    .join(", ");
+                return { ...current, fanLocation: displayText };
+            });
+            setFanLocationValue((current) => current ?? user.location);
         }
-    }, [open, userLocationText, hasExistingPledge]);
+    }, [open, user?.location, hasCheckedExistingPledge, hasExistingPledge]);
 
     React.useEffect(() => {
         if (!open || !canJoinCrew || !user?.did || !circle?._id) {
@@ -155,6 +204,24 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
             return;
         }
         setIsJoinCrewDialogOpen(true);
+    };
+
+    const handleFanLocationChange = (location: Location) => {
+        setFanLocationValue(location);
+        const displayText = [location.city, location.region, location.country].filter(Boolean).join(", ");
+        setPledgeForm((current) => ({ ...current, fanLocation: displayText }));
+
+        if (!currencyManuallyEditedRef.current) {
+            const derivedCurrency = getCurrencyForCountryCode(location.countryCode);
+            if (derivedCurrency) {
+                setPledgeForm((current) => ({ ...current, currency: derivedCurrency }));
+            }
+        }
+    };
+
+    const handleCurrencyChange = (currency: string) => {
+        currencyManuallyEditedRef.current = true;
+        setPledgeForm((current) => ({ ...current, currency }));
     };
 
     const togglePledgeHelpOption = (option: string, checked: boolean) => {
@@ -234,7 +301,7 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                     }
                 }}
             >
-                <DialogContent className="sm:max-w-[560px]">
+                <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[640px]">
                     <DialogHeader>
                         <DialogTitle>Pledge interest for {circle.name}</DialogTitle>
                         <DialogDescription>
@@ -250,34 +317,36 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
                             void submitPledgeEnquiry();
                         }}
                     >
+                        <div className="space-y-2">
+                            <Label>Your city / location</Label>
+                            <LocationPicker value={fanLocationValue} onChange={handleFanLocationChange} compact />
+                            {/* The picker itself can't show a pin/search text for an existing
+                                pledge's plain-string location (see the pre-fill effect above) —
+                                surface what's still actually going to be submitted so it doesn't
+                                look like no location is set. */}
+                            {!fanLocationValue && pledgeForm.fanLocation && (
+                                <p className="text-xs text-muted-foreground">
+                                    Currently set to: {pledgeForm.fanLocation}. Search above to change it.
+                                </p>
+                            )}
+                        </div>
                         <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-1">
-                                <Input
-                                    placeholder="Your city / location"
-                                    value={pledgeForm.fanLocation}
-                                    onChange={(event) =>
-                                        setPledgeForm((current) => ({ ...current, fanLocation: event.target.value }))
-                                    }
-                                />
-                                {userLocationText && (
-                                    <Button
-                                        type="button"
-                                        variant="link"
-                                        className="h-auto p-0 text-xs"
-                                        onClick={() => setPledgeForm((current) => ({ ...current, fanLocation: "" }))}
-                                    >
-                                        Select different location?
-                                    </Button>
-                                )}
+                            <div className="space-y-2">
+                                <Label>Currency</Label>
+                                <select
+                                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                    value={pledgeForm.currency}
+                                    onChange={(event) => handleCurrencyChange(event.target.value)}
+                                >
+                                    {PEERIFY_CURRENCY_OPTIONS.map((option) => (
+                                        <option key={option.value} value={option.value}>
+                                            {option.label}
+                                        </option>
+                                    ))}
+                                </select>
                             </div>
-                            {/* self-start: without it, this row gets vertically centered within the
-                                grid cell once the location column grows taller (the "Select different
-                                location?" link appearing below it) — self-start pins it to the same
-                                top edge as the location input instead of drifting toward mid-height. */}
-                            <div className="flex items-center gap-2 self-start">
-                                <span className="flex h-10 shrink-0 items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground">
-                                    {artistCurrency}
-                                </span>
+                            <div className="space-y-2">
+                                <Label>Maximum ticket amount</Label>
                                 <Input
                                     placeholder="Maximum ticket amount"
                                     type="number"

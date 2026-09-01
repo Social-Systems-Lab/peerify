@@ -116,6 +116,10 @@ export type PeerifyArtistEnquiryType = "pledge" | "booking";
 export type PeerifyPledgeEnquiryInput = {
     fanLocation?: string;
     maximumTicketAmount?: string;
+    // Fan-selected, not derived from the artist's own booking-settings currency — see
+    // pledge-dialog.tsx's currency dropdown (defaulted from the fan's location, but always
+    // editable and always the fan's own choice, decoupled from the artist's settings).
+    currency?: string;
     preferredEventType?: string;
     helpOptions?: string[];
     // Only meaningful when helpOptions includes "Host" — see pledge-dialog.tsx's reveal field.

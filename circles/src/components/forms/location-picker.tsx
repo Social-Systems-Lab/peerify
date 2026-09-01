@@ -164,9 +164,13 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
                 const feature = data.features[0];
 
                 // Try to safely get context data
-                let country, region, city, street;
+                let country, countryCode, region, city, street;
                 if (feature.context) {
-                    country = feature.context.find((c: any) => c.id.startsWith("country"))?.text;
+                    const countryContext = feature.context.find((c: any) => c.id.startsWith("country"));
+                    country = countryContext?.text;
+                    // ISO 3166-1 alpha-2 — Mapbox includes this on the country context entry
+                    // (e.g. "se"); uppercased to match the conventional ISO casing.
+                    countryCode = countryContext?.short_code ? String(countryContext.short_code).toUpperCase() : undefined;
                     region = feature.context.find((c: any) => c.id.startsWith("region"))?.text;
                     city = feature.context.find((c: any) => c.id.startsWith("place"))?.text;
                 }
@@ -175,6 +179,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
                 newLocation = {
                     precision,
                     country,
+                    countryCode,
                     region,
                     city,
                     street,
