@@ -5,7 +5,11 @@ import React, { useEffect, useState } from "react";
 import { Circle } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { CirclePicture } from "@/components/modules/circles/circle-picture";
-import { accommodationSubTypeLabels, getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
+import {
+    accommodationSubTypeLabels,
+    getTourTeamOfferingIcon,
+    getTourTeamOfferingLabel,
+} from "@/lib/data/tour-team-offerings";
 import { getCrewOffersAction, CrewOfferAggregateEntry } from "./actions";
 import { CrewOfferer } from "@/lib/data/member";
 
@@ -66,13 +70,17 @@ export default function CrewOffersWidget({ circle }: CrewOffersWidgetProps) {
                                     <span className="text-sm font-medium">{offerer.name}</span>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 pl-[32px]">
-                                    {offerer.tourTeamOfferings.map((offering) => (
-                                        <Badge key={offering.id} variant="offering">
-                                            {getTourTeamOfferingLabel(offering)}
-                                            {offering.accommodationType &&
-                                                ` · ${accommodationSubTypeLabels[offering.accommodationType]}`}
-                                        </Badge>
-                                    ))}
+                                    {offerer.tourTeamOfferings.map((offering) => {
+                                        const OfferingIcon = getTourTeamOfferingIcon(offering);
+                                        return (
+                                            <Badge key={offering.id} variant="offering" className="gap-1">
+                                                <OfferingIcon className="h-3 w-3" />
+                                                {getTourTeamOfferingLabel(offering)}
+                                                {offering.accommodationType &&
+                                                    ` · ${accommodationSubTypeLabels[offering.accommodationType]}`}
+                                            </Badge>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         ))}
@@ -82,11 +90,15 @@ export default function CrewOffersWidget({ circle }: CrewOffersWidgetProps) {
                 <p className="text-sm text-muted-foreground">No Crew offers yet.</p>
             ) : (
                 <div className="flex flex-wrap items-center gap-2">
-                    {(showAllTags ? state.aggregate : state.aggregate.slice(0, VISIBLE_TAG_CAP)).map((entry) => (
-                        <Badge key={entry.type} variant="offering">
-                            {entry.count} offering {entry.label}
-                        </Badge>
-                    ))}
+                    {(showAllTags ? state.aggregate : state.aggregate.slice(0, VISIBLE_TAG_CAP)).map((entry) => {
+                        const OfferingIcon = getTourTeamOfferingIcon({ type: entry.type });
+                        return (
+                            <Badge key={entry.type} variant="offering" className="gap-1">
+                                <OfferingIcon className="h-3 w-3" />
+                                {entry.count} offering {entry.label}
+                            </Badge>
+                        );
+                    })}
                     {!showAllTags && state.aggregate.length > VISIBLE_TAG_CAP && (
                         <button
                             type="button"
