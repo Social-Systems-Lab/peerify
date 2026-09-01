@@ -2,39 +2,19 @@ import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getCircleByHandle, getCirclesByDids } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
 import { listMessagedRecipientDids } from "@/lib/data/mongo-chat";
 import { listPeerifyPledgesForArtist } from "@/lib/data/peerify-pledges";
-import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
+import { getPeerifyArtistProfile, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 import { ArrowLeft, LockKeyhole, Pencil } from "lucide-react";
 import { PledgeDashboardClient } from "./pledge-dashboard-client";
 
 type PageProps = {
     params: Promise<{ handle: string }>;
 };
-
-const parseTicketAmount = (value: string): number => {
-    const normalized = value.replace(/[^0-9.]/g, "");
-    const parsed = Number(normalized);
-    return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const formatEstimatedTicketValue = (value: number): string => (value > 0 ? value.toLocaleString("en") : "-");
-
-const StatCard = ({ label, value, description }: { label: string; value: string | number; description: string }) => (
-    <Card className="rounded-lg border-slate-200 bg-white shadow-none">
-        <CardHeader className="p-4 pb-1">
-            <CardTitle className="text-xs font-medium text-slate-500">{label}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-0.5 p-4 pt-0">
-            <div className="text-xl font-semibold text-[#231f1a]">{value}</div>
-            <p className="text-xs text-slate-500">{description}</p>
-        </CardContent>
-    </Card>
-);
 
 export default async function PeerifyPledgesPage({ params }: PageProps) {
     const { handle } = await params;
@@ -52,21 +32,21 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
     }
 
     const pledges = await listPeerifyPledgesForArtist(circle._id);
-    const estimatedTicketValue = pledges.reduce(
-        (total, pledge) => total + parseTicketAmount(pledge.maximumTicketAmount),
-        0,
-    );
     const uniquePledgerDids = Array.from(new Set(pledges.map((pledge) => pledge.pledgerDid).filter(Boolean)));
 
-    const [messagedPledgerDidsResult, activeCircles] = await Promise.all([
+    const [messagedPledgerDids, activeCircles] = await Promise.all([
         userDid ? listMessagedRecipientDids(userDid, uniquePledgerDids) : Promise.resolve(new Set<string>()),
         getCirclesByDids(uniquePledgerDids),
     ]);
-    const messagedPledgerDids = Array.from(messagedPledgerDidsResult);
     // A pledger's account may have been deleted and re-created since they pledged (same email,
     // new did/handle) — the pledge row still renders fine from its own denormalized snapshot,
     // but there's no live circle left to message. See the "Could not find recipient" investigation.
     const activePledgerDids = activeCircles.map((activeCircle) => activeCircle.did).filter(Boolean) as string[];
+
+    // Fallback currency for pledges made before the `currency` field existed — the artist's
+    // *current* booking-settings currency, matching what the dashboard implicitly assumed
+    // before per-currency grouping existed. Never overrides a pledge's own stored currency.
+    const artistCurrency = getPeerifyArtistProfile(circle).bookingSettings.currency || "EUR";
 
     return (
         <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8">
@@ -109,15 +89,6 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
                 </div>
             </div>
 
-            <section className="grid gap-4 sm:grid-cols-2">
-                <StatCard label="Total pledges" value={pledges.length} description="Fans who raised their hand" />
-                <StatCard
-                    label="Estimated total value"
-                    value={`~${formatEstimatedTicketValue(estimatedTicketValue)}`}
-                    description="Signal so far, not confirmed bookings — sum of numeric max amounts fans entered"
-                />
-            </section>
-
             {pledges.length === 0 ? (
                 <Card className="rounded-lg border-dashed border-slate-300 bg-slate-50 shadow-none">
                     <CardContent className="flex min-h-40 flex-col items-center justify-center px-6 py-10 text-center">
@@ -130,8 +101,9 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
             ) : (
                 <PledgeDashboardClient
                     pledges={pledges}
-                    initialMessagedDids={messagedPledgerDids}
+                    initialMessagedDids={Array.from(messagedPledgerDids)}
                     activePledgerDids={activePledgerDids}
+                    fallbackCurrency={artistCurrency}
                 />
             )}
         </main>
