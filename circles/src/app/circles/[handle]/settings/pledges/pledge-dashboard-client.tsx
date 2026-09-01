@@ -326,6 +326,7 @@ export function PledgeDashboardClient({
                                     onRemoved={handlePledgeRemoved}
                                     hasMessaged={messagedDids.has(pledge.pledgerDid)}
                                     isRecipientActive={activePledgerDidSet.has(pledge.pledgerDid)}
+                                    fallbackCurrency={fallbackCurrency}
                                 />
                             ))}
                         </CardContent>
@@ -432,6 +433,7 @@ function MomentumCard({
                             onRemoved={onPledgeRemoved}
                             hasMessaged={messagedDids.has(pledge.pledgerDid)}
                             isRecipientActive={activePledgerDidSet.has(pledge.pledgerDid)}
+                            fallbackCurrency={fallbackCurrency}
                         />
                     ))}
                 </div>
@@ -447,6 +449,7 @@ function PledgeRow({
     onRemoved,
     hasMessaged,
     isRecipientActive,
+    fallbackCurrency,
 }: {
     pledge: PeerifyPledgeRecord;
     onSelect: () => void;
@@ -454,6 +457,7 @@ function PledgeRow({
     onRemoved: (id: string) => void;
     hasMessaged: boolean;
     isRecipientActive: boolean;
+    fallbackCurrency: string;
 }) {
     return (
         <div
@@ -487,7 +491,18 @@ function PledgeRow({
                 </div>
                 <div className="mt-0.5 truncate text-sm text-slate-500">{getCityAreaLabel(pledge.fanLocation)}</div>
             </div>
-            <div className="shrink-0 text-sm font-medium text-[#231f1a]">{pledge.maximumTicketAmount || "-"}</div>
+            <div className="shrink-0 text-sm font-medium text-[#231f1a]">
+                {pledge.maximumTicketAmount ? (
+                    <>
+                        {pledge.maximumTicketAmount}{" "}
+                        <span className="text-xs font-normal text-slate-500">
+                            {pledge.currency || fallbackCurrency}
+                        </span>
+                    </>
+                ) : (
+                    "-"
+                )}
+            </div>
             <div className="hidden shrink-0 text-sm text-slate-500 sm:block">{formatDate(pledge.createdAt)}</div>
             {hasMessaged ? (
                 <span title="Already messaged">
