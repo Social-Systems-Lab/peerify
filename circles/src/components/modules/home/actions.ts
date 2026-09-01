@@ -142,6 +142,20 @@ export const followCircle = async (circle: Circle, answers?: Record<string, stri
     }
 };
 
+// Client-callable equivalent of the authorizedToEdit prop home.tsx computes server-side for the
+// full profile page — CirclePreview (the map/search popup card) is a client component with no
+// such prop, so it needs its own fresh check to gate Pledge Interest/Join Crew the same way. A
+// logged-out or non-admin viewer gets false, never an error, so the card can just hide the
+// buttons rather than branch on a failure case.
+export const getViewerIsCircleAdminAction = async (circleId: string): Promise<{ isAdmin: boolean }> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid || !circleId) {
+        return { isAdmin: false };
+    }
+    const isAdmin = await isAuthorized(userDid, circleId, features.settings.edit_about);
+    return { isAdmin };
+};
+
 // Applying for Crew doesn't create/replace the applicant's membership itself — that only
 // happens once an admin/mod approves the application (see approveCrewApplicationAction, which
 // branches on addMember vs. updateMemberUserGroups since the applicant is almost always
