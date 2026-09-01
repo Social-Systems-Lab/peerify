@@ -10,7 +10,7 @@ import { useRouter } from "next/navigation";
 import InviteButton from "../modules/home/invite-button";
 import FollowButton from "../modules/home/follow-button";
 import BookmarkButton from "../modules/home/bookmark-button";
-import { getProfilePreviewAccessAction } from "../modules/home/actions";
+import { getProfilePreviewAccessAction, getViewerIsCircleAdminAction } from "../modules/home/actions";
 import {
     Circle,
     FileInfo,
@@ -119,6 +119,23 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
         let isCurrent = true;
         getCrewMembershipStatusAction(circle._id ?? "").then((result) => {
             if (isCurrent) setCrewMembershipStatus(result.status);
+        });
+        return () => {
+            isCurrent = false;
+        };
+    }, [circle, user?.did]);
+    // Same admin check the full artist page's Pledge Interest/Join Crew gating uses (see
+    // home-content.tsx's authorizedToEdit) — this card is a client component with no such prop,
+    // so it fetches it fresh via getViewerIsCircleAdminAction instead.
+    const [isViewerCircleAdmin, setIsViewerCircleAdmin] = React.useState(false);
+    useEffect(() => {
+        if (!isPeerifyArtistIdentity(circle) || !user?.did || !circle?._id) {
+            setIsViewerCircleAdmin(false);
+            return;
+        }
+        let isCurrent = true;
+        getViewerIsCircleAdminAction(circle._id ?? "").then((result) => {
+            if (isCurrent) setIsViewerCircleAdmin(result.isAdmin);
         });
         return () => {
             isCurrent = false;
@@ -335,14 +352,19 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             // (home-content.tsx) — kept in sync so both surfaces use identical
                             // spacing for this same button pair.
                             <div className="flex flex-row justify-center gap-3">
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    onClick={openPledgeDialog}
-                                    className="bg-[#FE801B] text-white hover:bg-[#e57316]"
-                                >
-                                    Pledge
-                                </Button>
+                                {/* Hidden for this circle's own admins, same as the full artist page —
+                                    pledging to (or joining the Crew of) a profile you manage isn't a
+                                    real fan action. */}
+                                {!isViewerCircleAdmin ? (
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={openPledgeDialog}
+                                        className="bg-[#FE801B] text-white hover:bg-[#e57316]"
+                                    >
+                                        Pledge
+                                    </Button>
+                                ) : null}
                                 {/* Hidden entirely (not just the "apply" state) when the artist has
                                     turned Crew off — a "View Crew"/"Application Pending" button
                                     would otherwise dangle to a route isModuleEnabled() now 404s. */}
@@ -371,7 +393,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                         >
                                             Application Pending
                                         </Button>
-                                    ) : (
+                                    ) : !isViewerCircleAdmin ? (
                                         <Button
                                             type="button"
                                             size="sm"
@@ -380,7 +402,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                         >
                                             Join Crew
                                         </Button>
-                                    ))}
+                                    ) : null)}
                             </div>
                         )}
 
