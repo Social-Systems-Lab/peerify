@@ -9,9 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { findOrCreateDMConversationAction, sendMongoMessageAction } from "@/components/modules/chat/actions";
+import { removeOrphanedPledgeAction } from "./actions";
 import type { Circle } from "@/models/models";
 import type { PeerifyPledgeRecord } from "@/lib/data/peerify-pledges";
-import { CheckCircle2, ChevronDown, ChevronRight, Flame, HandHeart, Loader2, MapPinned, Users } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Flame, HandHeart, Loader2, MapPinned, Trash2, Users } from "lucide-react";
 import { TbMessage } from "react-icons/tb";
 
 // A location needs at least this many pledges before it's promoted from the plain list into
@@ -97,10 +98,16 @@ type PledgeLocationCluster = {
     helpOptions: Array<{ label: string; count: number }>;
 };
 
-const buildLocationClusters = (pledges: PeerifyPledgeRecord[]): PledgeLocationCluster[] => {
+// Aggregates (count, value, help summary) reflect only pledges whose account is still active —
+// an orphaned pledge is no longer real signal, so it must not inflate the Momentum threshold or
+// the displayed totals, even though it still renders (greyed out) in the expanded row list below
+// (that list is built separately from the unfiltered `pledges`, not from this cluster object).
+const buildLocationClusters = (pledges: PeerifyPledgeRecord[], activePledgerDidSet: Set<string>): PledgeLocationCluster[] => {
     const clusters = new Map<string, PledgeLocationCluster>();
 
-    pledges.forEach((pledge) => {
+    pledges
+        .filter((pledge) => activePledgerDidSet.has(pledge.pledgerDid))
+        .forEach((pledge) => {
         const label = getCityAreaLabel(pledge.fanLocation);
         const existing =
             clusters.get(label) ??
@@ -188,7 +195,7 @@ type PledgeDashboardClientProps = {
 };
 
 export function PledgeDashboardClient({
-    pledges,
+    pledges: allPledges,
     initialMessagedDids,
     activePledgerDids,
     fallbackCurrency,
@@ -200,10 +207,24 @@ export function PledgeDashboardClient({
     // then updated optimistically the moment a send succeeds in this session so the indicator
     // doesn't wait for a reload; the server-derived value is still what actually persists.
     const [messagedDids, setMessagedDids] = useState<Set<string>>(() => new Set(initialMessagedDids));
+    // Optimistic client-side removal after removeOrphanedPledgeAction succeeds — the pledge is
+    // already gone server-side by the time this is set, this just avoids waiting for a reload.
+    const [removedPledgeIds, setRemovedPledgeIds] = useState<Set<string>>(new Set());
+
+    const pledges = useMemo(
+        () => allPledges.filter((pledge) => !removedPledgeIds.has(pledge._id ?? "")),
+        [allPledges, removedPledgeIds],
+    );
 
     const activePledgerDidSet = useMemo(() => new Set(activePledgerDids), [activePledgerDids]);
+    // Orphaned pledges (see the "Could not find recipient" investigation) still render — greyed
+    // out, openable for detail — but must not inflate the two aggregate stats below.
+    const activePledges = useMemo(
+        () => pledges.filter((pledge) => activePledgerDidSet.has(pledge.pledgerDid)),
+        [pledges, activePledgerDidSet],
+    );
 
-    const clusters = useMemo(() => buildLocationClusters(pledges), [pledges]);
+    const clusters = useMemo(() => buildLocationClusters(pledges, activePledgerDidSet), [pledges, activePledgerDidSet]);
     const momentumClusters = useMemo(
         () => clusters.filter((cluster) => cluster.pledgeCount >= MOMENTUM_THRESHOLD),
         [clusters],
@@ -228,8 +249,8 @@ export function PledgeDashboardClient({
     );
 
     const totalValueGroups = useMemo(
-        () => groupAmountsByCurrency(pledges, fallbackCurrency),
-        [pledges, fallbackCurrency],
+        () => groupAmountsByCurrency(activePledges, fallbackCurrency),
+        [activePledges, fallbackCurrency],
     );
 
     const detailPledge = useMemo(
@@ -244,6 +265,11 @@ export function PledgeDashboardClient({
 
     const handleMessageSent = (pledgerDid: string) => {
         setMessagedDids((prev) => new Set(prev).add(pledgerDid));
+    };
+
+    const handlePledgeRemoved = (pledgeId: string) => {
+        setRemovedPledgeIds((prev) => new Set(prev).add(pledgeId));
+        setDetailPledgeId((current) => (current === pledgeId ? null : current));
     };
 
     const toggleCluster = (label: string) => {
@@ -261,7 +287,7 @@ export function PledgeDashboardClient({
     return (
         <div className="flex flex-col gap-6">
             <section className="grid gap-4 sm:grid-cols-2">
-                <StatCard label="Total pledges" value={pledges.length} description="Fans who raised their hand" />
+                <StatCard label="Total pledges" value={activePledges.length} description="Fans who raised their hand" />
                 <StatCard
                     label="Estimated total value"
                     value={<CurrencyGroupsValue groups={totalValueGroups} />}
@@ -281,6 +307,7 @@ export function PledgeDashboardClient({
                         onToggle={() => toggleCluster(cluster.label)}
                         onSelectPledge={setDetailPledgeId}
                         onMessagePledge={setMessagePledgeId}
+                        onPledgeRemoved={handlePledgeRemoved}
                         messagedDids={messagedDids}
                         activePledgerDidSet={activePledgerDidSet}
                         fallbackCurrency={fallbackCurrency}
@@ -296,6 +323,7 @@ export function PledgeDashboardClient({
                                     pledge={pledge}
                                     onSelect={() => setDetailPledgeId(pledge._id ?? null)}
                                     onMessage={() => setMessagePledgeId(pledge._id ?? null)}
+                                    onRemoved={handlePledgeRemoved}
                                     hasMessaged={messagedDids.has(pledge.pledgerDid)}
                                     isRecipientActive={activePledgerDidSet.has(pledge.pledgerDid)}
                                 />
@@ -313,6 +341,7 @@ export function PledgeDashboardClient({
                     if (!open) setDetailPledgeId(null);
                 }}
                 onMessage={() => setMessagePledgeId(detailPledge?._id ?? null)}
+                onRemoved={handlePledgeRemoved}
             />
 
             <MessageComposeDialog
@@ -333,6 +362,7 @@ function MomentumCard({
     onToggle,
     onSelectPledge,
     onMessagePledge,
+    onPledgeRemoved,
     messagedDids,
     activePledgerDidSet,
     fallbackCurrency,
@@ -343,11 +373,15 @@ function MomentumCard({
     onToggle: () => void;
     onSelectPledge: (id: string | null) => void;
     onMessagePledge: (id: string | null) => void;
+    onPledgeRemoved: (id: string) => void;
     messagedDids: Set<string>;
     activePledgerDidSet: Set<string>;
     fallbackCurrency: string;
 }) {
-    const valueGroups = groupAmountsByCurrency(pledges, fallbackCurrency);
+    // Header stats (count via cluster.pledgeCount, value below) reflect active pledges only —
+    // the expanded rows below still render every pledge at this location, orphaned ones greyed.
+    const activePledges = pledges.filter((pledge) => activePledgerDidSet.has(pledge.pledgerDid));
+    const valueGroups = groupAmountsByCurrency(activePledges, fallbackCurrency);
     const helpSummary =
         cluster.helpOfferCount > 0
             ? `${cluster.helpOfferCount} ${cluster.helpOfferCount === 1 ? "person" : "people"} offering: ${cluster.helpOptions
@@ -395,6 +429,7 @@ function MomentumCard({
                             pledge={pledge}
                             onSelect={() => onSelectPledge(pledge._id ?? null)}
                             onMessage={() => onMessagePledge(pledge._id ?? null)}
+                            onRemoved={onPledgeRemoved}
                             hasMessaged={messagedDids.has(pledge.pledgerDid)}
                             isRecipientActive={activePledgerDidSet.has(pledge.pledgerDid)}
                         />
@@ -409,12 +444,14 @@ function PledgeRow({
     pledge,
     onSelect,
     onMessage,
+    onRemoved,
     hasMessaged,
     isRecipientActive,
 }: {
     pledge: PeerifyPledgeRecord;
     onSelect: () => void;
     onMessage: () => void;
+    onRemoved: (id: string) => void;
     hasMessaged: boolean;
     isRecipientActive: boolean;
 }) {
@@ -429,11 +466,19 @@ function PledgeRow({
                     onSelect();
                 }
             }}
-            className="flex w-full cursor-pointer items-center gap-4 px-4 py-3 text-left transition hover:bg-slate-50"
+            className={cn(
+                "flex w-full cursor-pointer items-center gap-4 px-4 py-3 text-left transition hover:bg-slate-50",
+                !isRecipientActive && "opacity-60",
+            )}
         >
             <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                    <span className="truncate font-medium text-[#231f1a]">
+                    <span
+                        className={cn(
+                            "truncate font-medium",
+                            isRecipientActive ? "text-[#231f1a]" : "text-slate-500 line-through",
+                        )}
+                    >
                         {pledge.pledgerName || "Unknown supporter"}
                     </span>
                     {pledge.pledgerHandle ? (
@@ -449,11 +494,11 @@ function PledgeRow({
                     <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-label="Already messaged" />
                 </span>
             ) : null}
-            <MessageTriggerButton
-                pledgerName={pledge.pledgerName}
-                onClick={onMessage}
-                disabled={!isRecipientActive}
-            />
+            {isRecipientActive ? (
+                <MessageTriggerButton pledgerName={pledge.pledgerName} onClick={onMessage} />
+            ) : (
+                <RemovePledgeButton pledgeId={pledge._id ?? ""} onRemoved={onRemoved} />
+            )}
             <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
         </div>
     );
@@ -463,20 +508,80 @@ function MessageTriggerButton({
     pledgerName,
     onClick,
     compact = true,
-    disabled = false,
 }: {
     pledgerName: string;
     onClick: () => void;
     compact?: boolean;
-    disabled?: boolean;
 }) {
-    // The pledger's account may have been deleted (and possibly re-created under a different
-    // did/handle with the same email — see the "Could not find recipient" investigation) since
-    // they pledged. Rather than opening a compose dialog that would fail on send, disable the
-    // trigger up front with an explanation.
-    const label = disabled
-        ? "This fan's account no longer exists — they can't be messaged"
-        : `Message ${pledgerName || "this pledger"}`;
+    const label = `Message ${pledgerName || "this pledger"}`;
+
+    return (
+        <Button
+            type="button"
+            variant={compact ? "ghost" : "outline"}
+            size={compact ? "icon" : "default"}
+            className={cn("shrink-0", compact ? "rounded-full text-slate-500 hover:text-[#231f1a]" : "gap-2 rounded-full")}
+            onClick={(event) => {
+                event.stopPropagation();
+                onClick();
+            }}
+            aria-label={compact ? label : undefined}
+        >
+            <TbMessage className="h-4 w-4" />
+            {!compact ? "Message" : null}
+        </Button>
+    );
+}
+
+// The pledger's account may have been deleted (and possibly re-created under a different
+// did/handle with the same email — see the "Could not find recipient" investigation) since they
+// pledged. Scoped narrowly: only ever rendered for a row already known to be orphaned, and the
+// server action re-verifies that independently before deleting anything — never a general
+// "delete any pledge" button.
+function RemovePledgeButton({
+    pledgeId,
+    onRemoved,
+    compact = true,
+}: {
+    pledgeId: string;
+    onRemoved: (id: string) => void;
+    compact?: boolean;
+}) {
+    const { toast } = useToast();
+    const [isRemoving, setIsRemoving] = useState(false);
+    const label = "This fan's account no longer exists — remove this pledge";
+
+    const handleRemove = async (event: React.MouseEvent) => {
+        event.stopPropagation();
+        if (!pledgeId || isRemoving) {
+            return;
+        }
+
+        setIsRemoving(true);
+        try {
+            const result = await removeOrphanedPledgeAction(pledgeId);
+            if (!result.success) {
+                toast({
+                    title: "Could not remove pledge",
+                    description: result.message || "Please try again.",
+                    variant: "destructive",
+                });
+                return;
+            }
+
+            toast({ title: "Pledge removed", description: "This orphaned pledge was removed from the dashboard." });
+            onRemoved(pledgeId);
+        } catch (error) {
+            console.error("Failed to remove orphaned pledge:", error);
+            toast({
+                title: "Could not remove pledge",
+                description: error instanceof Error ? error.message : "Please try again.",
+                variant: "destructive",
+            });
+        } finally {
+            setIsRemoving(false);
+        }
+    };
 
     return (
         <Button
@@ -484,20 +589,16 @@ function MessageTriggerButton({
             variant={compact ? "ghost" : "outline"}
             size={compact ? "icon" : "default"}
             className={cn(
-                "shrink-0",
-                compact ? "rounded-full text-slate-500 hover:text-[#231f1a]" : "gap-2 rounded-full",
-                disabled && "cursor-not-allowed opacity-40",
+                "shrink-0 text-red-500 hover:bg-red-50 hover:text-red-600",
+                compact ? "rounded-full" : "gap-2 rounded-full",
             )}
-            disabled={disabled}
-            onClick={(event) => {
-                event.stopPropagation();
-                onClick();
-            }}
+            disabled={isRemoving}
+            onClick={handleRemove}
             aria-label={compact ? label : undefined}
-            title={disabled ? label : undefined}
+            title={compact ? label : undefined}
         >
-            <TbMessage className="h-4 w-4" />
-            {!compact ? (disabled ? "Account no longer exists" : "Message") : null}
+            {isRemoving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            {!compact ? (isRemoving ? "Removing..." : "Remove pledge") : null}
         </Button>
     );
 }
@@ -635,12 +736,14 @@ function PledgeDetailDialog({
     isRecipientActive,
     onOpenChange,
     onMessage,
+    onRemoved,
 }: {
     pledge: PeerifyPledgeRecord | null;
     hasMessaged: boolean;
     isRecipientActive: boolean;
     onOpenChange: (open: boolean) => void;
     onMessage: () => void;
+    onRemoved: (id: string) => void;
 }) {
     return (
         <Dialog open={pledge !== null} onOpenChange={onOpenChange}>
@@ -684,17 +787,17 @@ function PledgeDetailDialog({
                             ) : null}
                             {!isRecipientActive ? (
                                 <p className="text-xs text-muted-foreground">
-                                    This fan&apos;s account no longer exists, so they can&apos;t be messaged.
+                                    This fan&apos;s account no longer exists, so they can&apos;t be messaged. You can
+                                    remove this pledge below.
                                 </p>
                             ) : null}
                         </div>
                         <DialogFooter>
-                            <MessageTriggerButton
-                                pledgerName={pledge.pledgerName}
-                                onClick={onMessage}
-                                compact={false}
-                                disabled={!isRecipientActive}
-                            />
+                            {isRecipientActive ? (
+                                <MessageTriggerButton pledgerName={pledge.pledgerName} onClick={onMessage} compact={false} />
+                            ) : (
+                                <RemovePledgeButton pledgeId={pledge._id ?? ""} onRemoved={onRemoved} compact={false} />
+                            )}
                         </DialogFooter>
                     </>
                 ) : null}

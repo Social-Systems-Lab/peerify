@@ -152,3 +152,29 @@ export async function listPeerifyPledgesForArtist(artistCircleId: string): Promi
 
     return records.map(mapPledgeRecord);
 }
+
+export async function getPeerifyPledgeById(pledgeId: string): Promise<PeerifyPledgeRecord | null> {
+    if (!ObjectId.isValid(pledgeId)) {
+        return null;
+    }
+
+    const collection = await getPledgeCollection();
+    const record = await collection.findOne({ _id: new ObjectId(pledgeId) });
+
+    return record ? mapPledgeRecord(record) : null;
+}
+
+// Scoped removal for a single, already-identified pledge — the artistCircleId match is a
+// belt-and-suspenders guard against deleting the wrong artist's pledge by id alone, not the
+// primary authorization check (that's the caller's job — see removeOrphanedPledgeAction, which
+// re-verifies the pledger's account is actually gone before ever calling this).
+export async function deletePeerifyPledgeById(pledgeId: string, artistCircleId: string): Promise<boolean> {
+    if (!ObjectId.isValid(pledgeId)) {
+        return false;
+    }
+
+    const collection = await getPledgeCollection();
+    const result = await collection.deleteOne({ _id: new ObjectId(pledgeId), artistCircleId });
+
+    return result.deletedCount > 0;
+}
