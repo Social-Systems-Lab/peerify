@@ -40,6 +40,206 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-09-01 — Self-pledge/self-crew-application guard
+
+Headline: a circle's own admin could pledge to their own artist profile or apply to their own
+Crew — "Pledge Interest" and "Join Crew" had no admin gating at all on the profile page, and no
+server-side guard backed either action either, so even a hidden button would have been cosmetic
+only. Investigated first (as instructed): confirmed no comment, commit message, or
+self-pledge/self-crew accommodation anywhere suggested this was deliberate (e.g. "let admins test
+the flow") — it was a plain gap, not a choice to preserve.
+
+**Fixed on three fronts, each independently verified live, not just by code review:**
+1. **Profile-page buttons** (`dd854730`): "Pledge Interest" and the `Join Crew` branch (only —
+   "View Crew"/"Application Pending" untouched) in `home-content.tsx` now hide behind the same
+   `authorizedToEdit` check Pledges/Crew Dashboard already use. Verified via Playwright as both
+   the circle's own admin (hidden) and a real non-admin fan (still visible, no regression).
+2. **Server-side actions** (`1a159c12`): `createPeerifyPledgeAction` and `applyForCrewMembership`
+   now independently re-check `isAuthorized(userDid, circleId, features.settings.edit_about)` and
+   reject with a clear message — so a direct action call can't bypass a hidden button. Verified
+   live by finding a still-unguarded second surface (see below) and actually submitting through
+   it as an admin: rejected with "You manage this profile, so you can't pledge to it yourself,"
+   confirmed via direct DB read that no pledge document was written.
+3. **Map-popup card** (`1c5dfbfd`): `CirclePreview` (`content-preview.tsx`) turned out to have the
+   identical unguarded Pledge/Join Crew buttons, undiscovered by the original bug report since it
+   only named the profile-page action row. Since it's a client component with no server-computed
+   `authorizedToEdit` prop, added `getViewerIsCircleAdminAction` (a thin client-callable wrapper
+   around the same `isAuthorized` check) and gated the same way, fetched via a `useEffect`
+   mirroring the existing `crewMembershipStatus` pattern. This is the surface used to prove item 2
+   above actually blocks the write, not just the message.
+
+**Existing data cleanup:** checked for pre-existing violations before the guard existed. Found and
+removed 2 genuine self-pledges (Tim Admin → `tim-solo`, created 2026-08-11; Tim Admin →
+`the-friendy`, created 2026-08-30) — both real, not test artifacts. Also found Tim Admin already
+had a pre-existing `admins`+`crew` membership overlap on `tim-solo` (joined 2026-06-28) —
+deliberately left untouched per instruction: that's a legitimate role combination the new guard
+only prevents going forward, not something to unwind retroactively.
+
+**Deployed to staging**, all three fixes live and re-verified after deploy. **Update (same
+session): promoted to `main`** as `2e84b252`/`4bb21fee`/`6171c7ee` — confirmed via content-diff
+that `main` and `staging` now match on every file this fix touches.
+
+---
+
+## 2026-09-01 (cont.) — Artist settings page cleanup: promoted to production
+
+The 5-item Artist settings cleanup built on staging 2026-08-30 (Circle→Profile rename, simplified
+Published-status card, second Save Changes button, Booking enquiries split into its own
+collapsible card, Spotify added to Music Links, "Looking for/Open to" hidden — full detail in the
+2026-08-30 entry below) had been sitting staging-only since then. Cherry-picked to `main` this
+session as `f6981f2e`/`53666651`/`d2dca13c`. One non-trivial merge conflict along the way: prod's
+`about-settings-form.tsx` had a `Dialog` import HEAD had reformatted differently, and the incoming
+commit's own new `Collapsible`/`CollapsibleContent` import — confirmed both needed to coexist (the
+`Dialog` import list was byte-identical in content on both sides, just wrapped differently; the
+`Collapsible` import is genuinely used later in the same commit's own booking-section rewrite, and
+`ui/collapsible.tsx` already exists in the prod worktree) before resolving, rather than assuming
+either side "wins." Resolved and handed back for review before the cherry-pick continued.
+
+---
+
+## 2026-09-01 (cont. 2) — Crew Dashboard: new admin overview page
+
+Headline: there was a member-facing "View Crew" but no artist/admin equivalent of the Pledge
+Dashboard — no way to see who's in your Crew, where they are, or what they've offered to help
+with, all in one place. Investigated first (as instructed): confirmed no structured per-member
+data was missing (location was trivially available but unprojected; `tourTeamOfferings` already
+existed via the same admin-aware path `CrewOffersWidget` uses), no aggregate view existed anywhere,
+and messaging had no separate Crew-specific path — it's the same generic DM actions the Pledge
+Dashboard already uses. This meant the build was comparable effort to the Pledge Dashboard rework,
+not a new-data-collection project.
+
+**Built** (`574dd368`/`609ddcf0`/`3fa80f03`): `getCrewMembers()` extended with `location`; a new
+shared icon mapping (`tourTeamOfferingTypeIcons`) added since none existed anywhere to reuse, and
+applied to `CrewOffersWidget` too so the two admin-facing surfaces don't visually diverge. New page
+at `settings/crew` renders each member as a card — avatar, location, join date, offerings as icon
+badges, an explicit caption clarifying offerings are the member's general standing offer, not
+tour-specific — with a Message action reusing the Pledge Dashboard's own DM pattern
+(`findOrCreateDMConversationAction`/`sendMongoMessageAction`). A "Crew Dashboard" button added next
+to Pledges/View Crew on the artist profile, admin-only, hidden when Crew is disabled.
+
+**Explicitly not built**, same reasoning as the Pledge Dashboard's own deferrals: map view,
+per-artist offering customization (offerings stay the member's general profile data), search/
+filter/sort (not a flagged pain point at current roster sizes).
+
+**Verified live** on staging with a real mixed roster (one member with 7 offerings including a
+custom type, one with none, one with a mixed set) — cards, icons, caption, mobile layout (no
+crowding), and the Message action (real DM created, message sent, confirmed via direct DB read)
+all checked. One process note: an early verification pass wrote test data into a wrongly-cased
+`Members` collection (this app's actual collection is lowercase `members`) — silently created a
+phantom, unused collection rather than erroring, which cost real debugging time before being
+traced and cleaned up.
+
+**Promoted to `main` same day** as `7924c1a4`/`6466a0a5`/`846817a8`.
+
+---
+
+## 2026-09-01 (cont. 3) — Currency coherence pass
+
+Headline: two separate currency problems on the Pledge Dashboard — pledges made before the
+`currency` field existed (and some after) blended different currencies into one misleading total,
+and pledge currency was always silently defaulted to the artist's own booking-settings currency
+rather than ever being the fan's actual choice.
+
+**Display fix first** (`794b014b`/`17b95357`): stat cards now group and show a subtotal per
+currency instead of summing mismatched currencies into one number; "Estimated ticket value"
+renamed to "Estimated total value" with smaller stat-card sizing.
+
+**Then the real fix** (`8cb3f6d9`): pledge currency is now genuinely fan-selected, defaulted from
+the show location's country rather than the artist's settings. Investigated first what the
+location-autocomplete component already returns before building anything — Mapbox's geocoding
+response already includes an ISO country `short_code` that this codebase was discarding; captured
+it as a new `countryCode` field on `Location`, added a `getCurrencyForCountryCode` lookup table,
+and upgraded the pledge dialog's plain fan-location text field to the same compact `LocationPicker`
+used in 13+ other places app-wide. Found and fixed a real race condition along the way: the
+location-fallback effect could briefly show a stale map pin (the fan's own profile location)
+before the "does a pledge already exist" async check resolved — added a `hasCheckedExistingPledge`
+gate so the fallback never fires before that check settles.
+
+**Then per-row display** (`380a31e7`): the currency code now shows next to the amount on every
+individual pledge row, main list and expanded Momentum view alike (e.g. "500 SEK" not just "500"),
+confirmed live for both currencies actually present in the data, no crowding on mobile.
+
+**Explicitly deferred, same as before:** real currency conversion/exchange-rate logic, and any
+single blended cross-currency total. The artist's own booking-settings currency is unaffected by
+any of this — it was never touched, only pledges' own currency source changed.
+
+**Promoted to `main` same day** as `afd7d683` (plus the display-fix and blending commits, already
+part of the earlier Pledge Dashboard promotion below).
+
+---
+
+## 2026-08-30 (evening) – 2026-09-01 — Multi-pledge duplicate fix + orphaned-pledge handling
+
+**The duplicate bug** (`84e72461`, 2026-08-30): a fan pledging more than once to the same artist
+created a new record every time, with no dedup. `createPeerifyPledge` now upserts on
+`(artistCircleId, pledgerDid)`, backed by a new DB-level unique index as a backstop against any
+future write path bypassing the upsert; the dialog now pre-fills from an existing pledge so a
+resubmit reads as an update, not a blank new pledge. Existing duplicates reconciled on both
+staging (merged) and prod (4 duplicate groups, a keep-latest rule, every group reviewed before any
+write — no blind bulk delete).
+
+**The orphaned-pledge bug** (2026-09-01): investigated a "Could not find recipient" messaging
+error first — traced to `deleteCircle()` never cleaning up `peerify_pledges` when a fan's account
+is deleted, leaving pledges pointing at a fan who no longer exists. Scoped the fix to the
+symptom, not the broader deletion-cascade gap (a deliberate choice, confirmed with Tim rather than
+assumed): `createPeerifyPledgeAction`'s messaging path now proactively checks whether the pledger's
+account still exists (`85737ad2`), and orphaned pledges now render greyed out and struck-through in
+both the plain list and Momentum cards, excluded from the two aggregate stats (so a dead account
+can't inflate "Total pledges" or the estimated-value total) while still being visible for detail,
+with a scoped one-click admin Remove action — never a general delete-any-pledge capability
+(`76b2b035`).
+
+**Both fixes promoted to `main`**: the upsert fix same-day as `98c7527a` (part of a 6-commit chain
+alongside the pledge dialog polish work), and the orphaned-pledge handling as
+`6b751ee4`/`b71b687f`.
+
+---
+
+## 2026-08-30 – 2026-09-01 — Pledge Dashboard restructure
+
+Headline: the original Pledge Dashboard forced every pledge into a location cluster with a map
+preview, even for the common case of a handful of scattered pledges with no real geographic
+signal. Rebuilt around a pledge-first list instead, with clustering only surfaced when it's
+actually meaningful.
+
+**Layout** (`8e55e9d2`..`59edcd07`, 2026-08-30/31): top summary strip slimmed to two honest numbers
+(total pledges, estimated value); the old breakdown-blocks-plus-table replaced with a compact
+pledge list; locations with 3+ pledges promoted into their own expandable "Momentum" cards instead
+of every location getting equal cluster treatment; a per-pledge detail dialog added; the map
+preview — never functional, just a static visual — demoted to a List/Map toggle and then removed
+entirely once confirmed nobody needed it.
+
+**Messaging** (`225103e8`, `9e19144e`, `462767bb`, spanning into 2026-09-01 morning): a per-pledge
+Message action replies in-place instead of navigating away, and a "Messaged" indicator is derived
+from real DM thread data (not a separate flag that could drift from reality) and persists across
+reloads.
+
+**Pledge dialog's own "Contribute to tour" section** (`b2aa2e47`, `217d1b5a`, 2026-08-30): renamed
+and pruned — Attend removed, Host renamed, "Space for 20-30 people" replaced with a conditional
+free-text capacity field that only appears once Host is selected. Pledge and Crew buttons made
+visually consistent everywhere they appear: orange for Pledge (the platform mechanic), solid
+ink-fill for Crew (`4bdc859a`).
+
+**Promoted to `main`** as a linear chain, `87da2732`..`b71b687f`, together with the multi-pledge
+fix above and the tab-filter/CTA/upload-messaging fixes below.
+
+---
+
+## 2026-08-31 — Events tab-filter removal, logged-in CTA fix, onboarding upload-card messaging
+
+Three small, unrelated fixes shipped together:
+- **`557a404f`**: removed the Events/Shifts/All tab filter from the unified event timeline — a
+  filter with nothing left worth filtering once the timeline had already been unified.
+- **`13a821ff`**: the "Join the prototype" CTA now reads "Go to profile" for viewers who are
+  already logged in, instead of dangling a signup-flavored label at someone who doesn't need it.
+- **`978f6d6c`**: added bold messaging to the artist onboarding music-upload card — "good enough
+  to upload, live recordings welcome, can replace later" — to lower the perceived bar for a
+  first upload.
+
+**Promoted to `main`** as `f6be36ca`/`7c4b6009`/`29a654e4`.
+
+---
+
 ## 2026-08-08 — "Respond now" accept/decline on the profile page itself
 
 Headline: connection requests could only be accepted/declined from the notifications panel;
@@ -3449,7 +3649,11 @@ stage restriction — only the button's visibility did). 13 commits (staging `83
 deploy.
 
 **Open follow-ups, not yet scoped:**
-- RSVP status can't be changed once set — bug, not yet investigated.
+- ~~RSVP status can't be changed once set — bug, not yet investigated.~~ **Correction
+  (2026-09-01): already resolved, same day as this entry** — `6e140d69` added an RSVP withdrawal
+  option for non-"going" statuses, and `6b2dbb84`/`6eb44014`/`9426a888` fixed stale RSVP status
+  rendering across the map-explorer, mobile, and desktop events panels. This note simply never got
+  updated when those later same-day commits landed.
 - Tag-based event search/filter — feature request, not yet scoped.
 
 **Status:** live on `main`/prod as of 2026-08-28.
