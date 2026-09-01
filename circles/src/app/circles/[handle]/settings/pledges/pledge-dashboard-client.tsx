@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { findOrCreateDMConversationAction, sendMongoMessageAction } from "@/components/modules/chat/actions";
 import type { Circle } from "@/models/models";
 import type { PeerifyPledgeRecord } from "@/lib/data/peerify-pledges";
-import { ChevronDown, ChevronRight, Flame, HandHeart, Loader2, MapPinned, Users } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Flame, HandHeart, Loader2, MapPinned, Users } from "lucide-react";
 import { TbMessage } from "react-icons/tb";
 
 // A location needs at least this many pledges before it's promoted from the plain list into
@@ -126,12 +126,17 @@ const sortByMostRecent = (pledges: PeerifyPledgeRecord[]): PeerifyPledgeRecord[]
 
 type PledgeDashboardClientProps = {
     pledges: PeerifyPledgeRecord[];
+    initialMessagedDids: string[];
 };
 
-export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
+export function PledgeDashboardClient({ pledges, initialMessagedDids }: PledgeDashboardClientProps) {
     const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
     const [detailPledgeId, setDetailPledgeId] = useState<string | null>(null);
     const [messagePledgeId, setMessagePledgeId] = useState<string | null>(null);
+    // Seeded from the server (derived from real DM/thread data — see listMessagedRecipientDids),
+    // then updated optimistically the moment a send succeeds in this session so the indicator
+    // doesn't wait for a reload; the server-derived value is still what actually persists.
+    const [messagedDids, setMessagedDids] = useState<Set<string>>(() => new Set(initialMessagedDids));
 
     const clusters = useMemo(() => buildLocationClusters(pledges), [pledges]);
     const momentumClusters = useMemo(
@@ -167,6 +172,10 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
         [pledges, messagePledgeId],
     );
 
+    const handleMessageSent = (pledgerDid: string) => {
+        setMessagedDids((prev) => new Set(prev).add(pledgerDid));
+    };
+
     const toggleCluster = (label: string) => {
         setExpandedClusters((prev) => {
             const next = new Set(prev);
@@ -193,6 +202,7 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
                         onToggle={() => toggleCluster(cluster.label)}
                         onSelectPledge={setDetailPledgeId}
                         onMessagePledge={setMessagePledgeId}
+                        messagedDids={messagedDids}
                     />
                 ))}
 
@@ -205,6 +215,7 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
                                     pledge={pledge}
                                     onSelect={() => setDetailPledgeId(pledge._id ?? null)}
                                     onMessage={() => setMessagePledgeId(pledge._id ?? null)}
+                                    hasMessaged={messagedDids.has(pledge.pledgerDid)}
                                 />
                             ))}
                         </CardContent>
@@ -214,6 +225,7 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
 
             <PledgeDetailDialog
                 pledge={detailPledge}
+                hasMessaged={detailPledge ? messagedDids.has(detailPledge.pledgerDid) : false}
                 onOpenChange={(open) => {
                     if (!open) setDetailPledgeId(null);
                 }}
@@ -225,6 +237,7 @@ export function PledgeDashboardClient({ pledges }: PledgeDashboardClientProps) {
                 onOpenChange={(open) => {
                     if (!open) setMessagePledgeId(null);
                 }}
+                onSent={handleMessageSent}
             />
         </div>
     );
@@ -237,6 +250,7 @@ function MomentumCard({
     onToggle,
     onSelectPledge,
     onMessagePledge,
+    messagedDids,
 }: {
     cluster: PledgeLocationCluster;
     pledges: PeerifyPledgeRecord[];
@@ -244,6 +258,7 @@ function MomentumCard({
     onToggle: () => void;
     onSelectPledge: (id: string | null) => void;
     onMessagePledge: (id: string | null) => void;
+    messagedDids: Set<string>;
 }) {
     const helpSummary =
         cluster.helpOfferCount > 0
@@ -292,6 +307,7 @@ function MomentumCard({
                             pledge={pledge}
                             onSelect={() => onSelectPledge(pledge._id ?? null)}
                             onMessage={() => onMessagePledge(pledge._id ?? null)}
+                            hasMessaged={messagedDids.has(pledge.pledgerDid)}
                         />
                     ))}
                 </div>
@@ -304,10 +320,12 @@ function PledgeRow({
     pledge,
     onSelect,
     onMessage,
+    hasMessaged,
 }: {
     pledge: PeerifyPledgeRecord;
     onSelect: () => void;
     onMessage: () => void;
+    hasMessaged: boolean;
 }) {
     return (
         <div
@@ -335,6 +353,11 @@ function PledgeRow({
             </div>
             <div className="shrink-0 text-sm font-medium text-[#231f1a]">{pledge.maximumTicketAmount || "-"}</div>
             <div className="hidden shrink-0 text-sm text-slate-500 sm:block">{formatDate(pledge.createdAt)}</div>
+            {hasMessaged ? (
+                <span title="Already messaged">
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" aria-label="Already messaged" />
+                </span>
+            ) : null}
             <MessageTriggerButton pledgerName={pledge.pledgerName} onClick={onMessage} />
             <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
         </div>
@@ -371,9 +394,11 @@ function MessageTriggerButton({
 function MessageComposeDialog({
     pledge,
     onOpenChange,
+    onSent,
 }: {
     pledge: PeerifyPledgeRecord | null;
     onOpenChange: (open: boolean) => void;
+    onSent: (pledgerDid: string) => void;
 }) {
     const { toast } = useToast();
     const [message, setMessage] = useState("");
@@ -423,6 +448,7 @@ function MessageComposeDialog({
                 title: "Message sent",
                 description: `Your message to ${pledge.pledgerName || "this pledger"} was sent.`,
             });
+            onSent(pledge.pledgerDid);
             handleOpenChange(false);
         } catch (error) {
             console.error("Failed to send pledge message:", error);
@@ -494,10 +520,12 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function PledgeDetailDialog({
     pledge,
+    hasMessaged,
     onOpenChange,
     onMessage,
 }: {
     pledge: PeerifyPledgeRecord | null;
+    hasMessaged: boolean;
     onOpenChange: (open: boolean) => void;
     onMessage: () => void;
 }) {
@@ -535,6 +563,12 @@ function PledgeDetailDialog({
                                 <p className="mt-1 whitespace-pre-wrap text-slate-700">{pledge.note || "-"}</p>
                             </div>
                             <DetailRow label="Pledged" value={formatDate(pledge.createdAt)} />
+                            {hasMessaged ? (
+                                <div className="flex items-center gap-1.5 text-sm text-emerald-700">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Already messaged
+                                </div>
+                            ) : null}
                         </div>
                         <DialogFooter>
                             <MessageTriggerButton pledgerName={pledge.pledgerName} onClick={onMessage} compact={false} />

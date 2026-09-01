@@ -203,6 +203,56 @@ export const findOrCreateDmConversation = async (userA: Circle, userB: Circle): 
     });
 };
 
+// Derives "has senderDid already messaged this recipient" purely from existing DM/message
+// data (no new persisted field) — two batched queries regardless of how many recipientDids are
+// passed, rather than one participants-lookup per recipient. A recipient only counts once a
+// message from senderDid actually exists in their shared conversation; a thread that only has
+// messages from the recipient's side (or none at all) does not count.
+export const listMessagedRecipientDids = async (
+    senderDid: string,
+    recipientDids: string[],
+): Promise<Set<string>> => {
+    const uniqueRecipients = new Set(recipientDids.filter(Boolean));
+    if (!senderDid || uniqueRecipients.size === 0) {
+        return new Set();
+    }
+
+    const conversations = (await ChatConversations.find(
+        { type: "dm", participants: senderDid, archived: { $ne: true } },
+        { projection: { participants: 1 } },
+    ).toArray()) as Array<{ _id: any; participants: string[] }>;
+
+    const conversationIdByRecipient = new Map<string, string>();
+    for (const conversation of conversations) {
+        const other = conversation.participants.find((did) => did !== senderDid);
+        if (other && uniqueRecipients.has(other)) {
+            conversationIdByRecipient.set(other, String(conversation._id));
+        }
+    }
+
+    if (conversationIdByRecipient.size === 0) {
+        return new Set();
+    }
+
+    const messagedConversationIds = new Set(
+        (
+            await ChatMessageDocs.find(
+                { conversationId: { $in: Array.from(conversationIdByRecipient.values()) }, senderDid },
+                { projection: { conversationId: 1 } },
+            ).toArray()
+        ).map((doc) => doc.conversationId as string),
+    );
+
+    const messagedRecipients = new Set<string>();
+    conversationIdByRecipient.forEach((conversationId, recipientDid) => {
+        if (messagedConversationIds.has(conversationId)) {
+            messagedRecipients.add(recipientDid);
+        }
+    });
+
+    return messagedRecipients;
+};
+
 export const ensureWelcomeMessageForNewUser = async (
     userDid: string,
     config: WelcomeMessageConfig = WELCOME_MESSAGE,
