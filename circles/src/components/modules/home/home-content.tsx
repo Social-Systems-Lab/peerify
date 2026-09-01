@@ -18,7 +18,7 @@ import { userAtom, PILOT_ONBOARDING_COMPLETED_STORAGE_KEY } from "@/lib/data/ato
 import { useAtom } from "jotai";
 import { NotificationSettingsDialog } from "@/components/notifications/NotificationSettingsDialog";
 import { Button } from "@/components/ui/button";
-import { BarChart3, Settings } from "lucide-react";
+import { BarChart3, Settings, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { PublishManagedProfileButton } from "@/components/profiles/publish-managed-profile-button";
@@ -139,6 +139,11 @@ export default function HomeContent({
     const showManagedDraftBanner =
         authorizedToEdit && isPeerifyManagedArtistIdentity && (circle.publishStatus ?? "published") === "draft";
     const showPledgesDashboardButton = authorizedToEdit && isPeerifyManagedArtistIdentity && Boolean(circle.handle);
+    // Same admin-only gating as the Pledges button above, plus crewEnabled !== false — mirrors
+    // the "hidden entirely when Crew is off" treatment the View Crew/Join Crew buttons already
+    // get below, since a Dashboard for a disabled feature would just be an empty, confusing page.
+    const showCrewDashboardButton =
+        authorizedToEdit && isPeerifyManagedArtistIdentity && circle.crewEnabled !== false && Boolean(circle.handle);
     const circlePictureUrl = isPeerifyManagedArtistIdentity
         ? getPeerifyIdentityAvatarUrl(circle)
         : (circle?.picture?.url ?? "/images/default-picture.png");
@@ -652,6 +657,14 @@ export default function HomeContent({
                                                     Join Crew
                                                 </Button>
                                             ))}
+                                        {showCrewDashboardButton ? (
+                                            <Button asChild size="sm" variant="outline">
+                                                <Link href={`/circles/${circle.handle}/settings/crew`}>
+                                                    <Users className="mr-2 h-4 w-4" />
+                                                    Crew Dashboard
+                                                </Link>
+                                            </Button>
+                                        ) : null}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
                                         {peerifyArtistProfile.primaryGenres.map((genre) => (
