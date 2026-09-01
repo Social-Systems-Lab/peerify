@@ -610,14 +610,19 @@ export default function HomeContent({
                                         map popup card (content-preview.tsx) — same button pair, same
                                         spacing on both surfaces. */}
                                     <div className="flex flex-wrap gap-3">
-                                        <Button
-                                            type="button"
-                                            size="sm"
-                                            className="bg-[#FE801B] text-white hover:bg-[#e57316]"
-                                            onClick={() => openPeerifyArtistEnquiry("pledge")}
-                                        >
-                                            Pledge Interest
-                                        </Button>
+                                        {/* Hidden for this circle's own admins, same as Pledges/Crew Dashboard below —
+                                            pledging to (or joining the Crew of) a profile you manage isn't a real
+                                            fan action, it's just noise on your own profile. */}
+                                        {!authorizedToEdit ? (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                className="bg-[#FE801B] text-white hover:bg-[#e57316]"
+                                                onClick={() => openPeerifyArtistEnquiry("pledge")}
+                                            >
+                                                Pledge Interest
+                                            </Button>
+                                        ) : null}
                                         {showPledgesDashboardButton ? (
                                             <Button asChild size="sm" variant="outline">
                                                 <Link href={`/circles/${circle.handle}/settings/pledges`}>
@@ -647,7 +652,7 @@ export default function HomeContent({
                                                 >
                                                     Application Pending
                                                 </Button>
-                                            ) : (
+                                            ) : !authorizedToEdit ? (
                                                 <Button
                                                     type="button"
                                                     size="sm"
@@ -656,7 +661,7 @@ export default function HomeContent({
                                                 >
                                                     Join Crew
                                                 </Button>
-                                            ))}
+                                            ) : null)}
                                         {showCrewDashboardButton ? (
                                             <Button asChild size="sm" variant="outline">
                                                 <Link href={`/circles/${circle.handle}/settings/crew`}>
