@@ -1,7 +1,7 @@
 import { Collection, ObjectId } from "mongodb";
 import { getDb } from "@/lib/data/db";
 import type { Circle } from "@/models/models";
-import { getPeerifyArtistProfile, type PeerifyPledgeEnquiryInput } from "@/lib/peerify/artist-profile";
+import type { PeerifyPledgeEnquiryInput } from "@/lib/peerify/artist-profile";
 
 export type PeerifyPledgeRecord = {
     _id?: string;
@@ -14,11 +14,12 @@ export type PeerifyPledgeRecord = {
     pledgerPicture?: string;
     fanLocation: string;
     maximumTicketAmount: string;
-    // Snapshot of the artist's booking-settings currency at the moment this pledge was made
-    // (see pledge-dialog.tsx's `artistCurrency`) — absent on pledges created before this field
-    // existed. Never re-derive it from the artist's *current* setting for a pledge that already
-    // has one: the artist may change currencies later, and older pledges must keep the value
-    // that was actually shown to the fan when they typed the number in.
+    // The fan's own currency choice at the moment this pledge was made (pledge-dialog.tsx
+    // defaults it from their location, but it's always their choice, never the artist's booking-
+    // settings currency) — absent on pledges created before this field existed, or if the fan
+    // cleared the dropdown. Never re-derive a pledge's own value from anything *current* once
+    // set: the fan's or artist's settings may change later, and this must keep the value that was
+    // actually shown at submission time.
     currency?: string;
     preferredEventType: string;
     helpOptions: string[];
@@ -110,7 +111,7 @@ export async function createPeerifyPledge(input: PeerifyPledgeInput): Promise<Pe
         pledgerPicture: clampText(input.pledger.picture?.url, 500) || undefined,
         fanLocation: clampText(input.pledge.fanLocation, 120),
         maximumTicketAmount: clampText(input.pledge.maximumTicketAmount, 80),
-        currency: clampText(getPeerifyArtistProfile(input.artist).bookingSettings.currency, 10) || "EUR",
+        currency: clampText(input.pledge.currency, 10) || undefined,
         preferredEventType: clampText(input.pledge.preferredEventType, 80),
         helpOptions: clampStringArray(input.pledge.helpOptions, 8, 80),
         hostingCapacity: clampText(input.pledge.hostingCapacity, 80),

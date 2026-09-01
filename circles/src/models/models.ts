@@ -71,6 +71,10 @@ export type LngLat = z.infer<typeof lngLatSchema>;
 export const locationSchema = z.object({
     precision: z.number(),
     country: z.string().optional(),
+    // ISO 3166-1 alpha-2 (e.g. "SE") — Mapbox's geocoding response already includes this as
+    // `short_code` on the country context entry; captured alongside the display name so callers
+    // can do a reliable country->currency lookup instead of matching on the free-text name.
+    countryCode: z.string().optional(),
     region: z.string().optional(),
     city: z.string().optional(),
     street: z.string().optional(),
