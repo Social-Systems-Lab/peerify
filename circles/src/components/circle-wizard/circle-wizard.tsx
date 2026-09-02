@@ -1,19 +1,21 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Progress } from "@/components/ui/progress";
 import { Cause, CircleLevel, CircleType, Skill } from "@/models/models";
 import { useRouter, useSearchParams } from "next/navigation";
 import BasicInfoStep from "./basic-info-step";
-import MissionStep from "./mission-step";
+import PurposeStep from "./purpose-step";
 import ProfileStep from "./profile-step";
+import GenreStep from "./genre-step";
 import LocationStep from "./location-step";
 // import SdgsStep from "./sdgs-step";
 import SkillsStep from "./skills-step";
+import InviteStep from "./invite-step";
 import FinalStep from "./final-step";
 import { Location, Media } from "@/models/models";
 import { Card, CardContent } from "../ui/card";
+
+const DEFAULT_CIRCLE_PICTURE = "/images/default-circle-picture.svg";
 
 export type CircleData = {
     _id?: string; // Added circle ID
@@ -24,8 +26,11 @@ export type CircleData = {
     description: string;
     content: string;
     location?: Location;
+    searchable?: boolean;
     selectedSdgs: Cause[];
     selectedSkills: Skill[];
+    primaryGenres?: string[];
+    primaryGenreOther?: string;
     picture: string; // Keep profile picture string for now
     // cover: string; // Remove cover string
     images: any[]; // Add images array
@@ -69,7 +74,7 @@ export default function CircleWizard({ onComplete, initialParentCircleId, initia
         content: "",
         selectedSdgs: [],
         selectedSkills: [],
-        picture: "/images/default-picture.png",
+        picture: DEFAULT_CIRCLE_PICTURE,
         images: [], // Initialize images as empty array
         parentCircleId: undefined, // Initialized as undefined, BasicInfoStep will set it
         circleLevel: initialParentCircleId ? "profile_child" : "profile_child",
@@ -93,7 +98,7 @@ export default function CircleWizard({ onComplete, initialParentCircleId, initia
                 content: "",
                 selectedSdgs: [],
                 selectedSkills: [],
-                picture: "/images/default-picture.png",
+                picture: DEFAULT_CIRCLE_PICTURE,
                 images: [],
                 parentCircleId: initialParentCircleId, // Set initial parentCircleId
                 circleLevel: initialParentCircleId ? "profile_child" : "profile_child",
@@ -114,11 +119,13 @@ export default function CircleWizard({ onComplete, initialParentCircleId, initia
         // Mapping of step components
         const stepComponents: React.ComponentType<CircleWizardStepProps>[] = [
             BasicInfoStep,
-            MissionStep,
+            PurposeStep,
             ProfileStep,
+            GenreStep,
             LocationStep,
             // SdgsStep,
             // SkillsStep,
+            InviteStep,
             FinalStep,
         ];
 
@@ -132,18 +139,22 @@ export default function CircleWizard({ onComplete, initialParentCircleId, initia
 
     // Helper function to get step titles
     function getStepTitle(stepIndex: number) {
-        const entityType = circleData.circleType === "project" ? "Project" : "Community";
+        const entityType = circleData.circleType === "project" ? "Project" : "Circle";
         switch (stepIndex) {
             case 0:
                 return "Basic Information";
             case 1:
-                return `${entityType} Mission`;
+                return `${entityType} Purpose`;
             case 2:
                 return `${entityType} Profile`;
             case 3:
-                return `${entityType} Location`;
+                return `${entityType} Genres`;
             case 4:
-                return `Create ${entityType}`;
+                return `${entityType} Location`;
+            case 5:
+                return "Invite People";
+            case 6:
+                return `${entityType} Summary`;
             default:
                 return `${entityType} Creation`;
         }
@@ -186,29 +197,27 @@ export default function CircleWizard({ onComplete, initialParentCircleId, initia
 
     return (
         <div className={`${!isOpen ? "hidden" : ""} flex items-center justify-center p-0`}>
-            <Card className="max-h-[90vh] w-full max-w-5xl overflow-hidden rounded-2xl border-0 bg-[#f9f9f9] shadow-xl backdrop-blur-sm">
-                <CardContent className="max-h-[calc(90vh-2rem)] overflow-y-auto p-6">
-                    <div className="mx-auto w-full max-w-3xl">
-                        <Progress value={((currentStepIndex + 1) / totalSteps) * 100} className="mb-6" />
-                        <AnimatePresence mode="wait">
-                            <motion.div
-                                key={steps[currentStepIndex].id}
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                transition={{ duration: 0.3 }}
-                            >
-                                <CurrentStepComponent
-                                    circleData={circleData}
-                                    setCircleData={setCircleData}
-                                    nextStep={nextStep}
-                                    prevStep={prevStep}
-                                    onComplete={onComplete}
-                                    initialParentCircleId={initialParentCircleId}
-                                />
-                            </motion.div>
-                        </AnimatePresence>
+            <Card className="max-h-[90vh] w-full max-w-xl overflow-hidden rounded-2xl border-0 bg-background shadow-xl">
+                <CardContent className="max-h-[calc(90vh-2rem)] space-y-6 overflow-y-auto p-6 sm:p-8">
+                    <div className="space-y-2">
+                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            {steps[currentStepIndex].title}
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                            <div
+                                className="h-full rounded-full bg-[hsl(var(--button-primary))] transition-all"
+                                style={{ width: `${((currentStepIndex + 1) / totalSteps) * 100}%` }}
+                            />
+                        </div>
                     </div>
+                    <CurrentStepComponent
+                        circleData={circleData}
+                        setCircleData={setCircleData}
+                        nextStep={nextStep}
+                        prevStep={prevStep}
+                        onComplete={onComplete}
+                        initialParentCircleId={initialParentCircleId}
+                    />
                 </CardContent>
             </Card>
         </div>

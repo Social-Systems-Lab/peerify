@@ -135,7 +135,7 @@ function CircleImageUpload({
 export default function ProfileStep({ circleData, setCircleData, nextStep, prevStep }: CircleWizardStepProps) {
     const [isPending, startTransition] = useTransition();
     const [profileError, setProfileError] = useState("");
-    const entityLabel = circleData.circleType === "project" ? "Project" : "Community";
+    const entityLabel = circleData.circleType === "project" ? "Project" : "Circle";
     const entityLabelLower = entityLabel.toLowerCase();
     const profilePictureRef = useRef<HTMLInputElement>(null);
     // const coverImageRef = useRef<HTMLInputElement>(null); // Remove cover ref

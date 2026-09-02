@@ -44,9 +44,9 @@ export function CreateCircleDialog({ parentCircleId }: { parentCircleId?: string
                     onComplete={(createdCircleId, handle) => {
                         setIsOpen(false);
                         if (handle) {
-                            router.push(`/circles/${handle}/settings/about`);
+                            router.push(`/circles/${handle}/home`);
                         } else if (createdCircleId) {
-                            router.push(`/circles/${createdCircleId}/settings/about`);
+                            router.push(`/circles/${createdCircleId}/home`);
                         }
                     }}
                 />

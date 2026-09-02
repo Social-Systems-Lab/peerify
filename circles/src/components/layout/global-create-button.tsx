@@ -106,7 +106,7 @@ export function GlobalCreateButton() {
             if (itemKey === "artist_identity" || itemKey === "venue_identity") {
                 router.push(`/circles/${circleHandle ?? id}/home`);
             } else if (itemKey === "community" || itemKey === "project") {
-                router.push(`/circles/${circleHandle ?? id}/settings/about`);
+                router.push(`/circles/${circleHandle ?? id}/home`);
             } else if (pathSegment && circleHandle) {
                 router.push(`/circles/${circleHandle}/${pathSegment}/${id}`);
             }

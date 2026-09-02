@@ -2,8 +2,10 @@ import { Button } from "@/components/ui/button";
 import { CircleWizardStepProps } from "./circle-wizard";
 
 export default function FinalStep({ circleData, prevStep, onComplete }: CircleWizardStepProps) {
-    const entityLabel = circleData.circleType === "project" ? "Project" : "Community";
+    const entityLabel = circleData.circleType === "project" ? "Project" : "Circle";
     const entityLabelLower = entityLabel.toLowerCase();
+    const genres = circleData.primaryGenres || [];
+    const locationLabel = [circleData.location?.city, circleData.location?.country].filter(Boolean).join(", ");
 
     const handleSaveDraft = () => {
         if (onComplete) {
@@ -26,23 +28,27 @@ export default function FinalStep({ circleData, prevStep, onComplete }: CircleWi
                         <p className="text-gray-700">{circleData.name}</p>
                     </div>
                     <div>
-                        <p className="font-medium">Mission</p>
+                        <p className="font-medium">Purpose</p>
                         <p className="text-gray-700">{circleData.mission}</p>
                     </div>
-                    <div>
-                        <p className="font-medium">SDGs</p>
-                        <div className="mt-1 flex flex-wrap gap-2">
-                            {circleData.selectedSdgs.length > 0 ? (
-                                circleData.selectedSdgs.map((sdg) => (
-                                    <span key={sdg.handle} className="rounded-full bg-gray-200 px-2 py-1 text-xs">
-                                        {sdg.name}
+                    {genres.length > 0 && (
+                        <div>
+                            <p className="font-medium">Genres</p>
+                            <div className="mt-1 flex flex-wrap gap-2">
+                                {genres.map((genre) => (
+                                    <span key={genre} className="rounded-full bg-gray-200 px-2 py-1 text-xs">
+                                        {genre}
                                     </span>
-                                ))
-                            ) : (
-                                <p className="text-sm text-gray-600">No SDGs selected</p>
-                            )}
+                                ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
+                    {locationLabel && (
+                        <div>
+                            <p className="font-medium">Location</p>
+                            <p className="text-gray-700">{locationLabel}</p>
+                        </div>
+                    )}
                 </div>
             </div>
             <div className="flex items-center justify-between pt-4">

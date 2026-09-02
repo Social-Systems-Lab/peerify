@@ -11,6 +11,7 @@ import { CircleWizardStepProps } from "./circle-wizard";
 import { Loader2 } from "lucide-react";
 import { saveBasicInfoAction } from "./actions";
 import { generateSlug } from "@/lib/utils";
+import { features } from "@/lib/data/constants";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms"; // Corrected path
 import {
@@ -18,6 +19,11 @@ import {
     creatableItemsList, // Added
     CreatableItemKey, // Added
 } from "@/components/global-create/global-create-dialog-content"; // Added
+
+// Single gating point for Independent circles. Flip this to `true` once payments are wired
+// up — canCreateIndependentCircle's existing member checks below will then apply again as
+// originally intended (paying members only), rather than blocking everyone.
+const INDEPENDENT_CIRCLES_ENABLED = false;
 
 const CIRCLE_LEVEL_OPTIONS = [
     {
@@ -50,15 +56,15 @@ export default function BasicInfoStep({
     // selectedParentCircle state is managed by CircleSelector's onCircleSelected callback
     // const [selectedParentCircle, setSelectedParentCircle] = useState<Circle | null>(null);
     const [user] = useAtom(userAtom);
-    const canCreateIndependentCircle = Boolean(user?.isMember || user?.manualMember || user?.isFoundingMember);
-    const circleLevelOptions = canCreateIndependentCircle
-        ? CIRCLE_LEVEL_OPTIONS
-        : CIRCLE_LEVEL_OPTIONS.filter((option) => option.value === "profile_child");
+    const isSuperAdmin = user?.isAdmin === true;
+    const canCreateIndependentCircle =
+        (INDEPENDENT_CIRCLES_ENABLED && Boolean(user?.isMember || user?.manualMember || user?.isFoundingMember)) ||
+        isSuperAdmin;
     const shouldShowCircleLevelChoice = circleData.circleType === "circle" && !initialParentCircleId;
     const effectiveCircleLevel = shouldShowCircleLevelChoice ? circleData.circleLevel || "profile_child" : "profile_child";
     const entityLabel = circleData.circleType === "project" ? "Project" : "Circle";
     const entityLabelLower = entityLabel.toLowerCase();
-    const handlePlaceholder = circleData.circleType === "project" ? "project-handle" : "community-handle";
+    const handlePlaceholder = circleData.circleType === "project" ? "project-handle" : "circle-handle";
     const selectorItemType = useMemo(() => {
         const typeToFind = circleData.circleType === "circle" ? "community" : circleData.circleType;
         return creatableItemsList.find((item) => item.key === (typeToFind as CreatableItemKey)) as CreatableItemDetail;
@@ -258,7 +264,7 @@ export default function BasicInfoStep({
                             <p className="text-sm text-gray-500">Choose how this circle should be created.</p>
                         </div>
                         <div className="grid gap-3 md:grid-cols-2">
-                            {circleLevelOptions.map((option) => {
+                            {CIRCLE_LEVEL_OPTIONS.map((option) => {
                                 const isDisabled = option.value === "top_level" && !canCreateIndependentCircle;
                                 const isSelected = effectiveCircleLevel === option.value;
 
@@ -268,12 +274,17 @@ export default function BasicInfoStep({
                                         type="button"
                                         onClick={() => handleCircleLevelChange(option.value)}
                                         disabled={isDisabled}
-                                        className={`rounded-xl border p-4 text-left transition ${
+                                        className={`relative rounded-xl border p-4 text-left transition ${
                                             isSelected
                                                 ? "border-gray-900 bg-gray-900 text-white"
                                                 : "border-gray-200 bg-white text-gray-900"
                                         } ${isDisabled ? "cursor-not-allowed opacity-60" : "hover:border-gray-400"}`}
                                     >
+                                        {isDisabled && (
+                                            <span className="absolute right-3 top-3 rounded-full bg-[hsl(var(--platform-yellow-foreground))] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
+                                                Coming soon
+                                            </span>
+                                        )}
                                         <div className="font-semibold">{option.title}</div>
                                         <div
                                             className={`mt-1 text-sm ${
@@ -286,11 +297,6 @@ export default function BasicInfoStep({
                                 );
                             })}
                         </div>
-                        {!canCreateIndependentCircle && (
-                            <div className="text-xs text-amber-700">
-                                Independent circles are currently limited to verified members.
-                            </div>
-                        )}
                     </div>
                 )}
 
@@ -300,6 +306,7 @@ export default function BasicInfoStep({
                             itemType={selectorItemType}
                             onCircleSelected={handleParentCircleSelected}
                             initialSelectedCircleId={initialParentCircleId}
+                            permissionFeature={features.settings.edit_about}
                         />
                         <p className="text-xs text-gray-500">
                             {`Select where this ${entityLabelLower} will be created. Defaults to your profile.`}

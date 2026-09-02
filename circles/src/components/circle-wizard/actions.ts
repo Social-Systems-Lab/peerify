@@ -25,6 +25,7 @@ import {
     normalizePeerifyArtistProfile,
     PEERIFY_ARTIST_IDENTITY_TYPES,
     PEERIFY_MANAGED_IDENTITY_TYPE_LABELS,
+    PRIMARY_GENRE_MAX_SELECTIONS,
     type PeerifyArtistIdentityType,
 } from "@/lib/peerify/artist-profile";
 import { generateSlug } from "@/lib/utils";
@@ -154,7 +155,7 @@ export async function saveBasicInfoAction(
                 createdBy: userDid,
                 publishStatus: "draft",
                 parentCircleId: resolvedCircleLevel === "profile_child" ? parentCircleId : undefined,
-                picture: { url: "/images/default-picture.png" }, // Default picture
+                picture: { url: "/images/default-circle-picture.svg" }, // Default picture
                 causes: [],
                 skills: [],
                 ...organizationClaimData,
@@ -620,7 +621,7 @@ export async function saveProfileAction(
     }
 }
 
-export async function saveLocationAction(location: any, circleId?: string) {
+export async function saveLocationAction(location: any, circleId?: string, searchable?: boolean) {
     try {
         if (!circleId) return { success: true, message: "Location saved (no ID provided)" };
 
@@ -630,11 +631,37 @@ export async function saveLocationAction(location: any, circleId?: string) {
         const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
         if (!authorized) return { success: false, message: "You are not authorized to update the circles" };
 
-        await updateCircle({ _id: circleId, location }, userDid);
+        const update: Partial<Circle> & { _id: string } = { _id: circleId, location };
+        if (searchable !== undefined) {
+            update.searchable = searchable;
+        }
+        await updateCircle(update, userDid);
         const updatedCircle = await getCircleById(circleId);
         return { success: true, message: "Location updated successfully", data: { circle: updatedCircle } };
     } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to save location.";
+        return { success: false, message: message + " " + JSON.stringify(error) };
+    }
+}
+
+export async function saveGenresAction(genres: string[], other: string | undefined, circleId?: string) {
+    try {
+        if (!circleId) return { success: true, message: "Genres saved (no ID provided)" };
+
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return { success: false, message: "You need to be logged in to update a circle" };
+
+        const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+        if (!authorized) return { success: false, message: "You are not authorized to update the circles" };
+
+        const primaryGenres = genres.slice(0, PRIMARY_GENRE_MAX_SELECTIONS);
+        const primaryGenreOther = primaryGenres.includes("Other") ? other?.trim() || undefined : undefined;
+
+        await updateCircle({ _id: circleId, primaryGenres, primaryGenreOther }, userDid);
+        const updatedCircle = await getCircleById(circleId);
+        return { success: true, message: "Genres updated successfully", data: { circle: updatedCircle } };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to save genres.";
         return { success: false, message: message + " " + JSON.stringify(error) };
     }
 }
