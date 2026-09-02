@@ -19,6 +19,12 @@ export async function getSelectableCirclesAction(
     permissionModuleHandle = moduleHandle,
     requireModuleEnabled = false,
     requiredEnabledModuleHandle = moduleHandle,
+    // Overrides the (permissionModuleHandle, createFeatureHandle) lookup below with a specific
+    // Feature when the caller needs a different gate than "create" implies — e.g. the circle
+    // wizard's parent-circle picker uses features.settings.edit_about (admins only) instead of
+    // features.communities.create (admins+moderators+members), since only circle admins should
+    // be able to create a new circle underneath one.
+    permissionFeature?: Feature,
 ): Promise<GetSelectableCirclesActionResult> {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -31,9 +37,11 @@ export async function getSelectableCirclesAction(
     }
 
     const memberships = await Members.find({ userDid }, { projection: { circleId: 1 } }).toArray();
-    const featureToAuth = (features[permissionModuleHandle as keyof typeof features] as any)?.[createFeatureHandle] as
-        | Feature
-        | undefined;
+    const featureToAuth =
+        permissionFeature ??
+        ((features[permissionModuleHandle as keyof typeof features] as any)?.[createFeatureHandle] as
+            | Feature
+            | undefined);
 
     if (!featureToAuth) {
         return { success: false, circles: [] };

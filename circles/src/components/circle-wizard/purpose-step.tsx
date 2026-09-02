@@ -8,11 +8,9 @@ import { useState, useTransition } from "react";
 import { Loader2 } from "lucide-react";
 import { saveMissionAction } from "./actions";
 
-export default function MissionStep({ circleData, setCircleData, nextStep, prevStep }: CircleWizardStepProps) {
+export default function PurposeStep({ circleData, setCircleData, nextStep, prevStep }: CircleWizardStepProps) {
     const [isPending, startTransition] = useTransition();
     const [missionError, setMissionError] = useState("");
-    const entityLabel = circleData.circleType === "project" ? "Project" : "Community";
-    const entityLabelLower = entityLabel.toLowerCase();
 
     const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -29,13 +27,13 @@ export default function MissionStep({ circleData, setCircleData, nextStep, prevS
 
     const handleNext = () => {
         startTransition(async () => {
-            // Validate mission
+            // Validate purpose
             if (!circleData.mission.trim()) {
-                setMissionError(`Please provide a mission for your ${entityLabelLower}`);
+                setMissionError("Please describe what brings this circle together");
                 return;
             }
 
-            // If we have a circle ID, update the circle with the mission
+            // If we have a circle ID, update the circle with the purpose
             if (circleData._id) {
                 const result = await saveMissionAction(circleData.mission, circleData._id);
 
@@ -51,12 +49,12 @@ export default function MissionStep({ circleData, setCircleData, nextStep, prevS
                     nextStep();
                 } else {
                     // Handle error
-                    setMissionError(result.message || "Failed to save mission");
+                    setMissionError(result.message || "Failed to save purpose");
                     console.error(result.message);
                 }
             } else {
-                // If no circle ID yet, just store the mission in state and move to the next step
-                console.warn("No circle ID yet, mission will be saved when the circle is created");
+                // If no circle ID yet, just store the purpose in state and move to the next step
+                console.warn("No circle ID yet, purpose will be saved when the circle is created");
                 nextStep();
             }
         });
@@ -65,29 +63,26 @@ export default function MissionStep({ circleData, setCircleData, nextStep, prevS
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold">{`${entityLabel} Mission`}</h2>
-                <p className="text-gray-500">
-                    {`Define the purpose and goals of your ${entityLabelLower}. What change do you want to see in the world?`}
+                <h2 className="text-2xl font-bold">Circle Purpose</h2>
+                <p className="text-sm text-muted-foreground">
+                    A circle is a group or a community — anything from a small team with a mission to an ongoing fan
+                    community.
                 </p>
             </div>
 
             <div className="space-y-4">
                 <div className="space-y-2">
-                    <Label htmlFor="mission">{`What is the mission of this ${entityLabelLower}?`}</Label>
+                    <Label htmlFor="mission">What brings this circle together?</Label>
                     <Textarea
                         id="mission"
                         name="mission"
                         value={circleData.mission}
                         onChange={handleInputChange}
-                        placeholder="Share your vision for a better world"
+                        placeholder="Fans of live indie folk in Cape Town, or: Everything about The Marshmallow Valentines"
                         className="h-32"
                     />
                     {missionError && <p className="text-sm text-red-500">{missionError}</p>}
                 </div>
-
-                <p className="text-sm text-gray-500">
-                    {`A clear mission helps potential members understand what your ${entityLabelLower} stands for and attracts like-minded individuals.`}
-                </p>
             </div>
 
             <div className="flex justify-between">

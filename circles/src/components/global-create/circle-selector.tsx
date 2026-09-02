@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
-import { Circle, UserPrivate } from "@/models/models";
+import { Circle, Feature, UserPrivate } from "@/models/models";
 import { CreatableItemDetail } from "./global-create-dialog-content";
 import { modules as moduleInfos } from "@/lib/data/constants";
 import { Label } from "../ui/label"; // Re-imported Label
@@ -24,6 +24,7 @@ interface CircleSelectorProps {
     requireModuleEnabled?: boolean;
     requiredEnabledModuleHandle?: string;
     fallbackCircle?: Circle;
+    permissionFeature?: Feature;
 }
 
 export const CircleSelector: React.FC<CircleSelectorProps> = ({
@@ -37,6 +38,7 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
     requireModuleEnabled = false,
     requiredEnabledModuleHandle,
     fallbackCircle,
+    permissionFeature,
 }) => {
     const [user] = useAtom(userAtom);
     const actingIdentity = useActingIdentity();
@@ -81,6 +83,7 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
                 permissionModuleHandle,
                 requireModuleEnabled,
                 requiredEnabledModuleHandle,
+                permissionFeature,
             );
             if (cancelled) {
                 return;
@@ -141,6 +144,7 @@ export const CircleSelector: React.FC<CircleSelectorProps> = ({
         requireModuleEnabled,
         requiredEnabledModuleHandle,
         fallbackCircle,
+        permissionFeature,
         updateModuleEnableMessage,
     ]);
 

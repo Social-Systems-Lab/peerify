@@ -3,9 +3,10 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { CircleWizardStepProps } from "./circle-wizard";
 import { useState, useTransition } from "react";
-import { Loader2, MapPin } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Location } from "@/models/models";
 import LocationPicker from "@/components/forms/location-picker";
 import { saveLocationAction } from "./actions";
@@ -13,7 +14,8 @@ import { saveLocationAction } from "./actions";
 export default function LocationStep({ circleData, setCircleData, nextStep, prevStep }: CircleWizardStepProps) {
     const [isPending, startTransition] = useTransition();
     const [locationError, setLocationError] = useState("");
-    const entityLabel = circleData.circleType === "project" ? "Project" : "Community";
+    const [searchable, setSearchable] = useState(circleData.searchable ?? true);
+    const entityLabel = circleData.circleType === "project" ? "Project" : "Circle";
     const entityLabelLower = entityLabel.toLowerCase();
 
     const handleLocationChange = (location: Location | undefined) => {
@@ -27,31 +29,29 @@ export default function LocationStep({ circleData, setCircleData, nextStep, prev
         }));
     };
 
-    const handleNext = () => {
+    const saveAndAdvance = () => {
         startTransition(async () => {
-            // If we have a circle ID, update the circle with the location
-            if (circleData._id) {
-                const result = await saveLocationAction(circleData.location, circleData._id);
-
-                if (result.success) {
-                    // Update the circle data with any changes from the server
-                    if (result.data?.circle) {
-                        const circle = result.data.circle as any;
-                        setCircleData((prev) => ({
-                            ...prev,
-                            location: circle.location || prev.location,
-                        }));
-                    }
-                    nextStep();
-                } else {
-                    // Handle error
-                    setLocationError(result.message || "Failed to save location");
-                    console.error(result.message);
-                }
-            } else {
-                // If no circle ID yet, just store the location in state and move to the next step
-                console.warn("No circle ID yet, location will be saved when the circle is created");
+            // No location set — nothing to save, just move on.
+            if (!circleData.location?.lngLat || !circleData._id) {
                 nextStep();
+                return;
+            }
+
+            const result = await saveLocationAction(circleData.location, circleData._id, searchable);
+
+            if (result.success) {
+                if (result.data?.circle) {
+                    const circle = result.data.circle as any;
+                    setCircleData((prev) => ({
+                        ...prev,
+                        location: circle.location || prev.location,
+                        searchable: circle.searchable ?? prev.searchable,
+                    }));
+                }
+                nextStep();
+            } else {
+                setLocationError(result.message || "Failed to save location");
+                console.error(result.message);
             }
         });
     };
@@ -61,14 +61,26 @@ export default function LocationStep({ circleData, setCircleData, nextStep, prev
             <div>
                 <h2 className="text-2xl font-bold">{`${entityLabel} Location`}</h2>
                 <p className="text-gray-500">
-                    {`Add a location to help people find your ${entityLabelLower} and connect with nearby members.`}
+                    {`Optional — add a location to help people find this ${entityLabelLower} and connect with nearby members.`}
                 </p>
             </div>
 
             <Card>
-                <CardContent className="pt-6">
+                <CardContent className="space-y-4 pt-6">
                     <Label>{`${entityLabel} Location`}</Label>
                     <LocationPicker value={circleData.location} onChange={handleLocationChange} compact={true} />
+
+                    <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
+                        <div>
+                            <Label htmlFor="circle-searchable" className="text-sm font-medium">
+                                Show me in search
+                            </Label>
+                            <p className="text-xs text-muted-foreground">
+                                {`Independent of the map — this ${entityLabelLower} can be searchable even without a location set.`}
+                            </p>
+                        </div>
+                        <Switch id="circle-searchable" checked={searchable} onCheckedChange={setSearchable} />
+                    </div>
                 </CardContent>
             </Card>
 
@@ -82,16 +94,18 @@ export default function LocationStep({ circleData, setCircleData, nextStep, prev
                 <Button onClick={prevStep} variant="outline" className="rounded-full" disabled={isPending}>
                     Back
                 </Button>
-                <Button onClick={handleNext} className="w-[100px] rounded-full" disabled={isPending}>
-                    {isPending ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Saving...
-                        </>
-                    ) : (
-                        "Next"
-                    )}
-                </Button>
+                <div className="flex gap-2">
+                    <Button onClick={nextStep} variant="ghost" className="rounded-full" disabled={isPending}>
+                        Skip for now
+                    </Button>
+                    <Button
+                        onClick={saveAndAdvance}
+                        className="w-[100px] rounded-full"
+                        disabled={isPending}
+                    >
+                        {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Next"}
+                    </Button>
+                </div>
             </div>
         </div>
     );
