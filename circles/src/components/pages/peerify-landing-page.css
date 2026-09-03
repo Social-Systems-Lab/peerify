@@ -756,6 +756,7 @@
 .peerify-home .ctaGroup,
 .peerify-home .cta-group,
 .peerify-home .joinActions {
+    margin-top: 28px;
     display: flex;
     justify-content: center;
     flex-wrap: wrap;
