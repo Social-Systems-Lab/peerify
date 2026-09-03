@@ -19,6 +19,11 @@ const STATS = {
 // TODO: restore the stat block on the CTA section once we have real numbers to show — flip back to true
 const SHOW_CTA_STATS = false
 
+// Venue/host signup isn't a real flow yet (/signup/pilot has no venue option and no
+// dedicated route) — hiding these entry points until that flow exists is intentional,
+// not a bug. Flip back to true once venue signup is built.
+const SHOW_VENUE_SIGNUP = false
+
 // ─── Feature cards ────────────────────────────────────────────────────────────
 const FEATURES = [
     {
@@ -151,7 +156,7 @@ export default function PeerifyLandingPage() {
                 <div className={"inner"}>
                     <p className={"sLabel"} style={{ color: "#e8720c" }}>Growing Peerify</p>
                     <h2 className={"serif serifLight"}>The roles you can play.</h2>
-                    <div className={"rolesGrid"}>
+                    <div className={SHOW_VENUE_SIGNUP ? "rolesGrid" : "rolesGrid rolesGrid--twoUp"}>
 
                         <div className={"roleCard"}>
                             <div className={"roleImageWrap"}>
@@ -189,22 +194,24 @@ export default function PeerifyLandingPage() {
                             </div>
                         </div>
 
-                        <div className={"roleCard"}>
-                            <div className={"roleImageWrap"}>
-                                <Image src="/peerify/hosts.jpg" alt="Hosts setting up a space for a concert" fill className={"roleImg"} sizes="(max-width: 768px) 100vw, 33vw" />
+                        {SHOW_VENUE_SIGNUP && (
+                            <div className={"roleCard"}>
+                                <div className={"roleImageWrap"}>
+                                    <Image src="/peerify/hosts.jpg" alt="Hosts setting up a space for a concert" fill className={"roleImg"} sizes="(max-width: 768px) 100vw, 33vw" />
+                                </div>
+                                <div className={"roleBody"}>
+                                    <p className={"roleType"}>For Hosts &amp; Venues</p>
+                                    <h3>Open your space to living music</h3>
+                                    <ul>
+                                        <li>Private events with guest vetting</li>
+                                        <li>10% on tickets, invoiced after the event</li>
+                                        <li>List on the map &amp; accept bookings</li>
+                                        <li>No membership fee to get started</li>
+                                    </ul>
+                                    <Link href="/signup/pilot" className={"roleCta"}>List your space &rarr;</Link>
+                                </div>
                             </div>
-                            <div className={"roleBody"}>
-                                <p className={"roleType"}>For Hosts &amp; Venues</p>
-                                <h3>Open your space to living music</h3>
-                                <ul>
-                                    <li>Private events with guest vetting</li>
-                                    <li>10% on tickets, invoiced after the event</li>
-                                    <li>List on the map &amp; accept bookings</li>
-                                    <li>No membership fee to get started</li>
-                                </ul>
-                                <Link href="/signup/pilot" className={"roleCta"}>List your space &rarr;</Link>
-                            </div>
-                        </div>
+                        )}
 
                     </div>
                 </div>
@@ -299,7 +306,9 @@ export default function PeerifyLandingPage() {
                     <div className={"ctaGroup"}>
                         <Link href="/signup/pilot?role=fan" className={"btnDark"}>Join as a fan / member</Link>
                         <Link href="/signup/pilot?role=artist" className={"btnDark"}>Create an artist profile</Link>
-                        <Link href="/signup/pilot" className={"btnOutlineDark"}>List a venue or space</Link>
+                        {SHOW_VENUE_SIGNUP && (
+                            <Link href="/signup/pilot" className={"btnOutlineDark"}>List a venue or space</Link>
+                        )}
                     </div>
                     <div className={"ctaSecondary"}>
                         <p className={"ctaSecondaryText"}>
