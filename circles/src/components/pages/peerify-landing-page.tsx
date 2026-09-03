@@ -15,6 +15,8 @@ const STATS = {
     members: 2341,
     venues: 134,
 }
+// TODO: restore the stat block on the CTA section once we have real numbers to show — flip back to true
+const SHOW_CTA_STATS = false
 
 // ─── Feature cards ────────────────────────────────────────────────────────────
 const FEATURES = [
@@ -275,22 +277,25 @@ export default function PeerifyLandingPage() {
                     <h2>Keen to help build the Peerify prototype?</h2>
                     <p className={"cta-intro"}>
                         We are looking for 500 artists and fans to populate the map and test the features.
-                        Join now and help shape what Peerify becomes.
+                        Keen to join now and help shape Peerify, or interested in finding out more? Drop us a
+                        message, and we&apos;ll get back to you as soon as we can.
                     </p>
-                    <div className={"bigStats"}>
-                        <div className={"bigStat"}>
-                            <div className={"bigStatN"}>{STATS.artists.toLocaleString()}</div>
-                            <div className={"bigStatL"}>Artists</div>
+                    {SHOW_CTA_STATS && (
+                        <div className={"bigStats"}>
+                            <div className={"bigStat"}>
+                                <div className={"bigStatN"}>{STATS.artists.toLocaleString()}</div>
+                                <div className={"bigStatL"}>Artists</div>
+                            </div>
+                            <div className={"bigStat"}>
+                                <div className={"bigStatN"}>{STATS.members.toLocaleString()}</div>
+                                <div className={"bigStatL"}>Members</div>
+                            </div>
+                            <div className={"bigStat"}>
+                                <div className={"bigStatN"}>{STATS.venues.toLocaleString()}</div>
+                                <div className={"bigStatL"}>Venues</div>
+                            </div>
                         </div>
-                        <div className={"bigStat"}>
-                            <div className={"bigStatN"}>{STATS.members.toLocaleString()}</div>
-                            <div className={"bigStatL"}>Members</div>
-                        </div>
-                        <div className={"bigStat"}>
-                            <div className={"bigStatN"}>{STATS.venues.toLocaleString()}</div>
-                            <div className={"bigStatL"}>Venues</div>
-                        </div>
-                    </div>
+                    )}
                     <div className={"ctaGroup"}>
                         <Link href="/signup/pilot" className={"btnDark"}>Join as a fan / member</Link>
                         <Link href="/signup/pilot" className={"btnDark"}>Create an artist profile</Link>
