@@ -7,7 +7,7 @@ export const CONTACT_REASON_VALUES = ["join", "funding", "general"] as const
 export type ContactReason = (typeof CONTACT_REASON_VALUES)[number]
 
 export const CONTACT_REASONS: { value: ContactReason; label: string }[] = [
-    { value: "join", label: "Join as an artist or fan" },
+    { value: "join", label: "I'd like to help out" },
     { value: "funding", label: "Funding or partnership" },
     { value: "general", label: "General question" },
 ]
