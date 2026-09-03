@@ -101,6 +101,10 @@ function normalizePeerifyIntent(value: string | null): "fan" | "artist" | "host"
     return value === "fan" || value === "artist" || value === "host" ? value : null;
 }
 
+function getSupportedRoleFromParam(value: string | null): SignupRole | null {
+    return ROLE_OPTIONS.some((option) => option.value === value) ? (value as SignupRole) : null;
+}
+
 export function PilotSignupForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -117,6 +121,16 @@ export function PilotSignupForm() {
 
     useEffect(() => {
         import("altcha");
+    }, []);
+
+    useEffect(() => {
+        const roleParam = getSupportedRoleFromParam(searchParams?.get("role") ?? null);
+        if (roleParam) {
+            setRole(roleParam);
+        }
+        // Only meant to seed the initial selection from the URL, not to fight the
+        // "Change" button's setRole(null) once the user has interacted with the picker.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
