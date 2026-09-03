@@ -167,7 +167,7 @@ export default function PeerifyLandingPage() {
                                     <li>Fan-club tools &amp; direct messaging</li>
                                     <li>First 1,000 artists free for 3 years</li>
                                 </ul>
-                                <Link href="/signup/pilot" className={"roleCta"}>Create an artist profile &rarr;</Link>
+                                <Link href="/signup/pilot?role=artist" className={"roleCta"}>Create an artist profile &rarr;</Link>
                             </div>
                         </div>
 
@@ -185,7 +185,7 @@ export default function PeerifyLandingPage() {
                                     <li>Use the Peerify Player nearby</li>
                                     <li>No ads, governance rights, founding badge</li>
                                 </ul>
-                                <Link href="/signup/pilot" className={"roleCta"}>Become a founding member &rarr;</Link>
+                                <Link href="/signup/pilot?role=fan" className={"roleCta"}>Become a founding member &rarr;</Link>
                             </div>
                         </div>
 
@@ -297,8 +297,8 @@ export default function PeerifyLandingPage() {
                         </div>
                     )}
                     <div className={"ctaGroup"}>
-                        <Link href="/signup/pilot" className={"btnDark"}>Join as a fan / member</Link>
-                        <Link href="/signup/pilot" className={"btnDark"}>Create an artist profile</Link>
+                        <Link href="/signup/pilot?role=fan" className={"btnDark"}>Join as a fan / member</Link>
+                        <Link href="/signup/pilot?role=artist" className={"btnDark"}>Create an artist profile</Link>
                         <Link href="/signup/pilot" className={"btnOutlineDark"}>List a venue or space</Link>
                     </div>
                     <div className={"ctaSecondary"}>
