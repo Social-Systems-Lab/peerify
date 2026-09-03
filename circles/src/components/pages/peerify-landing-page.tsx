@@ -278,19 +278,7 @@ export default function PeerifyLandingPage() {
                     <h2>Keen to help build the Peerify prototype?</h2>
                     <p className={"cta-intro"}>
                         We are looking for 500 artists and fans to populate the map and test the features.
-                        Keen to join now and help shape Peerify, or interested in finding out more?{" "}
-                        <PeerifyContactDialog
-                            trigger={
-                                <button
-                                    type="button"
-                                    className="cursor-pointer border-none bg-transparent p-0 font-bold underline underline-offset-2"
-                                    style={{ color: "inherit", font: "inherit" }}
-                                >
-                                    Drop us a message
-                                </button>
-                            }
-                        />
-                        , and we&apos;ll get back to you as soon as we can.
+                        Keen to join now and help shape Peerify?
                     </p>
                     {SHOW_CTA_STATS && (
                         <div className={"bigStats"}>
@@ -312,6 +300,19 @@ export default function PeerifyLandingPage() {
                         <Link href="/signup/pilot" className={"btnDark"}>Join as a fan / member</Link>
                         <Link href="/signup/pilot" className={"btnDark"}>Create an artist profile</Link>
                         <Link href="/signup/pilot" className={"btnOutlineDark"}>List a venue or space</Link>
+                    </div>
+                    <div className={"ctaSecondary"}>
+                        <p className={"ctaSecondaryText"}>
+                            Love the idea and want to help us build it? We&apos;re looking for people with time or
+                            skills in tech, ops, or outreach.
+                        </p>
+                        <PeerifyContactDialog
+                            trigger={
+                                <button type="button" className={"btnGhostDark"}>
+                                    Get in touch
+                                </button>
+                            }
+                        />
                     </div>
                 </div>
             </section>
