@@ -84,11 +84,21 @@ export default function PeerifyContactDialog({ trigger }: PeerifyContactDialogPr
                 style={bodyFont}
             >
                 {status === "success" ? (
-                    <div className="py-4 text-center">
-                        <DialogTitle className="text-2xl font-bold" style={{ ...headingFont, color: INK }}>
+                    <div className="flex flex-col items-center py-10 text-center">
+                        <div
+                            className="flex h-12 w-12 items-center justify-center rounded-full"
+                            style={{ backgroundColor: "rgba(232,114,12,0.12)" }}
+                            aria-hidden="true"
+                        >
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={MUSTARD} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                        </div>
+                        <DialogTitle className="mt-5 text-2xl font-bold" style={{ ...headingFont, color: INK }}>
                             Message sent
                         </DialogTitle>
-                        <p className="mt-3 text-sm" style={{ color: INK_MUTED }}>
+                        <div className="mt-4 h-[3px] w-10 rounded-full" style={{ backgroundColor: MUSTARD }} />
+                        <p className="mt-4 text-sm" style={{ color: INK_MUTED }}>
                             Thanks — we&apos;ll get back to you soon.
                         </p>
                     </div>
