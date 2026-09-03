@@ -35,7 +35,6 @@ const visibleGlobalCreateItemKeys: CreatableItemKey[] = [
     "artist_identity",
     "venue_identity",
     "community",
-    "post",
     "event",
 ];
 
