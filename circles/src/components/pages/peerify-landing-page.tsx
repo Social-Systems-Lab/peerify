@@ -6,6 +6,7 @@ import { useEffect } from "react"
 import { useAtom } from "jotai"
 import { userAtom } from "@/lib/data/atoms"
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes"
+import PeerifyContactDialog from "@/components/pages/contact/peerify-contact-dialog"
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 // TODO: replace with appConfig.stats once wired to the database
@@ -277,8 +278,19 @@ export default function PeerifyLandingPage() {
                     <h2>Keen to help build the Peerify prototype?</h2>
                     <p className={"cta-intro"}>
                         We are looking for 500 artists and fans to populate the map and test the features.
-                        Keen to join now and help shape Peerify, or interested in finding out more? Drop us a
-                        message, and we&apos;ll get back to you as soon as we can.
+                        Keen to join now and help shape Peerify, or interested in finding out more?{" "}
+                        <PeerifyContactDialog
+                            trigger={
+                                <button
+                                    type="button"
+                                    className="cursor-pointer border-none bg-transparent p-0 font-bold underline underline-offset-2"
+                                    style={{ color: "inherit", font: "inherit" }}
+                                >
+                                    Drop us a message
+                                </button>
+                            }
+                        />
+                        , and we&apos;ll get back to you as soon as we can.
                     </p>
                     {SHOW_CTA_STATS && (
                         <div className={"bigStats"}>
