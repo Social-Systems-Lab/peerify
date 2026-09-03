@@ -2,11 +2,13 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAtom } from "jotai"
 import { userAtom } from "@/lib/data/atoms"
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes"
 import PeerifyContactDialog from "@/components/pages/contact/peerify-contact-dialog"
+import { CreatePeerifyArtistDialog } from "@/components/global-create/create-peerify-artist-dialog"
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 // TODO: replace with appConfig.stats once wired to the database
@@ -75,6 +77,18 @@ const STEPS = [
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function PeerifyLandingPage() {
     const [user] = useAtom(userAtom)
+    const router = useRouter()
+    const [isArtistDialogOpen, setIsArtistDialogOpen] = useState(false)
+
+    // Logged-in users already have a personal account — clicking "Create an artist
+    // profile" should open the same managed-identity flow as the global Create
+    // button, not send them through pilot signup again.
+    const handleArtistIdentityCreated = (data?: { id?: string; circleHandle?: string }) => {
+        const handle = data?.circleHandle ?? data?.id
+        if (handle) {
+            router.push(`/circles/${handle}/home`)
+        }
+    }
 
     useEffect(() => {
         const observer = new IntersectionObserver(
@@ -172,7 +186,18 @@ export default function PeerifyLandingPage() {
                                     <li>Fan-club tools &amp; direct messaging</li>
                                     <li>First 1,000 artists free for 3 years</li>
                                 </ul>
-                                <Link href="/signup/pilot?role=artist" className={"roleCta"}>Create an artist profile &rarr;</Link>
+                                {user ? (
+                                    <button
+                                        type="button"
+                                        className={"roleCta"}
+                                        style={{ border: "none", background: "none", cursor: "pointer" }}
+                                        onClick={() => setIsArtistDialogOpen(true)}
+                                    >
+                                        Create an artist profile &rarr;
+                                    </button>
+                                ) : (
+                                    <Link href="/signup/pilot?role=artist" className={"roleCta"}>Create an artist profile &rarr;</Link>
+                                )}
                             </div>
                         </div>
 
@@ -190,7 +215,11 @@ export default function PeerifyLandingPage() {
                                     <li>Use the Peerify Player nearby</li>
                                     <li>No ads, governance rights, founding badge</li>
                                 </ul>
-                                <Link href="/signup/pilot?role=fan" className={"roleCta"}>Become a founding member &rarr;</Link>
+                                {user ? (
+                                    <Link href={getCircleDefaultPath(user)} className={"roleCta"}>Go to profile &rarr;</Link>
+                                ) : (
+                                    <Link href="/signup/pilot?role=fan" className={"roleCta"}>Become a founding member &rarr;</Link>
+                                )}
                             </div>
                         </div>
 
@@ -304,8 +333,23 @@ export default function PeerifyLandingPage() {
                         </div>
                     )}
                     <div className={"ctaGroup"}>
-                        <Link href="/signup/pilot?role=fan" className={"btnDark"}>Join as a fan / member</Link>
-                        <Link href="/signup/pilot?role=artist" className={"btnDark"}>Create an artist profile</Link>
+                        {user ? (
+                            <Link href={getCircleDefaultPath(user)} className={"btnDark"}>Go to profile</Link>
+                        ) : (
+                            <Link href="/signup/pilot?role=fan" className={"btnDark"}>Join as a fan / member</Link>
+                        )}
+                        {user ? (
+                            <button
+                                type="button"
+                                className={"btnDark"}
+                                style={{ border: "none", cursor: "pointer" }}
+                                onClick={() => setIsArtistDialogOpen(true)}
+                            >
+                                Create an artist profile
+                            </button>
+                        ) : (
+                            <Link href="/signup/pilot?role=artist" className={"btnDark"}>Create an artist profile</Link>
+                        )}
                         {SHOW_VENUE_SIGNUP && (
                             <Link href="/signup/pilot" className={"btnOutlineDark"}>List a venue or space</Link>
                         )}
@@ -343,6 +387,12 @@ export default function PeerifyLandingPage() {
                     &copy; {new Date().getFullYear()} Peerify
                 </p>
             </footer>
+
+            <CreatePeerifyArtistDialog
+                isOpen={isArtistDialogOpen}
+                onOpenChange={setIsArtistDialogOpen}
+                onSuccess={handleArtistIdentityCreated}
+            />
 
         </div>
     )
