@@ -70,7 +70,7 @@ const FEATURES = [
 const STEPS = [
     { n: "01", title: "Discover on the map",    body: "Browse artists worldwide or filter by your city, genre, or touring status. Find someone whose music you love and who hasn’t played near you yet." },
     { n: "02", title: "Pledge to bring them",   body: "Start or join a tour pledge. Watch it grow. When it tips, a tour team forms and the show moves from possibility to real life." },
-    { n: "03", title: "Help make it happen",    body: "Offer a spare room, a meal, transport, or a space to play. The tour team builds the tour together with the artists. Peer-to-peer all the way through." },
+    { n: "03", title: "Help make it happen",    body: "Offer a spare room, a meal, transport, or a space to play. Join the Crew and build the tour together with the artists. Peer-to-peer all the way through." },
     { n: "04", title: "Show up & support", body: "Attend the show, buy the record, spread the word. Your membership credit goes directly to artists. Every purchase, every play counts." },
 ]
 
@@ -136,8 +136,7 @@ export default function PeerifyLandingPage() {
                         <div className={"textCol"}>
                             <p className={"sLabel"}>The idea</p>
                             <h2 className={"serif"}>A map of music<br />happening near you</h2>
-                            <p>Peerify starts with a map — not an algorithm. Every artist, every home concert, every tour pledge has a place on it. Browse by location, genre, or tour route. Find music that belongs to your city.</p>
-                            <p>When you find an artist you love who hasn’t played your city yet, you pledge to bring them. When enough fans pledge, the show becomes real. It’s that simple.</p>
+                            <p>A peer-to-peer, non-profit platform connecting artists, fans, and living rooms. Browse artists on a map. Pledge to bring them to your city. Join their crew. Host a show at home.</p>
                             <Link href="/explore" className={"btnOrange"} style={{ marginTop: "8px" }}>See the map</Link>
                         </div>
                         <div className={"photoFrame"}>
@@ -212,8 +211,8 @@ export default function PeerifyLandingPage() {
                                     <li>&euro;5/month includes &euro;4 music credit</li>
                                     <li>Pledge to bring artists to your city</li>
                                     <li>Attend intimate house concerts</li>
-                                    <li>Use the Peerify Player nearby</li>
-                                    <li>No ads, governance rights, founding badge</li>
+                                    <li>Join an artist&apos;s Crew</li>
+                                    <li>Help improve Peerify</li>
                                 </ul>
                                 {user ? (
                                     <Link href={getCircleDefaultPath(user)} className={"roleCta"}>Go to profile &rarr;</Link>
@@ -267,8 +266,8 @@ export default function PeerifyLandingPage() {
                             </svg>
                         </div>
                         <div>
-                            <h4>The Peerify Player &mdash; music that travels with you</h4>
-                            <p>A proximity-based player that lets you share music you own with anyone nearby who also has the Player open. No streaming required. All plays are recorded &mdash; Peerify&apos;s surplus returns to artists as royalties.</p>
+                            <h4>Coming soon: The Peerify Player</h4>
+                            <p>A proximity-based player that lets you meet new people nearby and share music you have purchased on Peerify. All plays are recorded, allowing Peerify to return its surplus to artists as dividends based on listening.</p>
                         </div>
                     </div>
                 </div>
@@ -311,7 +310,7 @@ export default function PeerifyLandingPage() {
             {/* ── CTA ── */}
             <section className={"cta-section reveal"} id="join">
                 <div className={"cta-inner"}>
-                    <h2>Keen to help build the Peerify prototype?</h2>
+                    <h2>Keen to help build and grow Peerify?</h2>
                     <p className={"cta-intro"}>
                         We are looking for 500 artists and fans to populate the map and test the features.
                         Keen to join now and help shape Peerify?
@@ -377,7 +376,6 @@ export default function PeerifyLandingPage() {
                     <div className={"footerLogoText"}>Peer<span>ify</span></div>
                 </div>
                 <nav className={"footerLinks"}>
-                    <Link href="/about">About</Link>
                     <Link href="/signup/pilot">For artists</Link>
                     <Link href="/explore">Explore map</Link>
                     <a href="https://peerify.net" target="_blank" rel="noopener noreferrer">peerify.net</a>
