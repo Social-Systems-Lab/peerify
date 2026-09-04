@@ -563,7 +563,7 @@ export function AboutSettingsForm({
                 artistTypeOtherLabels: data.peerifyArtistProfile.artistTypes.includes("Other")
                     ? data.peerifyArtistProfile.artistTypeOtherLabels
                     : [],
-                baseCity: data.peerifyArtistProfile.baseCity.trim(),
+                baseCity: data.peerifyArtistProfile.baseCity?.trim() || "",
                 genres: parseDelimitedList(data.peerifyArtistProfile.genresText),
                 primaryGenres: (data.primaryGenres || []).slice(0, PRIMARY_GENRE_MAX_SELECTIONS),
                 primaryGenreOther: (data.primaryGenres || []).includes("Other")
@@ -585,14 +585,14 @@ export function AboutSettingsForm({
                         data.peerifyArtistProfile.bookingSettings.preferredAudienceSize,
                     ),
                     baseFee: parseOptionalNumber(data.peerifyArtistProfile.bookingSettings.baseFee),
-                    currency: data.peerifyArtistProfile.bookingSettings.currency.trim() || undefined,
+                    currency: data.peerifyArtistProfile.bookingSettings.currency?.trim() || undefined,
                     needsAccommodation: data.peerifyArtistProfile.bookingSettings.needsAccommodation || undefined,
                     needsTransport: data.peerifyArtistProfile.bookingSettings.needsTransport || undefined,
                     needsMeal: data.peerifyArtistProfile.bookingSettings.needsMeal || undefined,
-                    technicalNeeds: data.peerifyArtistProfile.bookingSettings.technicalNeeds.trim() || undefined,
-                    notes: data.peerifyArtistProfile.bookingSettings.notes.trim() || undefined,
+                    technicalNeeds: data.peerifyArtistProfile.bookingSettings.technicalNeeds?.trim() || undefined,
+                    notes: data.peerifyArtistProfile.bookingSettings.notes?.trim() || undefined,
                 },
-                availability: data.peerifyArtistProfile.availability.trim() || undefined,
+                availability: data.peerifyArtistProfile.availability?.trim() || undefined,
             };
             const peerifyVenueProfile: PeerifyVenueProfile = {
                 ...data.peerifyVenueProfile,
@@ -1348,6 +1348,11 @@ export function AboutSettingsForm({
                         </CardContent>
                     </Card>
                 ) : null}
+
+                {/* Same renderSaveButton() as every other call site in this form (see the Venue
+                    equivalent above) — the Booking enquiries card gets long once expanded, so this
+                    saves a trip back to the top. */}
+                {isPeerifyManagedArtistCircle ? renderSaveButton() : null}
 
                 {isPeerifyManagedArtistCircle ? (
                     <Card>
