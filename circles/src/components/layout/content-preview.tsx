@@ -170,6 +170,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
     }, [ownerRestrictsVisibility, user?.did, circle?._id, circle?.did]);
 
     const suppressed = ownerRestrictsVisibility && !hasRelationshipAccess;
+    const viewerIsOwnProfile = !!user?.did && !!circle?.did && user.did === circle.did;
 
     const openPledgeDialog = () => {
         if (!user?.did) {
@@ -482,9 +483,19 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             </div>
                         )}
 
-                        {/* Offers */}
+                        {/* Offers — Crew Offers have no visibility field of their own (see
+                            tourTeamOfferingSchema) and are gated to a circle's own Crew
+                            everywhere else in the app (getCrewOfferings). This quick-preview
+                            panel is reached from map pins and search results, neither of which
+                            is a Crew context, so it must never show them to anyone but the
+                            profile's own owner (or that circle's own admin) regardless of
+                            `suppressed` — a profile can be fully public/un-suppressed while its
+                            Crew Offers still stay private. The data-source fixes (search.ts,
+                            DISCOVERY_CIRCLE_PROJECTION) already strip this field for every other
+                            viewer; this is defense-in-depth in case a future caller doesn't. */}
                         {!suppressed &&
                             circle.circleType === "user" &&
+                            (viewerIsOwnProfile || isViewerCircleAdmin) &&
                             circle.tourTeamOfferings &&
                             circle.tourTeamOfferings.length > 0 && (
                                 <div className="mt-4">

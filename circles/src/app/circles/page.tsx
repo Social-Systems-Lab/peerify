@@ -40,7 +40,7 @@ export default async function Home(props: CirclesProps) {
                             !isPeerifyManagedIdentity(m.circle),
                     )
                     ?.map((membership) => membership.circle?._id) || [];
-            let memberCircles = await getCirclesByIds(memberIds);
+            let memberCircles = await getCirclesByIds(memberIds, userDid);
             circles = await getMetricsForCircles(memberCircles, userDid, searchParams?.sort as SortingOptions);
         } else {
             circles = await getCirclesWithMetrics(userDid, undefined, searchParams?.sort as SortingOptions, filterType);

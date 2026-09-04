@@ -1364,7 +1364,7 @@ export async function getEventArtistsAction(
         const artistCircleIds = event?.additionalArtistCircleIds || [];
         if (artistCircleIds.length === 0) return defaultResult;
 
-        const artistCircles = await getCirclesByIds(artistCircleIds);
+        const artistCircles = await getCirclesByIds(artistCircleIds, userDid);
         const adminDelegatedIds = event?.artistAdminCircleIds || [];
 
         const bands = await Promise.all(

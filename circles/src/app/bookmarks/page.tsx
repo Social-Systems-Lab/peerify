@@ -30,7 +30,7 @@ export default async function BookmarksPage() {
   // Resolve pinned circles preserving order
   let pinned: Circle[] = [];
   if (pinnedIds.length > 0) {
-    pinned = await getCirclesByIds(pinnedIds);
+    pinned = await getCirclesByIds(pinnedIds, userDid);
     const byId = new Map(pinned.map((c) => [c._id?.toString(), c]));
     pinned = pinnedIds.map((id) => byId.get(id)).filter((c): c is Circle => !!c);
   }
@@ -39,7 +39,7 @@ export default async function BookmarksPage() {
   const remainingIds = bookmarkedIds.filter((id) => !pinnedIds.includes(id));
   let remaining: Circle[] = [];
   if (remainingIds.length > 0) {
-    remaining = await getCirclesByIds(remainingIds);
+    remaining = await getCirclesByIds(remainingIds, userDid);
   }
 
   const hasAny = pinned.length > 0 || remaining.length > 0;
