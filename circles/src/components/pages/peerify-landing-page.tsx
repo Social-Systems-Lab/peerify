@@ -135,8 +135,8 @@ export default function PeerifyLandingPage() {
                     <div className={"twoCol"}>
                         <div className={"textCol"}>
                             <p className={"sLabel"}>The idea</p>
-                            <h2 className={"serif"}>A map of music<br />happening near you</h2>
-                            <p>A peer-to-peer, non-profit platform connecting artists, fans, and living rooms. Browse artists on a map. Pledge to bring them to your city. Join their crew. Host a show at home.</p>
+                            <h2 className={"serif"}>1,000 fans is all it takes</h2>
+                            <p>Streaming pays fractions of a cent per play. Touring rarely breaks even. But an artist doesn&apos;t need to go viral &mdash; they need a thousand people who actually show up, buy the music, and open their homes. Peerify is the infrastructure for finding those people, and turning their support into a real, sustainable career.</p>
                             <Link href="/explore" className={"btnOrange"} style={{ marginTop: "8px" }}>See the map</Link>
                         </div>
                         <div className={"photoFrame"}>
@@ -283,8 +283,8 @@ export default function PeerifyLandingPage() {
             {/* ── MANIFESTO ── */}
             <section className={"manifesto-section reveal"}>
                 <blockquote>
-                    &ldquo;An artist with <em>1,000 true fans</em> across the globe should be able
-                    to make a living from their music.&rdquo;
+                    &ldquo;Music was never meant to be a stream of anonymous plays listened to alone.
+                    It&apos;s a room, a couch, a song, <em>a space where strangers become friends</em>.&rdquo;
                 </blockquote>
                 <p className={"manifesto-attr"}>&mdash; The Peerify thesis</p>
             </section>
