@@ -16,6 +16,7 @@ import { ObjectId } from "mongodb";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
+import { filterLocations } from "../utils";
 import { deleteVbdCircle, deleteVbdPost, upsertVbdCircles } from "./vdb";
 import { createDefaultChatRooms, getChatRoomByHandle, updateChatRoom } from "./chat";
 import { createDefaultFeed } from "./feed";
@@ -227,6 +228,16 @@ export const getPublishedCircleQuery = (): any => ({
     $or: [{ publishStatus: "published" as const }, { publishStatus: { $exists: false } }],
 });
 
+// Shared "is this viewer a platform admin" check, resolved from a trusted DB lookup on their own
+// did — never accepted as a caller-supplied boolean. Used anywhere a read path needs to decide
+// whether a viewer bypasses per-owner content restrictions (map visibility, location precision,
+// crew-only fields), mirroring the pattern getSwipeCircles/searchDiscoverableCircles established.
+export const resolveViewerIsAdmin = async (viewerDid?: string): Promise<boolean> => {
+    if (!viewerDid) return false;
+    const viewer = await Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } });
+    return viewer?.isAdmin === true;
+};
+
 // Superadmins (user.isAdmin — see src/lib/auth/verification.ts) see every personal profile on
 // the map, including ones the owner hasn't opted into mapVisible for. isAdmin is resolved here
 // from a trusted DB lookup on viewerDid, never accepted as a caller-supplied boolean, so a client
@@ -258,7 +269,7 @@ export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => 
             circle._id = circle._id.toString();
         }
     });
-    //circles = filterLocations(circles) as any[];
+    circles = filterLocations(circles, (circle) => circle.did, { viewerDid, viewerIsAdmin: isAdmin });
     return circles;
 };
 

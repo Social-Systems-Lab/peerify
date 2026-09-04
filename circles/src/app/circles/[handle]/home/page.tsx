@@ -61,7 +61,9 @@ export default async function CircleHomePage(props: PageProps) {
     const showAdminsPublicly = circle.showAdminsPublicly !== false;
     const adminLeaders =
         showAdminsPublicly && circle.circleType !== "user" && circle._id
-            ? (await getMembers(circle._id)).filter((member) => member.userGroups?.includes("admins")).slice(0, 6)
+            ? (await getMembers(circle._id, viewerDid))
+                  .filter((member) => member.userGroups?.includes("admins"))
+                  .slice(0, 6)
             : [];
 
     if (circle.circleType === "user" && circle.did && !isPeerifyArtistProfile) {

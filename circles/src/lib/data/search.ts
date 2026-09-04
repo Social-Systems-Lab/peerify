@@ -1,6 +1,7 @@
 import { Circle, CircleType, WithMetric } from "@/models/models";
 import { Circles } from "./db";
 import { getPublishedCircleQuery, isCirclePublished, SAFE_CIRCLE_PROJECTION } from "./circle";
+import { redactLocationForViewer } from "../utils";
 
 const SEARCHABLE_TYPES: CircleType[] = ["circle", "project", "user"];
 const SEARCHABLE_FIELDS = [
@@ -255,9 +256,10 @@ export const searchDiscoverableCircles = async ({
         // this the same way it bypasses the searchable gate, so an admin's search result for a
         // private profile still carries a location instead of a half-fix with no pin.
         const isMapVisible = viewerIsAdmin || circle.circleType !== "user" || circle.mapVisible === true;
+        const exposedLocation = isMapVisible ? circle.location : undefined;
         return {
             ...circle,
-            location: isMapVisible ? circle.location : undefined,
+            location: redactLocationForViewer(exposedLocation, circle.did, { viewerDid, viewerIsAdmin }),
             metrics: {
                 searchRank: score / maxScore,
                 similarity: score / maxScore,
