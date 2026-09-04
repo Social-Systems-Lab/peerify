@@ -4284,4 +4284,40 @@ deploy.
   this workflow going forward — prefer checking `SESSION_LOG.md` "shipped to
   prod" notes or spot-checking live behavior when verifying sync between
   branches.
-  
+
+  ### 2026-09-04
+
+**Bug fix: intermittent crash saving artist About settings (unseeded Spotify
+music-link field)**
+
+- Original report: unchecking "Show a public booking enquiry flow" on the
+  Booking enquiries card (after filling in dependent fields) threw
+  `Cannot read properties of undefined (reading 'trim')`. Turned out to
+  reproduce on plain saves too (no edits, or edits to unrelated fields like
+  Location/Genre), and intermittently — not on every attempt.
+- Root cause: `buildArtistProfileFormDefaults` never seeded a default for the
+  `spotify` key in `musicLinks` (all other music-link platforms — bandcamp,
+  soundcloud, appleMusic, youtube, linktree, website — were seeded with `""`,
+  spotify was missed). Its Controller field therefore started `undefined`.
+  `onSubmit`'s music-links mapping ran
+  `Object.entries(musicLinks).filter(([, value]) => value.trim().length > 0)`
+  with a bare `.trim()` — this threw client-side, before `saveAbout()` (the
+  server action) was ever called.
+  - Explains every prior red herring: no server log entry (crash never
+    reached the server), no network request at the moment of crash, and the
+    intermittency (timing of React Hook Form's Controller registration
+    populating the `spotify` key, not which fields were edited).
+- Fix: seeded `spotify: artistProfile.musicLinks.spotify || ""` in
+  `buildArtistProfileFormDefaults`; defense-in-depth guard on the filter
+  itself (`value?.trim().length ?? 0) > 0`); added `console.error` logging to
+  both the client `onSubmit` catch block and the server `saveAbout()` catch,
+  so any future recurrence surfaces a real stack trace instead of a generic
+  toast.
+- Also included: second "Save Changes" button after the Booking enquiries
+  card, since the section gets long once expanded (from the same session's
+  earlier, incomplete fix attempt).
+- Verified via a repro loop on staging (fill/no-fill, toggle Booking on/off,
+  save repeatedly) on Chrome and Brave, then re-verified live on prod against
+  the original circle where this was first reported (marsmallowvalentine).
+- Cherry-picked to `main` (`8961ccab`, `733040fd`) and deployed to prod via
+  `./scripts/deploy-peerify.sh`. Confirmed live and stable.
