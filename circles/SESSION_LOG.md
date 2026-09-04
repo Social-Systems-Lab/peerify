@@ -4239,3 +4239,49 @@ deploy.
 **Promotion:** the pledge-dialog overhaul above plus this fix were cherry-picked to `main` as a 6-commit chain (`b2aa2e47`→`c36db9b0`, `b348c5d6`→`165ef616`, `4bdc859a`→`cfb540b3`, `217d1b5a`→`205e4445`, `f169aa70`→`bb280ab1`, `84e72461`→`98c7527a`), one merge conflict (a stale `Collapsible` import carried in as unrelated diff context from a not-yet-promoted commit, resolved by dropping the unused import) — typecheck/lint/build all clean throughout. Deployed to prod via the standard pipeline; live and verified via manual pledge testing including the repeat-pledge upsert behavior.
 
 **Status:** live on `main`/prod as of 2026-08-31.
+
+### 2026-09-04
+
+**Landing page copy pass — "The idea" and manifesto sections**
+
+- Rewrote "The idea" section (previously "A map of music happening near you") to
+  lead with the 1,000-true-fans thesis instead of restating the hero's mechanics:
+  new heading "1,000 fans is all it takes" + supporting copy on why streaming/
+  touring economics fail artists and what Peerify's infrastructure does instead.
+- Rewrote the manifesto pull-quote to shift its job from restating the fan-count
+  thesis (now covered earlier) to the intimacy/trust angle: "Music was never
+  meant to be a stream of anonymous plays listened to alone. It's a room, a
+  couch, a song, a space where strangers become friends." Background/styling of
+  the manifesto section left unchanged (dark, not plum — confirmed against the
+  live deployed version before editing).
+- Net effect: hero (what), "the idea" (why, economically), manifesto (what it
+  feels like) are now three distinct beats instead of the same message repeated
+  twice.
+- Also included in this promotion: earlier copy pass covering idea intro,
+  membership bullets, crew/tour-team copy, "Coming soon: Peerify Player" callout,
+  final CTA heading (prototype language removed), and removal of the dead
+  "About" footer link.
+- Verified on staging.peerify.one (desktop + mobile) before promotion.
+- Cherry-picked to `main` (`bbcf0494`, `eab89b1e`) and deployed to prod via
+  `./scripts/deploy-peerify.sh`. Verified live on peerify.one.
+
+**Staging/main drift check**
+
+- Ran `git cherry -v main staging` expecting a short list; got ~100 commits,
+  suggesting large unshipped batches (Crew, Pledge Dashboard, event tags,
+  category search, mobile Explore overhaul, etc.).
+- Manually confirmed against prod: all of the above are actually live. Direct
+  `git log` on the `main` worktree shows equivalent commits already present
+  (Crew Dashboard, Pledge Dashboard currency code, Circle wizard redesign, etc.)
+  under different hashes.
+- Root cause: `git cherry` matches by patch-id (patch content), not by feature.
+  Where a staging commit was re-authored, squashed, or lightly edited before
+  landing on `main` — rather than cherry-picked byte-for-byte — the patch-ids
+  don't match, so `git cherry` reports it as "still on staging only" even though
+  the feature is live on prod.
+- Conclusion: no actual promotion gap. Daily shipping habit is intact and prod
+  is up to date. `git cherry -v main staging` is not a reliable audit tool for
+  this workflow going forward — prefer checking `SESSION_LOG.md` "shipped to
+  prod" notes or spot-checking live behavior when verifying sync between
+  branches.
+  
