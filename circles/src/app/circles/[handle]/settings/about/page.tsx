@@ -1,7 +1,8 @@
+import { redirect } from "next/navigation";
 import { AboutSettingsForm } from "@/components/forms/circle-settings/about-settings-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getAuthenticatedUserDid } from "@/lib/auth/auth";
+import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import {
     getAutoProvisionedArtistCircle,
     getCircleByHandle,
@@ -9,6 +10,7 @@ import {
     getCirclePublishStatus,
     getPilotArtistCircleReadiness,
 } from "@/lib/data/circle";
+import { features } from "@/lib/data/constants";
 import { getPendingAttachCircleRequest, getPendingIncomingAttachCircleRequests } from "@/lib/data/circle-attach";
 import { getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { getMember, getMembers } from "@/lib/data/member";
@@ -29,11 +31,21 @@ export default async function AboutSettingsPage(props: PageProps) {
     const { handle } = params;
     const circle = await getCircleByHandle(handle);
 
-    if (!circle) {
+    if (!circle?._id) {
         return <div>Circle not found</div>;
     }
 
     const userDid = await getAuthenticatedUserDid();
+
+    // getCircleByHandle above is the same generic, non-owner-scoped lookup used everywhere in
+    // the app — this page's safety previously rode entirely on middleware.ts +
+    // accessRules.settings.view staying ["admins"], with no independent check here. Explicit
+    // re-check, defense-in-depth (matches the pattern settings/crew/page.tsx already used).
+    const canManage = await isAuthorized(userDid, circle._id, features.settings.edit_about);
+    if (!canManage) {
+        redirect(`/circles/${handle}/access-denied?module=settings&redirectTo=/circles/${handle}/settings/about`);
+    }
+
     const parentCircle = circle.parentCircleId ? await getCircleById(circle.parentCircleId) : undefined;
     const member = userDid && circle._id ? await getMember(userDid, String(circle._id)) : null;
     const adminMembers =
