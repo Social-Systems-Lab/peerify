@@ -141,6 +141,7 @@ const buildArtistProfileFormDefaults = (circle: Circle): AboutSettingsFormValues
         genresText: artistProfile.genres.join(", "),
         baseCity: artistProfile.baseCity,
         musicLinks: {
+            spotify: artistProfile.musicLinks.spotify || "",
             bandcamp: artistProfile.musicLinks.bandcamp || "",
             soundcloud: artistProfile.musicLinks.soundcloud || "",
             appleMusic: artistProfile.musicLinks.appleMusic || "",
@@ -570,7 +571,9 @@ export function AboutSettingsForm({
                     ? data.primaryGenreOther?.trim() || undefined
                     : undefined,
                 musicLinks: Object.fromEntries(
-                    Object.entries(data.peerifyArtistProfile.musicLinks).filter(([, value]) => value.trim().length > 0),
+                    Object.entries(data.peerifyArtistProfile.musicLinks).filter(
+                        ([, value]) => (value?.trim().length ?? 0) > 0,
+                    ),
                 ),
                 lookingFor: data.peerifyArtistProfile.lookingFor,
                 bookingEnabled: data.peerifyArtistProfile.bookingEnabled,
@@ -658,6 +661,11 @@ export function AboutSettingsForm({
                 });
             }
         } catch (error) {
+            // This catch block is what actually renders the "Error" toast — including for any
+            // bare-.trim()-on-undefined crash before saveAbout() is ever called (e.g. a
+            // Controller field with no seeded defaultValue). It previously swallowed the error
+            // with no console.error, which is why such a crash showed nothing in devtools.
+            console.error("AboutSettingsForm onSubmit failed:", error);
             const message = error instanceof Error ? error.message : "An unexpected error occurred";
             const hasPendingImageUploads =
                 form.getValues("picture") instanceof File ||

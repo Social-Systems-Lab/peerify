@@ -879,6 +879,10 @@ export async function saveAbout(values: {
 
         return { success: true, message: "Circle about saved successfully", newHandle: newHandle };
     } catch (error) {
+        // This catch block previously swallowed errors silently (no console.error), so a
+        // real server-side crash here would never show up in `pm2 logs` — only as a vague
+        // toast on the client. Log the full stack so future failures are diagnosable.
+        console.error("saveAbout() threw:", error instanceof Error ? error.stack : error);
         if (error instanceof Error) {
             return { success: false, message: error.message };
         } else {
