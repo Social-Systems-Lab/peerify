@@ -35,7 +35,7 @@ export default async function CrewDashboardPage({ params }: PageProps) {
     // are fetched separately and left-joined below rather than derived from one query — a member
     // with no offerings must still show up as a card, just with an empty offerings section.
     const [members, offerers] = await Promise.all([
-        getCrewMembers(circle._id),
+        getCrewMembers(circle._id, userDid),
         getCrewOfferings(circle._id, undefined, true),
     ]);
 

@@ -38,7 +38,7 @@ export default async function CrewModule({ circle }: CrewModuleProps) {
         );
     }
 
-    const members = await getCrewMembers(circle?._id);
+    const members = await getCrewMembers(circle?._id, viewerDid);
 
     return (
         <div className="mx-auto max-w-[1100px] px-0 py-0 md:px-4 md:py-6">

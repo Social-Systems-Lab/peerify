@@ -31,7 +31,7 @@ export const getMembersWithMetrics = async (
     circleId?: string,
     sort?: SortingOptions,
 ): Promise<MemberDisplay[]> => {
-    let members = await getMembers(circleId);
+    let members = await getMembers(circleId, userDid);
 
     const currentDate = new Date();
     let user = undefined;
@@ -49,7 +49,7 @@ export const getMembersWithMetrics = async (
     return members;
 };
 
-export const getMembers = async (circleId?: string): Promise<MemberDisplay[]> => {
+export const getMembers = async (circleId?: string, viewerDid?: string): Promise<MemberDisplay[]> => {
     if (!circleId) return [];
 
     let members = await Members.aggregate([
@@ -85,15 +85,22 @@ export const getMembers = async (circleId?: string): Promise<MemberDisplay[]> =>
         },
     ]).toArray();
 
-    // filter location data based on precision
-    //members = filterLocations(members as Content[]);
-    return members as MemberDisplay[];
+    // Each member's location belongs to them, not to the circle they're a member of — bypass
+    // (exact value) only for that member viewing their own row, or a platform admin; every
+    // other viewer gets the member's own chosen precision. viewerIsAdmin is resolved from a
+    // trusted DB lookup, mirroring getSwipeCircles/searchDiscoverableCircles.
+    let viewerIsAdmin = false;
+    if (viewerDid) {
+        const viewer = await Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } });
+        viewerIsAdmin = viewer?.isAdmin === true;
+    }
+    return filterLocations(members as MemberDisplay[], (member) => member.userDid, { viewerDid, viewerIsAdmin });
 };
 
 // Approved Crew members are just Members docs whose userGroups includes "crew" (assigned by
 // approveCrewApplicationAction) — there's no separate "crew membership" collection, so this is
 // getMembers filtered to that group plus the crewVisible flag projected through.
-export const getCrewMembers = async (circleId?: string): Promise<MemberDisplay[]> => {
+export const getCrewMembers = async (circleId?: string, viewerDid?: string): Promise<MemberDisplay[]> => {
     if (!circleId) return [];
 
     let members = await Members.aggregate([
@@ -123,7 +130,12 @@ export const getCrewMembers = async (circleId?: string): Promise<MemberDisplay[]
         },
     ]).toArray();
 
-    return members as MemberDisplay[];
+    let viewerIsAdmin = false;
+    if (viewerDid) {
+        const viewer = await Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } });
+        viewerIsAdmin = viewer?.isAdmin === true;
+    }
+    return filterLocations(members as MemberDisplay[], (member) => member.userDid, { viewerDid, viewerIsAdmin });
 };
 
 export type CrewOfferer = {

@@ -1185,7 +1185,8 @@ export async function getReactionsAction(
     contentType: "post" | "comment",
 ): Promise<{ success: boolean; reactions?: any[]; message?: string }> {
     try {
-        const reactions = await getReactions(contentId, contentType);
+        const viewerDid = await getAuthenticatedUserDid();
+        const reactions = await getReactions(contentId, contentType, viewerDid);
 
         return { success: true, reactions };
     } catch (error) {

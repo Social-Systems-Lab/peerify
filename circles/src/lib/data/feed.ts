@@ -15,8 +15,10 @@ import {
     FundingAskDisplay,
     EventDisplay,
     TaskDisplay, // Added TaskDisplay
+    Location,
 } from "@/models/models";
-import { getCircleById, SAFE_CIRCLE_PROJECTION, updateCircle, getCircleByHandle } from "./circle";
+import { getCircleById, SAFE_CIRCLE_PROJECTION, updateCircle, getCircleByHandle, resolveViewerIsAdmin } from "./circle";
+import { redactLocationForViewer, type LocationViewerContext } from "../utils";
 import { getUserByDid } from "./user";
 import { getMetrics } from "../utils/metrics";
 import { deleteVbdPost, upsertVbdPosts } from "./vdb";
@@ -421,6 +423,95 @@ export const getShareablePostPreview = async (postId: string, userDid?: string):
     return postDisplay;
 };
 
+type LocationBearingAuthor = { did?: string; location?: Location };
+type LocationBearingMention = { circle?: { did?: string; location?: Location } | null };
+type LocationBearingHighlightedComment = {
+    author?: LocationBearingAuthor;
+    mentionsDisplay?: LocationBearingMention[];
+};
+type LocationBearingContent = {
+    location?: Location;
+    createdBy?: string;
+    author?: LocationBearingAuthor;
+    mentionsDisplay?: LocationBearingMention[];
+    highlightedComment?: LocationBearingHighlightedComment | null;
+};
+
+function redactAuthorLocation<A extends LocationBearingAuthor | undefined>(
+    author: A,
+    viewer: LocationViewerContext,
+): A {
+    if (!author?.location) return author;
+    const redacted = redactLocationForViewer(author.location, author.did, viewer);
+    if (redacted === author.location) return author;
+    return { ...author, location: redacted };
+}
+
+function redactMentionsLocations<M extends LocationBearingMention>(
+    mentionsDisplay: M[] | undefined,
+    viewer: LocationViewerContext,
+): M[] | undefined {
+    if (!mentionsDisplay?.length) return mentionsDisplay;
+    let changed = false;
+    const next = mentionsDisplay.map((mention) => {
+        const circle = mention?.circle;
+        if (!circle?.location) return mention;
+        const redacted = redactLocationForViewer(circle.location, circle.did, viewer);
+        if (redacted === circle.location) return mention;
+        changed = true;
+        return { ...mention, circle: { ...circle, location: redacted } };
+    });
+    return changed ? next : mentionsDisplay;
+}
+
+// Redacts every location embedded in a post/comment payload — its own `location` (owned by
+// createdBy, e.g. a geotag the author attached), its `author.location` (the author's profile
+// location, pulled in automatically regardless of the author's own mapVisible/searchable
+// choice), each mentioned circle's `location`, and the same three on a nested
+// `highlightedComment` — down to that owner's chosen precision, unless the viewer IS that owner
+// or a platform admin. Applied once to the plain objects the aggregation returns, rather than
+// inside the pipeline itself (these aggregations are already deep enough that adding
+// viewer-conditional projection logic in Mongo would be far riskier to get right).
+function redactContentLocations<T extends LocationBearingContent>(item: T, viewer: LocationViewerContext): T {
+    const next: any = { ...item };
+    let changed = false;
+
+    if (item.location) {
+        const redacted = redactLocationForViewer(item.location, item.createdBy, viewer);
+        if (redacted !== item.location) {
+            next.location = redacted;
+            changed = true;
+        }
+    }
+
+    const author = redactAuthorLocation(item.author, viewer);
+    if (author !== item.author) {
+        next.author = author;
+        changed = true;
+    }
+
+    const mentionsDisplay = redactMentionsLocations(item.mentionsDisplay, viewer);
+    if (mentionsDisplay !== item.mentionsDisplay) {
+        next.mentionsDisplay = mentionsDisplay;
+        changed = true;
+    }
+
+    if (item.highlightedComment) {
+        const hcAuthor = redactAuthorLocation(item.highlightedComment.author, viewer);
+        const hcMentions = redactMentionsLocations(item.highlightedComment.mentionsDisplay, viewer);
+        if (hcAuthor !== item.highlightedComment.author || hcMentions !== item.highlightedComment.mentionsDisplay) {
+            next.highlightedComment = { ...item.highlightedComment, author: hcAuthor, mentionsDisplay: hcMentions };
+            changed = true;
+        }
+    }
+
+    return changed ? (next as T) : item;
+}
+
+function redactContentListLocations<T extends LocationBearingContent>(items: T[], viewer: LocationViewerContext): T[] {
+    return items.map((item) => redactContentLocations(item, viewer));
+}
+
 export const getFullPost = async (postId: string, userDid?: string): Promise<PostDisplay | null> => {
     const posts = (await Posts.aggregate([
         {
@@ -717,7 +808,8 @@ export const getFullPost = async (postId: string, userDid?: string): Promise<Pos
     await fetchAndAttachInternalPreviewData(posts);
     await fetchAndAttachSharedPostData(posts, userDid);
 
-    return posts[0];
+    const viewerIsAdmin = await resolveViewerIsAdmin(userDid);
+    return redactContentLocations(posts[0], { viewerDid: userDid, viewerIsAdmin });
 };
 
 // Function to update the highlighted comment for a post
@@ -1200,7 +1292,8 @@ export async function getPostsFromMultipleFeeds(
         await fetchAndAttachSharedPostData(filteredPosts, userDid);
         // --- End Fetch Internal Preview Data ---
 
-        return filteredPosts;
+        const viewerIsAdmin = await resolveViewerIsAdmin(userDid);
+        return redactContentListLocations(filteredPosts, { viewerDid: userDid, viewerIsAdmin });
     }
 
     // If no user is specified, only return posts with "everyone" user group
@@ -1213,7 +1306,8 @@ export async function getPostsFromMultipleFeeds(
     await fetchAndAttachSharedPostData(publicPosts, userDid);
     // --- End Fetch Internal Preview Data ---
 
-    return publicPosts; // Restored return statement
+    const viewerIsAdminForPublic = await resolveViewerIsAdmin(userDid);
+    return redactContentListLocations(publicPosts, { viewerDid: userDid, viewerIsAdmin: viewerIsAdminForPublic });
 }
 
 export async function getPostsFromMultipleFeedsWithMetrics(
@@ -1622,7 +1716,8 @@ export const getPosts = async (
         await fetchAndAttachSharedPostData(filteredPosts, userDid);
         // --- End Fetch Internal Preview Data ---
 
-        return filteredPosts;
+        const viewerIsAdmin = await resolveViewerIsAdmin(userDid);
+        return redactContentListLocations(filteredPosts, { viewerDid: userDid, viewerIsAdmin });
     }
 
     // If no user is specified, only return posts with "everyone" user group
@@ -1635,7 +1730,8 @@ export const getPosts = async (
     await fetchAndAttachSharedPostData(publicPostsForFeed, userDid);
     // --- End Fetch Internal Preview Data ---
 
-    return publicPostsForFeed; // Return the correct list
+    const viewerIsAdminForPublic = await resolveViewerIsAdmin(userDid);
+    return redactContentListLocations(publicPostsForFeed, { viewerDid: userDid, viewerIsAdmin: viewerIsAdminForPublic });
 };
 
 // Helper function to fetch and attach internal preview data
@@ -1973,7 +2069,8 @@ export const getAllComments = async (postId: string, userDid: string | undefined
         }
     });
 
-    return comments;
+    const viewerIsAdmin = await resolveViewerIsAdmin(userDid);
+    return redactContentListLocations(comments, { viewerDid: userDid, viewerIsAdmin });
 };
 
 export const getPostsForEmbedding = async (): Promise<PostDisplay[]> => {
@@ -2100,15 +2197,20 @@ export const unlikeContent = async (
     }
 };
 
-export const getReactions = async (contentId: string, contentType: "post" | "comment"): Promise<Circle[]> => {
+export const getReactions = async (
+    contentId: string,
+    contentType: "post" | "comment",
+    viewerDid?: string,
+): Promise<Circle[]> => {
     const reactions = await Reactions.find({ contentId, contentType }).limit(20).toArray();
     const userDids = reactions.map((r) => r.userDid);
     const users = await Circles.find({ did: { $in: userDids } }, { projection: SAFE_CIRCLE_PROJECTION }).toArray();
+    const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
     return users.map((user) => ({
         did: user.did,
         name: user.name,
         picture: user.picture,
-        location: user.location,
+        location: redactLocationForViewer(user.location, user.did, { viewerDid, viewerIsAdmin }),
         description: user.description,
         images: user.images,
         handle: user.handle,
