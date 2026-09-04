@@ -1,6 +1,6 @@
 // used by tailwindcss to merge classnames, shadcn/ui CLI assumes the file is here
 
-import { ChatRoom, Circle, Content, Feed, Location } from "@/models/models";
+import { ChatRoom, Circle, Feed, Location } from "@/models/models";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { getModuleFeatures, features } from "./data/constants";
@@ -131,36 +131,86 @@ export function getFullLocationName(location?: Location): string {
     return name;
 }
 
-export function filterLocations(content: Content[]) {
-    for (const item of content) {
-        if (item.location) {
-            switch (item.location.precision) {
-                default:
-                case 0: // country
-                    item.location.region = undefined;
-                    item.location.city = undefined;
-                    item.location.street = undefined;
-                    item.location.lngLat = undefined;
-                    break;
-                case 1: // region
-                    item.location.city = undefined;
-                    item.location.street = undefined;
-                    item.location.lngLat = undefined;
-                    break;
-                case 2: // city
-                    item.location.street = undefined;
-                    item.location.lngLat = undefined;
-                    break;
-                case 3: // street
-                    item.location.lngLat = undefined;
-                    break;
-                case 4: // exact
-                    break;
-            }
-        }
-    }
+// Who's asking. Resolved by the caller from a trusted DB lookup (never a caller-supplied
+// boolean) before being passed in here — see getSwipeCircles/searchDiscoverableCircles for the
+// existing pattern this mirrors.
+export type LocationViewerContext = {
+    viewerDid?: string;
+    viewerIsAdmin?: boolean;
+};
 
-    return content;
+// Pure: returns a new Location object (or the same reference when nothing changes), never
+// mutates its input. Strips fields above the location's own declared precision.
+function capLocationToPrecision(location: Location): Location {
+    switch (location.precision) {
+        default:
+        case 0: // country
+            if (
+                location.region === undefined &&
+                location.city === undefined &&
+                location.street === undefined &&
+                location.lngLat === undefined
+            ) {
+                return location;
+            }
+            return { ...location, region: undefined, city: undefined, street: undefined, lngLat: undefined };
+        case 1: // region
+            if (location.city === undefined && location.street === undefined && location.lngLat === undefined) {
+                return location;
+            }
+            return { ...location, city: undefined, street: undefined, lngLat: undefined };
+        case 2: // city
+            if (location.street === undefined && location.lngLat === undefined) {
+                return location;
+            }
+            return { ...location, street: undefined, lngLat: undefined };
+        case 3: // street
+            if (location.lngLat === undefined) {
+                return location;
+            }
+            return { ...location, lngLat: undefined };
+        case 4: // exact
+            return location;
+    }
+}
+
+// The single point where "does this viewer get the exact location, or the owner's chosen
+// precision" is decided. ownerDid is whoever the location belongs to (a circle's own `did`, a
+// member's `userDid`, a post/comment's `createdBy`) — bypass only when the viewer IS that owner,
+// or is a platform admin (mirrors the existing mapVisible/searchable admin bypass elsewhere).
+export function redactLocationForViewer(
+    location: Location | undefined,
+    ownerDid: string | undefined,
+    viewer: LocationViewerContext,
+): Location | undefined {
+    if (!location) {
+        return location;
+    }
+    if (viewer.viewerIsAdmin || (!!viewer.viewerDid && !!ownerDid && viewer.viewerDid === ownerDid)) {
+        return location;
+    }
+    return capLocationToPrecision(location);
+}
+
+// Array form of redactLocationForViewer for lists of items that each carry their own `location`
+// field — e.g. circles, members. ownerDidOf resolves the owning DID per item (not assumed to be
+// a fixed field name, since callers project location from different source shapes). Non-mutating:
+// returns a new array; only clones an individual item when its location actually changes.
+export function filterLocations<T extends { location?: Location }>(
+    items: T[],
+    ownerDidOf: (item: T) => string | undefined,
+    viewer: LocationViewerContext,
+): T[] {
+    return items.map((item) => {
+        if (!item.location) {
+            return item;
+        }
+        const redacted = redactLocationForViewer(item.location, ownerDidOf(item), viewer);
+        if (redacted === item.location) {
+            return item;
+        }
+        return { ...item, location: redacted };
+    });
 }
 
 export function safeModifyMemberUserGroups(
