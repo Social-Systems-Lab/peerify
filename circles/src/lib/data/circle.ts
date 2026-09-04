@@ -140,7 +140,10 @@ const DISCOVERY_CIRCLE_PROJECTION = {
     representsOrganization: 1,
     organizationName: 1,
     metadata: 1,
-    tourTeamOfferings: 1,
+    // Crew Offers (tourTeamOfferings) are deliberately NOT projected here — this feeds the
+    // /explore map/discovery surface, which has no crew-membership or ownership gating at all,
+    // and Crew Offers were never meant to be visible outside a circle's own Crew (see
+    // getCrewOfferings/getCrewOffersAction) or the owner's own profile self-display.
     // Needed so isAuthorized/hasFeatureAccessIgnoringVerification can evaluate feature
     // access for content rendered from a map-sourced circle (e.g. song comments in the
     // map popup's TrackPreviewList) — without these, hasFeatureAccessIgnoringVerification
@@ -150,10 +153,20 @@ const DISCOVERY_CIRCLE_PROJECTION = {
     enabledModules: 1,
 } as const;
 
-export const getCirclesByIds = async (ids: string[]): Promise<Circle[]> => {
+// viewerDid is optional for backward compatibility with internal callers that don't render
+// tourTeamOfferings at all, but every caller that returns these circles to an end user (pins,
+// bookmarks, the circles list) should pass it — Crew Offers have no visibility field of their
+// own (see tourTeamOfferingSchema) and must never reach a viewer who isn't that circle's own
+// owner, a platform admin, or going through the dedicated crew-scoped getCrewOfferings flow.
+// Bookmarking/pinning someone else's profile is not consent to see their Crew Offers.
+export const getCirclesByIds = async (ids: string[], viewerDid?: string): Promise<Circle[]> => {
     let objectIds = ids.map((id) => new ObjectId(id));
     let circles = await Circles.find({ _id: { $in: objectIds } }, { projection: SAFE_CIRCLE_PROJECTION }).toArray();
+    const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
     circles.forEach((circle: Circle) => {
+        if (!(viewerIsAdmin || (!!viewerDid && circle.did === viewerDid))) {
+            circle.tourTeamOfferings = undefined;
+        }
         if (circle._id) {
             circle._id = circle._id.toString();
         }

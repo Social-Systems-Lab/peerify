@@ -23,7 +23,7 @@ export async function GET(): Promise<NextResponse<Circle[]>> {
     }
 
     // Fetch circle docs and preserve order of pinned ids
-    const circles = await getCirclesByIds(ids);
+    const circles = await getCirclesByIds(ids, userDid);
     const byId = new Map(circles.map((c) => [c._id?.toString(), c]));
     const ordered = ids.map((id) => byId.get(id)).filter((c): c is Circle => !!c);
     return NextResponse.json(ordered);

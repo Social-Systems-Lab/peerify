@@ -257,9 +257,17 @@ export const searchDiscoverableCircles = async ({
         // private profile still carries a location instead of a half-fix with no pin.
         const isMapVisible = viewerIsAdmin || circle.circleType !== "user" || circle.mapVisible === true;
         const exposedLocation = isMapVisible ? circle.location : undefined;
+        // Crew Offers have no visibility/audience field of their own (see tourTeamOfferingSchema)
+        // — gating for them is 100% application logic, normally scoped to a circle's own Crew
+        // (getCrewOfferings) or the owner's own profile self-display. Search results are neither,
+        // so every viewer except the profile's own owner or a platform admin gets it stripped,
+        // regardless of the (unrelated) searchable/mapVisible flags this function otherwise keys
+        // location visibility off of.
+        const isOwnCircle = !!viewerDid && circle.did === viewerDid;
         return {
             ...circle,
             location: redactLocationForViewer(exposedLocation, circle.did, { viewerDid, viewerIsAdmin }),
+            tourTeamOfferings: viewerIsAdmin || isOwnCircle ? circle.tourTeamOfferings : undefined,
             metrics: {
                 searchRank: score / maxScore,
                 similarity: score / maxScore,

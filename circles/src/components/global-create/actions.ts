@@ -51,6 +51,7 @@ export async function getSelectableCirclesAction(
         memberships
             .map((membership) => membership.circleId)
             .filter((circleId): circleId is string => Boolean(circleId && circleId !== user._id)),
+        userDid,
     );
     const candidateCircles = [user as Circle, ...memberCircles].filter(
         (circle, index, circles) => circles.findIndex((candidate) => candidate._id === circle._id) === index,

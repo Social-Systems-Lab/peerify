@@ -341,7 +341,7 @@ export const getBookmarkedCirclesAction = async (): Promise<Circle[]> => {
         if (!ids || ids.length === 0) {
             return [];
         }
-        const circles = await getCirclesByIds(ids);
+        const circles = await getCirclesByIds(ids, userDid);
         return circles;
     } catch (error) {
         console.error("Failed to load bookmarked circles", error);
