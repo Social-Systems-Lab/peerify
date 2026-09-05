@@ -198,7 +198,7 @@ const SEARCH_CATEGORY_LABELS: Record<string, string> = {
     users: "artists",
     communities: "venues",
     events: "events",
-    offers: "crew offers",
+    offers: "offers",
 };
 
 // Empty array (or omitted) means "All" throughout this file — mirrors selectedCategories'
