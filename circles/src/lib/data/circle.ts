@@ -57,6 +57,10 @@ export const SAFE_CIRCLE_PROJECTION = {
     showAdminsPublicly: 1,
     mapVisible: 1,
     searchable: 1,
+    // Missed when offersVisible was first added — without this, any page reading a circle via
+    // this projection (e.g. the Presence settings page) sees offersVisible as always undefined
+    // regardless of the real DB value, making a successful save look like it didn't persist.
+    offersVisible: 1,
     isVerified: 1,
     verificationStatus: 1,
     // Needed so getVerificationReadiness (src/lib/verification-readiness.ts) can see a
@@ -559,7 +563,12 @@ export const createCircle = async (circle: Circle, authenticatedUserDid: string)
     if (circle.circleType === "user") {
         circle.mapVisible = circle.mapVisible ?? false;
         circle.searchable = circle.searchable ?? false;
-        circle.offersVisible = circle.offersVisible ?? false;
+        // Defaults true for newly-created circles only — an explicit product decision, not the
+        // same default as mapVisible/searchable. Existing circles created before this field
+        // existed are unaffected (this line only runs in createCircle, never on an update), and
+        // stay excluded from getOfferMapPins's exact-match {offersVisible: true} query until
+        // their owner explicitly turns the Presence-settings toggle on — no retroactive backfill.
+        circle.offersVisible = circle.offersVisible ?? true;
     }
     if (!hasCircleImages(circle.images)) {
         circle.images = [getDefaultHeroImage(circle.handle || circle.did || circle.name)];
