@@ -61,6 +61,8 @@ tmp/
 circles/
 !src/app/circles/
 !src/app/circles/**
+!src/components/modules/circles/
+!src/components/modules/circles/**
 
 # Claude Code per-machine local settings (not shared)
 .claude/settings.local.json
