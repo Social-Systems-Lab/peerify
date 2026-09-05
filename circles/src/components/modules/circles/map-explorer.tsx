@@ -191,7 +191,7 @@ const RESULT_TYPE_OPTIONS = [
     { value: "users", label: "Artists" },
     { value: "communities", label: "Venues" },
     { value: "events", label: "Events" },
-    { value: "offers", label: "Crew Offers" },
+    { value: "offers", label: "Offers" },
 ] as const;
 
 const SEARCH_CATEGORY_LABELS: Record<string, string> = {
@@ -1007,7 +1007,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 ? crewOfferCircles.map((circle) => mapItemToContent(circle)).filter((c): c is Content => c !== null)
                 : [];
             // De-duped by _id, offers last so it wins: the only way the same circle can appear in
-            // both mapData and offerMapData is a viewer multi-selecting "Artists" + "Crew Offers"
+            // both mapData and offerMapData is a viewer multi-selecting "Artists" + "Offers"
             // via Advanced Filters (single-pill taps are mutually exclusive) — in that edge case,
             // one pin carrying the offer badge is preferable to two overlapping pins at the same
             // coordinate.
@@ -1469,7 +1469,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     users: "Artists",
                                     communities: "Venues",
                                     events: "Events",
-                                    offers: "Crew Offers",
+                                    offers: "Offers",
                                 }}
                             />
                         </div>
