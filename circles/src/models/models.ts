@@ -642,6 +642,19 @@ export const circleSchema = z.object({
     showAdminsPublicly: z.boolean().optional(),
     mapVisible: z.boolean().optional(),
     searchable: z.boolean().optional(),
+    // Independent from mapVisible/searchable — a user can show offer pins on the public map
+    // while otherwise fully private (no profile pin, not searchable). Offer pins carry zero
+    // identity of the offering circle (see OfferMapPin below), so this consent gate is
+    // deliberately its own thing, not reused from either existing flag. See getOfferMapPins.
+    // No schema .default() (matches mapVisible/searchable) — the real default lives in
+    // createCircle (lib/data/circle.ts), and is TRUE for newly-created circles only, an explicit
+    // product decision made after finding two of three existing staging circles with offerings
+    // had exact-precision locations (one with mapVisible explicitly false) — retroactively
+    // defaulting existing circles to visible would have exposed their real coordinates via an
+    // anonymous pin with no new consent from them. Existing circles stay excluded from
+    // getOfferMapPins (its query is an exact match on offersVisible: true, so an absent field
+    // never matches) until their owner explicitly turns the Presence-settings toggle on.
+    offersVisible: z.boolean().optional(),
     userGroups: z.array(userGroupSchema).default([]).optional(),
     enabledModules: z.array(z.string()).default([]).optional(),
     accessRules: accessRulesSchema.optional(),
@@ -896,7 +909,27 @@ export const serverSettingsSchema = z.object({
 
 export type ServerSettings = z.infer<typeof serverSettingsSchema>;
 
-export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay;
+// A single flattened, anonymized Crew Offer for map display — one per offer, not one per
+// circle. Deliberately carries NO identity of the offering circle (no did/name/handle/picture/
+// circleType/offersVisible) — offers are meant to be browsable before any Crew/artist
+// relationship exists, and the host's identity stays hidden until they choose to reveal it via a
+// reply (see the anonymized-contact-thread design, not yet built). _id is a stable per-pin key
+// (`${circleId}:${offeringId}`), not a real document id. location is NOT the same
+// viewer-precision-redacted Location other map pins use — it's deliberately not viewer-aware at
+// all: real coordinate if the circle's own location.precision is already Exact (e.g. a venue,
+// once venues can set offerings), otherwise a fixed coarse (~1km) fallback so a pin always
+// renders regardless of what precision the profile happens to have set for unrelated purposes.
+// See getOfferPinLocation (lib/data/circle.ts).
+// Consent to appear on the map at all is gated by offersVisible — a field independent of
+// mapVisible/searchable, so a circle can show offer pins while otherwise fully private.
+export type OfferMapPin = {
+    _id: string;
+    location?: Location;
+    offerType: TourTeamOffering["type"];
+    offerLabel?: string;
+};
+
+export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin;
 
 // Define Permissions type based on what IssuesModule passes
 export type IssuePermissions = {
@@ -962,10 +995,10 @@ export type ContentPreviewData =
     | { type: "member"; content: MemberDisplay; props?: never }
     | { type: "user"; content: Circle; props?: { source?: "map" | "search" } }
     | { type: "circle"; content: Circle; props?: { source?: "map" | "search" } }
-    // Crew Offer map pins — content is already the trimmed, public {id, type, label} offerings
-    // shape (getCrewOfferMapCircles), rendered by CrewOfferMapPreview, never CirclePreview (whose
+    // Offer map pins — one per individual offer, content carries zero identity of the offering
+    // circle (see OfferMapPin above), rendered by CrewOfferMapPreview, never CirclePreview (whose
     // Offers section is deliberately gated to the owner/a circle admin).
-    | { type: "crewOffer"; content: Circle; props?: never }
+    | { type: "crewOffer"; content: OfferMapPin; props?: never }
     | { type: "proposal"; content: ProposalDisplay; props: { circle: Circle } }
     | { type: "issue"; content: IssueDisplay; props: { circle: Circle; permissions: IssuePermissions } }
     | { type: "task"; content: TaskDisplay; props: { circle: Circle; permissions: TaskPermissions } }

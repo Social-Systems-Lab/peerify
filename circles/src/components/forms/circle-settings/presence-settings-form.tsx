@@ -7,12 +7,14 @@ import { useToast } from "@/components/ui/use-toast";
 import { accommodationSubTypes, Circle, tourTeamOfferingTypes, TourTeamOffering } from "@/models/models";
 import { useRouter } from "next/navigation";
 import { useForm, Controller, Control } from "react-hook-form";
-import { savePresence } from "@/app/circles/[handle]/settings/presence/actions";
+import { savePresence, setOffersVisibleAction } from "@/app/circles/[handle]/settings/presence/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DynamicTextareaField, DynamicTagsField } from "@/components/forms/dynamic-field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
     Dialog,
     DialogContent,
@@ -329,6 +331,61 @@ function TourTeamOfferingsEditor({ value, onChange }: TourTeamOfferingsEditorPro
     );
 }
 
+// Auto-saves on click via its own server action (setOffersVisibleAction), mirroring
+// CrewEnabledToggle (about-settings-form.tsx) exactly — optimistic flip, revert + toast only on
+// failure, no success toast for something this minor, brief "Saved" flash instead. Staying out of
+// the shared form means neither direction of accidental interference is possible: clicking this
+// never saves/discards unrelated unsaved offerings/needs/engagements edits, and the form's own
+// Save Changes button never resets this back to a stale default value.
+const OffersVisibleToggle = ({ circleId, initialValue }: { circleId: string; initialValue: boolean }) => {
+    const { toast } = useToast();
+    const [visible, setVisible] = useState(initialValue);
+    const [isSaving, setIsSaving] = useState(false);
+    const [justSaved, setJustSaved] = useState(false);
+
+    const onToggle = async (checked: boolean) => {
+        setIsSaving(true);
+        setJustSaved(false);
+        setVisible(checked);
+        const res = await setOffersVisibleAction(circleId, checked);
+        setIsSaving(false);
+        if (!res.success) {
+            setVisible(!checked);
+            toast({
+                title: "Error",
+                description: res.message || "Failed to update offers visibility",
+                variant: "destructive",
+            });
+            return;
+        }
+        setJustSaved(true);
+        window.setTimeout(() => setJustSaved(false), 1500);
+    };
+
+    return (
+        <div className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
+            <Label htmlFor="offers-visible-toggle">
+                <span className="block font-medium">Show my offers on the map</span>
+                <span className="mt-1 block text-muted-foreground">
+                    {visible
+                        ? "Your offers appear as anonymous pins on the public Explore map — no name, photo, or profile link, just the offer type."
+                        : "Your offers are hidden from the public Explore map. They're still saved and visible to your own Crew, if any."}
+                </span>
+            </Label>
+            <div className="flex shrink-0 items-center gap-2">
+                {justSaved && <span className="text-xs text-muted-foreground">Saved</span>}
+                <Switch
+                    id="offers-visible-toggle"
+                    checked={visible}
+                    onCheckedChange={onToggle}
+                    disabled={isSaving}
+                    className="data-[state=checked]:bg-[hsl(var(--button-primary))]"
+                />
+            </div>
+        </div>
+    );
+};
+
 export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): React.ReactElement {
     const { toast } = useToast();
     const router = useRouter();
@@ -427,9 +484,8 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                 </p>
                                 <p>You choose who to share your offer details with.</p>
                                 <p>
-                                    Your offer stays private even if the offering type itself is visible elsewhere (e.g.
-                                    on a map or aggregate count) — nothing identifying is shared unless you actively
-                                    choose to share it.
+                                    Choose whether to show your offers as anonymous pins on the public Explore map — off
+                                    by default, and nothing identifying is ever shown even when it&apos;s on.
                                 </p>
                             </DialogDescription>
                         </DialogHeader>
@@ -479,6 +535,15 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                 <p className="text-xs font-medium text-muted-foreground">
                                     You decide what to share and with whom. Nothing is shared without your choice.
                                 </p>
+                                {/* Auto-saves on click via its own action (setOffersVisibleAction) — kept
+                                    entirely out of this form's state/submit, same reasoning as
+                                    CrewEnabledToggle (about-settings-form.tsx): clicking it must never
+                                    save/discard unrelated unsaved edits below, and the form's own Save
+                                    Changes button must never reset it back to a stale default value. */}
+                                <OffersVisibleToggle
+                                    circleId={circle._id ?? ""}
+                                    initialValue={circle.offersVisible === true}
+                                />
                                 <Controller
                                     name="tourTeamOfferings"
                                     control={form.control as unknown as Control}

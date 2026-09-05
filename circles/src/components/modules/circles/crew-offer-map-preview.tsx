@@ -2,35 +2,37 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import { MapPin } from "lucide-react";
-import { Circle } from "@/models/models";
-import { Badge } from "@/components/ui/badge";
-import { CirclePicture } from "@/components/modules/circles/circle-picture";
-import { getTourTeamOfferingIcon, getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
+import { OfferMapPin } from "@/models/models";
 import { getFullLocationName } from "@/lib/utils";
+import { getTourTeamOfferingIcon, getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 
 type CrewOfferMapPreviewProps = {
-    circle: Circle;
+    pin: OfferMapPin;
 };
 
 // Deliberately separate from CirclePreview (content-preview.tsx) rather than a new branch on it —
 // CirclePreview's Offers section is gated behind viewerIsOwnProfile/isViewerCircleAdmin (see the
-// privacy-fix commits from the prior session), since a *generic* profile preview must never leak
-// Crew Offers to the public. This component is the intended, deliberate public-facing surface for
-// the shape getCrewOfferMapCircles already returns — {id, type, label} only, no detail or
-// accommodationType, trimmed server-side for every viewer alike — so there is nothing left to
-// gate here; it's safe to render unconditionally to whoever clicked the pin.
-export default function CrewOfferMapPreview({ circle }: CrewOfferMapPreviewProps) {
-    const offerings = circle.tourTeamOfferings ?? [];
-    const locationLabel = getFullLocationName(circle.location);
+// privacy-fix commits from a prior session), since a *generic* profile preview must never leak
+// Crew Offers to the public. OfferMapPin (models.ts) carries zero identity of the offering circle
+// at all — no did/name/handle/picture — consistent with offers being browsable before any
+// Crew/artist relationship exists, and with the (not-yet-built) anonymized-contact-thread design
+// where the host stays hidden until they choose to reply. There is nothing left to gate here: no
+// name, no avatar/initials, no "View profile" link — just the offer type/label and its
+// (already viewer-precision-redacted) location.
+export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
+    const Icon = getTourTeamOfferingIcon({ type: pin.offerType });
+    const label = getTourTeamOfferingLabel({ type: pin.offerType, label: pin.offerLabel });
+    const locationLabel = getFullLocationName(pin.location);
 
     return (
         <div className="custom-scrollbar h-full overflow-y-auto p-4">
             <div className="flex items-center gap-3">
-                <CirclePicture circle={circle} size="56px" />
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-900">
+                    <Icon className="h-6 w-6" />
+                </div>
                 <div className="min-w-0">
-                    <div className="truncate text-lg font-semibold">{circle.name || "Untitled"}</div>
+                    <div className="truncate text-lg font-semibold">{label}</div>
                     {locationLabel && (
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -39,31 +41,6 @@ export default function CrewOfferMapPreview({ circle }: CrewOfferMapPreviewProps
                     )}
                 </div>
             </div>
-
-            {offerings.length > 0 && (
-                <div className="mt-4">
-                    <h3 className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">Offers</h3>
-                    <div className="flex flex-wrap items-center gap-2">
-                        {offerings.map((offering) => {
-                            const OfferingIcon = getTourTeamOfferingIcon(offering);
-                            return (
-                                <Badge key={offering.id} variant="outline" className="gap-1">
-                                    <OfferingIcon className="h-3 w-3" />
-                                    {getTourTeamOfferingLabel(offering)}
-                                </Badge>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
-
-            {circle.handle && (
-                <div className="mt-4">
-                    <Link href={`/circles/${circle.handle}`} className="text-sm font-medium text-primary hover:underline">
-                        View profile
-                    </Link>
-                </div>
-            )}
         </div>
     );
 }

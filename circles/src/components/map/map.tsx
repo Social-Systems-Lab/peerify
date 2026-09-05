@@ -25,7 +25,8 @@ import {
 import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 import ContentPreview from "../layout/content-preview";
-import { Circle, Content, ContentPreviewData, Location, PostDisplay, EventDisplay } from "@/models/models";
+import { Content, ContentPreviewData, Location, OfferMapPin, PostDisplay, EventDisplay } from "@/models/models";
+import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 import { TbFocus2 } from "react-icons/tb";
 import Onboarding from "../onboarding/onboarding";
 import { Dialog, DialogContent } from "../ui/dialog";
@@ -50,13 +51,29 @@ const isEventDisplay = (content: any): content is EventDisplay => !!(content && 
 const isSuppressedUserProfile = (content: any, viewerIsAdmin: boolean): boolean =>
     !viewerIsAdmin && content?.circleType === "user" && content?.mapVisible !== true;
 
-// A Crew Offer pin is just a circleType: "user" circle carrying an already-trimmed
-// tourTeamOfferings ({id, type, label} only — see getCrewOfferMapCircles) — nothing else flowing
-// through the map today ever has a non-empty tourTeamOfferings (DISCOVERY_CIRCLE_PROJECTION
-// deliberately excludes it), so this is a safe, non-colliding discriminant with no schema/Content
-// union changes needed.
-const isCrewOfferContent = (content: any): boolean =>
-    Array.isArray(content?.tourTeamOfferings) && content.tourTeamOfferings.length > 0;
+// An Offer map pin (OfferMapPin, models.ts) — one per individual offer, carrying zero identity
+// of the offering circle. Duck-typed on `offerType`, which nothing else in the Content union has.
+const isOfferMapPin = (content: any): content is OfferMapPin => typeof content?.offerType === "string";
+
+// Simplified, non-lucide-exact glyphs (same low-fidelity spirit as the openIcon/zoomIcon SVG
+// strings below, in this same file) for the marker face and hover-popup background — a real
+// React/lucide icon can't be dropped into this raw-DOM marker tree, so these are hand-written to
+// visually match tourTeamOfferingTypeIcons' BedDouble/Mic2/Car/Compass/UtensilsCrossed/Volume2/
+// Sparkles closely enough to read at marker size, not to be pixel-identical.
+const OFFER_TYPE_ICON_SVG_PATHS: Record<string, string> = {
+    spare_room: `<path d="M2 9V6a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v3"/><path d="M2 11v5"/><path d="M22 16v-5a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v5"/><path d="M22 11v5"/><path d="M2 16h20"/>`,
+    hosting_show: `<rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v4"/><path d="M9 21h6"/>`,
+    local_transport: `<path d="M5 17h14M5 17a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm14 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"/><path d="M3 17V9l2-5h9l4 5h2a1 1 0 0 1 1 1v7"/>`,
+    city_guide: `<circle cx="12" cy="12" r="10"/><path d="m14.5 9.5-2 5-5 2 2-5 5-2Z"/>`,
+    home_cooked_meal: `<path d="M3 3v7c0 1 1 2 2 2s2-1 2-2V3M5 12v9M17 3c-2 0-3 2-3 5s1 5 3 5M17 3v18"/>`,
+    sound_equipment_help: `<path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M16 8a5 5 0 0 1 0 8"/><path d="M19 5a9 9 0 0 1 0 14"/>`,
+    custom: `<path d="m12 3 1.9 4.9L19 9l-4.9 1.9L12 16l-1.9-4.9L5 9l4.9-1.9L12 3Z"/>`,
+};
+
+const getOfferTypeIconSvg = (offerType: string, size: number): string =>
+    `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${
+        OFFER_TYPE_ICON_SVG_PATHS[offerType] ?? OFFER_TYPE_ICON_SVG_PATHS.custom
+    }</svg>`;
 
 const getLngLatParts = (lngLat: any): { lng: number; lat: number } | undefined => {
     const lng = Array.isArray(lngLat) ? lngLat[0] : lngLat?.lng;
@@ -81,6 +98,9 @@ const getMarkerTitle = (content: Content, viewerIsAdmin: boolean): string => {
     }
     if ((content as any)?.circleType === "post") {
         return (content as any)?.content?.slice(0, 80) ?? "Noticeboard post";
+    }
+    if (isOfferMapPin(content)) {
+        return getTourTeamOfferingLabel({ type: content.offerType, label: content.offerLabel });
     }
     if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return "Unavailable";
@@ -140,6 +160,11 @@ const getMarkerImageUrl = (content: Content, viewerIsAdmin: boolean): string | u
     }
     if (item.circleType === "post") {
         return item.media?.[0]?.fileInfo?.url ?? "/images/default-post-picture.png";
+    }
+    // Offer pins carry no picture at all (no identity) — the marker/popup render the offer-type
+    // icon instead, handled separately in createMarkerElement/createMarkerPopupHtml.
+    if (isOfferMapPin(content)) {
+        return undefined;
     }
     if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return undefined;
@@ -282,12 +307,18 @@ const getMarkerDescription = (content: Content, viewerIsAdmin: boolean): string 
     if ((content as any)?.circleType === "post") {
         return (content as any)?.content ?? "";
     }
+    // No bio/mission to show — offer pins carry no identity of the offering circle at all.
+    if (isOfferMapPin(content)) {
+        return "";
+    }
     if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return "";
     }
     return (content as any)?.mission ?? (content as any)?.description ?? "";
 };
 
+// Offer pins have no `handle` field at all (no identity), so this already returns undefined for
+// them without a dedicated branch — there's no profile to "Open" to, only "Zoom in" applies.
 const getMarkerOpenHref = (content: Content): string | undefined => {
     if (isEventDisplay(content)) {
         const circleHandle = (content as any)?.circle?.handle;
@@ -313,27 +344,37 @@ const POPUP_MARKER_GAP = 14;
 const createMarkerPopupHtml = (content: Content, viewerIsAdmin: boolean): string => {
     const title = escapeHtml(getMarkerTitle(content, viewerIsAdmin));
     const description = escapeHtml(getMarkerDescription(content, viewerIsAdmin)).slice(0, 180);
-    const imageUrl =
-        getOptimizedImageUrl(
-            getMarkerImageUrl(content, viewerIsAdmin) ??
-                ((content as any)?.circleType === "post"
-                    ? "/images/default-post-picture.png"
-                    : "/images/default-user-cover.png"),
-            384,
-            72,
-        ) ?? "/images/default-user-cover.png";
+    const isOffer = isOfferMapPin(content);
+    // No photo fallback for offer pins — no identity to show a stock cover-photo stand-in for.
+    // The icon-on-brand-color background below is built separately instead.
+    const imageUrl = isOffer
+        ? undefined
+        : getOptimizedImageUrl(
+              getMarkerImageUrl(content, viewerIsAdmin) ??
+                  ((content as any)?.circleType === "post"
+                      ? "/images/default-post-picture.png"
+                      : "/images/default-user-cover.png"),
+              384,
+              72,
+          ) ?? "/images/default-user-cover.png";
+    const backgroundHtml = isOffer
+        ? `<div style="position:absolute;inset:0;background:${getMarkerTheme(content).background};display:flex;align-items:center;justify-content:center;color:${getMarkerTheme(content).color};">${getOfferTypeIconSvg(content.offerType, 72)}</div>`
+        : `<div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl!)}');background-size:cover;background-position:center;"></div>`;
     const openHref = getMarkerOpenHref(content);
     const openIcon = `<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>`;
     const zoomIcon = `<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`;
     const buttonStyle =
         "display:inline-flex;height:40px;min-width:0;flex:1;align-items:center;justify-content:center;gap:7px;border-radius:9999px;border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.13);padding:0 14px;font-size:15px;font-weight:700;color:#fff;text-decoration:none;text-shadow:0 1px 2px rgba(0,0,0,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);backdrop-filter:blur(6px);";
-    const openAction = openHref
-        ? `<a href="${escapeHtml(openHref)}" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></a>`
-        : `<button type="button" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></button>`;
+    // No "Open" action for offer pins — no profile to open, only "Zoom in" applies.
+    const openAction = isOffer
+        ? ""
+        : openHref
+          ? `<a href="${escapeHtml(openHref)}" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></a>`
+          : `<button type="button" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></button>`;
 
     return `
         <div style="position:relative;width:min(380px,calc(100vw - 32px));height:${POPUP_CARD_HEIGHT}px;overflow:hidden;border-radius:15px;background:#111827;box-shadow:0 12px 34px rgba(15,23,42,.28);cursor:pointer;">
-            <div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl)}');background-size:cover;background-position:center;"></div>
+            ${backgroundHtml}
             <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.66),rgba(0,0,0,.32) 44%,rgba(0,0,0,.02));"></div>
             <div style="position:absolute;left:0;right:0;bottom:0;padding:14px;">
                 <div style="font-size:18px;font-weight:800;line-height:1.2;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);">${title}</div>
@@ -354,9 +395,7 @@ const getMarkerTheme = (content: Content): { background: string; color: string; 
     if ((content as any)?.circleType === "post") {
         return { background: "#36516f", color: "#ffffff", size: 36 };
     }
-    // Checked before the plain "user" branch below — a Crew Offer pin is also circleType:
-    // "user", so this must come first or every offer pin would just render as a regular profile.
-    if (isCrewOfferContent(content)) {
+    if (isOfferMapPin(content)) {
         return { background: "#bbf7d0", color: "#14532d", size: 40 };
     }
     if ((content as any)?.circleType === "user") {
@@ -431,7 +470,11 @@ const createMarkerElement = (
 
     const face = document.createElement("div");
     face.dataset.markerFace = "true";
-    if (!imageUrl || isEventDisplay(content)) {
+    if (isOfferMapPin(content)) {
+        // Icon only — never initials/photo, since an offer pin carries no identity to derive
+        // initials from in the first place.
+        face.innerHTML = getOfferTypeIconSvg(content.offerType, Math.round(theme.size * 0.5));
+    } else if (!imageUrl || isEventDisplay(content)) {
         face.textContent = isEventDisplay(content)
             ? new Date(content.startAt).getDate().toString()
             : getMarkerInitials(content, viewerIsAdmin);
@@ -574,16 +617,15 @@ const MapBox = ({
                     content: content as EventDisplay,
                     props: { circleHandle },
                 };
-            } else if (isCrewOfferContent(content)) {
+            } else if (isOfferMapPin(content)) {
                 // Deliberately a separate preview type, not "user"/"circle" — CirclePreview's
                 // Offers section is gated to the owner/a circle admin (see the privacy-fix
-                // commits) and must stay that way for the generic profile preview. A crew-offer
-                // pin's content is already the trimmed, public {id, type, label} shape from
-                // getCrewOfferMapCircles, meant to be shown to anyone — CrewOfferMapPreview is
-                // the dedicated component for that, wired in commit 4/4.
+                // commits) and must stay that way for the generic profile preview. An offer pin's
+                // content already carries zero identity (see OfferMapPin, models.ts) —
+                // CrewOfferMapPreview is the dedicated, anonymized component for it.
                 nextPreview = {
                     type: "crewOffer",
-                    content: content as Circle,
+                    content,
                     props: undefined,
                 } as any;
             } else {

@@ -2,12 +2,12 @@
 
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getOpenEventsForMap, getOpenEventsForList } from "@/lib/data/event";
-import { getCircleById, getCrewOfferMapCircles } from "@/lib/data/circle";
+import { getCircleById, getOfferMapPins } from "@/lib/data/circle";
 import { getTracksByCircleId } from "@/lib/data/track";
 import { signAudioToken } from "@/lib/audio/audio-token";
 import { isPeerifyArtistIdentity, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 import { features } from "@/lib/data/constants";
-import { Circle, EventDisplay } from "@/models/models";
+import { EventDisplay, OfferMapPin } from "@/models/models";
 
 type RangeInput = { from?: string; to?: string };
 
@@ -67,19 +67,22 @@ export async function getOpenEventsForListAction(range?: RangeInput): Promise<Ev
 }
 
 /**
- * Fetch Crew Offer map pins — circles with a non-empty tourTeamOfferings and mapVisible
- * consent (or the viewer being a platform admin). Location and offerings are already redacted/
- * trimmed server-side (see getCrewOfferMapCircles) before this ever returns. Same swallow-to-[]
- * convention as the other actions in this file — a failure here should never break the rest of
- * the map.
+ * Fetch Offer map pins — one per individual offer (not one per circle), from circles with
+ * offersVisible consent (independent of mapVisible/searchable — a circle can show offer pins
+ * while otherwise fully private) or the viewer being a platform admin. Location is already
+ * resolved server-side (exact if the circle's own precision is Exact, a fixed coarse fallback
+ * otherwise — not viewer-aware, see getOfferPinLocation) and offer type/label already trimmed
+ * (see getOfferMapPins) before this ever returns — no identity of the offering circle is
+ * included at all. Same swallow-to-[] convention as the other actions in this file — a failure
+ * here should never break the rest of the map.
  */
-export async function getCrewOfferMapEntriesAction(): Promise<Circle[]> {
+export async function getOfferMapPinsAction(): Promise<OfferMapPin[]> {
     try {
         const userDid = (await getAuthenticatedUserDid()) || "";
-        const circles = await getCrewOfferMapCircles(userDid || undefined);
-        return circles || [];
+        const pins = await getOfferMapPins(userDid || undefined);
+        return pins || [];
     } catch (err) {
-        console.error("getCrewOfferMapEntriesAction error:", err);
+        console.error("getOfferMapPinsAction error:", err);
         return [];
     }
 }

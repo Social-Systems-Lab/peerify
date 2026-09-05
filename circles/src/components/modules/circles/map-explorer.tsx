@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Circle, WithMetric, Content, ContentPreviewData, MemberDisplay } from "@/models/models";
+import { Circle, WithMetric, Content, ContentPreviewData, MemberDisplay, OfferMapPin } from "@/models/models";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { useDebounce } from "@/components/utils/use-debounce";
 import useWindowDimensions from "@/components/utils/use-window-dimensions";
@@ -56,7 +56,7 @@ import CategoryFilter, { CategoryFilterProps } from "../search/category-filter";
 import Indicators from "@/components/utils/indicators";
 import ResizingDrawer from "@/components/ui/resizing-drawer"; // Correct import name
 import ContentPreview from "@/components/layout/content-preview";
-import { getOpenEventsForMapAction, getCrewOfferMapEntriesAction } from "./map-explorer-actions";
+import { getOpenEventsForMapAction, getOfferMapPinsAction } from "./map-explorer-actions";
 import { EventDisplay } from "@/models/models";
 import ActivityPanel from "@/components/layout/activity-panel";
 import MobileEventsPanel from "@/components/modules/events/mobile-events-panel";
@@ -84,6 +84,51 @@ const mapItemToContent = (item: WithMetric<Content> | Circle | undefined): Conte
     console.warn("Unmappable item type in mapItemToContent:", item);
     return null;
 };
+
+// Small deterministic radial jitter applied only when multiple Offer pins share the exact same
+// (rounded) coordinate — e.g. one host with several offer types. Without this they'd render as
+// pixel-perfect stacked markers (map.tsx has no clustering/de-densification of any kind — every
+// pin type is a plain absolutely-positioned DOM element with no native Mapbox clustering layer).
+// This is deliberately NOT general density/clustering: pins that are merely nearby (not at the
+// identical coordinate) are left untouched. Real Mapbox-native clustering is a known future need
+// once offer density grows past single digits (current staging scale) — logged separately, not
+// part of this pass. Produces new location objects rather than mutating in place, since multiple
+// offerings from the same circle currently share one `location` object reference (see
+// getOfferMapPins's flatten step) — mutating one pin's coordinate would silently move every
+// sibling offering's pin too.
+const SAME_COORDINATE_JITTER_DEGREES = 0.0006; // ~60-70m at the equator — visibly separates pins while staying "at this location"
+
+function jitterSameCoordinateOfferPins(pins: OfferMapPin[]): OfferMapPin[] {
+    const groups = new Map<string, OfferMapPin[]>();
+    for (const pin of pins) {
+        const lngLat = pin.location?.lngLat;
+        if (!lngLat) continue;
+        const key = `${lngLat.lng.toFixed(5)},${lngLat.lat.toFixed(5)}`;
+        const group = groups.get(key);
+        if (group) group.push(pin);
+        else groups.set(key, [pin]);
+    }
+
+    return pins.map((pin) => {
+        const lngLat = pin.location?.lngLat;
+        if (!lngLat) return pin;
+        const key = `${lngLat.lng.toFixed(5)},${lngLat.lat.toFixed(5)}`;
+        const group = groups.get(key)!;
+        if (group.length <= 1) return pin;
+
+        const angle = (2 * Math.PI * group.indexOf(pin)) / group.length;
+        return {
+            ...pin,
+            location: {
+                ...pin.location!,
+                lngLat: {
+                    lng: lngLat.lng + SAME_COORDINATE_JITTER_DEGREES * Math.cos(angle),
+                    lat: lngLat.lat + SAME_COORDINATE_JITTER_DEGREES * Math.sin(angle),
+                },
+            },
+        };
+    });
+}
 
 const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: string }> = ({ className, ...props }) => {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -280,10 +325,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // Events dataset for map
     const [eventsForMap, setEventsForMap] = useState<EventDisplay[]>([]);
     const [isEventsLoading, setIsEventsLoading] = useState(false);
-    // Crew Offer pins — a separate dataset from allDiscoverableCircles/baseCircles (unlike
-    // events, which are always a separate dataset merged in below), fetched once since it has no
-    // date/genre filters of its own to react to.
-    const [crewOfferCircles, setCrewOfferCircles] = useState<Circle[]>([]);
+    // Offer pins — one per individual offer, not per circle (see getOfferMapPins) — a separate
+    // dataset from allDiscoverableCircles/baseCircles (unlike events, which are always a separate
+    // dataset merged in below), fetched once since it has no date/genre filters of its own to
+    // react to. Carries no circle identity at all, so it's never routed through
+    // mapItemToContent (which expects circle-shaped data) — merged in directly, like events.
+    const [offerMapPins, setOfferMapPins] = useState<OfferMapPin[]>([]);
     const [pendingFocusEventId, setPendingFocusEventId] = useState<string | null>(searchParams.get("focusEvent"));
     const [hasAppliedFocusEvent, setHasAppliedFocusEvent] = useState(false);
     // Opt-in filter to exclude virtual events — off by default, matching the "show everything by
@@ -471,14 +518,16 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             projects: 0,
             users: 0,
             events: filteredEventsForMap.length,
-            offers: crewOfferCircles.length,
+            // Now counts individual offers, not people-with-offers — a person with 3 offer types
+            // contributes 3 here, which is the correct reading once pins are per-offer.
+            offers: offerMapPins.length,
         };
         countsDatasetCircles?.forEach((result) => {
             if (isPeerifyVenueIdentity(result)) counts.communities++;
             else if (isPeerifyArtistIdentity(result)) counts.users++;
         });
         return counts;
-    }, [countsDatasetCircles, filteredEventsForMap.length, crewOfferCircles.length]);
+    }, [countsDatasetCircles, filteredEventsForMap.length, offerMapPins.length]);
 
     // A plain single-category selection (any one pill tapped, including the default Artists-only
     // landing state) is the neutral/"not filtering" shape for Category — exactly like tapping
@@ -905,12 +954,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         };
     }, [dateRange?.from, dateRange?.to, selectedGenres]);
 
-    // Fetch Crew Offer pins once — no date/genre filters of its own, unlike events above.
+    // Fetch Offer pins once — no date/genre filters of its own, unlike events above.
     useEffect(() => {
         let canceled = false;
         (async () => {
-            const data = await getCrewOfferMapEntriesAction();
-            if (!canceled) setCrewOfferCircles(data || []);
+            const data = await getOfferMapPinsAction();
+            if (!canceled) setOfferMapPins(jitterSameCoordinateOfferPins(data || []));
         })();
         return () => {
             canceled = true;
@@ -1000,27 +1049,19 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             // here explicitly, since they're a separate dataset filterCirclesByCategory never
             // touches. "All" (empty array) always includes events, same as today.
             const includesEvents = selectedCategories.length === 0 || selectedCategories.includes("events");
-            // crewOfferCircles is likewise a separate dataset (see its fetch effect) —
+            // offerMapPins is likewise a separate dataset (see its fetch effect) —
             // filterCirclesByCategory never touches it either, same "All" always-includes rule.
+            // Not routed through mapItemToContent — that helper expects circle-shaped data
+            // (checks for circleType/type), and OfferMapPin has neither; it's already Content-
+            // shaped enough to cast directly, same as events below.
             const includesOffers = selectedCategories.length === 0 || selectedCategories.includes("offers");
-            const offerMapData: Content[] = includesOffers
-                ? crewOfferCircles.map((circle) => mapItemToContent(circle)).filter((c): c is Content => c !== null)
-                : [];
-            // De-duped by _id, offers last so it wins: the only way the same circle can appear in
-            // both mapData and offerMapData is a viewer multi-selecting "Artists" + "Offers"
-            // via Advanced Filters (single-pill taps are mutually exclusive) — in that edge case,
-            // one pin carrying the offer badge is preferable to two overlapping pins at the same
-            // coordinate.
-            const combinedById = new Map<string, Content>();
-            for (const item of [
+            const offerMapData: Content[] = includesOffers ? (offerMapPins as unknown as Content[]) : [];
+            const combined: Content[] = [
                 ...mapData,
                 ...(includesEvents ? (filteredEventsForMap as unknown as Content[]) : []),
                 ...offerMapData,
-            ]) {
-                const id = (item as any)?._id;
-                if (id) combinedById.set(id, item);
-            }
-            setDisplayedContent(Array.from(combinedById.values()));
+            ];
+            setDisplayedContent(combined);
         }
     }, [
         viewMode,
@@ -1030,7 +1071,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setDisplayedContent,
         selectedCategories,
         filteredEventsForMap,
-        crewOfferCircles,
+        offerMapPins,
         panelMode, // Added dependency
     ]);
 

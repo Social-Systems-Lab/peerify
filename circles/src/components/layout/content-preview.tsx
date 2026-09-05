@@ -26,6 +26,7 @@ import {
     TaskDisplay, // Added TaskDisplay
     TaskPermissions, // Added TaskPermissions
     EventDisplay, // Added EventDisplay
+    OfferMapPin,
 } from "@/models/models";
 import { PostItem } from "../modules/feeds/post-list";
 import Indicators from "../utils/indicators";
@@ -618,8 +619,8 @@ export const ContentPreview: React.FC = () => {
                 );
             }
             case "crewOffer": {
-                const circleData = contentPreview!.content as Circle;
-                return <CrewOfferMapPreview key={String(circleData._id ?? circleData.did)} circle={circleData} />;
+                const pin = contentPreview!.content as OfferMapPin;
+                return <CrewOfferMapPreview key={pin._id} pin={pin} />;
             }
             case "proposal": {
                 // Render ProposalItem in preview mode
