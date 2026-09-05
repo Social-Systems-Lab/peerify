@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useForm, Controller, Control } from "react-hook-form";
 import { savePresence } from "@/app/circles/[handle]/settings/presence/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DynamicTextareaField, DynamicTagsField } from "@/components/forms/dynamic-field";
+import { DynamicTextareaField, DynamicTagsField, DynamicSwitchField } from "@/components/forms/dynamic-field";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
@@ -372,6 +372,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
             },
             needs: circle.needs || {},
             tourTeamOfferings: circle.tourTeamOfferings || [],
+            offersVisible: circle.offersVisible ?? false,
         },
     });
 
@@ -427,9 +428,8 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                 </p>
                                 <p>You choose who to share your offer details with.</p>
                                 <p>
-                                    Your offer stays private even if the offering type itself is visible elsewhere (e.g.
-                                    on a map or aggregate count) — nothing identifying is shared unless you actively
-                                    choose to share it.
+                                    Choose whether to show your offers as anonymous pins on the public Explore map — off
+                                    by default, and nothing identifying is ever shown even when it&apos;s on.
                                 </p>
                             </DialogDescription>
                         </DialogHeader>
@@ -479,6 +479,27 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                 <p className="text-xs font-medium text-muted-foreground">
                                     You decide what to share and with whom. Nothing is shared without your choice.
                                 </p>
+                                {/* Independent of the profile's own "Show me on the map"/"Searchable" toggles
+                                    (About settings) — a circle can show offer pins while otherwise fully
+                                    private, since offer pins carry no identity of the offering circle at all.
+                                    Off by default (see defaultValues above), same as those other two flags. */}
+                                <Controller
+                                    name="offersVisible"
+                                    control={form.control as unknown as Control}
+                                    render={({ field }) => (
+                                        <DynamicSwitchField
+                                            field={{
+                                                name: "offersVisible",
+                                                type: "switch",
+                                                label: "Show my offers on the map",
+                                                description:
+                                                    "Let your offers appear as anonymous pins on the public Explore map — no name, photo, or profile link, just the offer type.",
+                                            }}
+                                            formField={field}
+                                            control={form.control as unknown as Control}
+                                        />
+                                    )}
+                                />
                                 <Controller
                                     name="tourTeamOfferings"
                                     control={form.control as unknown as Control}
