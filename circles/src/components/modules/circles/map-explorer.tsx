@@ -56,7 +56,7 @@ import CategoryFilter, { CategoryFilterProps } from "../search/category-filter";
 import Indicators from "@/components/utils/indicators";
 import ResizingDrawer from "@/components/ui/resizing-drawer"; // Correct import name
 import ContentPreview from "@/components/layout/content-preview";
-import { getOpenEventsForMapAction } from "./map-explorer-actions";
+import { getOpenEventsForMapAction, getCrewOfferMapEntriesAction } from "./map-explorer-actions";
 import { EventDisplay } from "@/models/models";
 import ActivityPanel from "@/components/layout/activity-panel";
 import MobileEventsPanel from "@/components/modules/events/mobile-events-panel";
@@ -191,12 +191,14 @@ const RESULT_TYPE_OPTIONS = [
     { value: "users", label: "Artists" },
     { value: "communities", label: "Venues" },
     { value: "events", label: "Events" },
+    { value: "offers", label: "Crew Offers" },
 ] as const;
 
 const SEARCH_CATEGORY_LABELS: Record<string, string> = {
     users: "artists",
     communities: "venues",
     events: "events",
+    offers: "crew offers",
 };
 
 // Empty array (or omitted) means "All" throughout this file — mirrors selectedCategories'
@@ -278,6 +280,10 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // Events dataset for map
     const [eventsForMap, setEventsForMap] = useState<EventDisplay[]>([]);
     const [isEventsLoading, setIsEventsLoading] = useState(false);
+    // Crew Offer pins — a separate dataset from allDiscoverableCircles/baseCircles (unlike
+    // events, which are always a separate dataset merged in below), fetched once since it has no
+    // date/genre filters of its own to react to.
+    const [crewOfferCircles, setCrewOfferCircles] = useState<Circle[]>([]);
     const [pendingFocusEventId, setPendingFocusEventId] = useState<string | null>(searchParams.get("focusEvent"));
     const [hasAppliedFocusEvent, setHasAppliedFocusEvent] = useState(false);
     // Opt-in filter to exclude virtual events — off by default, matching the "show everything by
@@ -465,13 +471,14 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             projects: 0,
             users: 0,
             events: filteredEventsForMap.length,
+            offers: crewOfferCircles.length,
         };
         countsDatasetCircles?.forEach((result) => {
             if (isPeerifyVenueIdentity(result)) counts.communities++;
             else if (isPeerifyArtistIdentity(result)) counts.users++;
         });
         return counts;
-    }, [countsDatasetCircles, filteredEventsForMap.length]);
+    }, [countsDatasetCircles, filteredEventsForMap.length, crewOfferCircles.length]);
 
     // A plain single-category selection (any one pill tapped, including the default Artists-only
     // landing state) is the neutral/"not filtering" shape for Category — exactly like tapping
@@ -898,6 +905,18 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         };
     }, [dateRange?.from, dateRange?.to, selectedGenres]);
 
+    // Fetch Crew Offer pins once — no date/genre filters of its own, unlike events above.
+    useEffect(() => {
+        let canceled = false;
+        (async () => {
+            const data = await getCrewOfferMapEntriesAction();
+            if (!canceled) setCrewOfferCircles(data || []);
+        })();
+        return () => {
+            canceled = true;
+        };
+    }, []);
+
     useEffect(() => {
         if (!pendingFocusEventId || hasAppliedFocusEvent) return;
         const targetEvent = eventsForMap.find((evt) => getEventId(evt) === pendingFocusEventId);
@@ -981,8 +1000,27 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             // here explicitly, since they're a separate dataset filterCirclesByCategory never
             // touches. "All" (empty array) always includes events, same as today.
             const includesEvents = selectedCategories.length === 0 || selectedCategories.includes("events");
-            const combined: Content[] = [...mapData, ...(includesEvents ? (filteredEventsForMap as unknown as Content[]) : [])];
-            setDisplayedContent(combined);
+            // crewOfferCircles is likewise a separate dataset (see its fetch effect) —
+            // filterCirclesByCategory never touches it either, same "All" always-includes rule.
+            const includesOffers = selectedCategories.length === 0 || selectedCategories.includes("offers");
+            const offerMapData: Content[] = includesOffers
+                ? crewOfferCircles.map((circle) => mapItemToContent(circle)).filter((c): c is Content => c !== null)
+                : [];
+            // De-duped by _id, offers last so it wins: the only way the same circle can appear in
+            // both mapData and offerMapData is a viewer multi-selecting "Artists" + "Crew Offers"
+            // via Advanced Filters (single-pill taps are mutually exclusive) — in that edge case,
+            // one pin carrying the offer badge is preferable to two overlapping pins at the same
+            // coordinate.
+            const combinedById = new Map<string, Content>();
+            for (const item of [
+                ...mapData,
+                ...(includesEvents ? (filteredEventsForMap as unknown as Content[]) : []),
+                ...offerMapData,
+            ]) {
+                const id = (item as any)?._id;
+                if (id) combinedById.set(id, item);
+            }
+            setDisplayedContent(Array.from(combinedById.values()));
         }
     }, [
         viewMode,
@@ -992,6 +1030,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setDisplayedContent,
         selectedCategories,
         filteredEventsForMap,
+        crewOfferCircles,
         panelMode, // Added dependency
     ]);
 
@@ -1421,11 +1460,17 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     communities: categoryCounts.communities,
                                     events: categoryCounts.events,
                                     users: categoryCounts.users,
+                                    offers: categoryCounts.offers,
                                 }}
                                 selectedCategories={selectedCategories}
                                 onSelectionChange={setSelectedCategories}
                                 hasSearched={true}
-                                displayLabelMap={{ users: "Artists", communities: "Venues", events: "Events" }}
+                                displayLabelMap={{
+                                    users: "Artists",
+                                    communities: "Venues",
+                                    events: "Events",
+                                    offers: "Crew Offers",
+                                }}
                             />
                         </div>
 
