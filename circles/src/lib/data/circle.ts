@@ -319,20 +319,24 @@ type OfferMapCircleRow = {
 // (lib/data/member.ts) is — tourTeamOfferings is set once on a user's own profile
 // (presence-settings-form.tsx only ever renders this field for circleType: "user", never for a
 // band/venue circle), not per band-relationship, so there is no "circle X's crew" to scope this
-// to. This is a plain Circles query shaped like getSwipeCircles, with the same consent gate:
-// mapVisible alone (bypassed only for platform admins). crewVisible/crew-membership is a
-// separate, narrower concern (who a circle's own crew roster shows to its own admins/moderators)
-// with nothing to do with public map consent, and is deliberately not consulted here.
+// to. This is a plain Circles query shaped like getSwipeCircles, but the consent gate is its own
+// dedicated field — offersVisible, NOT mapVisible/searchable — bypassed only for platform admins.
+// A circle can show offer pins while otherwise fully private (no profile pin, not searchable):
+// offer pins carry zero identity of the offering circle already, so there's no reason to couple
+// this to the personal-profile-pin/search-discoverability flags, which gate identity-bearing
+// surfaces. crewVisible/crew-membership is a separate, narrower concern (who a circle's own crew
+// roster shows to its own admins/moderators) with nothing to do with public map consent, and is
+// deliberately not consulted here either.
 export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]> => {
     const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
 
-    const mapVisibilityClause = viewerIsAdmin ? undefined : { mapVisible: true };
+    const offersVisibleClause = viewerIsAdmin ? undefined : { offersVisible: true };
     const query = {
         $and: [
             getPublishedCircleQuery(),
             { circleType: "user" },
             { tourTeamOfferings: { $exists: true, $not: { $size: 0 } } },
-            ...(mapVisibilityClause ? [mapVisibilityClause] : []),
+            ...(offersVisibleClause ? [offersVisibleClause] : []),
         ],
     };
 
@@ -351,7 +355,7 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
     // Flatten: one entry per offering. Trimmed to {type, label} for every viewer alike — mirrors
     // sanitizePeerifyPublicEventDisplay's "one consistent public shape regardless of who's
     // asking" pattern (event.ts) — no detail/accommodationType, and no owner/admin bypass on the
-    // trim itself, same as before. did/name/handle/picture/circleType/mapVisible are dropped
+    // trim itself, same as before. did/name/handle/picture/circleType/offersVisible are dropped
     // entirely, not just omitted from this trim step — OfferMapPin has no fields for them.
     const pins: OfferMapPin[] = [];
     for (const row of rows) {
@@ -555,6 +559,7 @@ export const createCircle = async (circle: Circle, authenticatedUserDid: string)
     if (circle.circleType === "user") {
         circle.mapVisible = circle.mapVisible ?? false;
         circle.searchable = circle.searchable ?? false;
+        circle.offersVisible = circle.offersVisible ?? false;
     }
     if (!hasCircleImages(circle.images)) {
         circle.images = [getDefaultHeroImage(circle.handle || circle.did || circle.name)];

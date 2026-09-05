@@ -642,6 +642,11 @@ export const circleSchema = z.object({
     showAdminsPublicly: z.boolean().optional(),
     mapVisible: z.boolean().optional(),
     searchable: z.boolean().optional(),
+    // Independent from mapVisible/searchable — a user can show offer pins on the public map
+    // while otherwise fully private (no profile pin, not searchable). Offer pins carry zero
+    // identity of the offering circle (see OfferMapPin below), so this consent gate is
+    // deliberately its own thing, not reused from either existing flag. See getOfferMapPins.
+    offersVisible: z.boolean().optional(),
     userGroups: z.array(userGroupSchema).default([]).optional(),
     enabledModules: z.array(z.string()).default([]).optional(),
     accessRules: accessRulesSchema.optional(),
@@ -898,11 +903,13 @@ export type ServerSettings = z.infer<typeof serverSettingsSchema>;
 
 // A single flattened, anonymized Crew Offer for map display — one per offer, not one per
 // circle. Deliberately carries NO identity of the offering circle (no did/name/handle/picture/
-// circleType/mapVisible) — offers are meant to be browsable before any Crew/artist relationship
-// exists, and the host's identity stays hidden until they choose to reveal it via a reply (see
-// the anonymized-contact-thread design, not yet built). _id is a stable per-pin key
+// circleType/offersVisible) — offers are meant to be browsable before any Crew/artist
+// relationship exists, and the host's identity stays hidden until they choose to reveal it via a
+// reply (see the anonymized-contact-thread design, not yet built). _id is a stable per-pin key
 // (`${circleId}:${offeringId}`), not a real document id. location is the same viewer-precision-
 // redacted Location every other map pin already uses (see getOfferMapPins/filterLocations).
+// Consent to appear on the map at all is gated by offersVisible — a field independent of
+// mapVisible/searchable, so a circle can show offer pins while otherwise fully private.
 export type OfferMapPin = {
     _id: string;
     location?: Location;

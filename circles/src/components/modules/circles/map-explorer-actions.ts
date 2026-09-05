@@ -68,7 +68,9 @@ export async function getOpenEventsForListAction(range?: RangeInput): Promise<Ev
 
 /**
  * Fetch Offer map pins — one per individual offer (not one per circle), from circles with
- * mapVisible consent (or the viewer being a platform admin). Location and offer type/label are
+ * offersVisible consent (independent of mapVisible/searchable — a circle can show offer pins
+ * while otherwise fully private) or the viewer being a platform admin. Location and offer
+ * type/label are
  * already redacted/trimmed server-side (see getOfferMapPins) before this ever returns — no
  * identity of the offering circle is included at all. Same swallow-to-[] convention as the other
  * actions in this file — a failure here should never break the rest of the map.
