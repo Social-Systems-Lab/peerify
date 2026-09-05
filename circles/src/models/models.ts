@@ -914,8 +914,12 @@ export type ServerSettings = z.infer<typeof serverSettingsSchema>;
 // circleType/offersVisible) — offers are meant to be browsable before any Crew/artist
 // relationship exists, and the host's identity stays hidden until they choose to reveal it via a
 // reply (see the anonymized-contact-thread design, not yet built). _id is a stable per-pin key
-// (`${circleId}:${offeringId}`), not a real document id. location is the same viewer-precision-
-// redacted Location every other map pin already uses (see getOfferMapPins/filterLocations).
+// (`${circleId}:${offeringId}`), not a real document id. location is NOT the same
+// viewer-precision-redacted Location other map pins use — it's deliberately not viewer-aware at
+// all: real coordinate if the circle's own location.precision is already Exact (e.g. a venue,
+// once venues can set offerings), otherwise a fixed coarse (~1km) fallback so a pin always
+// renders regardless of what precision the profile happens to have set for unrelated purposes.
+// See getOfferPinLocation (lib/data/circle.ts).
 // Consent to appear on the map at all is gated by offersVisible — a field independent of
 // mapVisible/searchable, so a circle can show offer pins while otherwise fully private.
 export type OfferMapPin = {

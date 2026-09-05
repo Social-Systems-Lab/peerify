@@ -295,22 +295,52 @@ export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => 
 
 // Internal-only projection for the Offers map layer — deliberately separate from
 // DISCOVERY_CIRCLE_PROJECTION (see that constant's comment) so getSwipeCircles/the main map
-// query is completely untouched. `did` is projected only so filterLocations can compare it
-// against the viewer for the owner-bypass — it never reaches the client (see OfferMapPin below,
-// which carries none of the circle's identity at all, not just a trimmed subset of it).
+// query is completely untouched. No `did` here — unlike the general filterLocations/
+// redactLocationForViewer path, offer-pin location is never viewer-aware (see
+// getOfferPinLocation below), so there's no owner comparison to project it for.
 const OFFER_MAP_PIN_PROJECTION = {
     _id: 1,
-    did: 1,
     location: 1,
     tourTeamOfferings: 1,
 } as const;
 
 type OfferMapCircleRow = {
     _id: string;
-    did?: string;
     location?: Location;
     tourTeamOfferings?: TourTeamOffering[];
 };
+
+// Offer-pin location is decoupled entirely from the profile's own location.precision-gated
+// redaction (filterLocations/redactLocationForViewer) and from viewer identity — no owner/admin
+// bypass, same value for everyone. Two cases:
+// - precision === 4 (Exact): use the real lngLat unchanged. Covers venues/businesses (once they
+//   can set offerings — not yet, see getOfferMapPins's own comment) who've already consented to
+//   precise findability by setting Exact precision; being precisely findable is the point of a
+//   venue listing.
+// - anything below Exact: a circle's own precision choice governs OTHER surfaces (their own
+//   profile pin, search results, etc.) but must never silently block Offers pins from rendering
+//   at all — that was a real bug (toggle on, count shows, no pin, no explanation why). Falls back
+//   to a fixed, coarse ~1km-resolution coordinate (snapped to the nearest 0.01° grid point)
+//   instead, so a pin always renders once offersVisible is on, regardless of what precision the
+//   profile happens to have chosen for unrelated purposes.
+const OFFER_PIN_COARSE_GRID_DEGREES = 0.01;
+
+function getOfferPinLocation(location: Location | undefined): Location | undefined {
+    if (!location?.lngLat) {
+        return location;
+    }
+    if (location.precision === 4) {
+        return location;
+    }
+    return {
+        ...location,
+        street: undefined,
+        lngLat: {
+            lng: Math.round(location.lngLat.lng / OFFER_PIN_COARSE_GRID_DEGREES) * OFFER_PIN_COARSE_GRID_DEGREES,
+            lat: Math.round(location.lngLat.lat / OFFER_PIN_COARSE_GRID_DEGREES) * OFFER_PIN_COARSE_GRID_DEGREES,
+        },
+    };
+}
 
 // Global, cross-circle query for Offer map pins — one pin PER OFFER, not per circle. A circle
 // with 3 offerings produces 3 pins here, each carrying only that one offering's type/label and
@@ -323,7 +353,12 @@ type OfferMapCircleRow = {
 // (lib/data/member.ts) is — tourTeamOfferings is set once on a user's own profile
 // (presence-settings-form.tsx only ever renders this field for circleType: "user", never for a
 // band/venue circle), not per band-relationship, so there is no "circle X's crew" to scope this
-// to. This is a plain Circles query shaped like getSwipeCircles, but the consent gate is its own
+// to. { circleType: "user" } below is deliberate for the same reason — venues/businesses have no
+// UI path to set tourTeamOfferings at all today, so they can never appear here regardless of
+// location precision. Whether/how venues participate in Offers (editor UI, whether this query
+// should include circleType: "circle", whether offersVisible applies the same way) is a separate,
+// real feature decision, not folded into this fix.
+// This is a plain Circles query shaped like getSwipeCircles, but the consent gate is its own
 // dedicated field — offersVisible, NOT mapVisible/searchable — bypassed only for platform admins.
 // A circle can show offer pins while otherwise fully private (no profile pin, not searchable):
 // offer pins carry zero identity of the offering circle already, so there's no reason to couple
@@ -351,22 +386,19 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
         }
     });
 
-    // Redact location per viewer's precision entitlement — same filterLocations every other map
-    // pin already uses. Applied here, per-circle, while `did` is still available for the owner
-    // comparison; the flattened OfferMapPin produced below has no did at all to compare against.
-    rows = filterLocations(rows, (row) => row.did, { viewerDid, viewerIsAdmin });
-
     // Flatten: one entry per offering. Trimmed to {type, label} for every viewer alike — mirrors
     // sanitizePeerifyPublicEventDisplay's "one consistent public shape regardless of who's
-    // asking" pattern (event.ts) — no detail/accommodationType, and no owner/admin bypass on the
-    // trim itself, same as before. did/name/handle/picture/circleType/offersVisible are dropped
-    // entirely, not just omitted from this trim step — OfferMapPin has no fields for them.
+    // asking" pattern (event.ts) — no detail/accommodationType, same as before.
+    // did/name/handle/picture/circleType/offersVisible are dropped entirely, not just omitted
+    // from this trim step — OfferMapPin has no fields for them. Location goes through
+    // getOfferPinLocation, not filterLocations/redactLocationForViewer — see that function's own
+    // comment for why offer-pin location is deliberately not viewer-aware.
     const pins: OfferMapPin[] = [];
     for (const row of rows) {
         for (const offering of row.tourTeamOfferings ?? []) {
             pins.push({
                 _id: `${row._id}:${offering.id}`,
-                location: row.location,
+                location: getOfferPinLocation(row.location),
                 offerType: offering.type,
                 offerLabel: offering.type === "custom" ? offering.label : undefined,
             });
