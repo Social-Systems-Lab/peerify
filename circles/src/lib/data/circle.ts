@@ -4,10 +4,13 @@ import {
     Circle,
     CirclePublishStatus,
     CircleType,
+    Location,
+    OfferMapPin,
     PlatformMetrics,
     Post,
     ServerSettings,
     SortingOptions,
+    TourTeamOffering,
     WithMetric,
 } from "@/models/models";
 import { getServerSettings } from "./server-settings";
@@ -286,34 +289,41 @@ export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => 
     return circles;
 };
 
-// Minimal projection for the Crew-Offers map layer — deliberately separate from
+// Internal-only projection for the Offers map layer — deliberately separate from
 // DISCOVERY_CIRCLE_PROJECTION (see that constant's comment) so getSwipeCircles/the main map
-// query is completely untouched. mapVisible IS included here (unlike the trimmed output shape
-// below) because map.tsx's isSuppressedUserProfile checks `content.mapVisible !== true` directly
-// on whatever's rendered — omitting it would make every pin from this query read as suppressed
-// for any non-admin viewer, showing "Unavailable" instead of the profile.
-const CREW_OFFER_MAP_PROJECTION = {
+// query is completely untouched. `did` is projected only so filterLocations can compare it
+// against the viewer for the owner-bypass — it never reaches the client (see OfferMapPin below,
+// which carries none of the circle's identity at all, not just a trimmed subset of it).
+const OFFER_MAP_PIN_PROJECTION = {
     _id: 1,
     did: 1,
-    name: 1,
-    handle: 1,
-    picture: 1,
-    circleType: 1,
-    mapVisible: 1,
     location: 1,
     tourTeamOfferings: 1,
 } as const;
 
-// Global, cross-circle query for Crew Offers map pins. Deliberately NOT scoped through
-// Members/crew-membership the way getCrewOfferings (lib/data/member.ts) is — tourTeamOfferings
-// is set once on a user's own profile (presence-settings-form.tsx only ever renders this field
-// for circleType: "user", never for a band/venue circle), not per band-relationship, so there is
-// no "circle X's crew" to scope this to. This is a plain Circles query shaped like
-// getSwipeCircles, with the same consent gate: mapVisible alone (bypassed only for platform
-// admins). crewVisible/crew-membership is a separate, narrower concern (who a circle's own crew
-// roster shows to its own admins/moderators) with nothing to do with public map consent, and is
-// deliberately not consulted here.
-export const getCrewOfferMapCircles = async (viewerDid?: string): Promise<Circle[]> => {
+type OfferMapCircleRow = {
+    _id: string;
+    did?: string;
+    location?: Location;
+    tourTeamOfferings?: TourTeamOffering[];
+};
+
+// Global, cross-circle query for Offer map pins — one pin PER OFFER, not per circle. A circle
+// with 3 offerings produces 3 pins here, each carrying only that one offering's type/label and
+// the circle's (redacted) location — never the circle's did/name/handle/picture/circleType.
+// Offers are meant to be browsable before any Crew/artist relationship exists and the host's
+// identity stays hidden until they choose to reveal it (not yet built — see the anonymized-
+// contact-thread design), so this map layer must never carry identity in the first place.
+//
+// Deliberately NOT scoped through Members/crew-membership the way getCrewOfferings
+// (lib/data/member.ts) is — tourTeamOfferings is set once on a user's own profile
+// (presence-settings-form.tsx only ever renders this field for circleType: "user", never for a
+// band/venue circle), not per band-relationship, so there is no "circle X's crew" to scope this
+// to. This is a plain Circles query shaped like getSwipeCircles, with the same consent gate:
+// mapVisible alone (bypassed only for platform admins). crewVisible/crew-membership is a
+// separate, narrower concern (who a circle's own crew roster shows to its own admins/moderators)
+// with nothing to do with public map consent, and is deliberately not consulted here.
+export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]> => {
     const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
 
     const mapVisibilityClause = viewerIsAdmin ? undefined : { mapVisible: true };
@@ -326,29 +336,35 @@ export const getCrewOfferMapCircles = async (viewerDid?: string): Promise<Circle
         ],
     };
 
-    let circles = (await Circles.find(query, { projection: CREW_OFFER_MAP_PROJECTION }).toArray()) as Circle[];
-    circles.forEach((circle) => {
-        if (circle._id) {
-            circle._id = circle._id.toString();
+    let rows = (await Circles.find(query, { projection: OFFER_MAP_PIN_PROJECTION }).toArray()) as unknown as OfferMapCircleRow[];
+    rows.forEach((row) => {
+        if (row._id) {
+            row._id = row._id.toString();
         }
     });
 
-    circles = filterLocations(circles, (circle) => circle.did, { viewerDid, viewerIsAdmin });
+    // Redact location per viewer's precision entitlement — same filterLocations every other map
+    // pin already uses. Applied here, per-circle, while `did` is still available for the owner
+    // comparison; the flattened OfferMapPin produced below has no did at all to compare against.
+    rows = filterLocations(rows, (row) => row.did, { viewerDid, viewerIsAdmin });
 
-    // Trimmed to {id, type, label} for every viewer alike — mirrors
+    // Flatten: one entry per offering. Trimmed to {type, label} for every viewer alike — mirrors
     // sanitizePeerifyPublicEventDisplay's "one consistent public shape regardless of who's
-    // asking" pattern (event.ts). This is deliberate, uniform public disclosure once mapVisible
-    // has consented to it, not an owner/admin bypass: detail/accommodationType never leave the
-    // server via this path, for anyone — including the offering's own owner, who still gets the
-    // full detail via their own Presence settings page or the Crew Dashboard.
-    return circles.map((circle) => ({
-        ...circle,
-        tourTeamOfferings: (circle.tourTeamOfferings ?? []).map((offering) => ({
-            id: offering.id,
-            type: offering.type,
-            label: offering.type === "custom" ? offering.label : undefined,
-        })),
-    }));
+    // asking" pattern (event.ts) — no detail/accommodationType, and no owner/admin bypass on the
+    // trim itself, same as before. did/name/handle/picture/circleType/mapVisible are dropped
+    // entirely, not just omitted from this trim step — OfferMapPin has no fields for them.
+    const pins: OfferMapPin[] = [];
+    for (const row of rows) {
+        for (const offering of row.tourTeamOfferings ?? []) {
+            pins.push({
+                _id: `${row._id}:${offering.id}`,
+                location: row.location,
+                offerType: offering.type,
+                offerLabel: offering.type === "custom" ? offering.label : undefined,
+            });
+        }
+    }
+    return pins;
 };
 
 export const getCircles = async (

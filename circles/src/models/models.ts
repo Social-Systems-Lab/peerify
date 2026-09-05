@@ -896,7 +896,21 @@ export const serverSettingsSchema = z.object({
 
 export type ServerSettings = z.infer<typeof serverSettingsSchema>;
 
-export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay;
+// A single flattened, anonymized Crew Offer for map display — one per offer, not one per
+// circle. Deliberately carries NO identity of the offering circle (no did/name/handle/picture/
+// circleType/mapVisible) — offers are meant to be browsable before any Crew/artist relationship
+// exists, and the host's identity stays hidden until they choose to reveal it via a reply (see
+// the anonymized-contact-thread design, not yet built). _id is a stable per-pin key
+// (`${circleId}:${offeringId}`), not a real document id. location is the same viewer-precision-
+// redacted Location every other map pin already uses (see getOfferMapPins/filterLocations).
+export type OfferMapPin = {
+    _id: string;
+    location?: Location;
+    offerType: TourTeamOffering["type"];
+    offerLabel?: string;
+};
+
+export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin;
 
 // Define Permissions type based on what IssuesModule passes
 export type IssuePermissions = {
