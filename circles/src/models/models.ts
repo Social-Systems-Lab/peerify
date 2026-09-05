@@ -962,6 +962,10 @@ export type ContentPreviewData =
     | { type: "member"; content: MemberDisplay; props?: never }
     | { type: "user"; content: Circle; props?: { source?: "map" | "search" } }
     | { type: "circle"; content: Circle; props?: { source?: "map" | "search" } }
+    // Crew Offer map pins — content is already the trimmed, public {id, type, label} offerings
+    // shape (getCrewOfferMapCircles), rendered by CrewOfferMapPreview, never CirclePreview (whose
+    // Offers section is deliberately gated to the owner/a circle admin).
+    | { type: "crewOffer"; content: Circle; props?: never }
     | { type: "proposal"; content: ProposalDisplay; props: { circle: Circle } }
     | { type: "issue"; content: IssueDisplay; props: { circle: Circle; permissions: IssuePermissions } }
     | { type: "task"; content: TaskDisplay; props: { circle: Circle; permissions: TaskPermissions } }

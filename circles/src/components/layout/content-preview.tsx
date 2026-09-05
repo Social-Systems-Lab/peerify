@@ -37,6 +37,7 @@ import { ProposalItem } from "../modules/proposals/proposal-item";
 import IssueDetail from "../modules/issues/issue-detail";
 import TaskDetail from "../modules/tasks/task-detail"; // Added TaskDetail import
 import EventDetail from "../modules/events/event-detail"; // Added EventDetail import
+import CrewOfferMapPreview from "../modules/circles/crew-offer-map-preview";
 import { Lock, MapPin, Quote } from "lucide-react";
 import { CirclePicture } from "../modules/circles/circle-picture";
 import { getInterestLabel } from "@/lib/data/interests";
@@ -615,6 +616,10 @@ export const ContentPreview: React.FC = () => {
                         />
                     </div>
                 );
+            }
+            case "crewOffer": {
+                const circleData = contentPreview!.content as Circle;
+                return <CrewOfferMapPreview key={String(circleData._id ?? circleData.did)} circle={circleData} />;
             }
             case "proposal": {
                 // Render ProposalItem in preview mode
