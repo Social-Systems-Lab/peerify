@@ -25,7 +25,7 @@ import {
 import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 import ContentPreview from "../layout/content-preview";
-import { Content, ContentPreviewData, Location, PostDisplay, EventDisplay } from "@/models/models";
+import { Circle, Content, ContentPreviewData, Location, PostDisplay, EventDisplay } from "@/models/models";
 import { TbFocus2 } from "react-icons/tb";
 import Onboarding from "../onboarding/onboarding";
 import { Dialog, DialogContent } from "../ui/dialog";
@@ -49,6 +49,14 @@ const isEventDisplay = (content: any): content is EventDisplay => !!(content && 
 // in getSwipeCircles/searchDiscoverableCircles.
 const isSuppressedUserProfile = (content: any, viewerIsAdmin: boolean): boolean =>
     !viewerIsAdmin && content?.circleType === "user" && content?.mapVisible !== true;
+
+// A Crew Offer pin is just a circleType: "user" circle carrying an already-trimmed
+// tourTeamOfferings ({id, type, label} only — see getCrewOfferMapCircles) — nothing else flowing
+// through the map today ever has a non-empty tourTeamOfferings (DISCOVERY_CIRCLE_PROJECTION
+// deliberately excludes it), so this is a safe, non-colliding discriminant with no schema/Content
+// union changes needed.
+const isCrewOfferContent = (content: any): boolean =>
+    Array.isArray(content?.tourTeamOfferings) && content.tourTeamOfferings.length > 0;
 
 const getLngLatParts = (lngLat: any): { lng: number; lat: number } | undefined => {
     const lng = Array.isArray(lngLat) ? lngLat[0] : lngLat?.lng;
@@ -346,6 +354,11 @@ const getMarkerTheme = (content: Content): { background: string; color: string; 
     if ((content as any)?.circleType === "post") {
         return { background: "#36516f", color: "#ffffff", size: 36 };
     }
+    // Checked before the plain "user" branch below — a Crew Offer pin is also circleType:
+    // "user", so this must come first or every offer pin would just render as a regular profile.
+    if (isCrewOfferContent(content)) {
+        return { background: "#bbf7d0", color: "#14532d", size: 40 };
+    }
     if ((content as any)?.circleType === "user") {
         return { background: "#f4f1e8", color: "#253247", size: 40 };
     }
@@ -561,6 +574,18 @@ const MapBox = ({
                     content: content as EventDisplay,
                     props: { circleHandle },
                 };
+            } else if (isCrewOfferContent(content)) {
+                // Deliberately a separate preview type, not "user"/"circle" — CirclePreview's
+                // Offers section is gated to the owner/a circle admin (see the privacy-fix
+                // commits) and must stay that way for the generic profile preview. A crew-offer
+                // pin's content is already the trimmed, public {id, type, label} shape from
+                // getCrewOfferMapCircles, meant to be shown to anyone — CrewOfferMapPreview is
+                // the dedicated component for that, wired in commit 4/4.
+                nextPreview = {
+                    type: "crewOffer",
+                    content: content as Circle,
+                    props: undefined,
+                } as any;
             } else {
                 const previewType = (content as any).circleType || "circle";
                 nextPreview = {
