@@ -42,7 +42,7 @@ export default function CrewOfferMapPreview({ circle }: CrewOfferMapPreviewProps
 
             {offerings.length > 0 && (
                 <div className="mt-4">
-                    <h3 className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">Crew Offers</h3>
+                    <h3 className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">Offers</h3>
                     <div className="flex flex-wrap items-center gap-2">
                         {offerings.map((offering) => {
                             const OfferingIcon = getTourTeamOfferingIcon(offering);
