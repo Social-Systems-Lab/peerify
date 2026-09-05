@@ -85,6 +85,51 @@ const mapItemToContent = (item: WithMetric<Content> | Circle | undefined): Conte
     return null;
 };
 
+// Small deterministic radial jitter applied only when multiple Offer pins share the exact same
+// (rounded) coordinate — e.g. one host with several offer types. Without this they'd render as
+// pixel-perfect stacked markers (map.tsx has no clustering/de-densification of any kind — every
+// pin type is a plain absolutely-positioned DOM element with no native Mapbox clustering layer).
+// This is deliberately NOT general density/clustering: pins that are merely nearby (not at the
+// identical coordinate) are left untouched. Real Mapbox-native clustering is a known future need
+// once offer density grows past single digits (current staging scale) — logged separately, not
+// part of this pass. Produces new location objects rather than mutating in place, since multiple
+// offerings from the same circle currently share one `location` object reference (see
+// getOfferMapPins's flatten step) — mutating one pin's coordinate would silently move every
+// sibling offering's pin too.
+const SAME_COORDINATE_JITTER_DEGREES = 0.0006; // ~60-70m at the equator — visibly separates pins while staying "at this location"
+
+function jitterSameCoordinateOfferPins(pins: OfferMapPin[]): OfferMapPin[] {
+    const groups = new Map<string, OfferMapPin[]>();
+    for (const pin of pins) {
+        const lngLat = pin.location?.lngLat;
+        if (!lngLat) continue;
+        const key = `${lngLat.lng.toFixed(5)},${lngLat.lat.toFixed(5)}`;
+        const group = groups.get(key);
+        if (group) group.push(pin);
+        else groups.set(key, [pin]);
+    }
+
+    return pins.map((pin) => {
+        const lngLat = pin.location?.lngLat;
+        if (!lngLat) return pin;
+        const key = `${lngLat.lng.toFixed(5)},${lngLat.lat.toFixed(5)}`;
+        const group = groups.get(key)!;
+        if (group.length <= 1) return pin;
+
+        const angle = (2 * Math.PI * group.indexOf(pin)) / group.length;
+        return {
+            ...pin,
+            location: {
+                ...pin.location!,
+                lngLat: {
+                    lng: lngLat.lng + SAME_COORDINATE_JITTER_DEGREES * Math.cos(angle),
+                    lat: lngLat.lat + SAME_COORDINATE_JITTER_DEGREES * Math.sin(angle),
+                },
+            },
+        };
+    });
+}
+
 const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: string }> = ({ className, ...props }) => {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -914,7 +959,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         let canceled = false;
         (async () => {
             const data = await getOfferMapPinsAction();
-            if (!canceled) setOfferMapPins(data || []);
+            if (!canceled) setOfferMapPins(jitterSameCoordinateOfferPins(data || []));
         })();
         return () => {
             canceled = true;
