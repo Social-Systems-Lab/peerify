@@ -105,11 +105,21 @@ const mapItemToContent = (item: WithMetric<Content> | Circle | undefined): Conte
 // offerings from the same circle currently share one `location` object reference (see
 // getOfferMapPins's flatten step) — mutating one pin's coordinate would silently move every
 // sibling offering's pin too.
+//
+// Venue-identity pins (circleHandle present — see OfferMapPin, models.ts) are excluded from
+// jittering entirely, grouping and displacement alike — confirmed live on prod: The Armchair (2
+// co-located offerings) had both its offer pins visibly displaced ~60-70m from its own true,
+// unjittered location, read as "different building" from the venue's own profile pin. That
+// mismatch never existed for anonymous pins, which have no comparable fixed reference point to
+// look inconsistent against; a venue's offer pins do, so they stay exactly at the real
+// coordinate. Anonymous pins that happen to share a coordinate with a venue are still jittered
+// among themselves — only the venue's own pins are excluded from the grouping.
 const SAME_COORDINATE_JITTER_DEGREES = 0.0006; // ~60-70m at the equator — visibly separates pins while staying "at this location"
 
 function jitterSameCoordinateOfferPins(pins: OfferMapPin[]): OfferMapPin[] {
     const groups = new Map<string, OfferMapPin[]>();
     for (const pin of pins) {
+        if (pin.circleHandle) continue;
         const lngLat = pin.location?.lngLat;
         if (!lngLat) continue;
         const key = `${lngLat.lng.toFixed(5)},${lngLat.lat.toFixed(5)}`;
@@ -119,6 +129,7 @@ function jitterSameCoordinateOfferPins(pins: OfferMapPin[]): OfferMapPin[] {
     }
 
     return pins.map((pin) => {
+        if (pin.circleHandle) return pin;
         const lngLat = pin.location?.lngLat;
         if (!lngLat) return pin;
         const key = `${lngLat.lng.toFixed(5)},${lngLat.lat.toFixed(5)}`;
