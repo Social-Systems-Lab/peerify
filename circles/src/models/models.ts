@@ -936,6 +936,14 @@ export type OfferMapPin = {
     circleName?: string;
     circleHandle?: string;
     circlePicture?: FileInfo;
+    // Client-computed only (map-explorer.tsx's groupIdentityOfferPins) — never set by
+    // getOfferMapPins/the server. Populated for every identity-bearing (circleHandle-present)
+    // pin, always including this pin's own offerType/offerLabel as one entry, so consumers can
+    // check `groupedOfferings.length > 1` uniformly instead of treating "absent" and "length 1"
+    // as different cases. Anonymous pins never carry this field — they stay one-pin-per-offering
+    // with individual jitter, exactly as before. See map.tsx (marker count badge) and
+    // crew-offer-map-preview.tsx (offer list) for the two consumers.
+    groupedOfferings?: Array<{ offerType: TourTeamOffering["type"]; offerLabel?: string }>;
 };
 
 export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin;
