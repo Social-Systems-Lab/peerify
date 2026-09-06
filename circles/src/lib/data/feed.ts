@@ -18,7 +18,7 @@ import {
     Location,
 } from "@/models/models";
 import { getCircleById, SAFE_CIRCLE_PROJECTION, updateCircle, getCircleByHandle, resolveViewerIsAdmin } from "./circle";
-import { redactLocationForViewer, type LocationViewerContext } from "../utils";
+import { redactCircleLocationForViewer, type LocationViewerContext } from "../utils";
 import { getUserByDid } from "./user";
 import { getMetrics } from "../utils/metrics";
 import { deleteVbdPost, upsertVbdPosts } from "./vdb";
@@ -423,8 +423,10 @@ export const getShareablePostPreview = async (postId: string, userDid?: string):
     return postDisplay;
 };
 
-type LocationBearingAuthor = { did?: string; location?: Location };
-type LocationBearingMention = { circle?: { did?: string; location?: Location } | null };
+type LocationBearingAuthor = { did?: string; location?: Location; metadata?: Circle["metadata"] };
+type LocationBearingMention = {
+    circle?: { did?: string; location?: Location; metadata?: Circle["metadata"] } | null;
+};
 type LocationBearingHighlightedComment = {
     author?: LocationBearingAuthor;
     mentionsDisplay?: LocationBearingMention[];
@@ -442,7 +444,11 @@ function redactAuthorLocation<A extends LocationBearingAuthor | undefined>(
     viewer: LocationViewerContext,
 ): A {
     if (!author?.location) return author;
-    const redacted = redactLocationForViewer(author.location, author.did, viewer);
+    // redactCircleLocationForViewer, not the plain redactLocationForViewer — an author can be a
+    // venue circle (managed identities post/comment as themselves, via their own did — see
+    // circle-wizard/actions.ts), which needs the extra addressVisibility-based ceiling instead of
+    // just its raw stored precision (see that function's own comment in lib/utils.ts).
+    const redacted = redactCircleLocationForViewer(author, viewer);
     if (redacted === author.location) return author;
     return { ...author, location: redacted };
 }
@@ -456,7 +462,8 @@ function redactMentionsLocations<M extends LocationBearingMention>(
     const next = mentionsDisplay.map((mention) => {
         const circle = mention?.circle;
         if (!circle?.location) return mention;
-        const redacted = redactLocationForViewer(circle.location, circle.did, viewer);
+        // Same reasoning as redactAuthorLocation above — a mentioned circle can be a venue.
+        const redacted = redactCircleLocationForViewer(circle, viewer);
         if (redacted === circle.location) return mention;
         changed = true;
         return { ...mention, circle: { ...circle, location: redacted } };
@@ -477,7 +484,14 @@ function redactContentLocations<T extends LocationBearingContent>(item: T, viewe
     let changed = false;
 
     if (item.location) {
-        const redacted = redactLocationForViewer(item.location, item.createdBy, viewer);
+        // item.createdBy is always the same did as item.author (author is looked up by
+        // `localField: "createdBy", foreignField: "did"` in every aggregation that builds this
+        // shape), so item.author's metadata tells us whether this geotag's owner is a venue —
+        // no separate lookup needed.
+        const redacted = redactCircleLocationForViewer(
+            { location: item.location, did: item.createdBy, metadata: item.author?.metadata },
+            viewer,
+        );
         if (redacted !== item.location) {
             next.location = redacted;
             changed = true;
@@ -596,6 +610,7 @@ export const getFullPost = async (postId: string, userDid?: string): Promise<Pos
                             description: 1,
                             cover: 1,
                             handle: 1,
+                            metadata: 1,
                         },
                     },
                 ],
@@ -660,6 +675,7 @@ export const getFullPost = async (postId: string, userDid?: string): Promise<Pos
                                         description: 1,
                                         cover: 1,
                                         handle: 1,
+                                        metadata: 1,
                                     },
                                 },
                             ],
@@ -732,6 +748,7 @@ export const getFullPost = async (postId: string, userDid?: string): Promise<Pos
                     handle: "$authorDetails.handle",
                     isVerified: "$authorDetails.isVerified",
                     isMember: "$authorDetails.isMember",
+                    metadata: "$authorDetails.metadata",
                 },
                 userReaction: { $arrayElemAt: ["$userReaction.reactionType", 0] },
                 highlightedComment: {
@@ -778,6 +795,7 @@ export const getFullPost = async (postId: string, userDid?: string): Promise<Pos
                                 description: "$highlightedComment.authorDetails.description",
                                 images: "$highlightedComment.authorDetails.images",
                                 handle: "$highlightedComment.authorDetails.handle",
+                                metadata: "$highlightedComment.authorDetails.metadata",
                             },
                             userReaction: { $arrayElemAt: ["$highlightedComment.userReaction.reactionType", 0] },
                         },
@@ -1022,6 +1040,7 @@ export async function getPostsFromMultipleFeeds(
                             description: 1,
                             cover: 1,
                             handle: 1,
+                            metadata: 1,
                         },
                     },
                 ],
@@ -1091,6 +1110,7 @@ export async function getPostsFromMultipleFeeds(
                                         description: 1,
                                         cover: 1,
                                         handle: 1,
+                                        metadata: 1,
                                     },
                                 },
                             ],
@@ -1172,6 +1192,7 @@ export async function getPostsFromMultipleFeeds(
                     handle: "$authorDetails.handle",
                     isVerified: "$authorDetails.isVerified",
                     isMember: "$authorDetails.isMember",
+                    metadata: "$authorDetails.metadata",
                 },
 
                 userReaction: { $arrayElemAt: ["$userReaction.reactionType", 0] },
@@ -1222,6 +1243,7 @@ export async function getPostsFromMultipleFeeds(
                                 description: "$highlightedComment.authorDetails.description",
                                 images: "$highlightedComment.authorDetails.images",
                                 handle: "$highlightedComment.authorDetails.handle",
+                                metadata: "$highlightedComment.authorDetails.metadata",
                             },
                             userReaction: { $arrayElemAt: ["$highlightedComment.userReaction.reactionType", 0] },
                         },
@@ -1460,6 +1482,7 @@ export const getPosts = async (
                             description: 1,
                             cover: 1,
                             handle: 1,
+                            metadata: 1,
                         },
                     },
                 ],
@@ -1529,6 +1552,7 @@ export const getPosts = async (
                                         description: 1,
                                         cover: 1,
                                         handle: 1,
+                                        metadata: 1,
                                     },
                                 },
                             ],
@@ -1609,6 +1633,7 @@ export const getPosts = async (
                     handle: "$authorDetails.handle",
                     isVerified: "$authorDetails.isVerified",
                     isMember: "$authorDetails.isMember",
+                    metadata: "$authorDetails.metadata",
                 },
                 userReaction: { $arrayElemAt: ["$userReaction.reactionType", 0] },
 
@@ -1658,6 +1683,7 @@ export const getPosts = async (
                                 description: "$highlightedComment.authorDetails.description",
                                 images: "$highlightedComment.authorDetails.images",
                                 handle: "$highlightedComment.authorDetails.handle",
+                                metadata: "$highlightedComment.authorDetails.metadata",
                             },
                             userReaction: { $arrayElemAt: ["$highlightedComment.userReaction.reactionType", 0] },
                         },
@@ -1981,6 +2007,7 @@ export const getAllComments = async (postId: string, userDid: string | undefined
                             description: 1,
                             cover: 1,
                             handle: 1,
+                            metadata: 1,
                         },
                     },
                 ],
@@ -2034,6 +2061,7 @@ export const getAllComments = async (postId: string, userDid: string | undefined
                     description: "$authorDetails.description",
                     images: "$authorDetails.images",
                     handle: "$authorDetails.handle",
+                    metadata: "$authorDetails.metadata",
                 },
                 userReaction: { $arrayElemAt: ["$userReaction.reactionType", 0] },
             },
@@ -2210,7 +2238,11 @@ export const getReactions = async (
         did: user.did,
         name: user.name,
         picture: user.picture,
-        location: redactLocationForViewer(user.location, user.did, { viewerDid, viewerIsAdmin }),
+        // redactCircleLocationForViewer, not the plain redactLocationForViewer — a reactor can be
+        // a venue circle (managed identities react as themselves via their own did), which needs
+        // the extra addressVisibility-based ceiling (see that function's own comment in
+        // lib/utils.ts). user is already a full Circle here (SAFE_CIRCLE_PROJECTION).
+        location: redactCircleLocationForViewer(user, { viewerDid, viewerIsAdmin }),
         description: user.description,
         images: user.images,
         handle: user.handle,

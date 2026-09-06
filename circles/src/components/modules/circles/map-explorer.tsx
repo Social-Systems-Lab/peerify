@@ -2,7 +2,15 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Circle, WithMetric, Content, ContentPreviewData, MemberDisplay, OfferMapPin } from "@/models/models";
+import {
+    Circle,
+    WithMetric,
+    Content,
+    ContentPreviewData,
+    MemberDisplay,
+    OfferMapPin,
+    tourTeamOfferingTypes,
+} from "@/models/models";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { useDebounce } from "@/components/utils/use-debounce";
 import useWindowDimensions from "@/components/utils/use-window-dimensions";
@@ -63,6 +71,7 @@ import MobileEventsPanel from "@/components/modules/events/mobile-events-panel";
 import { isPeerifyArtistIdentity, isPeerifyVenueIdentity, PRIMARY_GENRE_OPTIONS } from "@/lib/peerify/artist-profile";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, selectTriggerClassName } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 
 // mapItemToContent helper remains the same
 const mapItemToContent = (item: WithMetric<Content> | Circle | undefined): Content | null => {
@@ -239,6 +248,12 @@ const RESULT_TYPE_OPTIONS = [
     { value: "offers", label: "Offers" },
 ] as const;
 
+// Full individual-host set (tourTeamOfferingTypes) plus "custom" — deliberately NOT the narrower
+// venue-only subset (VENUE_TOUR_TEAM_OFFERING_TYPES) venues are restricted to in their own
+// editor. Offer pins on the map come from both individuals and venues, so the filter's universe
+// of options has to cover every type either can produce.
+const OFFER_TYPE_FILTER_OPTIONS = [...tourTeamOfferingTypes, "custom"] as const;
+
 const SEARCH_CATEGORY_LABELS: Record<string, string> = {
     users: "artists",
     communities: "venues",
@@ -316,6 +331,11 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // pins and results — the top Artists/Venues/Events pills are a "reset to exactly one" shortcut
     // into this same state, not a separate concept (see setSelectedCategories usage below).
     const [selectedCategories, setSelectedCategories] = useState<string[]>(["users"]);
+    // Shared by the displayed-content effect below and the Offer-type filter UI — unlike Genre,
+    // which renders unconditionally regardless of category (see map-explorer's own investigation
+    // notes on that inconsistency, left as-is), the Offer-type picker only makes sense while Offer
+    // pins are actually part of the current view.
+    const includesOffers = selectedCategories.length === 0 || selectedCategories.includes("offers");
     const [allSearchResults, setAllSearchResults] = useState<WithMetric<Circle>[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
@@ -377,6 +397,19 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const removeSelectedGenre = useCallback((genre: string) => {
         genrePillChangedRef.current = true;
         setSelectedGenres((prev) => prev.filter((value) => value !== genre));
+    }, []);
+
+    // Offer-type filter — client-side only, unlike selectedGenres above: offerMapPins is fetched
+    // once, unfiltered, in its own effect (see that effect's comment) rather than re-queried per
+    // filter change, so there's no server round-trip to trigger here. Multi-select, same "matches
+    // ANY of the selected types" semantics as Genre. No ref/flag mirroring genrePillChangedRef is
+    // needed since nothing needs to be told to re-fetch.
+    const [selectedOfferTypes, setSelectedOfferTypes] = useState<(typeof OFFER_TYPE_FILTER_OPTIONS)[number][]>([]);
+    const addSelectedOfferType = useCallback((offerType: (typeof OFFER_TYPE_FILTER_OPTIONS)[number]) => {
+        setSelectedOfferTypes((prev) => (prev.includes(offerType) ? prev : [...prev, offerType]));
+    }, []);
+    const removeSelectedOfferType = useCallback((offerType: (typeof OFFER_TYPE_FILTER_OPTIONS)[number]) => {
+        setSelectedOfferTypes((prev) => prev.filter((value) => value !== offerType));
     }, []);
 
     // The genre dropdown's own Select (Radix) closes itself the instant a window "resize"
@@ -519,15 +552,22 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             users: 0,
             events: filteredEventsForMap.length,
             // Now counts individual offers, not people-with-offers — a person with 3 offer types
-            // contributes 3 here, which is the correct reading once pins are per-offer.
-            offers: offerMapPins.length,
+            // contributes 3 here, which is the correct reading once pins are per-offer. Reflects
+            // selectedOfferTypes the same way this count already reflects selectedGenres via
+            // countsDatasetCircles below (genre is baked into the fetched results) — otherwise
+            // this number would silently stop matching what's actually shown on the map/list the
+            // moment an offer-type filter is active.
+            offers:
+                selectedOfferTypes.length === 0
+                    ? offerMapPins.length
+                    : offerMapPins.filter((pin) => selectedOfferTypes.includes(pin.offerType)).length,
         };
         countsDatasetCircles?.forEach((result) => {
             if (isPeerifyVenueIdentity(result)) counts.communities++;
             else if (isPeerifyArtistIdentity(result)) counts.users++;
         });
         return counts;
-    }, [countsDatasetCircles, filteredEventsForMap.length, offerMapPins.length]);
+    }, [countsDatasetCircles, filteredEventsForMap.length, offerMapPins, selectedOfferTypes]);
 
     // A plain single-category selection (any one pill tapped, including the default Artists-only
     // landing state) is the neutral/"not filtering" shape for Category — exactly like tapping
@@ -542,8 +582,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         if (selectedGenres.length > 0) count += 1;
         if (physicalOnly) count += 1;
         if (isCategoryFilterActive) count += 1;
+        if (selectedOfferTypes.length > 0) count += 1;
         return count;
-    }, [hasDateFilter, selectedGenres, physicalOnly, isCategoryFilterActive]);
+    }, [hasDateFilter, selectedGenres, physicalOnly, isCategoryFilterActive, selectedOfferTypes]);
 
     const handleClearAdvancedFilters = useCallback(() => {
         setDateRange(undefined);
@@ -557,12 +598,25 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         // "not active" state per isCategoryFilterActive above, so Clear all correctly
         // disappears again immediately after clicking it, not just for the other three filters.
         setSelectedCategories(["users"]);
+        // No re-fetch flag needed, unlike selectedGenres above — offerMapPins is never re-queried
+        // on filter change, the combined-content effect just re-filters what's already fetched.
+        setSelectedOfferTypes([]);
     }, []);
 
     const toggleSelectedCategory = useCallback((category: string) => {
-        setSelectedCategories((prev) =>
-            prev.includes(category) ? prev.filter((value) => value !== category) : [...prev, category],
-        );
+        setSelectedCategories((prev) => {
+            if (prev.includes(category)) {
+                return prev.filter((value) => value !== category);
+            }
+            // Checking Offers nudges Artists off by default — the two usually represent
+            // different intents (browsing artists to follow vs. browsing anonymous/venue offer
+            // pins). Deliberately one-directional (checking Artists must never deselect Offers)
+            // and just a default nudge, not a hard restriction: the user can still re-check
+            // Artists afterward to view both. Does NOT apply to Venues or Events — only Artists
+            // is auto-deselected when Offers is checked.
+            const next = category === "offers" ? prev.filter((value) => value !== "users") : prev;
+            return [...next, category];
+        });
     }, []);
 
     useEffect(() => {
@@ -1053,9 +1107,16 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             // filterCirclesByCategory never touches it either, same "All" always-includes rule.
             // Not routed through mapItemToContent — that helper expects circle-shaped data
             // (checks for circleType/type), and OfferMapPin has neither; it's already Content-
-            // shaped enough to cast directly, same as events below.
-            const includesOffers = selectedCategories.length === 0 || selectedCategories.includes("offers");
-            const offerMapData: Content[] = includesOffers ? (offerMapPins as unknown as Content[]) : [];
+            // shaped enough to cast directly, same as events below. includesOffers is the shared
+            // memo declared near selectedCategories, also used by the Offer-type filter UI.
+            // Applied on top of includesOffers, not instead of it — an empty selectedOfferTypes
+            // means "all types", same "All" convention as selectedCategories/selectedGenres.
+            const offerPinsForCategory = includesOffers ? offerMapPins : [];
+            const offerMapData: Content[] = (
+                selectedOfferTypes.length === 0
+                    ? offerPinsForCategory
+                    : offerPinsForCategory.filter((pin) => selectedOfferTypes.includes(pin.offerType))
+            ) as unknown as Content[];
             const combined: Content[] = [
                 ...mapData,
                 ...(includesEvents ? (filteredEventsForMap as unknown as Content[]) : []),
@@ -1072,6 +1133,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         selectedCategories,
         filteredEventsForMap,
         offerMapPins,
+        selectedOfferTypes,
+        includesOffers,
         panelMode, // Added dependency
     ]);
 
@@ -1168,6 +1231,33 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         </div>
     );
 
+    // Same dual-rendering pattern as genrePillsRow above, but also gated on includesOffers —
+    // unlike Genre, this filter only makes sense while Offer pins are part of the current view
+    // (see includesOffers's own comment). If selectedOfferTypes somehow has entries while Offers
+    // isn't selected (e.g. the category was deselected after picking types), the pills correctly
+    // disappear along with the picker rather than floating with nothing to filter.
+    const offerTypePillsRow = includesOffers && selectedOfferTypes.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+            {selectedOfferTypes.map((offerType) => (
+                <Badge
+                    key={offerType}
+                    variant="secondary"
+                    className="flex items-center gap-1 rounded-full bg-white/95 py-1 pl-3 pr-1.5 shadow-sm ring-1 ring-black/5"
+                >
+                    {getTourTeamOfferingLabel({ type: offerType, label: undefined })}
+                    <button
+                        type="button"
+                        onClick={() => removeSelectedOfferType(offerType)}
+                        className="rounded-full p-0.5 hover:bg-black/10"
+                        aria-label={`Remove ${getTourTeamOfferingLabel({ type: offerType, label: undefined })} filter`}
+                    >
+                        <X className="h-3 w-3" />
+                    </button>
+                </Badge>
+            ))}
+        </div>
+    );
+
     const advancedFiltersContent = (
         <div className="space-y-3">
             {activeAdvancedFilterCount > 0 && (
@@ -1212,87 +1302,143 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 </div>
             </div>
 
-            <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <div className="text-sm font-semibold text-gray-900">Genre</div>
-                <Select
-                    value=""
-                    onValueChange={(value) => addSelectedGenre(value)}
-                    open={genreSelectOpen}
-                    onOpenChange={handleGenreSelectOpenChange}
+            {includesOffers && (
+                <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="text-sm font-semibold text-gray-900">Offer type</div>
+                    <Select value="" onValueChange={(value) => addSelectedOfferType(value as (typeof OFFER_TYPE_FILTER_OPTIONS)[number])}>
+                        <SelectTrigger>
+                            <SelectValue
+                                placeholder={selectedOfferTypes.length > 0 ? "Add another offer type" : "All offer types"}
+                            />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {/* Same "stay in the list, remove via pills" pattern as the Genre
+                                dropdown below. */}
+                            {OFFER_TYPE_FILTER_OPTIONS.map((type) => {
+                                const isOfferTypeSelected = selectedOfferTypes.includes(type);
+                                return (
+                                    <SelectItem key={type} value={type}>
+                                        <span className="flex w-full items-center justify-between gap-2">
+                                            {getTourTeamOfferingLabel({ type, label: undefined })}
+                                            {isOfferTypeSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                                        </span>
+                                    </SelectItem>
+                                );
+                            })}
+                        </SelectContent>
+                    </Select>
+                    {offerTypePillsRow}
+                </div>
+            )}
+
+            {/* Genre applies to Events too, not just Artists — events have no genre field of
+                their own, they inherit it from their host circle (getOpenEventsForMap, event.ts),
+                and the genre param is already passed to the events fetch above regardless of
+                which category is selected. Venues never carry primaryGenres (no genre UI for
+                them, saveAbout's venue branch never writes it), so Venues-only correctly excludes
+                this section. */}
+            {(selectedCategories.length === 0 ||
+                selectedCategories.includes("users") ||
+                selectedCategories.includes("events")) && (
+                <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="text-sm font-semibold text-gray-900">Genre</div>
+                    <Select
+                        value=""
+                        onValueChange={(value) => addSelectedGenre(value)}
+                        open={genreSelectOpen}
+                        onOpenChange={handleGenreSelectOpenChange}
+                    >
+                        <SelectTrigger>
+                            <SelectValue placeholder={selectedGenres.length > 0 ? "Add another genre" : "All genres"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {/* Selected genres stay in the list (not filtered out) so their checkmark
+                                is visible while scrolling/browsing — removal happens via the pills
+                                below, not by re-tapping here (addSelectedGenre already no-ops on an
+                                already-selected value, so tapping one here is harmless either way). */}
+                            {PRIMARY_GENRE_OPTIONS.map((option) => {
+                                const isGenreSelected = selectedGenres.includes(option);
+                                return (
+                                    <SelectItem key={option} value={option}>
+                                        <span className="flex w-full items-center justify-between gap-2">
+                                            {option}
+                                            {isGenreSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                                        </span>
+                                    </SelectItem>
+                                );
+                            })}
+                        </SelectContent>
+                    </Select>
+                    {genrePillsRow}
+                </div>
+            )}
+
+            {(selectedCategories.length === 0 || selectedCategories.includes("events")) && (
+                <div className="flex items-center justify-between gap-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                    <Label htmlFor="physicalOnly" className="text-sm font-semibold text-gray-900">
+                        Physical events only
+                    </Label>
+                    <Switch id="physicalOnly" checked={physicalOnly} onCheckedChange={setPhysicalOnly} />
+                </div>
+            )}
+
+            {/* Relevant to every category: Artists/Venues get their createdAt (join date) filtered
+                by dateRange (see drawerListData and the displayedContent effect's withinDateRange
+                calls), Events get filtered by actual event date, and Offers has no date data yet
+                (OfferMapPin carries no date field) but stays visible in anticipation of a future
+                date-availability feature for it — not because it currently filters anything for
+                that category. */}
+            {(selectedCategories.length === 0 ||
+                selectedCategories.includes("users") ||
+                selectedCategories.includes("communities") ||
+                selectedCategories.includes("events") ||
+                selectedCategories.includes("offers")) && (
+                <Accordion
+                    type="single"
+                    collapsible
+                    value={openAdvancedSection}
+                    onValueChange={(value) => setOpenAdvancedSection(value)}
+                    className="space-y-3"
                 >
-                    <SelectTrigger>
-                        <SelectValue placeholder={selectedGenres.length > 0 ? "Add another genre" : "All genres"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {/* Selected genres stay in the list (not filtered out) so their checkmark
-                            is visible while scrolling/browsing — removal happens via the pills
-                            below, not by re-tapping here (addSelectedGenre already no-ops on an
-                            already-selected value, so tapping one here is harmless either way). */}
-                        {PRIMARY_GENRE_OPTIONS.map((option) => {
-                            const isGenreSelected = selectedGenres.includes(option);
-                            return (
-                                <SelectItem key={option} value={option}>
-                                    <span className="flex w-full items-center justify-between gap-2">
-                                        {option}
-                                        {isGenreSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
-                                    </span>
-                                </SelectItem>
-                            );
-                        })}
-                    </SelectContent>
-                </Select>
-                {genrePillsRow}
-            </div>
-
-            <div className="flex items-center justify-between gap-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
-                <Label htmlFor="physicalOnly" className="text-sm font-semibold text-gray-900">
-                    Physical events only
-                </Label>
-                <Switch id="physicalOnly" checked={physicalOnly} onCheckedChange={setPhysicalOnly} />
-            </div>
-
-            <Accordion
-                type="single"
-                collapsible
-                value={openAdvancedSection}
-                onValueChange={(value) => setOpenAdvancedSection(value)}
-                className="space-y-3"
-            >
-                <AccordionItem className="overflow-hidden rounded-[24px] border border-gray-200 bg-white px-0 shadow-sm" value="calendar">
-                    <div className="space-y-2 p-4">
-                        <div className="text-sm font-semibold text-gray-900">Calendar</div>
-                        <AccordionTrigger className={cn(selectTriggerClassName, "hover:no-underline")}>
-                            <span className="truncate text-left">{hasDateFilter ? dateLabel : "Select dates"}</span>
-                        </AccordionTrigger>
-                    </div>
-                    <AccordionContent className="px-4 pb-4 pt-0">
-                        <div className="space-y-4">
-                            <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-                                <Calendar
-                                    mode="range"
-                                    selected={dateRange}
-                                    onSelect={setDateRange as any}
-                                    numberOfMonths={1}
-                                    defaultMonth={dateRange?.from ?? new Date()}
-                                    className="mx-auto"
-                                />
-                            </div>
-                            {hasDateFilter && (
-                                <div className="flex justify-end">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 rounded-full px-3 text-xs text-gray-600"
-                                        onClick={() => setDateRange(undefined)}
-                                    >
-                                        Clear date
-                                    </Button>
-                                </div>
-                            )}
+                    <AccordionItem
+                        className="overflow-hidden rounded-[24px] border border-gray-200 bg-white px-0 shadow-sm"
+                        value="calendar"
+                    >
+                        <div className="space-y-2 p-4">
+                            <div className="text-sm font-semibold text-gray-900">Calendar</div>
+                            <AccordionTrigger className={cn(selectTriggerClassName, "hover:no-underline")}>
+                                <span className="truncate text-left">{hasDateFilter ? dateLabel : "Select dates"}</span>
+                            </AccordionTrigger>
                         </div>
-                    </AccordionContent>
-                </AccordionItem>
-            </Accordion>
+                        <AccordionContent className="px-4 pb-4 pt-0">
+                            <div className="space-y-4">
+                                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+                                    <Calendar
+                                        mode="range"
+                                        selected={dateRange}
+                                        onSelect={setDateRange as any}
+                                        numberOfMonths={1}
+                                        defaultMonth={dateRange?.from ?? new Date()}
+                                        className="mx-auto"
+                                    />
+                                </div>
+                                {hasDateFilter && (
+                                    <div className="flex justify-end">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 rounded-full px-3 text-xs text-gray-600"
+                                            onClick={() => setDateRange(undefined)}
+                                        >
+                                            Clear date
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        </AccordionContent>
+                    </AccordionItem>
+                </Accordion>
+            )}
         </div>
     );
 
@@ -1516,6 +1662,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                         </div>
 
                         {genrePillsRow}
+                        {offerTypePillsRow}
                     </div>
                 )}
             </div>

@@ -10,6 +10,15 @@ export const tourTeamOfferingTypeLabels: Record<(typeof tourTeamOfferingTypes)[n
     sound_equipment_help: "Sound & equipment help",
 };
 
+// Curated subset for venue circles (identityType "venue" — see isPeerifyVenueIdentity), rendered
+// via TourTeamOfferingsEditor's allowedTypes prop in presence-settings-form.tsx. spare_room/
+// local_transport/city_guide are personal-hospitality gestures from an individual host and don't
+// fit a business profile; hosting_show/sound_equipment_help are a venue's core offer, and
+// home_cooked_meal fits venues with an attached restaurant/bar. Reuses the existing labels/icons
+// unchanged — "Meal" reads fine for a venue, no venue-specific copy needed. Bands are out of scope
+// for now (see getOfferMapPins), so this subset isn't used for them.
+export const VENUE_TOUR_TEAM_OFFERING_TYPES = ["hosting_show", "sound_equipment_help", "home_cooked_meal"] as const;
+
 // No existing icon-per-offering-type mapping existed anywhere before this (checked the
 // offerings-editing UI, offers-step.tsx and presence-settings-form.tsx — both text-only), so
 // these are new choices, not a reuse of something established. Shared between CrewOffersWidget

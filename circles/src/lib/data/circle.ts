@@ -4,6 +4,7 @@ import {
     Circle,
     CirclePublishStatus,
     CircleType,
+    FileInfo,
     Location,
     OfferMapPin,
     PlatformMetrics,
@@ -19,7 +20,7 @@ import { ObjectId } from "mongodb";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
-import { filterLocations } from "../utils";
+import { redactCircleLocationForViewer } from "../utils";
 import { deleteVbdCircle, deleteVbdPost, upsertVbdCircles } from "./vdb";
 import { createDefaultChatRooms, getChatRoomByHandle, updateChatRoom } from "./chat";
 import { createDefaultFeed } from "./feed";
@@ -289,7 +290,13 @@ export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => 
             circle._id = circle._id.toString();
         }
     });
-    circles = filterLocations(circles, (circle) => circle.did, { viewerDid, viewerIsAdmin: isAdmin });
+    // redactCircleLocationForViewer, not the plain filterLocations/redactLocationForViewer other
+    // callers (e.g. member.ts) use — this list includes venue circles, which need the extra
+    // addressVisibility-based ceiling (see that function's own comment in lib/utils.ts).
+    circles = circles.map((circle) => {
+        const location = redactCircleLocationForViewer(circle, { viewerDid, viewerIsAdmin: isAdmin });
+        return location === circle.location ? circle : { ...circle, location };
+    });
     return circles;
 };
 
@@ -298,25 +305,35 @@ export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => 
 // query is completely untouched. No `did` here — unlike the general filterLocations/
 // redactLocationForViewer path, offer-pin location is never viewer-aware (see
 // getOfferPinLocation below), so there's no owner comparison to project it for.
+// name/handle/picture/metadata are only ever attached to the OfferMapPin output for venue rows
+// (see getOfferMapPins) — individual ("user") rows are trimmed back down to full anonymity at
+// the flatten step regardless of what this projection fetches.
 const OFFER_MAP_PIN_PROJECTION = {
     _id: 1,
     location: 1,
     tourTeamOfferings: 1,
+    name: 1,
+    handle: 1,
+    picture: 1,
+    "metadata.peerify.identityType": 1,
 } as const;
 
 type OfferMapCircleRow = {
     _id: string;
     location?: Location;
     tourTeamOfferings?: TourTeamOffering[];
+    name?: string;
+    handle?: string;
+    picture?: FileInfo;
+    metadata?: { peerify?: { identityType?: string } };
 };
 
 // Offer-pin location is decoupled entirely from the profile's own location.precision-gated
 // redaction (filterLocations/redactLocationForViewer) and from viewer identity — no owner/admin
 // bypass, same value for everyone. Two cases:
-// - precision === 4 (Exact): use the real lngLat unchanged. Covers venues/businesses (once they
-//   can set offerings — not yet, see getOfferMapPins's own comment) who've already consented to
-//   precise findability by setting Exact precision; being precisely findable is the point of a
-//   venue listing.
+// - precision === 4 (Exact): use the real lngLat unchanged. Covers venues/businesses who've
+//   already consented to precise findability by setting Exact precision; being precisely
+//   findable is the point of a venue listing.
 // - anything below Exact: a circle's own precision choice governs OTHER surfaces (their own
 //   profile pin, search results, etc.) but must never silently block Offers pins from rendering
 //   at all — that was a real bug (toggle on, count shows, no pin, no explanation why). Falls back
@@ -343,28 +360,31 @@ function getOfferPinLocation(location: Location | undefined): Location | undefin
 }
 
 // Global, cross-circle query for Offer map pins — one pin PER OFFER, not per circle. A circle
-// with 3 offerings produces 3 pins here, each carrying only that one offering's type/label and
-// the circle's (redacted) location — never the circle's did/name/handle/picture/circleType.
-// Offers are meant to be browsable before any Crew/artist relationship exists and the host's
-// identity stays hidden until they choose to reveal it (not yet built — see the anonymized-
-// contact-thread design), so this map layer must never carry identity in the first place.
+// with 3 offerings produces 3 pins here, each carrying that one offering's type/label and the
+// circle's (redacted) location. Individual ("user") rows never carry did/name/handle/picture/
+// circleType — offers are meant to be browsable before any Crew/artist relationship exists and an
+// individual host's identity stays hidden until they choose to reveal it (not yet built — see the
+// anonymized-contact-thread design). Venue rows (metadata.peerify.identityType === "venue") are
+// the deliberate exception: they DO carry name/handle/picture (see the flatten step below) —
+// anonymity exists to protect individuals, not to hide an already-public business listing, and an
+// anonymous "hosting a show somewhere nearby" pin isn't actionable for booking purposes. Bands
+// (identityType "artist"/"band"/"dj"/"producer") are explicitly NOT included here yet — scoped to
+// venues only for now, a separate decision for whenever bands are added.
 //
 // Deliberately NOT scoped through Members/crew-membership the way getCrewOfferings
-// (lib/data/member.ts) is — tourTeamOfferings is set once on a user's own profile
-// (presence-settings-form.tsx only ever renders this field for circleType: "user", never for a
-// band/venue circle), not per band-relationship, so there is no "circle X's crew" to scope this
-// to. { circleType: "user" } below is deliberate for the same reason — venues/businesses have no
-// UI path to set tourTeamOfferings at all today, so they can never appear here regardless of
-// location precision. Whether/how venues participate in Offers (editor UI, whether this query
-// should include circleType: "circle", whether offersVisible applies the same way) is a separate,
-// real feature decision, not folded into this fix.
+// (lib/data/member.ts) is — tourTeamOfferings is set once on a circle's own profile
+// (presence-settings-form.tsx renders this field for circleType: "user" and, for venues only, for
+// circleType: "circle" — see PresenceSettingsForm), not per band-relationship, so there is no
+// "circle X's crew" to scope this to.
 // This is a plain Circles query shaped like getSwipeCircles, but the consent gate is its own
 // dedicated field — offersVisible, NOT mapVisible/searchable — bypassed only for platform admins.
 // A circle can show offer pins while otherwise fully private (no profile pin, not searchable):
-// offer pins carry zero identity of the offering circle already, so there's no reason to couple
-// this to the personal-profile-pin/search-discoverability flags, which gate identity-bearing
-// surfaces. crewVisible/crew-membership is a separate, narrower concern (who a circle's own crew
-// roster shows to its own admins/moderators) with nothing to do with public map consent, and is
+// for individuals, offer pins carry zero identity of the offering circle already, so there's no
+// reason to couple this to the personal-profile-pin/search-discoverability flags, which gate
+// identity-bearing surfaces; for venues, findability is exactly the point (see getOfferPinLocation
+// on why Exact-precision venues already get their real coordinate here regardless of mapVisible).
+// crewVisible/crew-membership is a separate, narrower concern (who a circle's own crew roster
+// shows to its own admins/moderators) with nothing to do with public map consent, and is
 // deliberately not consulted here either.
 export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]> => {
     const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
@@ -373,7 +393,7 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
     const query = {
         $and: [
             getPublishedCircleQuery(),
-            { circleType: "user" },
+            { $or: [{ circleType: "user" }, { circleType: "circle", "metadata.peerify.identityType": "venue" }] },
             { tourTeamOfferings: { $exists: true, $not: { $size: 0 } } },
             ...(offersVisibleClause ? [offersVisibleClause] : []),
         ],
@@ -388,19 +408,24 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
 
     // Flatten: one entry per offering. Trimmed to {type, label} for every viewer alike — mirrors
     // sanitizePeerifyPublicEventDisplay's "one consistent public shape regardless of who's
-    // asking" pattern (event.ts) — no detail/accommodationType, same as before.
-    // did/name/handle/picture/circleType/offersVisible are dropped entirely, not just omitted
-    // from this trim step — OfferMapPin has no fields for them. Location goes through
-    // getOfferPinLocation, not filterLocations/redactLocationForViewer — see that function's own
-    // comment for why offer-pin location is deliberately not viewer-aware.
+    // asking" pattern (event.ts) — no detail/accommodationType, same as before. Location goes
+    // through getOfferPinLocation, not filterLocations/redactLocationForViewer — see that
+    // function's own comment for why offer-pin location is deliberately not viewer-aware.
+    // Identity (name/handle/picture) is attached only for venue rows — see OfferMapPin's own
+    // comment in models.ts for why that's a deliberate exception, not an oversight. did/circleType/
+    // offersVisible are still never carried, for any row.
     const pins: OfferMapPin[] = [];
     for (const row of rows) {
+        const isVenue = row.metadata?.peerify?.identityType === "venue";
         for (const offering of row.tourTeamOfferings ?? []) {
             pins.push({
                 _id: `${row._id}:${offering.id}`,
                 location: getOfferPinLocation(row.location),
                 offerType: offering.type,
                 offerLabel: offering.type === "custom" ? offering.label : undefined,
+                ...(isVenue
+                    ? { circleName: row.name, circleHandle: row.handle, circlePicture: row.picture }
+                    : {}),
             });
         }
     }

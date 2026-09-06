@@ -26,7 +26,12 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, Search, X } from "lucide-react";
 import { skillsV2, skillCategoryLabels, SkillCategory } from "@/lib/data/skills-v2";
-import { accommodationSubTypeLabels, tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
+import {
+    accommodationSubTypeLabels,
+    tourTeamOfferingTypeLabels,
+    VENUE_TOUR_TEAM_OFFERING_TYPES,
+} from "@/lib/data/tour-team-offerings";
+import { isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import { cn } from "@/lib/utils";
 
 interface PresenceSettingsFormProps {
@@ -186,9 +191,19 @@ function StructuredSkillSelector({ value, onChange }: StructuredSkillSelectorPro
 interface TourTeamOfferingsEditorProps {
     value: TourTeamOffering[] | undefined;
     onChange: (offerings: TourTeamOffering[]) => void;
+    // Defaults to the full set (individual/"user" profiles) — venues pass
+    // VENUE_TOUR_TEAM_OFFERING_TYPES (tour-team-offerings.ts) to hide predefined types that don't
+    // fit a business profile. UI-only restriction: tourTeamOfferingSchema still permits all
+    // values, so this never blocks reading/rendering an offering of an excluded type if one
+    // somehow exists on the circle already (e.g. set before a subset was introduced).
+    allowedTypes?: readonly (typeof tourTeamOfferingTypes)[number][];
 }
 
-function TourTeamOfferingsEditor({ value, onChange }: TourTeamOfferingsEditorProps): React.ReactElement {
+function TourTeamOfferingsEditor({
+    value,
+    onChange,
+    allowedTypes = tourTeamOfferingTypes,
+}: TourTeamOfferingsEditorProps): React.ReactElement {
     const offerings = useMemo(() => (Array.isArray(value) ? value : []), [value]);
 
     const predefinedByType = useMemo(() => {
@@ -240,7 +255,7 @@ function TourTeamOfferingsEditor({ value, onChange }: TourTeamOfferingsEditorPro
     return (
         <div className="space-y-4">
             <div className="grid gap-2 sm:grid-cols-2">
-                {tourTeamOfferingTypes.map((type) => {
+                {allowedTypes.map((type) => {
                     const selected = predefinedByType.get(type);
                     const isSelected = Boolean(selected);
                     return (
@@ -392,10 +407,15 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showOfferingsIntro, setShowOfferingsIntro] = useState(false);
     const isUser = circle.circleType === "user";
+    const isVenue = isPeerifyVenueIdentity(circle);
     const useStructuredNeedsSelector = circle.circleType !== "user";
+    // Either surface below (individual profile or venue circle) can set tourTeamOfferings and
+    // needs the same one-time explainer dialog — copy differs on the anonymity point, since
+    // venue offer pins carry identity (see OfferMapPin, models.ts) unlike individual ones.
+    const showsOfferingsEditor = isUser || isVenue;
 
     useEffect(() => {
-        if (!isUser || !circle.handle) return;
+        if (!showsOfferingsEditor || !circle.handle) return;
 
         try {
             const storageKey = `peerify_tour_team_offerings_intro_dismissed:${circle.handle}`;
@@ -405,7 +425,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
         } catch {
             // localStorage unavailable (private mode etc.) — skip showing the explainer
         }
-    }, [isUser, circle.handle]);
+    }, [showsOfferingsEditor, circle.handle]);
 
     const dismissOfferingsIntro = () => {
         setShowOfferingsIntro(false);
@@ -469,7 +489,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
 
     return (
         <>
-            {isUser && (
+            {showsOfferingsEditor && (
                 <Dialog
                     open={showOfferingsIntro}
                     onOpenChange={(open) => (open ? setShowOfferingsIntro(true) : dismissOfferingsIntro())}
@@ -483,10 +503,19 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                     promise.
                                 </p>
                                 <p>You choose who to share your offer details with.</p>
-                                <p>
-                                    Choose whether to show your offers as anonymous pins on the public Explore map — off
-                                    by default, and nothing identifying is ever shown even when it&apos;s on.
-                                </p>
+                                {isVenue ? (
+                                    <p>
+                                        Choose whether to show your offers as pins on the public Explore map — off by
+                                        default. Unlike individual profiles, venue offer pins show your venue&apos;s
+                                        name so artists can act on them.
+                                    </p>
+                                ) : (
+                                    <p>
+                                        Choose whether to show your offers as anonymous pins on the public Explore map
+                                        — off by default, and nothing identifying is ever shown even when it&apos;s
+                                        on.
+                                    </p>
+                                )}
                             </DialogDescription>
                         </DialogHeader>
                         <DialogFooter>
@@ -551,6 +580,38 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                         <TourTeamOfferingsEditor
                                             value={field.value as TourTeamOffering[] | undefined}
                                             onChange={field.onChange}
+                                        />
+                                    )}
+                                />
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {isVenue && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Offers</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <p className="text-xs font-medium text-muted-foreground">
+                                    You decide what to share and with whom. Unlike an individual profile, a venue
+                                    offer pin shows your venue&apos;s name — an anonymous pin isn&apos;t actionable
+                                    for booking.
+                                </p>
+                                {/* Same auto-save-on-click pattern as the isUser Offers card above — see that
+                                    card's comment for why this stays out of the form's state/submit. */}
+                                <OffersVisibleToggle
+                                    circleId={circle._id ?? ""}
+                                    initialValue={circle.offersVisible === true}
+                                />
+                                <Controller
+                                    name="tourTeamOfferings"
+                                    control={form.control as unknown as Control}
+                                    render={({ field }) => (
+                                        <TourTeamOfferingsEditor
+                                            value={field.value as TourTeamOffering[] | undefined}
+                                            onChange={field.onChange}
+                                            allowedTypes={VENUE_TOUR_TEAM_OFFERING_TYPES}
                                         />
                                     )}
                                 />

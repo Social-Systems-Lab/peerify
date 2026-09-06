@@ -1,7 +1,7 @@
 import { Circle, CircleType, WithMetric } from "@/models/models";
 import { Circles } from "./db";
 import { getPublishedCircleQuery, isCirclePublished, SAFE_CIRCLE_PROJECTION } from "./circle";
-import { redactLocationForViewer } from "../utils";
+import { redactCircleLocationForViewer } from "../utils";
 
 const SEARCHABLE_TYPES: CircleType[] = ["circle", "project", "user"];
 const SEARCHABLE_FIELDS = [
@@ -266,7 +266,10 @@ export const searchDiscoverableCircles = async ({
         const isOwnCircle = !!viewerDid && circle.did === viewerDid;
         return {
             ...circle,
-            location: redactLocationForViewer(exposedLocation, circle.did, { viewerDid, viewerIsAdmin }),
+            // redactCircleLocationForViewer, not the plain redactLocationForViewer — this result
+            // set includes venue circles, which need the extra addressVisibility-based ceiling
+            // (see that function's own comment in lib/utils.ts).
+            location: redactCircleLocationForViewer({ ...circle, location: exposedLocation }, { viewerDid, viewerIsAdmin }),
             tourTeamOfferings: viewerIsAdmin || isOwnCircle ? circle.tourTeamOfferings : undefined,
             metrics: {
                 searchRank: score / maxScore,

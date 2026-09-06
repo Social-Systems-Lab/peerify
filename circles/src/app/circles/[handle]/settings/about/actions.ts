@@ -67,6 +67,18 @@ const normalizeOfficialEmail = (email?: string) => {
 const isValidCoordinate = (value: unknown, min: number, max: number): value is number =>
     typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
 
+// precision/lngLat are saved exactly as the venue picked them in LocationPicker, independent of
+// addressVisibility — this used to clamp precision to city-level (2) unless addressVisibility
+// was "public", silently overriding whatever the venue selected with no explanation. That
+// conflated two separate concerns: the venue's own discovery-quality signal (now what
+// getOfferPinLocation, lib/data/circle.ts, uses to decide whether an Offer pin gets the real
+// coordinate or a coarse fallback — a venue wanting good Offer placement needs Exact precision
+// stored regardless of its public-display choice) versus what a random viewer of the general
+// map/search sees. That second concern is still real and still enforced — just moved to read
+// time, in redactCircleLocationForViewer (lib/utils.ts), which applies the same addressVisibility
+// ceiling only to non-owner/non-admin viewers of the general Explore map and search, never here
+// and never to the Offer-pin path. street stays gated by addressVisibility exactly as before —
+// that was already independent of precision.
 const normalizePeerifyVenueLocation = (
     value: unknown,
     addressVisibility: PeerifyVenueProfile["addressVisibility"],
@@ -79,14 +91,13 @@ const normalizePeerifyVenueLocation = (
     const precision =
         typeof input.precision === "number" && Number.isFinite(input.precision)
             ? Math.min(Math.max(Math.trunc(input.precision), 0), 4)
-            : undefined;
+            : 4; // LocationPicker always sends a precision; 4 only covers a malformed/absent value.
     const lngLat =
         isValidCoordinate(input.lngLat?.lng, -180, 180) && isValidCoordinate(input.lngLat?.lat, -90, 90)
             ? { lng: input.lngLat.lng, lat: input.lngLat.lat }
             : undefined;
-    const publicPrecision = addressVisibility === "public" ? (precision ?? 4) : Math.min(precision ?? 2, 2);
     const location: Location = {
-        precision: publicPrecision,
+        precision,
         country: typeof input.country === "string" ? input.country.trim() || undefined : undefined,
         region: typeof input.region === "string" ? input.region.trim() || undefined : undefined,
         city: typeof input.city === "string" ? input.city.trim() || undefined : undefined,

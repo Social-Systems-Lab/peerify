@@ -51,8 +51,11 @@ const isEventDisplay = (content: any): content is EventDisplay => !!(content && 
 const isSuppressedUserProfile = (content: any, viewerIsAdmin: boolean): boolean =>
     !viewerIsAdmin && content?.circleType === "user" && content?.mapVisible !== true;
 
-// An Offer map pin (OfferMapPin, models.ts) — one per individual offer, carrying zero identity
-// of the offering circle. Duck-typed on `offerType`, which nothing else in the Content union has.
+// An Offer map pin (OfferMapPin, models.ts) — one per individual offer. Carries zero identity of
+// the offering circle UNLESS it's venue-sourced (circleHandle present — see getOfferMapPins,
+// lib/data/circle.ts), in which case it carries the venue's name/handle/picture. Every branch
+// below that special-cases isOfferMapPin must check for circleHandle before assuming anonymity.
+// Duck-typed on `offerType`, which nothing else in the Content union has.
 const isOfferMapPin = (content: any): content is OfferMapPin => typeof content?.offerType === "string";
 
 // Simplified, non-lucide-exact glyphs (same low-fidelity spirit as the openIcon/zoomIcon SVG
@@ -100,7 +103,12 @@ const getMarkerTitle = (content: Content, viewerIsAdmin: boolean): string => {
         return (content as any)?.content?.slice(0, 80) ?? "Noticeboard post";
     }
     if (isOfferMapPin(content)) {
-        return getTourTeamOfferingLabel({ type: content.offerType, label: content.offerLabel });
+        // Venue-sourced pins (circleHandle present — see OfferMapPin, models.ts) show the
+        // venue's name as the title, same as any other circle pin; individual-hosted pins stay
+        // anonymous and title on the offer type/label alone.
+        return content.circleHandle
+            ? (content.circleName ?? getTourTeamOfferingLabel({ type: content.offerType, label: content.offerLabel }))
+            : getTourTeamOfferingLabel({ type: content.offerType, label: content.offerLabel });
     }
     if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return "Unavailable";
@@ -161,10 +169,13 @@ const getMarkerImageUrl = (content: Content, viewerIsAdmin: boolean): string | u
     if (item.circleType === "post") {
         return item.media?.[0]?.fileInfo?.url ?? "/images/default-post-picture.png";
     }
-    // Offer pins carry no picture at all (no identity) — the marker/popup render the offer-type
-    // icon instead, handled separately in createMarkerElement/createMarkerPopupHtml.
+    // Individual-hosted offer pins carry no picture at all (no identity). Venue-sourced pins
+    // (circleHandle present) return the venue's own picture here — but only the hover popup
+    // (createMarkerPopupHtml) consumes it; the marker face (createMarkerElement) always renders
+    // the offer-type icon regardless of identity, so offer types stay visually distinguishable
+    // on the map even for a venue with several different offers.
     if (isOfferMapPin(content)) {
-        return undefined;
+        return content.circleHandle ? content.circlePicture?.url : undefined;
     }
     if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return undefined;
@@ -307,9 +318,11 @@ const getMarkerDescription = (content: Content, viewerIsAdmin: boolean): string 
     if ((content as any)?.circleType === "post") {
         return (content as any)?.content ?? "";
     }
-    // No bio/mission to show — offer pins carry no identity of the offering circle at all.
+    // No bio/mission to show for an individual-hosted offer pin — no identity of the offering
+    // circle at all. Venue-sourced pins (circleHandle present) show the offer type/label here
+    // instead, since the title above is the venue's name for those.
     if (isOfferMapPin(content)) {
-        return "";
+        return content.circleHandle ? getTourTeamOfferingLabel({ type: content.offerType, label: content.offerLabel }) : "";
     }
     if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return "";
@@ -317,12 +330,16 @@ const getMarkerDescription = (content: Content, viewerIsAdmin: boolean): string 
     return (content as any)?.mission ?? (content as any)?.description ?? "";
 };
 
-// Offer pins have no `handle` field at all (no identity), so this already returns undefined for
-// them without a dedicated branch — there's no profile to "Open" to, only "Zoom in" applies.
+// Individual-hosted offer pins have no `handle` field at all (no identity) — no profile to "Open"
+// to, only "Zoom in" applies. Venue-sourced pins carry `circleHandle` (not `handle`, so the
+// generic branch below still wouldn't catch them) and link to the venue's own profile.
 const getMarkerOpenHref = (content: Content): string | undefined => {
     if (isEventDisplay(content)) {
         const circleHandle = (content as any)?.circle?.handle;
         return circleHandle && content._id ? `/circles/${circleHandle}/events/${content._id}` : undefined;
+    }
+    if (isOfferMapPin(content)) {
+        return content.circleHandle ? `/circles/${content.circleHandle}` : undefined;
     }
     if ((content as any)?.handle && (content as any)?.circleType !== "post") {
         return `/circles/${(content as any).handle}`;
@@ -345,9 +362,11 @@ const createMarkerPopupHtml = (content: Content, viewerIsAdmin: boolean): string
     const title = escapeHtml(getMarkerTitle(content, viewerIsAdmin));
     const description = escapeHtml(getMarkerDescription(content, viewerIsAdmin)).slice(0, 180);
     const isOffer = isOfferMapPin(content);
-    // No photo fallback for offer pins — no identity to show a stock cover-photo stand-in for.
-    // The icon-on-brand-color background below is built separately instead.
-    const imageUrl = isOffer
+    // Venue-sourced offer pins (circleHandle present) have identity to show, so they get the same
+    // photo-background/Open-button treatment as any other circle pin below. Individual-hosted
+    // offer pins stay on the icon-on-brand-color background, no photo stand-in, no Open button.
+    const isAnonymousOffer = isOffer && !content.circleHandle;
+    const imageUrl = isAnonymousOffer
         ? undefined
         : getOptimizedImageUrl(
               getMarkerImageUrl(content, viewerIsAdmin) ??
@@ -357,7 +376,7 @@ const createMarkerPopupHtml = (content: Content, viewerIsAdmin: boolean): string
               384,
               72,
           ) ?? "/images/default-user-cover.png";
-    const backgroundHtml = isOffer
+    const backgroundHtml = isAnonymousOffer
         ? `<div style="position:absolute;inset:0;background:${getMarkerTheme(content).background};display:flex;align-items:center;justify-content:center;color:${getMarkerTheme(content).color};">${getOfferTypeIconSvg(content.offerType, 72)}</div>`
         : `<div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl!)}');background-size:cover;background-position:center;"></div>`;
     const openHref = getMarkerOpenHref(content);
@@ -365,8 +384,8 @@ const createMarkerPopupHtml = (content: Content, viewerIsAdmin: boolean): string
     const zoomIcon = `<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`;
     const buttonStyle =
         "display:inline-flex;height:40px;min-width:0;flex:1;align-items:center;justify-content:center;gap:7px;border-radius:9999px;border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.13);padding:0 14px;font-size:15px;font-weight:700;color:#fff;text-decoration:none;text-shadow:0 1px 2px rgba(0,0,0,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);backdrop-filter:blur(6px);";
-    // No "Open" action for offer pins — no profile to open, only "Zoom in" applies.
-    const openAction = isOffer
+    // No "Open" action for an anonymous offer pin — no profile to open, only "Zoom in" applies.
+    const openAction = isAnonymousOffer
         ? ""
         : openHref
           ? `<a href="${escapeHtml(openHref)}" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></a>`
@@ -396,6 +415,11 @@ const getMarkerTheme = (content: Content): { background: string; color: string; 
         return { background: "#36516f", color: "#ffffff", size: 36 };
     }
     if (isOfferMapPin(content)) {
+        // Same "Offer" green for venue-identity and anonymous pins alike — the marker face always
+        // shows the per-offer-type icon on this background regardless of identity (see
+        // createMarkerElement), so offer types stay distinguishable at a glance even across a
+        // single venue's several pins. Only the hover popup (createMarkerPopupHtml) differs by
+        // identity, swapping in the venue's picture there instead.
         return { background: "#bbf7d0", color: "#14532d", size: 40 };
     }
     if ((content as any)?.circleType === "user") {
@@ -470,9 +494,12 @@ const createMarkerElement = (
 
     const face = document.createElement("div");
     face.dataset.markerFace = "true";
+    // Always the per-offer-type icon for an offer pin, identity-bearing or not — the marker face
+    // is where a viewer tells offer types apart at a glance (e.g. three clustered venue pins for
+    // "hosting a show" vs "sound & equipment help"), so it must never be swapped for the venue's
+    // picture. Identity surfaces via the title (getMarkerTitle) and the hover popup/click-preview
+    // instead — see createMarkerPopupHtml and CrewOfferMapPreview.
     if (isOfferMapPin(content)) {
-        // Icon only — never initials/photo, since an offer pin carries no identity to derive
-        // initials from in the first place.
         face.innerHTML = getOfferTypeIconSvg(content.offerType, Math.round(theme.size * 0.5));
     } else if (!imageUrl || isEventDisplay(content)) {
         face.textContent = isEventDisplay(content)
@@ -491,7 +518,10 @@ const createMarkerElement = (
     face.style.border = "2px solid #ffffff";
     face.style.borderStyle = isAreaMarker ? "dashed" : "solid";
     face.style.backgroundColor = theme.background;
-    if (imageUrl && !isEventDisplay(content)) {
+    // Excludes offer pins even though imageUrl is set for venue-identity ones (see
+    // getMarkerImageUrl) — that URL is for the hover popup (createMarkerPopupHtml), not the face,
+    // which must stay icon-on-color per the comment above.
+    if (imageUrl && !isEventDisplay(content) && !isOfferMapPin(content)) {
         face.style.backgroundImage = `url("${imageUrl}")`;
         face.style.backgroundPosition = "center";
         face.style.backgroundSize = "cover";
@@ -620,9 +650,11 @@ const MapBox = ({
             } else if (isOfferMapPin(content)) {
                 // Deliberately a separate preview type, not "user"/"circle" — CirclePreview's
                 // Offers section is gated to the owner/a circle admin (see the privacy-fix
-                // commits) and must stay that way for the generic profile preview. An offer pin's
-                // content already carries zero identity (see OfferMapPin, models.ts) —
-                // CrewOfferMapPreview is the dedicated, anonymized component for it.
+                // commits) and must stay that way for the generic profile preview. An individual-
+                // hosted offer pin's content carries zero identity (see OfferMapPin, models.ts);
+                // a venue-sourced one does. CrewOfferMapPreview is the dedicated component for
+                // both — it branches on circleHandle internally rather than needing a second
+                // preview type here.
                 nextPreview = {
                     type: "crewOffer",
                     content,
