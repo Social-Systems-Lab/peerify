@@ -4,6 +4,7 @@ import { ChatRoom, Circle, Feed, Location } from "@/models/models";
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { getModuleFeatures, features } from "./data/constants";
+import { isPeerifyVenueIdentity, getPeerifyVenueProfile } from "./peerify/artist-profile";
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
@@ -174,10 +175,16 @@ function capLocationToPrecision(location: Location): Location {
     }
 }
 
+// Shared by redactLocationForViewer and redactCircleLocationForViewer below — bypass only when
+// the viewer IS the location's owner, or is a platform admin (mirrors the existing
+// mapVisible/searchable admin bypass elsewhere).
+function viewerBypassesLocationRedaction(ownerDid: string | undefined, viewer: LocationViewerContext): boolean {
+    return viewer.viewerIsAdmin === true || (!!viewer.viewerDid && !!ownerDid && viewer.viewerDid === ownerDid);
+}
+
 // The single point where "does this viewer get the exact location, or the owner's chosen
 // precision" is decided. ownerDid is whoever the location belongs to (a circle's own `did`, a
-// member's `userDid`, a post/comment's `createdBy`) — bypass only when the viewer IS that owner,
-// or is a platform admin (mirrors the existing mapVisible/searchable admin bypass elsewhere).
+// member's `userDid`, a post/comment's `createdBy`).
 export function redactLocationForViewer(
     location: Location | undefined,
     ownerDid: string | undefined,
@@ -186,15 +193,15 @@ export function redactLocationForViewer(
     if (!location) {
         return location;
     }
-    if (viewer.viewerIsAdmin || (!!viewer.viewerDid && !!ownerDid && viewer.viewerDid === ownerDid)) {
+    if (viewerBypassesLocationRedaction(ownerDid, viewer)) {
         return location;
     }
     return capLocationToPrecision(location);
 }
 
 // Array form of redactLocationForViewer for lists of items that each carry their own `location`
-// field — e.g. circles, members. ownerDidOf resolves the owning DID per item (not assumed to be
-// a fixed field name, since callers project location from different source shapes). Non-mutating:
+// field — e.g. members. ownerDidOf resolves the owning DID per item (not assumed to be a fixed
+// field name, since callers project location from different source shapes). Non-mutating:
 // returns a new array; only clones an individual item when its location actually changes.
 export function filterLocations<T extends { location?: Location }>(
     items: T[],
@@ -211,6 +218,40 @@ export function filterLocations<T extends { location?: Location }>(
         }
         return { ...item, location: redacted };
     });
+}
+
+// Circle-aware variant of redactLocationForViewer, used anywhere a general-purpose (non-Offers)
+// surface shows circle pins/results to arbitrary viewers — getSwipeCircles (the Explore map) and
+// search.ts today. A venue circle (isPeerifyVenueIdentity) gets an extra ceiling here: its own
+// addressVisibility choice ("private"/"city_area" vs "public") caps what a non-owner/non-admin
+// viewer sees, at city-level (2) unless explicitly "public" — independent of the venue's raw
+// stored location.precision, which since the venue-participation-in-Offers work is the venue's
+// own discovery-quality signal (drives getOfferPinLocation's real-vs-coarse coordinate choice for
+// Offer pins, lib/data/circle.ts), not a public-display gate. This mirrors the cap
+// normalizePeerifyVenueLocation (settings/about/actions.ts) used to enforce at write time, before
+// that coupling was removed — moved here so it governs only what general-viewer-facing surfaces
+// show, never what's stored, and never the Offer-pin path (which bypasses this whole redaction
+// system entirely — see getOfferPinLocation's own comment for why). Non-venue circles behave
+// exactly like plain redactLocationForViewer.
+export function redactCircleLocationForViewer(
+    circle: Pick<Circle, "location" | "did" | "metadata">,
+    viewer: LocationViewerContext,
+): Location | undefined {
+    if (!circle.location) {
+        return circle.location;
+    }
+    if (viewerBypassesLocationRedaction(circle.did, viewer)) {
+        return circle.location;
+    }
+    if (!isPeerifyVenueIdentity(circle) || getPeerifyVenueProfile(circle).addressVisibility === "public") {
+        return capLocationToPrecision(circle.location);
+    }
+    const VENUE_NON_PUBLIC_PRECISION_CEILING = 2; // "city" — same cap normalizePeerifyVenueLocation used
+    const ceilingedLocation =
+        (circle.location.precision ?? 4) > VENUE_NON_PUBLIC_PRECISION_CEILING
+            ? { ...circle.location, precision: VENUE_NON_PUBLIC_PRECISION_CEILING }
+            : circle.location;
+    return capLocationToPrecision(ceilingedLocation);
 }
 
 export function safeModifyMemberUserGroups(

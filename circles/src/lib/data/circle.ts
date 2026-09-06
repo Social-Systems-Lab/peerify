@@ -20,7 +20,7 @@ import { ObjectId } from "mongodb";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
-import { filterLocations } from "../utils";
+import { redactCircleLocationForViewer } from "../utils";
 import { deleteVbdCircle, deleteVbdPost, upsertVbdCircles } from "./vdb";
 import { createDefaultChatRooms, getChatRoomByHandle, updateChatRoom } from "./chat";
 import { createDefaultFeed } from "./feed";
@@ -290,7 +290,13 @@ export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => 
             circle._id = circle._id.toString();
         }
     });
-    circles = filterLocations(circles, (circle) => circle.did, { viewerDid, viewerIsAdmin: isAdmin });
+    // redactCircleLocationForViewer, not the plain filterLocations/redactLocationForViewer other
+    // callers (e.g. member.ts) use — this list includes venue circles, which need the extra
+    // addressVisibility-based ceiling (see that function's own comment in lib/utils.ts).
+    circles = circles.map((circle) => {
+        const location = redactCircleLocationForViewer(circle, { viewerDid, viewerIsAdmin: isAdmin });
+        return location === circle.location ? circle : { ...circle, location };
+    });
     return circles;
 };
 
