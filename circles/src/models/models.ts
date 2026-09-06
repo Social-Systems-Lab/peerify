@@ -909,24 +909,33 @@ export const serverSettingsSchema = z.object({
 
 export type ServerSettings = z.infer<typeof serverSettingsSchema>;
 
-// A single flattened, anonymized Crew Offer for map display — one per offer, not one per
-// circle. Deliberately carries NO identity of the offering circle (no did/name/handle/picture/
-// circleType/offersVisible) — offers are meant to be browsable before any Crew/artist
-// relationship exists, and the host's identity stays hidden until they choose to reveal it via a
-// reply (see the anonymized-contact-thread design, not yet built). _id is a stable per-pin key
-// (`${circleId}:${offeringId}`), not a real document id. location is NOT the same
-// viewer-precision-redacted Location other map pins use — it's deliberately not viewer-aware at
-// all: real coordinate if the circle's own location.precision is already Exact (e.g. a venue,
-// once venues can set offerings), otherwise a fixed coarse (~1km) fallback so a pin always
-// renders regardless of what precision the profile happens to have set for unrelated purposes.
-// See getOfferPinLocation (lib/data/circle.ts).
+// A single flattened Crew Offer for map display — one per offer, not one per circle. Anonymous
+// by default (no did/name/handle/picture/circleType/offersVisible) — offers are meant to be
+// browsable before any Crew/artist relationship exists, and an individual host's identity stays
+// hidden until they choose to reveal it via a reply (see the anonymized-contact-thread design,
+// not yet built). _id is a stable per-pin key (`${circleId}:${offeringId}`), not a real document
+// id. location is NOT the same viewer-precision-redacted Location other map pins use — it's
+// deliberately not viewer-aware at all: real coordinate if the circle's own location.precision is
+// already Exact (e.g. a venue), otherwise a fixed coarse (~1km) fallback so a pin always renders
+// regardless of what precision the profile happens to have set for unrelated purposes. See
+// getOfferPinLocation (lib/data/circle.ts).
 // Consent to appear on the map at all is gated by offersVisible — a field independent of
 // mapVisible/searchable, so a circle can show offer pins while otherwise fully private.
+// Exception: pins sourced from a venue circle (metadata.peerify.identityType === "venue") DO
+// carry identity — circleName/circleHandle/circlePicture are populated for those rows only (see
+// getOfferMapPins). Anonymity exists to protect individuals; a venue is already a public business
+// listing, and an anonymous "hosting a show somewhere nearby" pin isn't actionable for booking
+// purposes. Every other offer-pin consumer (map.tsx, crew-offer-map-preview.tsx) must treat these
+// fields as optional and branch on their presence — an absent circleHandle still means "fully
+// anonymous, individual host" and must render exactly as before.
 export type OfferMapPin = {
     _id: string;
     location?: Location;
     offerType: TourTeamOffering["type"];
     offerLabel?: string;
+    circleName?: string;
+    circleHandle?: string;
+    circlePicture?: FileInfo;
 };
 
 export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin;
