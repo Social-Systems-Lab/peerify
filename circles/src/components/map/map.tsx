@@ -78,6 +78,23 @@ const getOfferTypeIconSvg = (offerType: string, size: number): string =>
         OFFER_TYPE_ICON_SVG_PATHS[offerType] ?? OFFER_TYPE_ICON_SVG_PATHS.custom
     }</svg>`;
 
+// Shared by createMarkerElement (initial render) and the existing-marker update path below it —
+// a grouped identity pin (groupIdentityOfferPins, map-explorer.tsx) shows a bare count number
+// instead of a per-offer-type icon, since there's no single type left to represent once merged.
+// Ungrouped pins (anonymous, or an identity pin with only one offering under the active filter)
+// are unaffected — same per-type icon as always. Sets textContent/innerHTML directly rather than
+// returning a string, since the update path needs to clear whichever one it isn't using (a face
+// that previously held a count and now needs an icon, or vice versa, across a filter change).
+const applyOfferMarkerFaceContent = (face: HTMLElement, content: OfferMapPin, size: number): void => {
+    if (content.groupedOfferings && content.groupedOfferings.length > 1) {
+        face.innerHTML = "";
+        face.textContent = String(content.groupedOfferings.length);
+    } else {
+        face.textContent = "";
+        face.innerHTML = getOfferTypeIconSvg(content.offerType, Math.round(size * 0.5));
+    }
+};
+
 const getLngLatParts = (lngLat: any): { lng: number; lat: number } | undefined => {
     const lng = Array.isArray(lngLat) ? lngLat[0] : lngLat?.lng;
     const lat = Array.isArray(lngLat) ? lngLat[1] : lngLat?.lat;
@@ -320,9 +337,19 @@ const getMarkerDescription = (content: Content, viewerIsAdmin: boolean): string 
     }
     // No bio/mission to show for an individual-hosted offer pin — no identity of the offering
     // circle at all. Venue-sourced pins (circleHandle present) show the offer type/label here
-    // instead, since the title above is the venue's name for those.
+    // instead, since the title above is the venue's name for those. A grouped pin (see
+    // groupIdentityOfferPins, map-explorer.tsx) joins every offering's label instead of just its
+    // own representative one — a venue with 2 offerings shouldn't only ever mention one of them.
     if (isOfferMapPin(content)) {
-        return content.circleHandle ? getTourTeamOfferingLabel({ type: content.offerType, label: content.offerLabel }) : "";
+        if (!content.circleHandle) {
+            return "";
+        }
+        if (content.groupedOfferings && content.groupedOfferings.length > 1) {
+            return content.groupedOfferings
+                .map((offering) => getTourTeamOfferingLabel({ type: offering.offerType, label: offering.offerLabel }))
+                .join(", ");
+        }
+        return getTourTeamOfferingLabel({ type: content.offerType, label: content.offerLabel });
     }
     if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return "";
@@ -494,13 +521,16 @@ const createMarkerElement = (
 
     const face = document.createElement("div");
     face.dataset.markerFace = "true";
-    // Always the per-offer-type icon for an offer pin, identity-bearing or not — the marker face
-    // is where a viewer tells offer types apart at a glance (e.g. three clustered venue pins for
-    // "hosting a show" vs "sound & equipment help"), so it must never be swapped for the venue's
-    // picture. Identity surfaces via the title (getMarkerTitle) and the hover popup/click-preview
-    // instead — see createMarkerPopupHtml and CrewOfferMapPreview.
+    // The per-offer-type icon for an offer pin, identity-bearing or not — the marker face is where
+    // a viewer tells offer types apart at a glance (e.g. three clustered venue pins for "hosting a
+    // show" vs "sound & equipment help"), so it must never be swapped for the venue's picture.
+    // Identity surfaces via the title (getMarkerTitle) and the hover popup/click-preview instead —
+    // see createMarkerPopupHtml and CrewOfferMapPreview. A grouped identity pin (2+ co-located
+    // offerings — see groupIdentityOfferPins, map-explorer.tsx) shows a bare count instead, since
+    // spatially separating them would recreate the exact "different building" mismatch that was
+    // fixed by excluding identity pins from jitter in the first place.
     if (isOfferMapPin(content)) {
-        face.innerHTML = getOfferTypeIconSvg(content.offerType, Math.round(theme.size * 0.5));
+        applyOfferMarkerFaceContent(face, content, theme.size);
     } else if (!imageUrl || isEventDisplay(content)) {
         face.textContent = isEventDisplay(content)
             ? new Date(content.startAt).getDate().toString()
@@ -927,10 +957,29 @@ const MapBox = ({
                 const existingMarker = markersRef.current.get(markerId);
 
                 if (existingMarker) {
+                    // Grouped identity offer pins keep a stable _id across an offer-type filter
+                    // change (see groupIdentityOfferPins, map-explorer.tsx) so this branch — not
+                    // remove+recreate — is what handles them when the filter narrows/widens which
+                    // offerings are included. Face content (icon vs. count badge) is normally only
+                    // set once, at creation, in createMarkerElement — refresh it here too when the
+                    // offering count actually changed, or a marker's badge would go stale until
+                    // something else (a category toggle) forces a full remove/recreate.
+                    const previousItem = markerContentRef.current.get(markerId);
                     currentMarkerIds.delete(markerId);
                     focusedMarkerIdsRef.current.delete(markerId);
                     markerContentRef.current.set(markerId, item);
                     applyMarkerDisclosureStyle(existingMarker, item, viewerIsAdmin);
+                    if (
+                        isOfferMapPin(item) &&
+                        isOfferMapPin(previousItem) &&
+                        (previousItem.groupedOfferings?.length !== item.groupedOfferings?.length ||
+                            previousItem.offerType !== item.offerType)
+                    ) {
+                        const face = existingMarker.querySelector<HTMLElement>("[data-marker-face]");
+                        if (face) {
+                            applyOfferMarkerFaceContent(face, item, getMarkerTheme(item).size);
+                        }
+                    }
                     const lngLat = getLngLatParts(item.location.lngLat);
                     if (lngLat) {
                         existingMarker.dataset.zIndex = `${getStableMarkerZIndex(lngLat, markerId)}`;

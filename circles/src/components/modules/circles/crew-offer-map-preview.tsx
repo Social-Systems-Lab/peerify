@@ -28,11 +28,18 @@ type CrewOfferMapPreviewProps = {
 // "View profile" link here. Anonymity exists to protect individuals; a venue is already a public
 // business listing, and an anonymous "hosting a show somewhere nearby" pin isn't actionable for
 // booking purposes.
+//
+// groupedOfferings (map-explorer.tsx's groupIdentityOfferPins) is only ever present on venue
+// pins — co-located same-venue offerings are merged into one marker rather than jittered apart
+// (see that function's own comment), so this is the one surface that lists what got merged.
+// length > 1 replaces the single label line with a short list (icon + label per offering);
+// length <= 1 (including anonymous pins, which never carry this field) renders exactly as before.
 export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
     const Icon = getTourTeamOfferingIcon({ type: pin.offerType });
     const label = getTourTeamOfferingLabel({ type: pin.offerType, label: pin.offerLabel });
     const locationLabel = getFullLocationName(pin.location);
     const isVenue = Boolean(pin.circleHandle);
+    const isGrouped = Boolean(pin.groupedOfferings && pin.groupedOfferings.length > 1);
 
     return (
         <div className="custom-scrollbar h-full overflow-y-auto p-4">
@@ -52,7 +59,7 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
                 )}
                 <div className="min-w-0">
                     <div className="truncate text-lg font-semibold">{isVenue ? pin.circleName : label}</div>
-                    {isVenue && <div className="truncate text-sm text-muted-foreground">{label}</div>}
+                    {isVenue && !isGrouped && <div className="truncate text-sm text-muted-foreground">{label}</div>}
                     {locationLabel && (
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -61,6 +68,25 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
                     )}
                 </div>
             </div>
+            {isGrouped && (
+                <ul className="mt-4 space-y-2">
+                    {pin.groupedOfferings!.map((offering, index) => {
+                        const OfferIcon = getTourTeamOfferingIcon({ type: offering.offerType });
+                        const offerLabel = getTourTeamOfferingLabel({
+                            type: offering.offerType,
+                            label: offering.offerLabel,
+                        });
+                        return (
+                            <li key={`${offering.offerType}:${index}`} className="flex items-center gap-2 text-sm">
+                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-900">
+                                    <OfferIcon className="h-3.5 w-3.5" />
+                                </span>
+                                <span className="truncate">{offerLabel}</span>
+                            </li>
+                        );
+                    })}
+                </ul>
+            )}
             {isVenue && pin.circleHandle && (
                 <Link
                     href={`/circles/${pin.circleHandle}`}

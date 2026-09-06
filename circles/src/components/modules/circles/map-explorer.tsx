@@ -150,6 +150,51 @@ function jitterSameCoordinateOfferPins(pins: OfferMapPin[]): OfferMapPin[] {
     });
 }
 
+// Counterpart to jitterSameCoordinateOfferPins above, for the pins that function deliberately
+// excludes: instead of spatially separating co-located venue offerings (which would recreate the
+// exact "different building" mismatch that exclusion was built to fix), merge them into one
+// marker at the venue's true coordinate, carrying the full offering list for the marker's count
+// badge and the click-preview's list (see map.tsx/crew-offer-map-preview.tsx). Grouped by
+// (circleHandle, rounded coordinate) rather than coordinate alone, so two different venues that
+// happen to round to the same coordinate are never merged into one marker.
+//
+// Every identity pin gets a groupedOfferings array, even a lone one (length 1) — callers check
+// `.length > 1` uniformly rather than treating "absent" and "singleton" as different shapes to
+// special-case. Anonymous pins are untouched, unaffected by this function entirely.
+//
+// _id is `${circleHandle}:group`, independent of which specific offerings are currently included
+// — stable across an offer-type filter change (see the caller: this must run AFTER filtering, not
+// once at fetch time, or a merged marker's badge would show the venue's total offering count
+// instead of what's actually visible under the active filter). A stable id lets map.tsx reuse the
+// same marker DOM element across a filter change instead of destroying/recreating it; see that
+// file's existing-marker branch for the accompanying face-content refresh this requires.
+function groupIdentityOfferPins(pins: OfferMapPin[]): OfferMapPin[] {
+    const anonymous: OfferMapPin[] = [];
+    const groups = new Map<string, OfferMapPin[]>();
+    for (const pin of pins) {
+        if (!pin.circleHandle) {
+            anonymous.push(pin);
+            continue;
+        }
+        const lngLat = pin.location?.lngLat;
+        const key = lngLat ? `${pin.circleHandle}:${lngLat.lng.toFixed(5)},${lngLat.lat.toFixed(5)}` : pin.circleHandle;
+        const group = groups.get(key);
+        if (group) group.push(pin);
+        else groups.set(key, [pin]);
+    }
+
+    const grouped: OfferMapPin[] = Array.from(groups.values()).map((group) => {
+        const first = group[0];
+        return {
+            ...first,
+            _id: `${first.circleHandle}:group`,
+            groupedOfferings: group.map((pin) => ({ offerType: pin.offerType, offerLabel: pin.offerLabel })),
+        };
+    });
+
+    return [...anonymous, ...grouped];
+}
+
 const CategoryFilterCarousel: React.FC<CategoryFilterProps & { className?: string }> = ({ className, ...props }) => {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -1019,12 +1064,16 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         };
     }, [dateRange?.from, dateRange?.to, selectedGenres]);
 
-    // Fetch Offer pins once — no date/genre filters of its own, unlike events above.
+    // Fetch Offer pins once — no date/genre filters of its own, unlike events above. Stored raw,
+    // unfiltered/unjittered/ungrouped: jitterSameCoordinateOfferPins and groupIdentityOfferPins
+    // both need to run AFTER selectedOfferTypes filtering (see the offerMapData derivation below),
+    // not here — otherwise a venue's marker badge/an anonymous cluster's jitter would reflect the
+    // full unfiltered offering set instead of what's actually visible under the active filter.
     useEffect(() => {
         let canceled = false;
         (async () => {
             const data = await getOfferMapPinsAction();
-            if (!canceled) setOfferMapPins(jitterSameCoordinateOfferPins(data || []));
+            if (!canceled) setOfferMapPins(data || []);
         })();
         return () => {
             canceled = true;
@@ -1123,10 +1172,14 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             // Applied on top of includesOffers, not instead of it — an empty selectedOfferTypes
             // means "all types", same "All" convention as selectedCategories/selectedGenres.
             const offerPinsForCategory = includesOffers ? offerMapPins : [];
-            const offerMapData: Content[] = (
+            const typeFilteredOfferPins =
                 selectedOfferTypes.length === 0
                     ? offerPinsForCategory
-                    : offerPinsForCategory.filter((pin) => selectedOfferTypes.includes(pin.offerType))
+                    : offerPinsForCategory.filter((pin) => selectedOfferTypes.includes(pin.offerType));
+            // Grouping and jitter both run here, on the already-filtered set — see the fetch
+            // effect's own comment for why neither can run once at fetch time.
+            const offerMapData: Content[] = jitterSameCoordinateOfferPins(
+                groupIdentityOfferPins(typeFilteredOfferPins),
             ) as unknown as Content[];
             const combined: Content[] = [
                 ...mapData,
