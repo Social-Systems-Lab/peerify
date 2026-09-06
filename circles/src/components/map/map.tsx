@@ -169,10 +169,11 @@ const getMarkerImageUrl = (content: Content, viewerIsAdmin: boolean): string | u
     if (item.circleType === "post") {
         return item.media?.[0]?.fileInfo?.url ?? "/images/default-post-picture.png";
     }
-    // Individual-hosted offer pins carry no picture at all (no identity) — the marker/popup
-    // render the offer-type icon instead, handled separately in createMarkerElement/
-    // createMarkerPopupHtml. Venue-sourced pins (circleHandle present) use the venue's own
-    // picture, same as any other circle pin.
+    // Individual-hosted offer pins carry no picture at all (no identity). Venue-sourced pins
+    // (circleHandle present) return the venue's own picture here — but only the hover popup
+    // (createMarkerPopupHtml) consumes it; the marker face (createMarkerElement) always renders
+    // the offer-type icon regardless of identity, so offer types stay visually distinguishable
+    // on the map even for a venue with several different offers.
     if (isOfferMapPin(content)) {
         return content.circleHandle ? content.circlePicture?.url : undefined;
     }
@@ -414,10 +415,11 @@ const getMarkerTheme = (content: Content): { background: string; color: string; 
         return { background: "#36516f", color: "#ffffff", size: 36 };
     }
     if (isOfferMapPin(content)) {
-        // Same "Offer" green for venue-identity and anonymous pins alike — keeps the visual
-        // language consistent (an Offer pin reads as an Offer pin) even though venue pins now
-        // usually show a picture instead of this color (see createMarkerElement/
-        // createMarkerPopupHtml); this background still shows for the icon fallback and border.
+        // Same "Offer" green for venue-identity and anonymous pins alike — the marker face always
+        // shows the per-offer-type icon on this background regardless of identity (see
+        // createMarkerElement), so offer types stay distinguishable at a glance even across a
+        // single venue's several pins. Only the hover popup (createMarkerPopupHtml) differs by
+        // identity, swapping in the venue's picture there instead.
         return { background: "#bbf7d0", color: "#14532d", size: 40 };
     }
     if ((content as any)?.circleType === "user") {
@@ -492,10 +494,12 @@ const createMarkerElement = (
 
     const face = document.createElement("div");
     face.dataset.markerFace = "true";
-    // Icon only for an anonymous (individual-hosted) offer pin — no identity to derive
-    // initials/photo from. A venue-sourced pin (circleHandle present) falls through to the same
-    // image-or-initials handling as any other circle pin below.
-    if (isOfferMapPin(content) && !content.circleHandle) {
+    // Always the per-offer-type icon for an offer pin, identity-bearing or not — the marker face
+    // is where a viewer tells offer types apart at a glance (e.g. three clustered venue pins for
+    // "hosting a show" vs "sound & equipment help"), so it must never be swapped for the venue's
+    // picture. Identity surfaces via the title (getMarkerTitle) and the hover popup/click-preview
+    // instead — see createMarkerPopupHtml and CrewOfferMapPreview.
+    if (isOfferMapPin(content)) {
         face.innerHTML = getOfferTypeIconSvg(content.offerType, Math.round(theme.size * 0.5));
     } else if (!imageUrl || isEventDisplay(content)) {
         face.textContent = isEventDisplay(content)
@@ -514,7 +518,10 @@ const createMarkerElement = (
     face.style.border = "2px solid #ffffff";
     face.style.borderStyle = isAreaMarker ? "dashed" : "solid";
     face.style.backgroundColor = theme.background;
-    if (imageUrl && !isEventDisplay(content)) {
+    // Excludes offer pins even though imageUrl is set for venue-identity ones (see
+    // getMarkerImageUrl) — that URL is for the hover popup (createMarkerPopupHtml), not the face,
+    // which must stay icon-on-color per the comment above.
+    if (imageUrl && !isEventDisplay(content) && !isOfferMapPin(content)) {
         face.style.backgroundImage = `url("${imageUrl}")`;
         face.style.backgroundPosition = "center";
         face.style.backgroundSize = "cover";
