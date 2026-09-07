@@ -3916,3 +3916,38 @@ inspection alone.
 
 **Status:** 2 further commits on `staging` total for this investigation thread. Reload discrepancy
 remains an open, distinct issue pending browser-side diagnostic info.
+
+### 2026-09-07 — Fixed pre-existing hydration mismatch (React #418) in global ProfileMenu
+
+Investigated a browser-console hydration error (`Minified React error #418`) found via DevTools
+while chasing the reload-vs-hard-refresh photo issue above. **Confirmed pre-existing and app-wide,
+not specific to presence-settings or the offers work**: `ProfileMenu` (`src/components/layout/
+profile-menu.tsx`), part of the global nav rendered on every authenticated page, seeded
+`const [loadStateKey] = useState(Date.now().toString())` and used it as `key={loadStateKey}` on
+`ProfileMenuBar`. That expression evaluates once during the server render and again during the
+client's initial hydration render — necessarily producing two different timestamps, so server and
+client disagree on that element's identity from the first paint. A `setTimeout` then bumped it
+again 100ms after mount ("Force re-render after component mount to ensure proper hydration") —
+this reads as an earlier, incomplete attempt to paper over a hydration issue by forcing a
+client-side remount, rather than fixing whatever actually caused it.
+
+Checked whether removing this would re-expose a real problem: `ProfileMenuBar` already has its own
+correct, standard hydration guard — `const [isMounted, setIsMounted] = useState(false)` flipped to
+`true` in a mount-only effect, with `if (!isMounted) return null;` before any content that depends
+on client-only state (auth atoms, `useIsMobile()`, unread counts, acting-identity). That guard
+alone is sufficient — server and initial client render both produce `null`, so there's nothing
+uniquely fixed by the outer key-remount trick. Removed `loadStateKey`, its effect, and the `key`
+prop entirely (not just seeded from something stable) per the earlier decision to drop the pattern
+rather than patch it; also dropped the now-unused `logLevel`/`LOG_LEVEL_TRACE` import. Typecheck,
+lint, and build all clean.
+
+**Not claiming this resolves the offer-photo reload/hard-refresh discrepancy** — that's a separate
+open issue (see above) that still needs the DevTools Cache-Control comparison once this is
+deployed and retested. The mismatch here was scoped to `ProfileMenuBar` inside its own `Suspense`
+boundary, a different part of the tree from the Offers card, so there's no strong reason to expect
+it explains the photo issue — but re-test from scratch to confirm either way.
+
+Mapbox `"process is not defined"` console error, raised in the same DevTools session, confirmed
+unrelated: `NEXT_PUBLIC_MAPBOX_TOKEN`/`process` usage is isolated to `KamooniMap.tsx`, only
+imported by the standalone `/map-test` page — not part of presence-settings or any shared layout.
+No action taken.
