@@ -1,5 +1,5 @@
 import { BedDouble, Car, Compass, Megaphone, Mic2, Sparkles, UtensilsCrossed, Volume2, type LucideIcon } from "lucide-react";
-import { accommodationSubTypes, tourTeamOfferingTypes, TourTeamOffering } from "@/models/models";
+import { accommodationSubTypes, promotionChannels, tourTeamOfferingTypes, TourTeamOffering } from "@/models/models";
 
 // "hosting_show" reads as "Show space" here (not "Hosting a show") to avoid confusion with the
 // separate Home Shows event feature — this offering is a pitch/contact mechanism only, it never
@@ -15,14 +15,22 @@ export const tourTeamOfferingTypeLabels: Record<(typeof tourTeamOfferingTypes)[n
     promotion: "Promotion",
 };
 
-// Curated subset for venue circles (identityType "venue" — see isPeerifyVenueIdentity), rendered
-// via TourTeamOfferingsEditor's allowedTypes prop in presence-settings-form.tsx. spare_room/
-// local_transport/city_guide are personal-hospitality gestures from an individual host and don't
-// fit a business profile; hosting_show/sound_equipment_help are a venue's core offer, and
-// home_cooked_meal fits venues with an attached restaurant/bar. Reuses the existing labels/icons
-// unchanged — "Meal" reads fine for a venue, no venue-specific copy needed. Bands are out of scope
-// for now (see getOfferMapPins), so this subset isn't used for them.
-export const VENUE_TOUR_TEAM_OFFERING_TYPES = ["hosting_show", "sound_equipment_help", "home_cooked_meal"] as const;
+// The five structured types offered in the "Create an offer" modal's Step 1 grid, in display
+// order (Accommodation, Show space, Meal, Transport, Promotion) — each has a matching
+// offerDetailsSchema variant and a Step 2 form. "Other" (type "custom") is always offered
+// alongside these, generic/type-less, and isn't part of this list. city_guide/sound_equipment_help
+// predate this modal and have no Step 2 form of their own — they're no longer creatable from the
+// modal (existing offerings of those types still render/persist fine).
+export const OFFER_MODAL_TYPES = ["spare_room", "hosting_show", "home_cooked_meal", "local_transport", "promotion"] as const;
+
+// Curated subset of OFFER_MODAL_TYPES for venue circles (identityType "venue" — see
+// isPeerifyVenueIdentity), passed as CreateOfferModal's allowedTypes for venue presence settings.
+// spare_room/local_transport are personal-hospitality gestures from an individual host and don't
+// fit a business profile. hosting_show/home_cooked_meal are a venue's core offer (a bar/venue with
+// an attached restaurant). promotion is included — a venue promoting a show locally (flyers,
+// regulars, local listings) is a natural business offer, no reason to restrict it to personal
+// circles. Bands are out of scope for now (see getOfferMapPins), so this subset isn't used for them.
+export const VENUE_OFFER_MODAL_TYPES = ["hosting_show", "home_cooked_meal", "promotion"] as const;
 
 // No existing icon-per-offering-type mapping existed anywhere before this (checked the
 // offerings-editing UI, offers-step.tsx and presence-settings-form.tsx — both text-only), so
@@ -56,4 +64,54 @@ export function getTourTeamOfferingLabel(offering: Pick<TourTeamOffering, "type"
         return offering.label?.trim() || "Custom offering";
     }
     return tourTeamOfferingTypeLabels[offering.type] ?? offering.type;
+}
+
+export const promotionChannelLabels: Record<(typeof promotionChannels)[number], string> = {
+    social_media: "Social media",
+    radio: "Local radio",
+    press: "Press / local listings",
+    flyering: "Flyering",
+    newsletter: "Newsletter",
+    other: "Other",
+};
+
+// One-line summary of an offering's structured `details`, for the Presence-settings offer list —
+// undefined for legacy/bare-bones offerings (no `details` yet) or types with no Step 2 form, so
+// callers can render nothing extra rather than an empty line. Not used on any public-facing
+// surface yet (map pins, the profile Offers card) — those still show label/detail only, unchanged,
+// pending a later phase.
+export function getOfferDetailsSummary(offering: TourTeamOffering): string | undefined {
+    const details = offering.details;
+    if (!details) return undefined;
+
+    switch (details.type) {
+        case "accommodation": {
+            const parts: string[] = [];
+            if (details.maxStayNights) parts.push(`Up to ${details.maxStayNights} night${details.maxStayNights === 1 ? "" : "s"}`);
+            if (details.checkInFlexible) parts.push("Flexible check-in");
+            return parts.join(" · ") || undefined;
+        }
+        case "hostingShow": {
+            const parts: string[] = [];
+            if (details.capacity) parts.push(`Capacity ~${details.capacity}`);
+            if (details.spaceDescription) parts.push(details.spaceDescription);
+            return parts.join(" · ") || undefined;
+        }
+        case "meal": {
+            const parts: string[] = [];
+            if (details.cuisine) parts.push(details.cuisine);
+            if (details.dietaryNotes) parts.push(details.dietaryNotes);
+            return parts.join(" · ") || undefined;
+        }
+        case "transport":
+            return details.routeNotes || undefined;
+        case "promotion": {
+            const parts: string[] = [];
+            if (details.channels?.length) parts.push(details.channels.map((c) => promotionChannelLabels[c]).join(", "));
+            if (details.notes) parts.push(details.notes);
+            return parts.join(" · ") || undefined;
+        }
+        default:
+            return undefined;
+    }
 }
