@@ -77,9 +77,16 @@ export async function savePresence(data: Circle): Promise<FormSubmitResponse> {
         revalidatePath(`/circles/${data.handle}/home`);
         revalidatePath(`/circles/${data.handle}`);
 
+        // Returned so the client can push the server-resolved shape (real FileInfo photos, not
+        // the pre-save ImageItem drafts) back into the form via form.setValue — this form never
+        // calls form.reset() after a save (only router.refresh(), which doesn't touch an
+        // already-mounted react-hook-form instance's field values), so without this, editing the
+        // same offering again later in the same page session would seed the offer photo picker
+        // from stale draft objects instead of real, resolvable URLs.
         return {
             success: true,
             message: "Presence settings updated successfully",
+            data: { tourTeamOfferings: resolvedOfferings },
         };
     } catch (error) {
         console.error("Error saving presence settings:", error);
