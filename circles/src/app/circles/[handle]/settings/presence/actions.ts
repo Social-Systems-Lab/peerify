@@ -15,7 +15,7 @@ import { revalidatePath } from "next/cache";
 // deliberately deferred, see SESSION_LOG.md 2026-09-07.
 async function resolveOfferingPhotos(offering: TourTeamOffering, circleId: string): Promise<TourTeamOffering> {
     const draftPhotos = offering.photos as unknown as
-        | Array<{ file?: File; url?: string; existingMediaUrl?: string }>
+        | Array<{ file?: File; url?: string; fileName?: string; originalName?: string; existingMediaUrl?: string }>
         | undefined;
     if (!draftPhotos || draftPhotos.length === 0) {
         return offering;
@@ -25,10 +25,13 @@ async function resolveOfferingPhotos(offering: TourTeamOffering, circleId: strin
     for (const photo of draftPhotos) {
         if (isFile(photo.file)) {
             resolvedPhotos.push(await saveFile(photo.file, "offer-photo", circleId, true));
-        } else if (typeof photo.url === "string") {
-            resolvedPhotos.push({ url: photo.url });
         } else if (typeof photo.existingMediaUrl === "string") {
             resolvedPhotos.push({ url: photo.existingMediaUrl });
+        } else if (typeof photo.url === "string") {
+            // Already a resolved FileInfo — e.g. every offering in the array other than the one
+            // just added/edited, which arrives here as-saved, not as an ImageItem draft. Pass it
+            // through unchanged rather than reconstructing {url} and dropping fileName/originalName.
+            resolvedPhotos.push({ url: photo.url, fileName: photo.fileName, originalName: photo.originalName });
         }
     }
     return { ...offering, photos: resolvedPhotos };

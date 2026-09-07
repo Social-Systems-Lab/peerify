@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useLayoutEffect, useMemo, useState } from "react";
 import {
     Dialog,
     DialogContent,
@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
 import {
     accommodationSubTypes,
+    Media,
     OfferDetails,
     promotionChannels,
     TourTeamOffering,
@@ -50,22 +51,54 @@ interface CreateOfferModalProps {
     // Structured types offered in Step 1, already filtered for venue vs. personal circles by the
     // caller (OFFER_MODAL_TYPES or VENUE_OFFER_MODAL_TYPES). "Other" is always offered on top.
     allowedTypes: readonly (typeof OFFER_MODAL_TYPES)[number][];
-    // Predefined types the circle already has an offering for — disabled in Step 1 since editing
-    // an existing offering is out of scope for this pass (one offering per predefined type, same
-    // invariant the old checkbox editor enforced).
+    // Predefined types the circle already has an offering for — disabled in Step 1 since Step 1
+    // is create-only (see editingOffering below); one offering per predefined type, same invariant
+    // the old checkbox editor enforced.
     existingTypes: ReadonlySet<string>;
     onAdd: (offering: TourTeamOffering) => void;
+    onSave: (offering: TourTeamOffering) => void;
+    // Non-null opens the modal straight to Step 2, pre-filled from this offering, type locked (no
+    // Step 1 grid, no Back) — editing an offering reuses the same two-step form, it just skips
+    // choosing a type since that's already decided. Pass null/undefined for the "Add an offer" flow.
+    editingOffering?: TourTeamOffering | null;
 }
 
 const EMPTY_IMAGES: ImageItem[] = [];
 
-export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTypes, onAdd }: CreateOfferModalProps) {
+// TourTeamOffering.photos is persisted as fileInfoSchema[], but MultiImageUploader's
+// `initialImages` prop wants the Media[] shape (Circle.images/Event.images's own shape) — wrap
+// each saved photo in a throwaway Media envelope just so the uploader can read `.fileInfo.url`.
+function offeringPhotosToMediaSeed(photos: TourTeamOffering["photos"]): Media[] {
+    if (!photos?.length) return [];
+    return photos.map((photo) => ({ name: photo.originalName || "offer-photo", type: "image", fileInfo: photo }));
+}
+
+// Also seed this component's own `photos` draft state directly (not just the uploader's internal
+// display) — MultiImageUploader never calls `onChange` for its initial seed, so without this an
+// untouched edit (user opens the modal, changes an unrelated field, saves) would submit an EMPTY
+// photos array and silently wipe out the offering's existing photos.
+function offeringPhotosToImageItems(photos: TourTeamOffering["photos"]): ImageItem[] {
+    if (!photos?.length) return [];
+    return photos.map((photo) => ({ id: photo.url, preview: photo.url, existingMediaUrl: photo.url }));
+}
+
+export function CreateOfferModal({
+    open,
+    onOpenChange,
+    allowedTypes,
+    existingTypes,
+    onAdd,
+    onSave,
+    editingOffering,
+}: CreateOfferModalProps) {
+    const isEditing = Boolean(editingOffering);
+
     const [step, setStep] = useState<1 | 2>(1);
-    const [selectedType, setSelectedType] = useState<ModalOfferingType | null>(null);
+    const [selectedType, setSelectedType] = useState<TourTeamOffering["type"] | null>(null);
     const [photos, setPhotos] = useState<ImageItem[]>(EMPTY_IMAGES);
 
     // Step 2 field state — a flat bag covering every type's fields is simpler than swapping
-    // per-type form schemas for a single-use "add" form with no live preview yet; only the
+    // per-type form schemas for a single-use "add/edit" form with no live preview yet; only the
     // fields relevant to `selectedType` are ever rendered or read at submit time.
     const [label, setLabel] = useState("");
     const [detail, setDetail] = useState("");
@@ -83,8 +116,8 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
     // `photos` in particular isn't type-scoped in the data model — without clearing it here,
     // picking a type, uploading photos, hitting Back, and picking a *different* type would
     // silently carry the first type's photos onto the second type's offering (MultiImageUploader
-    // itself remounts empty since it only ever seeds from a hardcoded `initialImages={[]}`, but
-    // this component's own `photos` state would still hold the stale array underneath it).
+    // itself remounts empty since it only ever seeds from `initialImages` at mount, but this
+    // component's own `photos` state would still hold the stale array underneath it).
     const resetStepTwoFields = () => {
         setPhotos(EMPTY_IMAGES);
         setLabel("");
@@ -106,6 +139,52 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
         setSelectedType(null);
         resetStepTwoFields();
     };
+
+    // Seeds Step 2 directly from `editingOffering` whenever the modal opens in edit mode, or
+    // resets to a blank Step 1 otherwise. Keyed on `open` (not `editingOffering`) since that's the
+    // only thing that actually transitions while this component's instance is shared between the
+    // "Add an offer" and per-card edit flows — see OfferManager. useLayoutEffect (not useEffect) so
+    // the seeded state commits before paint, avoiding a one-frame flash of Step 1 or blank fields
+    // when opening straight into an edit.
+    useLayoutEffect(() => {
+        if (!open) return;
+        if (!editingOffering) {
+            resetForm();
+            return;
+        }
+
+        resetStepTwoFields();
+        setSelectedType(editingOffering.type);
+        setStep(2);
+        setLabel(editingOffering.label || "");
+        setDetail(editingOffering.detail || "");
+        setAccommodationType(editingOffering.accommodationType || "");
+        setPhotos(offeringPhotosToImageItems(editingOffering.photos));
+
+        const details = editingOffering.details;
+        switch (details?.type) {
+            case "accommodation":
+                setMaxStayNights(details.maxStayNights ? String(details.maxStayNights) : "");
+                setCheckInFlexible(Boolean(details.checkInFlexible));
+                break;
+            case "hostingShow":
+                setCapacity(details.capacity ? String(details.capacity) : "");
+                setSpaceDescription(details.spaceDescription || "");
+                break;
+            case "meal":
+                setCuisine(details.cuisine || "");
+                setDietaryNotes(details.dietaryNotes || "");
+                break;
+            case "transport":
+                setRouteNotes(details.routeNotes || "");
+                break;
+            case "promotion":
+                setChannels(details.channels ? [...details.channels] : []);
+                setPromotionNotes(details.notes || "");
+                break;
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open]);
 
     const handleOpenChange = (nextOpen: boolean) => {
         if (!nextOpen) resetForm();
@@ -167,26 +246,32 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
                     notes: promotionNotes.trim() || undefined,
                 };
                 break;
-            case "custom":
+            default:
+                // "custom", plus any legacy type with no Step 2 form of its own (city_guide,
+                // sound_equipment_help) — editable via the generic detail/photos fields only.
                 details = undefined;
                 break;
         }
 
         const offering: TourTeamOffering = {
-            id: crypto.randomUUID(),
-            type: selectedType as TourTeamOffering["type"],
+            id: editingOffering?.id ?? crypto.randomUUID(),
+            type: selectedType,
             label: isCustom ? label.trim() : undefined,
-            detail: isCustom ? detail.trim() || undefined : undefined,
+            detail: detail.trim() || undefined,
             accommodationType:
                 selectedType === "spare_room" && accommodationType ? accommodationType : undefined,
             details,
             // Persisted as fileInfoSchema[] — resolved from these ImageItem drafts (new File
-            // uploads) when the Presence settings form is saved. See savePresence
-            // (settings/presence/actions.ts).
+            // uploads, or kept `existingMediaUrl` entries) when the Presence settings form is
+            // saved. See savePresence (settings/presence/actions.ts).
             photos: photos as unknown as TourTeamOffering["photos"],
         };
 
-        onAdd(offering);
+        if (isEditing) {
+            onSave(offering);
+        } else {
+            onAdd(offering);
+        }
         handleOpenChange(false);
     };
 
@@ -194,17 +279,21 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>Create an offer</DialogTitle>
+                    <DialogTitle>{isEditing ? "Edit offer" : "Create an offer"}</DialogTitle>
                     <DialogDescription>
                         {step === 1
                             ? "What can you offer to visiting artists?"
                             : selectedType === "custom"
                               ? "Describe your offer."
-                              : `Add details for ${selectedType ? tourTeamOfferingTypeLabels[selectedType as (typeof tourTeamOfferingTypes)[number]] : ""}.`}
+                              : `${isEditing ? "Edit" : "Add"} details for ${
+                                    selectedType
+                                        ? (tourTeamOfferingTypeLabels[selectedType as (typeof tourTeamOfferingTypes)[number]] ?? selectedType)
+                                        : ""
+                                }.`}
                     </DialogDescription>
                 </DialogHeader>
 
-                {step === 1 && (
+                {step === 1 && !isEditing && (
                     <div className="grid grid-cols-2 gap-3 py-2 sm:grid-cols-3">
                         {tiles.map(({ type, isOther }) => {
                             const alreadyAdded = !isOther && existingTypes.has(type);
@@ -280,13 +369,19 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
                                         placeholder="Optional"
                                     />
                                 </div>
-                                <div className="flex items-center justify-between">
-                                    <Label htmlFor="offer-checkin-flexible">Flexible check-in</Label>
-                                    <Switch
-                                        id="offer-checkin-flexible"
-                                        checked={checkInFlexible}
-                                        onCheckedChange={setCheckInFlexible}
-                                    />
+                                <div className="space-y-1">
+                                    <div className="flex items-center justify-between">
+                                        <Label htmlFor="offer-checkin-flexible">Flexible check-in</Label>
+                                        <Switch
+                                            id="offer-checkin-flexible"
+                                            checked={checkInFlexible}
+                                            onCheckedChange={setCheckInFlexible}
+                                        />
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Lets a visiting artist arrive or leave outside your usual check-in/check-out
+                                        times, instead of a fixed schedule.
+                                    </p>
                                 </div>
                             </>
                         )}
@@ -368,7 +463,7 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
                                     </ToggleGroup>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="offer-promotion-notes">Anything else?</Label>
+                                    <Label htmlFor="offer-promotion-notes">Anything else about how you&apos;d promote it?</Label>
                                     <Textarea
                                         id="offer-promotion-notes"
                                         value={promotionNotes}
@@ -380,23 +475,24 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
                             </>
                         )}
 
-                        {isCustom && (
-                            <div className="space-y-2">
-                                <Label htmlFor="offer-detail">Anything else?</Label>
-                                <Textarea
-                                    id="offer-detail"
-                                    value={detail}
-                                    onChange={(e) => setDetail(e.target.value)}
-                                    maxLength={300}
-                                    placeholder="Optional"
-                                />
-                            </div>
-                        )}
+                        {/* Generic freeform note, shown for every type (including Other, where this
+                            is the only field) — the base schema's `detail` field, not tied to any
+                            one type's `details` variant. */}
+                        <div className="space-y-2">
+                            <Label htmlFor="offer-detail">Tell people more about this offer</Label>
+                            <Textarea
+                                id="offer-detail"
+                                value={detail}
+                                onChange={(e) => setDetail(e.target.value)}
+                                maxLength={300}
+                                placeholder="Optional"
+                            />
+                        </div>
 
                         <div className="space-y-2">
                             <Label>Photos</Label>
                             <MultiImageUploader
-                                initialImages={[]}
+                                initialImages={offeringPhotosToMediaSeed(editingOffering?.photos)}
                                 onChange={setPhotos}
                                 maxImages={10}
                                 previewMode="large"
@@ -409,14 +505,14 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
                 )}
 
                 <DialogFooter>
-                    {step === 2 && (
+                    {step === 2 && !isEditing && (
                         <Button type="button" variant="outline" onClick={goBack}>
                             Back
                         </Button>
                     )}
                     {step === 2 && (
                         <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
-                            Add offer
+                            {isEditing ? "Save changes" : "Add offer"}
                         </Button>
                     )}
                 </DialogFooter>
