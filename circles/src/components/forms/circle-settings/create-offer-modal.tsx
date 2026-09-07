@@ -80,9 +80,12 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
     const [channels, setChannels] = useState<string[]>([]);
     const [promotionNotes, setPromotionNotes] = useState("");
 
-    const resetForm = () => {
-        setStep(1);
-        setSelectedType(null);
+    // `photos` in particular isn't type-scoped in the data model — without clearing it here,
+    // picking a type, uploading photos, hitting Back, and picking a *different* type would
+    // silently carry the first type's photos onto the second type's offering (MultiImageUploader
+    // itself remounts empty since it only ever seeds from a hardcoded `initialImages={[]}`, but
+    // this component's own `photos` state would still hold the stale array underneath it).
+    const resetStepTwoFields = () => {
         setPhotos(EMPTY_IMAGES);
         setLabel("");
         setDetail("");
@@ -98,12 +101,19 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
         setPromotionNotes("");
     };
 
+    const resetForm = () => {
+        setStep(1);
+        setSelectedType(null);
+        resetStepTwoFields();
+    };
+
     const handleOpenChange = (nextOpen: boolean) => {
         if (!nextOpen) resetForm();
         onOpenChange(nextOpen);
     };
 
     const selectType = (type: ModalOfferingType) => {
+        resetStepTwoFields();
         setSelectedType(type);
         setStep(2);
     };
