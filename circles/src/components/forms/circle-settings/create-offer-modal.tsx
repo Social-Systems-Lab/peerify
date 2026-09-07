@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { MultiImageUploader, ImageItem } from "@/components/forms/controls/multi-image-uploader";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
 import {
@@ -33,6 +34,14 @@ import {
     tourTeamOfferingTypeLabels,
 } from "@/lib/data/tour-team-offerings";
 
+// No EXIF-stripping on these uploads yet (deliberately deferred — see SESSION_LOG.md 2026-09-07,
+// a flagged privacy follow-up, not a forgotten TODO). This nudge is a cheap, immediate mitigation
+// in the meantime: steer people away from shots that would reveal identifying/location details in
+// the first place.
+const ACCOMMODATION_PHOTO_NUDGE =
+    "Show the room or interior — avoid the building's exterior, street signs, or house numbers that could reveal your address.";
+const GENERIC_PHOTO_NUDGE = "Avoid faces and other identifying details.";
+
 type ModalOfferingType = (typeof OFFER_MODAL_TYPES)[number] | "custom";
 
 interface CreateOfferModalProps {
@@ -48,9 +57,12 @@ interface CreateOfferModalProps {
     onAdd: (offering: TourTeamOffering) => void;
 }
 
+const EMPTY_IMAGES: ImageItem[] = [];
+
 export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTypes, onAdd }: CreateOfferModalProps) {
     const [step, setStep] = useState<1 | 2>(1);
     const [selectedType, setSelectedType] = useState<ModalOfferingType | null>(null);
+    const [photos, setPhotos] = useState<ImageItem[]>(EMPTY_IMAGES);
 
     // Step 2 field state — a flat bag covering every type's fields is simpler than swapping
     // per-type form schemas for a single-use "add" form with no live preview yet; only the
@@ -71,6 +83,7 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
     const resetForm = () => {
         setStep(1);
         setSelectedType(null);
+        setPhotos(EMPTY_IMAGES);
         setLabel("");
         setDetail("");
         setAccommodationType("");
@@ -157,8 +170,10 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
             accommodationType:
                 selectedType === "spare_room" && accommodationType ? accommodationType : undefined,
             details,
-            // Photo picker lands in a follow-up commit — no photos collected yet.
-            photos: undefined,
+            // Persisted as fileInfoSchema[] — resolved from these ImageItem drafts (new File
+            // uploads) when the Presence settings form is saved. See savePresence
+            // (settings/presence/actions.ts).
+            photos: photos as unknown as TourTeamOffering["photos"],
         };
 
         onAdd(offering);
@@ -367,6 +382,19 @@ export function CreateOfferModal({ open, onOpenChange, allowedTypes, existingTyp
                                 />
                             </div>
                         )}
+
+                        <div className="space-y-2">
+                            <Label>Photos</Label>
+                            <MultiImageUploader
+                                initialImages={[]}
+                                onChange={setPhotos}
+                                maxImages={10}
+                                previewMode="large"
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                {selectedType === "spare_room" ? ACCOMMODATION_PHOTO_NUDGE : GENERIC_PHOTO_NUDGE}
+                            </p>
+                        </div>
                     </div>
                 )}
 

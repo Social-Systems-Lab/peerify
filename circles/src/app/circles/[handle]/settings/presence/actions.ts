@@ -3,8 +3,36 @@
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getCircleById, getCirclePath, updateCircle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
-import { Circle, FormSubmitResponse } from "@/models/models";
+import { isFile, saveFile } from "@/lib/data/storage";
+import { Circle, FileInfo, FormSubmitResponse, TourTeamOffering } from "@/models/models";
 import { revalidatePath } from "next/cache";
+
+// An offering's `photos` arrives from CreateOfferModal as MultiImageUploader's draft ImageItem
+// shape ({id, file?, preview, existingMediaUrl?}), not the persisted fileInfoSchema[] — mirrors
+// how saveAbout() (settings/about/actions.ts) resolves Circle.images at submit time, rather than
+// uploading on every photo pick inside the modal. Any item missing both a new file and a resolvable
+// existing url is dropped rather than persisting a broken photo entry. No EXIF-stripping here —
+// deliberately deferred, see SESSION_LOG.md 2026-09-07.
+async function resolveOfferingPhotos(offering: TourTeamOffering, circleId: string): Promise<TourTeamOffering> {
+    const draftPhotos = offering.photos as unknown as
+        | Array<{ file?: File; url?: string; existingMediaUrl?: string }>
+        | undefined;
+    if (!draftPhotos || draftPhotos.length === 0) {
+        return offering;
+    }
+
+    const resolvedPhotos: FileInfo[] = [];
+    for (const photo of draftPhotos) {
+        if (isFile(photo.file)) {
+            resolvedPhotos.push(await saveFile(photo.file, "offer-photo", circleId, true));
+        } else if (typeof photo.url === "string") {
+            resolvedPhotos.push({ url: photo.url });
+        } else if (typeof photo.existingMediaUrl === "string") {
+            resolvedPhotos.push({ url: photo.existingMediaUrl });
+        }
+    }
+    return { ...offering, photos: resolvedPhotos };
+}
 
 export async function savePresence(data: Circle): Promise<FormSubmitResponse> {
     try {
@@ -22,6 +50,10 @@ export async function savePresence(data: Circle): Promise<FormSubmitResponse> {
             delete engagementSettings.interests;
         }
 
+        const resolvedOfferings = data.tourTeamOfferings
+            ? await Promise.all(data.tourTeamOfferings.map((offering) => resolveOfferingPhotos(offering, data._id as string)))
+            : data.tourTeamOfferings;
+
         // offersVisible is deliberately NOT included here — it auto-saves on click via its own
         // dedicated action (setOffersVisibleAction below), the same reasoning as crewEnabled
         // being kept out of saveAbout()'s whitelist: submitting this form must never silently
@@ -33,7 +65,7 @@ export async function savePresence(data: Circle): Promise<FormSubmitResponse> {
                 offers: data.offers,
                 engagements: engagementSettings,
                 needs: data.needs,
-                tourTeamOfferings: data.tourTeamOfferings,
+                tourTeamOfferings: resolvedOfferings,
             },
             userDid,
         );
