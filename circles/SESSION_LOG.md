@@ -3785,3 +3785,45 @@ Back-then-different-type and Back-then-same-type-again). Caught by re-tracing th
 state transitions, not by running it — still recommend hitting this exact path (pick a type,
 add a photo, Back, pick a different type, submit without touching photos again) during manual
 verification, along with the rest of the click-through.
+
+### 2026-09-07 — Offer modal follow-ups from manual testing: universal detail field, check-in helper text, edit-in-place
+
+Manual pass on the schema/modal/photo work above confirmed uploads, save, and reload-persistence
+all work. Three follow-ups from that testing, plus one fix found while implementing them:
+
+**Universal "Tell people more about this offer" field:** the base schema already had a generic
+`detail` field (used only by "Other" before this), but Accommodation had no freeform text at all.
+Exposed the same `detail` field on every type's Step 2 form, not just Other's — it's independent
+of each type's own structured `details` fields (spaceDescription, dietaryNotes, routeNotes,
+promotion's channels/notes), so both can now show together in the Presence-settings offer list
+where previously `detail` only rendered as a fallback when there was no structured summary.
+Reworded promotion's own `notes` field label to "Anything else about how you'd promote it?" so it
+reads distinctly from the new universal field instead of two near-identical "Anything else?" boxes.
+
+**"Flexible check-in" helper text:** one line under the toggle — "Lets a visiting artist arrive or
+leave outside your usual check-in/check-out times, instead of a fixed schedule."
+
+**Edit-in-place:** `CreateOfferModal` now takes `editingOffering`/`onSave` alongside the existing
+`onAdd` — non-null `editingOffering` opens straight to a pre-filled Step 2 with the type locked (no
+Step 1 grid, no Back button), reusing the exact same form as creation. `OfferManager` adds a pencil
+icon per offering card (next to the existing remove ✕) that opens the modal in edit mode. Type is
+not changeable during edit — reassigning a predefined offering's type mid-edit would collide with
+the one-per-type invariant and the type-specific `details` shape, so this is scoped to "edit this
+offering's own fields," not "convert it to a different type." Existing photos round-trip correctly
+whether touched or not (seeded into both the uploader's display and this component's own submit
+state, since MultiImageUploader never fires `onChange` for its initial seed).
+
+**Fix found while wiring this up:** `resolveOfferingPhotos` (savePresence) was reconstructing
+already-resolved photos as a bare `{url}`, silently dropping `fileName`/`originalName` — on
+*every* offering in the array, not just the one being edited, since this function runs
+unconditionally on save. Harmless today (nothing reads those two fields), but real metadata loss
+on every save cycle. Fixed to pass already-resolved photos through unchanged.
+
+Typecheck, lint, and build all clean. Still not manually verified in a browser — recommend
+covering: Accommodation's new detail field survives a save+reload, the check-in helper text
+renders, opening edit on each offer type pre-fills correctly (including an offering with no
+`details` yet — legacy/bare-bones case), editing an offering with existing photos without
+touching the picker doesn't drop them, and editing one while adding a new photo keeps both.
+
+**Status:** 1 further commit on `staging`, stacked on the 4 above. Still not deployed or
+cherry-picked to main.

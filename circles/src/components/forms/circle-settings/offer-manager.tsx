@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { TourTeamOffering } from "@/models/models";
 import {
     getOfferDetailsSummary,
@@ -24,6 +24,10 @@ interface OfferManagerProps {
 
 export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES }: OfferManagerProps) {
     const [modalOpen, setModalOpen] = useState(false);
+    // Non-null while editing an existing offering — CreateOfferModal reads this to open straight
+    // to a pre-filled Step 2 instead of the create flow's Step 1 grid. Cleared on close so the
+    // next "Add an offer" click doesn't reopen into a stale edit.
+    const [editingOffering, setEditingOffering] = useState<TourTeamOffering | null>(null);
     const offerings = useMemo(() => (Array.isArray(value) ? value : []), [value]);
 
     const existingTypes = useMemo(
@@ -37,6 +41,25 @@ export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES
 
     const addOffering = (offering: TourTeamOffering) => {
         onChange([...offerings, offering]);
+    };
+
+    const saveOffering = (updated: TourTeamOffering) => {
+        onChange(offerings.map((offering) => (offering.id === updated.id ? updated : offering)));
+    };
+
+    const openAddModal = () => {
+        setEditingOffering(null);
+        setModalOpen(true);
+    };
+
+    const openEditModal = (offering: TourTeamOffering) => {
+        setEditingOffering(offering);
+        setModalOpen(true);
+    };
+
+    const handleModalOpenChange = (open: boolean) => {
+        setModalOpen(open);
+        if (!open) setEditingOffering(null);
     };
 
     return (
@@ -64,15 +87,22 @@ export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES
                                             {accommodationSubTypeLabels[offering.accommodationType]}
                                         </p>
                                     )}
-                                    {/* Bare-bones fallback for legacy offerings with no structured `details` yet
-                                        (all current data is demo data) — falls back to the old free-text `detail`
-                                        field, same as before this modal existed. */}
-                                    {summary ? (
-                                        <p className="text-xs text-muted-foreground">{summary}</p>
-                                    ) : offering.detail ? (
-                                        <p className="text-xs text-muted-foreground">{offering.detail}</p>
-                                    ) : null}
+                                    {/* Bare-bones fallback for legacy offerings with no structured `details`
+                                        (all current data is demo data): summary is undefined so only `detail`
+                                        (if present) renders. For everything created via the modal now, `detail`
+                                        is its own general freeform note independent of `details`, so both can
+                                        render together. */}
+                                    {summary && <p className="text-xs text-muted-foreground">{summary}</p>}
+                                    {offering.detail && <p className="text-xs text-muted-foreground">{offering.detail}</p>}
                                 </div>
+                                <button
+                                    type="button"
+                                    aria-label="Edit offering"
+                                    onClick={() => openEditModal(offering)}
+                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-black/10"
+                                >
+                                    <Pencil className="h-4 w-4" />
+                                </button>
                                 <button
                                     type="button"
                                     aria-label="Remove offering"
@@ -87,16 +117,18 @@ export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES
                 </div>
             )}
 
-            <Button type="button" variant="outline" onClick={() => setModalOpen(true)}>
+            <Button type="button" variant="outline" onClick={openAddModal}>
                 Add an offer
             </Button>
 
             <CreateOfferModal
                 open={modalOpen}
-                onOpenChange={setModalOpen}
+                onOpenChange={handleModalOpenChange}
                 allowedTypes={allowedTypes}
                 existingTypes={existingTypes}
                 onAdd={addOffering}
+                onSave={saveOffering}
+                editingOffering={editingOffering}
             />
         </div>
     );
