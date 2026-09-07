@@ -3767,6 +3767,21 @@ actual click-through/save flow has not been manually exercised. Recommend a manu
 offer of each type incl. Other, verify Step 1 disabling, upload photos, Save Changes, reload and
 confirm persistence) before treating this as done.
 
-**Status:** 3 commits on `staging` (`665f01a9` schema, `bbbddfd6` modal UI, plus a third
-photo/nudge-wiring commit landing right after this log entry). Not yet deployed to staging or
-cherry-picked to main.
+**Status:** 3 commits on `staging` (`665f01a9` schema, `bbbddfd6` modal UI, `e2b50793`
+photo/nudge wiring). Not yet deployed to staging or cherry-picked to main.
+
+**Decision:** the `city_guide`/`sound_equipment_help` narrowing (no longer creatable as their own
+Step 1 tiles, only reachable as "Other"/custom going forward) is accepted as-is — existing
+offerings of those types keep rendering unchanged.
+
+**Bug found + fixed during self-review, before any manual testing (`784f9521`):** `CreateOfferModal`'s
+Back button didn't reset Step 2 field state. `photos` isn't type-scoped in the data model, so
+picking a type, uploading photos, hitting Back, and picking a *different* type would silently
+carry the first type's photos onto the second type's offering — `MultiImageUploader` itself
+remounts looking empty (it only ever seeds from a hardcoded `initialImages={[]}`), which would
+have made this easy to miss on a quick click-through since the picker visually shows nothing.
+Fixed by resetting all Step 2 fields whenever a type tile is selected (covers both
+Back-then-different-type and Back-then-same-type-again). Caught by re-tracing the component's
+state transitions, not by running it — still recommend hitting this exact path (pick a type,
+add a photo, Back, pick a different type, submit without touching photos again) during manual
+verification, along with the rest of the click-through.
