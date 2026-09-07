@@ -3864,3 +3864,55 @@ state matches Mongo after every save. Typecheck, lint, and build all clean.
 **Status:** 1 further commit on `staging`. Still not deployed or cherry-picked to main. Recommend
 re-testing the exact repro (add/edit an Accommodation photo, Save, then Edit that same offering
 again without reloading) to confirm the fix holds.
+
+### 2026-09-07 — form.setValue fix didn't fully hold; switched to form.reset(); reload-vs-hard-refresh still open
+
+**Report (confirmed on a genuinely fresh/hard-refreshed load, not a stale tab):** editing the same
+offering again immediately after a successful save (zero reloads, zero network calls in between)
+still showed the photo gone from the picker. Separately: a normal browser reload also lost the
+photo from the offer card entirely; only a hard/cache-bypassing refresh recovered it.
+
+**Re-investigated the `form.setValue` path.** Traced `savePresence`'s return shape
+(`data: { tourTeamOfferings: resolvedOfferings } `) against the client's consumption
+(`result.data?.tourTeamOfferings`) — they match exactly. Confirmed `resolvedOfferings` is the
+literal same array reference used for both the Mongo write and the response, so if a hard refresh
+proves Mongo has the photo, the response necessarily carried it too. Could not find a definitive
+logical flaw in `setValue`'s notification path via static analysis (Controller subscriptions
+should pick up any `setValue` call for a registered field). Rather than keep chasing that specific
+edge case, switched to `form.reset({...data, tourTeamOfferings: result.data.tourTeamOfferings})` —
+the more forceful, canonical RHF pattern for "re-sync the whole form to server truth after a
+successful submit," which unconditionally replaces all form values and forces every subscribed
+Controller to re-render, sidestepping whatever `setValue`'s issue might have been. Also clears
+`isDirty` now that the save succeeded, which `setValue` didn't. Typecheck/lint/build clean.
+
+**Reload-vs-hard-refresh discrepancy: still open, confirmed NOT explained by this fix.** This fix
+is purely in-memory client React state — it cannot affect a genuine full-page reload, which
+destroys all JS state and re-mounts everything fresh from a new server fetch. Re-swept every
+caching layer looking for what could explain "normal reload stale, hard refresh fresh":
+- No `unstable_cache` anywhere relevant (only one unrelated use in `platform-stats.ts`).
+- `getCircleByHandle`/`getCircleById` are plain uncached `Circles.findOne` calls — no `fetch()`,
+  no React `cache()`, no route-segment `revalidate`/`dynamic`/`fetchCache` config.
+- `next.config.mjs` has no `headers()` override.
+- nginx (`/etc/nginx/sites-available/staging.peerify.one`) is a bare reverse proxy — no
+  `proxy_cache`, no cache-control injection.
+- `public/sw.js` has no `fetch` event listener at all — can't be intercepting navigation.
+- Live-curled `https://staging.peerify.one/` and confirmed Next is sending
+  `Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate` (its standard
+  dynamic-route header, since that page also reads cookies via the same
+  `getAuthenticatedUserDid()`/`cookies()` path presence-settings uses) — this should prevent a
+  browser from serving a cached copy on a plain reload. Could not curl the settings page itself
+  directly (requires an authenticated session).
+- MongoDB is a single local `mongod` (`127.0.0.1:27017`), not a replica set, so there's no
+  read-lag/eventual-consistency window to blame either.
+
+Every app-level and infra-level caching mechanism checked comes back clean. Given `no-store` is
+confirmed live for at least one dynamic route, the leading remaining hypothesis is a **browser-level
+reload/bfcache quirk** (documented to vary by browser, e.g. Safari has known bfcache-eligibility
+edge cases around reload actions) rather than an application bug — but this is unconfirmed without
+seeing the actual request/response headers for the settings page during a real repro. Asked for a
+DevTools Network-tab check (status code + Cache-Control on the document request, normal vs. hard
+reload) as the most direct next step, since it can't be verified further via code/config
+inspection alone.
+
+**Status:** 2 further commits on `staging` total for this investigation thread. Reload discrepancy
+remains an open, distinct issue pending browser-side diagnostic info.
