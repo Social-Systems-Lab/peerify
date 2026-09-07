@@ -3695,3 +3695,43 @@ deploy.
 - Tag-based event search/filter — feature request, not yet scoped.
 
 **Status:** live on `main`/prod as of 2026-08-28.
+
+### 2026-09-07 — Offer `details`/`photos` schema (Phase 1 of "Create an offer" work)
+
+**Schema-only commit.** Extended `TourTeamOffering` (`src/models/models.ts`) — the existing
+Crew-offer model (`Circle.tourTeamOfferings`), not a new collection — with:
+- `details`: an optional Zod discriminated union on its own `type` field (`accommodation`,
+  `hostingShow`, `meal`, `transport`, `promotion`), mapped from `offering.type`'s existing
+  snake_case values (`spare_room`, `hosting_show`, `home_cooked_meal`, `local_transport`, and a
+  newly added `promotion` value). `city_guide`/`sound_equipment_help`/`custom` ("Other") never
+  carry `details`. Optional end-to-end so every existing (demo) offering with no `details` at all
+  still parses and reads fine — renders bare-bones until the owner edits it via the upcoming
+  modal.
+- `photos`: `fileInfoSchema.array().max(10).optional()` — reuses the same embedded-FileInfo shape
+  already used by `Event.images`/`Circle.images`, not a new "photoIds referencing a photo
+  collection" concept (no such collection exists anywhere in this codebase to reference by id).
+- `hosting_show`'s label (`tourTeamOfferingTypeLabels`, `lib/data/tour-team-offerings.ts`) changed
+  from "Hosting a show" to **"Show space"** — copy-only, enum value unchanged. This offering type
+  is a pitch/contact mechanism only; it does not link to or create a Home Show event (no
+  `linkedEventId`, no event-creation handoff) — the rename is to stop it reading like it does.
+- Added `promotion` as a new top-level offering type (label "Promotion", icon `Megaphone`) since
+  it's one of the six types in the new "Create an offer" modal's Step 1 grid and didn't exist
+  before.
+
+**Known follow-up — privacy, not yet built:** `photos` has **no EXIF-stripping** on upload.
+Checked the entire upload pipeline (`MultiImageUploader` + `saveFile` in `lib/data/storage.ts`) —
+there is no EXIF/metadata stripping anywhere in this codebase for any image upload today, not
+just offers. Deferred deliberately for this pass (limited resources, current offer data is
+demo-only, no real users' photos at stake yet) — the upload nudge copy (interior-shot guidance for
+Accommodation, "avoid faces/identifying details" elsewhere) ships without it as a stopgap. **Must
+revisit before real users start uploading offer photos with any regularity** — an accommodation
+photo with embedded GPS EXIF data would leak the exact address the coarse map-pin grid
+(`getOfferPinLocation`) is deliberately designed to hide. Flag this again once traction on Offers
+picks up; not a forgotten TODO.
+
+Typecheck clean. Next: propose an entry point for the new "Create an offer" modal (Presence
+settings page is the leading candidate — see that page's existing `TourTeamOfferingsEditor`), then
+build the modal (Step 1 type grid, Step 2 form) and photo/nudge wiring as separate commits.
+
+**Status:** schema commit only, on `staging`. Not yet built: the modal UI, entry point, or photo
+upload wiring.

@@ -556,10 +556,67 @@ export const tourTeamOfferingTypes = [
     "city_guide",
     "home_cooked_meal",
     "sound_equipment_help",
+    "promotion",
 ] as const;
 
 // Sub-types for the "spare_room" (displayed as "Accommodation") offering type.
 export const accommodationSubTypes = ["room", "couch", "other"] as const;
+
+// Structured detail per offering type, added for the "Create an offer" modal's Step 2 form.
+// Deliberately its own discriminant vocabulary (accommodation/hostingShow/meal/transport/
+// promotion) rather than reusing tourTeamOfferingTypes' legacy snake_case values verbatim —
+// this union only covers the 5 types with a real Step 2 form; offering.type stays the source of
+// truth for which of the two it maps to:
+//   spare_room -> accommodation, hosting_show -> hostingShow, home_cooked_meal -> meal,
+//   local_transport -> transport, promotion -> promotion.
+// city_guide/sound_equipment_help and the custom ("Other") type never carry `details` — they
+// stay generic/type-less, same as before this field existed.
+// "hostingShow" is a pitch/contact mechanism only — it does NOT link to or create a Home Show
+// event (no linkedEventId, no event-creation handoff). UI copy calls this type "Show space" to
+// avoid confusion with the Home Shows event feature; the enum values (both here and on
+// offering.type, "hosting_show") are unchanged.
+// routeNotes/maxStayNights/checkInFlexible are intentionally freeform/simple fields, not
+// structured date-availability modeling — that's a separate future task.
+export const offerDetailsAccommodationSchema = z.object({
+    type: z.literal("accommodation"),
+    maxStayNights: z.number().int().positive().optional(),
+    checkInFlexible: z.boolean().optional(),
+});
+
+export const offerDetailsHostingShowSchema = z.object({
+    type: z.literal("hostingShow"),
+    capacity: z.number().int().positive().optional(),
+    spaceDescription: z.string().max(300).optional(),
+});
+
+export const offerDetailsMealSchema = z.object({
+    type: z.literal("meal"),
+    cuisine: z.string().max(100).optional(),
+    dietaryNotes: z.string().max(300).optional(),
+});
+
+export const offerDetailsTransportSchema = z.object({
+    type: z.literal("transport"),
+    routeNotes: z.string().max(300).optional(),
+});
+
+export const promotionChannels = ["social_media", "radio", "press", "flyering", "newsletter", "other"] as const;
+
+export const offerDetailsPromotionSchema = z.object({
+    type: z.literal("promotion"),
+    channels: z.array(z.enum(promotionChannels)).optional(),
+    notes: z.string().max(300).optional(),
+});
+
+export const offerDetailsSchema = z.discriminatedUnion("type", [
+    offerDetailsAccommodationSchema,
+    offerDetailsHostingShowSchema,
+    offerDetailsMealSchema,
+    offerDetailsTransportSchema,
+    offerDetailsPromotionSchema,
+]);
+
+export type OfferDetails = z.infer<typeof offerDetailsSchema>;
 
 export const tourTeamOfferingSchema = z.object({
     id: z.string(),
@@ -567,6 +624,13 @@ export const tourTeamOfferingSchema = z.object({
     label: z.string().max(60).optional(), // required (enforced in UI) when type === "custom"
     detail: z.string().max(300).optional(),
     accommodationType: z.enum(accommodationSubTypes).optional(), // only meaningful when type === "spare_room"
+    // Optional and absent on every existing (demo) offering — legacy/undefined `details` must
+    // parse cleanly and render bare-bones until the owner edits the offering via the new modal.
+    // See offerDetailsSchema above for the type-mapping and hostingShow/"Show space" note.
+    details: offerDetailsSchema.optional(),
+    // Reuses the same embedded FileInfo shape as Event.images/Circle.images (no separate
+    // "photo document with an id" concept exists anywhere in this codebase to reference by id).
+    photos: z.array(fileInfoSchema).max(10).optional(),
 });
 
 export type TourTeamOffering = z.infer<typeof tourTeamOfferingSchema>;
