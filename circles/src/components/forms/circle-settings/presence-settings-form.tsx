@@ -302,6 +302,15 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
 
             const result = await savePresence({ ...data, tourTeamOfferings });
             if (result.success) {
+                // savePresence returns the server-resolved offerings (real FileInfo photos, not
+                // the pre-save ImageItem drafts) — push them back into the form so editing the
+                // same offering again later in this page session seeds its photo picker from
+                // resolvable URLs instead of stale draft objects. router.refresh() alone doesn't
+                // do this: it re-renders the server tree, but this form's defaultValues were only
+                // ever applied once, at initial mount.
+                if (Array.isArray(result.data?.tourTeamOfferings)) {
+                    form.setValue("tourTeamOfferings", result.data.tourTeamOfferings);
+                }
                 toast({
                     title: "Success",
                     description: isUser ? "Offers updated successfully" : "Offers and needs updated successfully",

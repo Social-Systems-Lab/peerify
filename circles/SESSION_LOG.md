@@ -3827,3 +3827,40 @@ touching the picker doesn't drop them, and editing one while adding a new photo 
 
 **Status:** 1 further commit on `staging`, stacked on the 4 above. Still not deployed or
 cherry-picked to main.
+
+### 2026-09-07 — Bug found on staging after deploy: edit-in-place photos disappearing / rendering broken
+
+**Report:** editing an Accommodation offer that already had a photo — after Save, the existing
+photo was gone. Uploading a new photo while editing showed a broken/placeholder thumbnail
+("Uploaded image 1", no image) even before saving, and it didn't persist either.
+
+**Investigation (no fix applied until diagnosis was confirmed):** `resolveOfferingPhotos`
+(savePresence) was verified correct in isolation — given a real `FileInfo` (`{url,...}`), an
+`existingMediaUrl` string, or a fresh `File`, it resolves/passes through properly. The actual bug
+is upstream and single-rooted: `PresenceSettingsForm.onSubmit` only calls `router.refresh()` after
+a successful save — it never calls `form.reset()` or otherwise re-syncs the mounted
+`react-hook-form` instance's `tourTeamOfferings` field with the server-resolved data.
+`useForm({ defaultValues })` only applies `defaultValues` once, at initial mount; a
+`router.refresh()` re-renders the server component tree but doesn't touch already-mounted client
+form state. Consequence: after saving an offering with photos (via Add, or a first Edit) within
+one page load, the form's in-memory copy of that offering's `photos` stays the pre-save draft
+shape (`{id, file, preview: blob:...}` or `{id, preview, existingMediaUrl}`), never the persisted
+`FileInfo[]` (`{url, fileName, originalName}`) actually in Mongo. Editing that *same* offering
+again in the same session then seeds `CreateOfferModal` from this stale draft — the seeding
+helpers assume every photo has `.url`, so a draft entry produces `{id: undefined, preview:
+undefined, ...}` (the broken thumbnail), and on the next save `resolveOfferingPhotos` can't match
+any of its branches against the malformed entry, silently dropping it (the "disappearing" photo).
+One bug, not two — both symptoms are downstream of the same stale-form-state gap, and it only
+reproduces when editing an offering within the same page session it was last touched in, without
+an intervening hard reload. Pre-existing gap on this page (not introduced by the offer-modal
+commits) — just never previously exposed, since no other field here has a draft-vs-persisted
+shape distinction that needs to round-trip within a session.
+
+**Fix:** `savePresence` now returns the server-resolved `tourTeamOfferings` in
+`FormSubmitResponse.data`; `onSubmit` calls `form.setValue("tourTeamOfferings",
+result.data.tourTeamOfferings)` on success, before `router.refresh()`, so the form's in-memory
+state matches Mongo after every save. Typecheck, lint, and build all clean.
+
+**Status:** 1 further commit on `staging`. Still not deployed or cherry-picked to main. Recommend
+re-testing the exact repro (add/edit an Accommodation photo, Save, then Edit that same offering
+again without reloading) to confirm the fix holds.
