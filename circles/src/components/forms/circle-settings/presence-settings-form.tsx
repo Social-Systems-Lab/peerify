@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { useToast } from "@/components/ui/use-toast";
-import { accommodationSubTypes, Circle, tourTeamOfferingTypes, TourTeamOffering } from "@/models/models";
+import { Circle, TourTeamOffering } from "@/models/models";
 import { useRouter } from "next/navigation";
 import { useForm, Controller, Control } from "react-hook-form";
 import { savePresence, setOffersVisibleAction } from "@/app/circles/[handle]/settings/presence/actions";
@@ -23,14 +23,10 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, Search, X } from "lucide-react";
 import { skillsV2, skillCategoryLabels, SkillCategory } from "@/lib/data/skills-v2";
-import {
-    accommodationSubTypeLabels,
-    tourTeamOfferingTypeLabels,
-    VENUE_TOUR_TEAM_OFFERING_TYPES,
-} from "@/lib/data/tour-team-offerings";
+import { VENUE_OFFER_MODAL_TYPES } from "@/lib/data/tour-team-offerings";
+import { OfferManager } from "./offer-manager";
 import { isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import { cn } from "@/lib/utils";
 
@@ -183,164 +179,6 @@ function StructuredSkillSelector({ value, onChange }: StructuredSkillSelectorPro
                         <p className="text-sm text-muted-foreground">No skills selected yet.</p>
                     )}
                 </div>
-            </div>
-        </div>
-    );
-}
-
-interface TourTeamOfferingsEditorProps {
-    value: TourTeamOffering[] | undefined;
-    onChange: (offerings: TourTeamOffering[]) => void;
-    // Defaults to the full set (individual/"user" profiles) — venues pass
-    // VENUE_TOUR_TEAM_OFFERING_TYPES (tour-team-offerings.ts) to hide predefined types that don't
-    // fit a business profile. UI-only restriction: tourTeamOfferingSchema still permits all
-    // values, so this never blocks reading/rendering an offering of an excluded type if one
-    // somehow exists on the circle already (e.g. set before a subset was introduced).
-    allowedTypes?: readonly (typeof tourTeamOfferingTypes)[number][];
-}
-
-function TourTeamOfferingsEditor({
-    value,
-    onChange,
-    allowedTypes = tourTeamOfferingTypes,
-}: TourTeamOfferingsEditorProps): React.ReactElement {
-    const offerings = useMemo(() => (Array.isArray(value) ? value : []), [value]);
-
-    const predefinedByType = useMemo(() => {
-        const map = new Map<string, TourTeamOffering>();
-        for (const offering of offerings) {
-            if (offering.type !== "custom") {
-                map.set(offering.type, offering);
-            }
-        }
-        return map;
-    }, [offerings]);
-
-    const customOfferings = useMemo(() => offerings.filter((offering) => offering.type === "custom"), [offerings]);
-
-    const togglePredefined = (type: (typeof tourTeamOfferingTypes)[number]) => {
-        if (predefinedByType.has(type)) {
-            onChange(offerings.filter((offering) => offering.type !== type));
-            return;
-        }
-        onChange([...offerings, { id: type, type, detail: "" }]);
-    };
-
-    const updatePredefinedDetail = (type: (typeof tourTeamOfferingTypes)[number], detail: string) => {
-        onChange(offerings.map((offering) => (offering.type === type ? { ...offering, detail } : offering)));
-    };
-
-    const updateAccommodationType = (accommodationType: string) => {
-        onChange(
-            offerings.map((offering) =>
-                offering.type === "spare_room"
-                    ? { ...offering, accommodationType: accommodationType as TourTeamOffering["accommodationType"] }
-                    : offering,
-            ),
-        );
-    };
-
-    const addCustomOffering = () => {
-        onChange([...offerings, { id: crypto.randomUUID(), type: "custom", label: "", detail: "" }]);
-    };
-
-    const updateCustomOffering = (id: string, patch: Partial<TourTeamOffering>) => {
-        onChange(offerings.map((offering) => (offering.id === id ? { ...offering, ...patch } : offering)));
-    };
-
-    const removeOffering = (id: string) => {
-        onChange(offerings.filter((offering) => offering.id !== id));
-    };
-
-    return (
-        <div className="space-y-4">
-            <div className="grid gap-2 sm:grid-cols-2">
-                {allowedTypes.map((type) => {
-                    const selected = predefinedByType.get(type);
-                    const isSelected = Boolean(selected);
-                    return (
-                        <div
-                            key={type}
-                            className={cn(
-                                "space-y-2 rounded-md border px-3 py-2",
-                                isSelected ? "border-primary bg-primary/5" : "hover:bg-muted/40",
-                            )}
-                        >
-                            <button
-                                type="button"
-                                onClick={() => togglePredefined(type)}
-                                className="flex w-full items-center justify-between text-left text-sm"
-                            >
-                                <span>{tourTeamOfferingTypeLabels[type]}</span>
-                                {isSelected && <Check className="h-4 w-4 text-primary" />}
-                            </button>
-                            {isSelected && (
-                                <>
-                                    {type === "spare_room" && (
-                                        <Select
-                                            value={selected?.accommodationType || ""}
-                                            onValueChange={updateAccommodationType}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="What kind? (optional)" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {accommodationSubTypes.map((subType) => (
-                                                    <SelectItem key={subType} value={subType}>
-                                                        {accommodationSubTypeLabels[subType]}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    )}
-                                    <Input
-                                        type="text"
-                                        value={selected?.detail || ""}
-                                        onChange={(event) => updatePredefinedDetail(type, event.target.value)}
-                                        placeholder="Anything else? (optional)"
-                                        maxLength={300}
-                                    />
-                                </>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-
-            <div className="space-y-3">
-                <p className="text-sm font-medium">Custom offerings</p>
-                {customOfferings.map((offering) => (
-                    <div key={offering.id} className="space-y-2 rounded-md border px-3 py-2">
-                        <div className="flex items-center gap-2">
-                            <Input
-                                type="text"
-                                value={offering.label || ""}
-                                onChange={(event) => updateCustomOffering(offering.id, { label: event.target.value })}
-                                placeholder="e.g. Instrument loan"
-                                maxLength={60}
-                            />
-                            <button
-                                type="button"
-                                aria-label="Remove offering"
-                                onClick={() => removeOffering(offering.id)}
-                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-black/10"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                        <Input
-                            type="text"
-                            value={offering.detail || ""}
-                            onChange={(event) => updateCustomOffering(offering.id, { detail: event.target.value })}
-                            placeholder="Anything else? (optional)"
-                            maxLength={300}
-                        />
-                    </div>
-                ))}
-
-                <Button type="button" variant="outline" onClick={addCustomOffering}>
-                    + Add an offering
-                </Button>
             </div>
         </div>
     );
@@ -577,7 +415,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                     name="tourTeamOfferings"
                                     control={form.control as unknown as Control}
                                     render={({ field }) => (
-                                        <TourTeamOfferingsEditor
+                                        <OfferManager
                                             value={field.value as TourTeamOffering[] | undefined}
                                             onChange={field.onChange}
                                         />
@@ -608,10 +446,10 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                     name="tourTeamOfferings"
                                     control={form.control as unknown as Control}
                                     render={({ field }) => (
-                                        <TourTeamOfferingsEditor
+                                        <OfferManager
                                             value={field.value as TourTeamOffering[] | undefined}
                                             onChange={field.onChange}
-                                            allowedTypes={VENUE_TOUR_TEAM_OFFERING_TYPES}
+                                            allowedTypes={VENUE_OFFER_MODAL_TYPES}
                                         />
                                     )}
                                 />
