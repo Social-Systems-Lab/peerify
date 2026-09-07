@@ -1,13 +1,18 @@
-import { BedDouble, Car, Compass, Mic2, Sparkles, UtensilsCrossed, Volume2, type LucideIcon } from "lucide-react";
+import { BedDouble, Car, Compass, Megaphone, Mic2, Sparkles, UtensilsCrossed, Volume2, type LucideIcon } from "lucide-react";
 import { accommodationSubTypes, tourTeamOfferingTypes, TourTeamOffering } from "@/models/models";
 
+// "hosting_show" reads as "Show space" here (not "Hosting a show") to avoid confusion with the
+// separate Home Shows event feature — this offering is a pitch/contact mechanism only, it never
+// links to or creates an event. The underlying enum value is left unchanged; this is a copy-only
+// rename shared by every consumer of this label map.
 export const tourTeamOfferingTypeLabels: Record<(typeof tourTeamOfferingTypes)[number], string> = {
     spare_room: "Accommodation",
-    hosting_show: "Hosting a show",
+    hosting_show: "Show space",
     local_transport: "Transport",
     city_guide: "City knowledge / tour guide",
     home_cooked_meal: "Meal",
     sound_equipment_help: "Sound & equipment help",
+    promotion: "Promotion",
 };
 
 // Curated subset for venue circles (identityType "venue" — see isPeerifyVenueIdentity), rendered
@@ -31,6 +36,7 @@ export const tourTeamOfferingTypeIcons: Record<(typeof tourTeamOfferingTypes)[nu
     city_guide: Compass,
     home_cooked_meal: UtensilsCrossed,
     sound_equipment_help: Volume2,
+    promotion: Megaphone,
 };
 
 // Accepts a plain string (not just TourTeamOffering["type"]) so callers working from a
