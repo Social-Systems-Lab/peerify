@@ -3735,3 +3735,38 @@ build the modal (Step 1 type grid, Step 2 form) and photo/nudge wiring as separa
 
 **Status:** schema commit only, on `staging`. Not yet built: the modal UI, entry point, or photo
 upload wiring.
+
+### 2026-09-07 — "Create an offer" modal + photo/nudge wiring (Phase 2)
+
+**Entry point (`bbbddfd6`):** replaced the Presence settings page's checkbox-grid
+`TourTeamOfferingsEditor` with a new `OfferManager` (offering list + "Add an offer" button) +
+`CreateOfferModal` (Step 1 icon grid, Step 2 per-type form), in both of that page's "Offers" cards
+(personal + venue). Promotion is venue-eligible per Tim's decision (flyers/regulars/local listings
+is a natural venue offer). Predefined types the circle already has are shown disabled ("Already
+added") in Step 1 — editing an existing offering stays out of scope for this pass. `city_guide`/
+`sound_equipment_help` are no longer creatable from the new modal (not part of the fixed 6-tile
+Step 1 grid) — existing offerings of those types still render/persist fine, just not addable fresh
+via this UI. `VENUE_TOUR_TEAM_OFFERING_TYPES` renamed to `VENUE_OFFER_MODAL_TYPES` and repointed
+at the new modal (dropped `sound_equipment_help`, added `promotion`).
+
+**Photo picker + upload nudge (follow-up commit):** wired `MultiImageUploader` into Step 2 (up to
+10 photos, carousel preview), plus type-aware nudge copy below the picker — interior/room-shot
+guidance for Accommodation, generic "avoid faces and identifying details" for every other type.
+`savePresence` (settings/presence/actions.ts) now resolves each offering's photo drafts (new
+`File` uploads via `saveFile`, prefix `offer-photo`) into persisted `FileInfo[]` at save time —
+same deferred-upload-at-submit pattern as `saveAbout()`'s `Circle.images` handling, not an
+upload-on-pick call inside the modal.
+
+**Still no EXIF-stripping** (see the schema-commit entry above) — the nudge copy is the only
+mitigation in place for now. Flagging again here since this is the commit that actually makes
+photo upload reachable by real users, not just the schema.
+
+Typecheck, lint, and a full production build all clean throughout. **Not verified in a browser** —
+this environment has no browser-testing tooling available for peerify-staging, so the modal's
+actual click-through/save flow has not been manually exercised. Recommend a manual pass (create an
+offer of each type incl. Other, verify Step 1 disabling, upload photos, Save Changes, reload and
+confirm persistence) before treating this as done.
+
+**Status:** 3 commits on `staging` (`665f01a9` schema, `bbbddfd6` modal UI, plus a third
+photo/nudge-wiring commit landing right after this log entry). Not yet deployed to staging or
+cherry-picked to main.
