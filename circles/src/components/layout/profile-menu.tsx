@@ -19,7 +19,6 @@ import { useAtom } from "jotai";
 import { UserPicture } from "../modules/members/user-picture";
 import { Bell, Check, ChevronDown, ChevronRight, UserRound } from "lucide-react";
 import { Circle, UserToolboxTab } from "@/models/models";
-import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { LuClipboardCheck, LuMail } from "react-icons/lu";
 import { listChatRoomsAction } from "../modules/chat/actions";
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
@@ -590,24 +589,9 @@ const ProfileMenuBar = () => {
 };
 
 export const ProfileMenu = () => {
-    const [loadStateKey, setLoadStateKey] = useState(Date.now().toString());
-
-    useEffect(() => {
-        if (logLevel >= LOG_LEVEL_TRACE) {
-            console.log("useEffect.ProfileMenu.1");
-        }
-
-        // Force re-render after component mount to ensure proper hydration
-        const timer = setTimeout(() => {
-            setLoadStateKey(Date.now().toString());
-        }, 100);
-
-        return () => clearTimeout(timer);
-    }, []);
-
     return (
         <Suspense fallback={<div className="h-10 w-10"></div>}>
-            <ProfileMenuBar key={loadStateKey} />
+            <ProfileMenuBar />
         </Suspense>
     );
 };
