@@ -4055,3 +4055,13 @@ wanting the same protection is a one-line addition, not a copy-paste job.
   not a rendering or data bug.
 
 Typecheck, lint, and build all clean.
+
+### 2026-09-08 — Offer modal button color: found it was already conflicting, fixed the modal side
+
+Asked to make the page's real "Save Changes" button visually distinct (green) from the offer
+modal's own confirm button. Checked first: the page's Save Changes button already uses the plain
+`<Button>` default variant, which is already green (`--button-primary: 145 36% 32%` in
+globals.css) — no change needed there. The actual conflict was the *modal's* confirm button also
+defaulting to that same variant/color with no explicit `variant` set, so both buttons looked
+identical. Set the modal's confirm button to `variant="secondary"` (light neutral gray) instead —
+deliberately doesn't look like the button that persists, since it doesn't.
