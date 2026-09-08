@@ -65,12 +65,40 @@ interface CreateOfferModalProps {
 
 const EMPTY_IMAGES: ImageItem[] = [];
 
+type OfferPhotoLike = {
+    url?: string;
+    fileName?: string;
+    originalName?: string;
+    file?: File;
+    preview?: string;
+    existingMediaUrl?: string;
+};
+
+// TourTeamOffering.photos is typed as fileInfoSchema[] (the persisted shape — `{url, fileName?,
+// originalName?}`), but at runtime it can still be MultiImageUploader's draft ImageItem shape
+// (`{id, file, preview}`, no `.url` at all) if this offering was added/edited via the modal's own
+// "Add offer"/"Save changes" button and has never yet been through the page's real Save Changes
+// button — that's what actually round-trips it through savePresence/resolveOfferingPhotos into a
+// real FileInfo. Both seeding helpers below have to check for this at runtime rather than trust
+// the type: assuming `.url` is always present produced `{preview: undefined}` seeds (a broken
+// image in the picker) for exactly this "edit before the offering's first real save" case.
+function isResolvedOfferPhoto(photo: OfferPhotoLike): photo is { url: string; fileName?: string; originalName?: string } {
+    return typeof photo.url === "string";
+}
+
 // TourTeamOffering.photos is persisted as fileInfoSchema[], but MultiImageUploader's
 // `initialImages` prop wants the Media[] shape (Circle.images/Event.images's own shape) — wrap
 // each saved photo in a throwaway Media envelope just so the uploader can read `.fileInfo.url`.
 function offeringPhotosToMediaSeed(photos: TourTeamOffering["photos"]): Media[] {
     if (!photos?.length) return [];
-    return photos.map((photo) => ({ name: photo.originalName || "offer-photo", type: "image", fileInfo: photo }));
+    return (photos as unknown as OfferPhotoLike[]).flatMap((photo) => {
+        if (isResolvedOfferPhoto(photo)) {
+            return [{ name: photo.originalName || "offer-photo", type: "image", fileInfo: photo }];
+        }
+        // Still a draft — seed the picker's display from its blob preview instead of a
+        // nonexistent `.url`, so it shows the pending upload instead of rendering broken.
+        return photo.preview ? [{ name: "offer-photo", type: "image", fileInfo: { url: photo.preview } }] : [];
+    });
 }
 
 // Also seed this component's own `photos` draft state directly (not just the uploader's internal
@@ -79,7 +107,13 @@ function offeringPhotosToMediaSeed(photos: TourTeamOffering["photos"]): Media[] 
 // photos array and silently wipe out the offering's existing photos.
 function offeringPhotosToImageItems(photos: TourTeamOffering["photos"]): ImageItem[] {
     if (!photos?.length) return [];
-    return photos.map((photo) => ({ id: photo.url, preview: photo.url, existingMediaUrl: photo.url }));
+    return (photos as unknown as OfferPhotoLike[]).map((photo) =>
+        isResolvedOfferPhoto(photo)
+            ? { id: photo.url, preview: photo.url, existingMediaUrl: photo.url }
+            : // Still a draft — already shaped exactly like ImageItem, pass through unchanged so
+              // an untouched submit still uploads the pending file correctly.
+              (photo as unknown as ImageItem),
+    );
 }
 
 export function CreateOfferModal({
