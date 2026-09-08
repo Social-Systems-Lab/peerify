@@ -4018,3 +4018,40 @@ settings page, despite this session's fix covering the specific mistake — tab 
 that prompted it).
 
 Typecheck, lint, and build all clean.
+
+### 2026-09-08 — Built the deferred in-app-navigation guard after all
+
+Picked this back up the same session — built `useUnsavedChangesGuard(isDirty, message?)`
+(`src/components/utils/use-unsaved-changes-guard.ts`) as a small, standalone, reusable hook rather
+than one-off page code, per the note above.
+
+Covers all three ways to leave a dirty page from one hook call:
+- **Tab close/reload/typing a new URL:** `beforeunload`, browser's own fixed prompt wording.
+- **Clicking an internal `<a>`/`<Link>`:** a capture-phase `click` listener on `document` (runs
+  before Next's own Link handler), skips modified clicks (new-tab), `target≠_self`, `download`
+  links, external origins, and same-URL/anchor no-ops; otherwise `preventDefault()` +
+  `window.confirm()`, then `router.push()` if confirmed.
+- **Browser back/forward:** the "history buffer" trick — while dirty, keep one extra history
+  entry pushed on top of the current one, duplicating its own URL (never a different route, so
+  Next's router never needs to resync to an arbitrary URL the way a raw `pushState` to a
+  *different* page would). The first back-press only consumes that duplicate (invisible — same
+  URL), giving a chance to confirm; a second, real `router.back()` only fires if confirmed,
+  otherwise the buffer is pushed again so the next back-press is caught too.
+
+Replaced `PresenceSettingsForm`'s standalone `beforeunload`-only `useEffect` (from earlier this
+session) with a single `useUnsavedChangesGuard(form.formState.isDirty)` call — same `isDirty`
+source of truth, now all three mechanisms instead of just one. A second settings-style page
+wanting the same protection is a one-line addition, not a copy-paste job.
+
+**Known, accepted limitations** (documented in the hook's own comment, not silent gaps):
+- Only catches real `<a>`/`<Link>` clicks and back/forward — a hypothetical future
+  `router.push()`/`router.replace()` call made outside of a link click wouldn't be caught. Next.js's
+  App Router has no hook for that (no `router.events`, no `usePrompt`/`useBlocker` equivalent as of
+  Next 15.5.18). Not an issue for any current caller.
+- A confirmed "leave via link click" while a back/forward history-buffer entry is still pushed
+  leaves that duplicate entry behind in the stack (since `router.push()` doesn't consume it) —
+  results in one extra, harmless back-press being needed if the user later navigates back through
+  this page via forward/back cycling from the new page. Cosmetic history-stack bookkeeping only,
+  not a rendering or data bug.
+
+Typecheck, lint, and build all clean.
