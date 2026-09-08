@@ -545,7 +545,11 @@ export function CreateOfferModal({
                         </Button>
                     )}
                     {step === 2 && (
-                        <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
+                        // variant="secondary" (not the default green) — the page's own Save
+                        // Changes button uses the default variant, which is green
+                        // (--button-primary in globals.css). This button doesn't persist
+                        // anything, so it deliberately doesn't look like the button that does.
+                        <Button type="button" variant="secondary" onClick={handleSubmit} disabled={!canSubmit}>
                             {/* "Update", not "Save changes" — this only updates the in-memory
                                 offerings list, it doesn't persist anything. Only the page's own
                                 Save Changes button calls savePresence. */}
