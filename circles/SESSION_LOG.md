@@ -3985,3 +3985,36 @@ further picker interaction before its first real save. Typecheck, lint, and buil
 **Status:** fix committed on `staging`, on top of the reload/hydration investigation commits
 (which stand on their own merit — the ProfileMenu hydration fix is real and worth keeping — but
 are now confirmed unrelated to this specific bug).
+
+### 2026-09-08 — Modal button rename + unsaved-changes guard (scoped down)
+
+**UX gap found in testing:** the offer modal's own confirm button read "Save changes" in edit
+mode, implying it persists to the server — it only updates the in-memory `tourTeamOfferings`
+array. Only the page's own "Save Changes" button calls `savePresence`. Tim hit this himself
+(closed the modal, assumed the edit was saved, then reloaded/navigated away and lost it).
+
+**Shipped:**
+- Renamed the modal's edit-mode confirm button from "Save changes" to "Update" (`create-offer-modal.tsx`)
+  — "Add offer" for new offers was already fine, left unchanged.
+- Added a `beforeunload` guard to `PresenceSettingsForm`, gated on `form.formState.isDirty` —
+  warns on tab close, reload, or typing a new URL if anything on the page (offers, needs,
+  engagements, any Controller-bound field) changed since the last successful save.
+  `form.reset()` on a successful submit already clears `isDirty` (from the earlier photo-fix
+  work), so this can't false-positive right after saving — confirmed this before relying on it.
+
+**Deferred, not forgotten — in-app navigation interception:** investigated intercepting
+client-side navigation too (e.g. clicking a sidebar settings link while this page is dirty).
+Confirmed Next.js's App Router (this app is on 15.5.18) has **no built-in hook for this** — no
+`router.events` (that was Pages Router only), no `usePrompt`/`useBlocker` equivalent. The only
+way to cover it would be a global capture-phase `click` listener on `document` (detect internal
+`<a>` clicks, `preventDefault()`, confirm, then manually `router.push()`) plus a separate
+`popstate` handler for browser back/forward — real, buildable, but genuinely new reusable
+infrastructure (~60-100 lines), not a quick add-on to this page. Deferred by explicit decision —
+scope/time for this session, not a doubt about its value. Revisit when either: (a) a second
+settings-style page wants the same unsaved-changes guard (better justifies building it as shared
+infrastructure rather than one-off), or (b) the `beforeunload`-only version proves insufficient in
+practice (someone actually loses work by clicking a sidebar link away from a dirty presence
+settings page, despite this session's fix covering the specific mistake — tab close/reload —
+that prompted it).
+
+Typecheck, lint, and build all clean.

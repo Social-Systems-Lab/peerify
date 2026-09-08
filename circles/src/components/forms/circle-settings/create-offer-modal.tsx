@@ -77,7 +77,7 @@ type OfferPhotoLike = {
 // TourTeamOffering.photos is typed as fileInfoSchema[] (the persisted shape — `{url, fileName?,
 // originalName?}`), but at runtime it can still be MultiImageUploader's draft ImageItem shape
 // (`{id, file, preview}`, no `.url` at all) if this offering was added/edited via the modal's own
-// "Add offer"/"Save changes" button and has never yet been through the page's real Save Changes
+// "Add offer"/"Update" button and has never yet been through the page's real Save Changes
 // button — that's what actually round-trips it through savePresence/resolveOfferingPhotos into a
 // real FileInfo. Both seeding helpers below have to check for this at runtime rather than trust
 // the type: assuming `.url` is always present produced `{preview: undefined}` seeds (a broken
@@ -546,7 +546,10 @@ export function CreateOfferModal({
                     )}
                     {step === 2 && (
                         <Button type="button" onClick={handleSubmit} disabled={!canSubmit}>
-                            {isEditing ? "Save changes" : "Add offer"}
+                            {/* "Update", not "Save changes" — this only updates the in-memory
+                                offerings list, it doesn't persist anything. Only the page's own
+                                Save Changes button calls savePresence. */}
+                            {isEditing ? "Update" : "Add offer"}
                         </Button>
                     )}
                 </DialogFooter>

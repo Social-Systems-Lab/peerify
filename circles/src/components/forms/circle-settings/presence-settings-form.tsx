@@ -290,6 +290,23 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
         },
     });
 
+    // Warns on tab close/reload/typing a new URL if anything on this page (offers, needs,
+    // engagements — any Controller-bound field) has changed since the last successful save.
+    // form.reset() on a successful submit (see onSubmit below) already clears isDirty, so this
+    // can't false-positive right after saving. Doesn't cover in-app client-side navigation
+    // (e.g. clicking a sidebar settings link) — Next.js's App Router has no equivalent of Pages
+    // Router's route-change events to hook into for that; deferred as its own follow-up (see
+    // SESSION_LOG.md 2026-09-08).
+    useEffect(() => {
+        const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+            if (!form.formState.isDirty) return;
+            event.preventDefault();
+            event.returnValue = "";
+        };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, [form.formState.isDirty]);
+
     const onSubmit = async (data: any) => {
         setIsSubmitting(true);
         try {
