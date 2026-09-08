@@ -4065,3 +4065,32 @@ globals.css) — no change needed there. The actual conflict was the *modal's* c
 defaulting to that same variant/color with no explicit `variant` set, so both buttons looked
 identical. Set the modal's confirm button to `variant="secondary"` (light neutral gray) instead —
 deliberately doesn't look like the button that persists, since it doesn't.
+
+### 2026-09-08 — Unsaved-changes guard: closed the global-nav gap (Feed/Events)
+
+Tim found the guard didn't cover clicking Feed/Events in the main sidebar while presence settings
+was dirty. Checked `global-nav-items.tsx` directly:
+
+- **Feed and Events: confirmed programmatic navigation, exactly the flagged caveat.** Both are
+  plain `<div onClick={...}>` — no `<a>`/`<Link>` at all — calling `router.push(...)` directly,
+  plus real side-effect logic (`setSidePanelMode`/`setDrawerContent`, a mobile-only "skip push if
+  already on /explore" branch). Kept them onClick-driven rather than converting to `<Link>`
+  (option 1) — that logic isn't incidental, and reworking navigation semantics in this shared,
+  heavily-tuned global nav component carries more risk than this task warrants.
+- **Explore: is a real `<Link href="/explore">`.** No `stopPropagation`/`preventDefault` anywhere
+  nearby, and no second "Explore" implementation exists elsewhere (checked `side-panel.tsx`, which
+  only mentions it in a comment) — the existing click interceptor should already catch it. Could
+  not confirm live (no browser access this session) — asked Tim to re-test Explore on its own to
+  settle whether it was a false alarm or genuinely broken for a reason not visible from the code.
+
+**Fix (option 2, as scoped):** added `hasUnsavedFormChangesAtom` (`src/lib/data/atoms.ts`) — a
+jotai atom mirroring the same `isDirty` signal `useUnsavedChangesGuard` already uses, since
+`global-nav-items.tsx` lives in the root layout with no prop path to any specific page's form
+state. The guard hook now syncs this atom whenever `isDirty` changes, and clears it on unmount
+(a separate effect from the sync, so a save-then-edit-again sequence on the same page doesn't
+briefly flash it back to false between the two). Feed/Events' `onClick` handlers now call a new
+`confirmLeaveIfDirty()` helper that checks the atom and shows the same `window.confirm(...)`
+before proceeding — same UX as the click/popstate paths, just reached differently since there's no
+anchor for the generic interceptor to catch.
+
+Typecheck, lint, and build all clean.

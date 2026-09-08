@@ -121,3 +121,13 @@ export const actingIdentityCircleIdAtom = atomWithStorage<string | null>(ACTING_
 // walkthrough — showing it again (esp. the "are you an artist, use the Create button" copy on
 // someone's own just-built artist circle) is redundant at best and nonsensical at worst.
 export const PILOT_ONBOARDING_COMPLETED_STORAGE_KEY = "peerify_pilot_onboarding_completed";
+
+// True while some form on the current page has unsaved changes — set/cleared by
+// useUnsavedChangesGuard (src/components/utils/use-unsaved-changes-guard.ts), which already
+// intercepts beforeunload/link-clicks/back-forward using this same signal. Exists so global-nav
+// items that navigate via onClick + router.push() rather than a real <a>/<Link> (Feed, Events —
+// see global-nav-items.tsx) — which the guard's click interceptor can't see, since there's no
+// anchor element to catch — can still check "is the current page dirty" before navigating away.
+// Not scoped to any one page/form: only ever true while a page using the guard is mounted and
+// dirty, so it's safe for the global nav (a totally different part of the tree) to read directly.
+export const hasUnsavedFormChangesAtom = atom<boolean>(false);

@@ -5,8 +5,8 @@ import React, { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import PageIcon from "../modules/page-icon";
 import { motion } from "framer-motion";
-import { userAtom, sidePanelModeAtom, drawerContentAtom } from "@/lib/data/atoms";
-import { useAtom } from "jotai";
+import { userAtom, sidePanelModeAtom, drawerContentAtom, hasUnsavedFormChangesAtom } from "@/lib/data/atoms";
+import { useAtom, useAtomValue } from "jotai";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { IoChatbubbleOutline, IoPulseOutline } from "react-icons/io5";
 import { LiaGlobeAfricaSolid } from "react-icons/lia";
@@ -33,6 +33,16 @@ export default function GlobalNavItems() {
     const isMobile = useIsMobile();
     const [pinned, setPinned] = useState<Circle[]>([]);
     const [pinPickerOpen, setPinPickerOpen] = useState(false);
+    const hasUnsavedFormChanges = useAtomValue(hasUnsavedFormChangesAtom);
+
+    // Feed/Events navigate via onClick + router.push() rather than a real <a>/<Link> (see those
+    // items below), so useUnsavedChangesGuard's click interceptor can't see them — there's no
+    // anchor for it to catch. Checked directly here instead, against the same signal that guard
+    // sets (see hasUnsavedFormChangesAtom's own comment in atoms.ts).
+    const confirmLeaveIfDirty = () => {
+        if (!hasUnsavedFormChanges) return true;
+        return window.confirm("You have unsaved changes. Leave without saving?");
+    };
 
     useEffect(() => {
         if (logLevel >= LOG_LEVEL_TRACE) {
@@ -105,6 +115,7 @@ export default function GlobalNavItems() {
                 </Link>
                 <div
                     onClick={() => {
+                        if (!confirmLeaveIfDirty()) return;
                         if (isMobile) {
                             if (pathname !== "/explore") {
                                 router.push("/explore");
@@ -145,6 +156,7 @@ export default function GlobalNavItems() {
                 {/* Events nav item */}
                 <div
                     onClick={() => {
+                        if (!confirmLeaveIfDirty()) return;
                         if (isMobile) {
                             if (pathname !== "/explore") {
                                 router.push("/explore");
