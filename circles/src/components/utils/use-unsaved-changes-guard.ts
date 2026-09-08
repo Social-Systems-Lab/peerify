@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { useSetAtom } from "jotai";
+import { hasUnsavedFormChangesAtom } from "@/lib/data/atoms";
 
 const DEFAULT_MESSAGE = "You have unsaved changes. Leave without saving?";
 
@@ -13,16 +15,32 @@ const DEFAULT_MESSAGE = "You have unsaved changes. Leave without saving?";
 //   window.confirm(message).
 // - the browser's back/forward buttons: intercepted via the "history buffer" trick below, also
 //   using window.confirm(message).
+// - global-nav items that navigate via onClick + router.push() instead of a real <a>/<Link>
+//   (Feed, Events in global-nav-items.tsx) — these have no anchor for the click interceptor
+//   above to catch, so `isDirty` is also mirrored into hasUnsavedFormChangesAtom
+//   (src/lib/data/atoms.ts), which those onClick handlers check directly before navigating.
 //
-// Caveat: only catches real <a>/<Link> clicks and back/forward. It will NOT catch a programmatic
-// router.push()/router.replace() call made outside of a link click — Next.js's App Router has no
-// hook for that (no router.events, no usePrompt/useBlocker equivalent as of Next 15). Not an
-// issue for any current caller as of 2026-09-08; if a future caller needs that too, this hook is
-// the place to extend, not a reason to duplicate it.
+// Caveat: still doesn't catch a programmatic router.push()/router.replace() call made from
+// somewhere that *doesn't* check the atom and isn't a link click — Next.js's App Router has no
+// hook for intercepting navigation generically (no router.events, no usePrompt/useBlocker
+// equivalent as of Next 15). Not an issue for any current caller as of 2026-09-08; if a future
+// caller needs that too, this hook (and the atom) is the place to extend, not a reason to
+// duplicate it.
 export function useUnsavedChangesGuard(isDirty: boolean, message: string = DEFAULT_MESSAGE) {
     const router = useRouter();
     const isDirtyRef = useRef(isDirty);
     isDirtyRef.current = isDirty;
+
+    const setHasUnsavedFormChanges = useSetAtom(hasUnsavedFormChangesAtom);
+    useEffect(() => {
+        setHasUnsavedFormChanges(isDirty);
+    }, [isDirty, setHasUnsavedFormChanges]);
+    // Separate from the sync above so this only clears on actual unmount (leaving the page),
+    // not on every isDirty flip — otherwise a save-then-immediately-edit-again sequence would
+    // briefly flash the atom back to false between the two.
+    useEffect(() => {
+        return () => setHasUnsavedFormChanges(false);
+    }, [setHasUnsavedFormChanges]);
 
     // Tab close / reload / typing a new URL.
     useEffect(() => {
