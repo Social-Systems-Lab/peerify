@@ -3951,3 +3951,37 @@ Mapbox `"process is not defined"` console error, raised in the same DevTools ses
 unrelated: `NEXT_PUBLIC_MAPBOX_TOKEN`/`process` usage is isolated to `KamooniMap.tsx`, only
 imported by the standalone `/map-test` page — not part of presence-settings or any shared layout.
 No action taken.
+
+### 2026-09-08 — Real root cause found: broken thumbnail was never about reload/caching
+
+Tim's own repro work eliminated the reload/caching thread entirely: the broken "Uploaded image 1"
+placeholder reproduces immediately after clicking the *modal's own* Add/Save button, zero reload
+or even a real server round-trip involved, on every offer with a newly-added photo (never on
+already-saved ones) — response-body comparisons across reload types showed already-saved photos
+identical either way. That ruled out everything in the two entries above; the actual bug was back
+in `create-offer-modal.tsx`'s edit-seeding helpers.
+
+**Root cause:** `TourTeamOffering.photos` is typed as the persisted `fileInfoSchema[]` shape
+(`{url, fileName?, originalName?}`), but at runtime it can still be MultiImageUploader's *draft*
+ImageItem shape (`{id, file, preview}`, no `.url` at all) — specifically for any offering added or
+edited via the modal's own "Add offer"/"Save changes" button that has never yet been through the
+page's real Save Changes button (the only thing that round-trips it through
+savePresence/resolveOfferingPhotos into a real, resolved FileInfo). `offeringPhotosToMediaSeed`/
+`offeringPhotosToImageItems` assumed `.url` was always present; for a still-draft photo this
+produced `{preview: undefined}` seeds — an `<img src={undefined}>`, i.e. exactly the broken
+placeholder with visible alt text ("Uploaded image N" is MultiImageUploader's own alt string,
+which is how re-editing before ever hitting the real page-level save surfaced this).
+
+**Fix:** both seeding helpers now check the runtime shape (`isResolvedOfferPhoto`, keyed on
+whether `.url` is a string) rather than trusting the type. A still-draft photo seeds the picker's
+display from its blob `.preview` (renders fine, it's a valid object URL) instead of a nonexistent
+`.url`, and is passed through unchanged (preserving `.file`) into the component's own submit-time
+`photos` state, so an untouched submit still uploads the pending file correctly. Added a
+server-side backstop in `resolveOfferingPhotos`: reject any `url`/`existingMediaUrl` starting with
+`"blob:"` — a real persisted URL is never a blob URL, so this guards against ever writing a dead,
+page-session-scoped URL into Mongo if a draft photo gets flattened into an "existing" entry by
+further picker interaction before its first real save. Typecheck, lint, and build all clean.
+
+**Status:** fix committed on `staging`, on top of the reload/hydration investigation commits
+(which stand on their own merit — the ProfileMenu hydration fix is real and worth keeping — but
+are now confirmed unrelated to this specific bug).

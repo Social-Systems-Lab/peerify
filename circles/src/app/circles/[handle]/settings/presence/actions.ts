@@ -13,6 +13,18 @@ import { revalidatePath } from "next/cache";
 // uploading on every photo pick inside the modal. Any item missing both a new file and a resolvable
 // existing url is dropped rather than persisting a broken photo entry. No EXIF-stripping here —
 // deliberately deferred, see SESSION_LOG.md 2026-09-07.
+//
+// A real persisted photo URL is always a server path (/storage/... or /uploads/...), never a
+// blob: URL — those are ephemeral, page-session-scoped object URLs from URL.createObjectURL(),
+// meaningless once the page unloads. One can end up here if an offering's still-unresolved draft
+// photo (added via the modal but never yet through a real page save) gets re-flattened into an
+// "existing" entry by further picker interaction before its first real save — see
+// create-offer-modal.tsx's isResolvedOfferPhoto for the client-side half of this. Reject rather
+// than silently writing a dead URL into Mongo.
+function isPersistableUrl(url: string): boolean {
+    return !url.startsWith("blob:");
+}
+
 async function resolveOfferingPhotos(offering: TourTeamOffering, circleId: string): Promise<TourTeamOffering> {
     const draftPhotos = offering.photos as unknown as
         | Array<{ file?: File; url?: string; fileName?: string; originalName?: string; existingMediaUrl?: string }>
@@ -25,14 +37,16 @@ async function resolveOfferingPhotos(offering: TourTeamOffering, circleId: strin
     for (const photo of draftPhotos) {
         if (isFile(photo.file)) {
             resolvedPhotos.push(await saveFile(photo.file, "offer-photo", circleId, true));
-        } else if (typeof photo.existingMediaUrl === "string") {
+        } else if (typeof photo.existingMediaUrl === "string" && isPersistableUrl(photo.existingMediaUrl)) {
             resolvedPhotos.push({ url: photo.existingMediaUrl });
-        } else if (typeof photo.url === "string") {
+        } else if (typeof photo.url === "string" && isPersistableUrl(photo.url)) {
             // Already a resolved FileInfo — e.g. every offering in the array other than the one
             // just added/edited, which arrives here as-saved, not as an ImageItem draft. Pass it
             // through unchanged rather than reconstructing {url} and dropping fileName/originalName.
             resolvedPhotos.push({ url: photo.url, fileName: photo.fileName, originalName: photo.originalName });
         }
+        // Anything else — including a real File that failed isFile(), or a blob: URL rejected by
+        // isPersistableUrl() below — is dropped rather than persisting a broken photo entry.
     }
     return { ...offering, photos: resolvedPhotos };
 }
