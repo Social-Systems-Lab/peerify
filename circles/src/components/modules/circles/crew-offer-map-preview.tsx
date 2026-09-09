@@ -2,12 +2,20 @@
 "use client";
 
 import React from "react";
-import { MapPin } from "lucide-react";
+import { MapPin, MessageCircleOff } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { OfferMapPin } from "@/models/models";
+import { Media, OfferMapPin } from "@/models/models";
 import { getFullLocationName } from "@/lib/utils";
-import { getTourTeamOfferingIcon, getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
+import {
+    accommodationSubTypeLabels,
+    getOfferDetailsSummary,
+    getTourTeamOfferingIcon,
+    getTourTeamOfferingLabel,
+} from "@/lib/data/tour-team-offerings";
+import { useOfferMemberDetails } from "./use-offer-member-details";
+import ImageThumbnailCarousel from "@/components/ui/image-thumbnail-carousel";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type CrewOfferMapPreviewProps = {
     pin: OfferMapPin;
@@ -40,6 +48,21 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
     const locationLabel = getFullLocationName(pin.location);
     const isVenue = Boolean(pin.circleHandle);
     const isGrouped = Boolean(pin.groupedOfferings && pin.groupedOfferings.length > 1);
+
+    // Full detail (photos/description/type-specific fields) is fetched for this pin's own single
+    // offer only — never for a grouped marker's other merged offerings (see the module comment on
+    // groupedOfferings above), so it's skipped entirely while grouped rather than showing detail
+    // for just one of several distinct offers a viewer might assume applies to all of them.
+    // undefined = still loading, null = fetched but nothing accessible (offer no longer
+    // pin-eligible, or the request raced a page navigation) — both render nothing extra rather
+    // than an error, same as the pre-existing bare-bones fallback for legacy offerings.
+    const details = useOfferMemberDetails(isGrouped ? undefined : pin._id);
+    const summary = details ? getOfferDetailsSummary(details) : undefined;
+    const photoMedia: Media[] = (details?.photos ?? []).map((photo, index) => ({
+        name: photo.originalName || `Offer photo ${index + 1}`,
+        type: "image",
+        fileInfo: photo,
+    }));
 
     return (
         <div className="custom-scrollbar h-full overflow-y-auto p-4">
@@ -86,6 +109,31 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
                         );
                     })}
                 </ul>
+            )}
+            {!isGrouped && details === undefined && (
+                <div className="mt-4 space-y-2">
+                    <Skeleton className="h-24 w-full rounded-md" />
+                    <Skeleton className="h-4 w-3/4 rounded" />
+                    <Skeleton className="h-4 w-1/2 rounded" />
+                </div>
+            )}
+            {!isGrouped && details && (
+                <div className="mt-4 space-y-4">
+                    {photoMedia.length > 0 && <ImageThumbnailCarousel images={photoMedia} />}
+                    <div className="space-y-1.5 text-sm">
+                        {details.accommodationType && (
+                            <p className="font-medium">{accommodationSubTypeLabels[details.accommodationType]}</p>
+                        )}
+                        {summary && <p className="text-muted-foreground">{summary}</p>}
+                        {details.detail && <p className="whitespace-pre-wrap text-muted-foreground">{details.detail}</p>}
+                    </div>
+                    {/* Static placeholder only — no working contact form, no role/tier gating logic yet.
+                        The host stays unreachable from this panel until that's actually built. */}
+                    <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                        <MessageCircleOff className="h-4 w-4 shrink-0" />
+                        <span>Contact currently disabled</span>
+                    </div>
+                </div>
             )}
             {isVenue && pin.circleHandle && (
                 <Link
