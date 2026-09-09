@@ -4362,3 +4362,96 @@ music-link field)**
   the original circle where this was first reported (marsmallowvalentine).
 - Cherry-picked to `main` (`8961ccab`, `733040fd`) and deployed to prod via
   `./scripts/deploy-peerify.sh`. Confirmed live and stable.
+
+### 2026-09-09 — Offer visibility widened to all authenticated members + EXIF stripping + panel polish
+
+**Shipped to production** (main HEAD c917af7c, cherry-picked from staging, deployed via deploy-peerify.sh, verified live):
+
+- `930ef20e` (staging: `7bb5a7f4`) — EXIF/ICC metadata stripping via `sharp` in
+  `resolveOfferingPhotos` (orientation baked in via `.rotate()` before
+  re-encoding), scoped to this call site only, not the shared `saveFile()`.
+  One-time reprocessing script (`scripts/strip-offer-photo-exif.ts`) run
+  against staging's live data: 1 circle affected, 6 offerings, 9 photos,
+  0 failures. **Prod had zero existing offer photos at deploy time, so no
+  reprocessing pass was needed there** — going-forward stripping alone
+  covers it.
+- `623fdff6` (staging: `5019582c`) — `getOfferDetailsForMember(offerId)`:
+  new session-required, single-offer-by-id server action re-deriving the
+  same published/circleType/offersVisible eligibility `getOfferMapPins`
+  uses. Pin popup now fetches lazily on open and swaps the anonymous-host
+  icon for the offer's first photo when one exists (venue pins untouched).
+  Pin-click side panel (`CrewOfferMapPreview`) shows full photo carousel,
+  description, type-specific fields, and a static "Contact currently
+  disabled" placeholder. Grouped venue markers (2+ offerings) intentionally
+  show the type list, not single-offer detail. Client-side cache
+  (`use-offer-member-details.ts`) prevents double-fetch on hover-then-click.
+- `cd6e99e4` (staging: `41f38dcb`) — Offer detail panel visual polish:
+  swapped small inline thumbnail strip for the same full-width hero
+  `ImageCarousel` component already used by the artist-profile and
+  event-detail panels, for visual consistency across all three slider
+  surfaces.
+- `822ecf65` (staging: `14353842`) — Labeled type-specific offer fields
+  (e.g. "Route notes") separately from the freeform description in the
+  member-facing panel, matching the admin edit modal's existing field
+  separation.
+- `c917af7c` (staging: `76c157d4`) — Added `offersPanelVisibility`
+  scaffolding to the About/home page's data fetch (new `circleForAboutPage`
+  variable alongside the original `circle`). Default chosen: `"visible"`
+  unconditionally, not derived from `viewerDid` — deliberately reproduces
+  today's actual behavior exactly (`TourTeamOfferingsCard` already renders
+  for any visitor regardless of session), so tying it to `viewerDid` would
+  have silently narrowed existing exposure. **This commit is scaffolding
+  only** — the flag and its trim function are wired correctly, but the
+  trim branch never fires today since the default is wide open. A future
+  pass changes what computes the flag's value, not this code.
+
+**Manually verified in browser on both staging and prod**: individual
+offer photos/description render correctly with contact placeholder and
+separated field labels; venue pins and grouped venue markers unaffected;
+carousel matches artist/event panel layout; About page renders normally.
+
+**Investigated, explicitly NOT implemented — two follow-ups identified,
+both deferred:**
+
+1. **About/home page offer-photo exposure gap** (pre-existing, adjacent to
+   but not caused by this session's work): the About page's data fetch
+   uses `SAFE_CIRCLE_PROJECTION` (same as the admin editor) and ships the
+   full `tourTeamOfferings` array — including photos — into every
+   visitor's page payload today, regardless of session or `offersVisible`.
+   The current UI (`TourTeamOfferingsCard`) just doesn't render photos, so
+   this is a rendering choice sitting on top of already-exposed data, not
+   a data restriction.
+
+2. **First proposed fix was wrong — corrected by CC investigation.**
+   Initial instinct was to gate the whole About/home page behind
+   authentication. CC investigated first and correctly refused: page-level
+   access is already governed centrally by `middleware.ts` + `/api/access`
+   against `circle.accessRules[moduleHandle].view`, and the `home` module
+   defaults to `"everyone"` (`constants.ts:620`) — a deliberate,
+   platform-wide, per-circle-configurable default for public profile
+   browsing (discovery/SEO/sharing), not an oversight. Blanket-gating
+   would have broken that default for every circle on the platform.
+
+   **Actual narrow fix, scaffolded tonight (see `c917af7c` above), not yet
+   activated:** Offers now has its own visibility flag matching the
+   existing `fundingPanelVisibility`/`upcomingShiftsVisibility` pattern
+   (`visible` | `sign_in` | `members_only`), intended to trim
+   `tourTeamOfferings` photos/detail server-side in the About page's data
+   fetch for viewers who don't qualify — same enforcement style as those
+   two panels, not a page-level gate. Next pass: decide the real default
+   per-circle-admin-configurable value and wire the trim to actually fire.
+
+**Backlog, own future session:** Facebook-style "Contacts-only" private
+profile tier (some content visible only to mutual contacts, gated behind
+a Contact request) — `isAcceptedConnectionForUserDid` assessed as a solid
+foundation (mature `UserRelationships` collection, proper
+pending/accepted state machine, indexed both directions, symmetric writes
+on accept). Distinct from the narrow Offers-visibility-flag work above;
+do not conflate the two when scoping.
+
+**Also shipped this session, same arc:** small visual fix labeling
+type-specific offer fields separately from the freeform note (folded into
+`822ecf65` above).
+
+**Status:** fully deployed to prod and staging, both branches pushed to
+origin. Nothing pending from this session.
