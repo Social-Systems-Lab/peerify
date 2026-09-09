@@ -47,6 +47,15 @@ export default async function CircleHomePage(props: PageProps) {
     let upcomingShiftTasks: TaskDisplay[] = [];
     let venueUpcomingEvents: EventDisplay[] = [];
     let upcomingShiftsVisibility: "visible" | "sign_in" | "members_only" = viewerDid ? "members_only" : "sign_in";
+    // Mirrors fundingPanelVisibility/upcomingShiftsVisibility's shape so a future pass can wire
+    // this to a real per-circle rule (see the profile-access scoping session) without
+    // restructuring this page again. Hardcoded to "visible" for every viewer for now — not
+    // derived from viewerDid like the other two — because that's what actually matches today's
+    // behavior: TourTeamOfferingsCard already renders offerings unconditionally for any visitor,
+    // and SAFE_CIRCLE_PROJECTION already ships tourTeamOfferings[].photos/detail to anyone
+    // regardless of session. Adding this flag must not itself narrow any existing circle's offer
+    // visibility, so it stays "visible" until real qualification logic exists to set it otherwise.
+    let offersPanelVisibility: "visible" | "sign_in" | "members_only" = "visible";
     let canCreateFundingAsk = false;
     let canCreateVenueEvent = false;
     let membershipCredential: CircleMembershipCredentialCardData | null = null;
@@ -217,9 +226,27 @@ export default async function CircleHomePage(props: PageProps) {
         }
     }
 
+    // tourTeamOfferings' photos/detail only ever reach AboutPage when offersPanelVisibility is
+    // "visible" — getCircleByHandle/SAFE_CIRCLE_PROJECTION has no viewer-awareness of its own, so
+    // this is the one place that can withhold them from a viewer who doesn't qualify, without
+    // touching the page-level access-rules gate that already governs whether this page loads at
+    // all (see middleware.ts/api/access — accessRules.home.view defaults to "everyone" and stays
+    // that way here). A no-op today since offersPanelVisibility is always "visible" above.
+    const circleForAboutPage =
+        offersPanelVisibility === "visible" || !circle.tourTeamOfferings?.length
+            ? circle
+            : {
+                  ...circle,
+                  tourTeamOfferings: circle.tourTeamOfferings.map((offering) => ({
+                      ...offering,
+                      photos: undefined,
+                      detail: undefined,
+                  })),
+              };
+
     return (
         <AboutPage
-            circle={circle}
+            circle={circleForAboutPage}
             verifiedContributions={verifiedContributions}
             verifiedContributionPublicCount={verifiedContributionPublicCount}
             fundingPreviewAsks={fundingPreviewAsks}
