@@ -6,13 +6,8 @@ import { MapPin, MessageCircleOff } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { Media, OfferMapPin } from "@/models/models";
-import { getFullLocationName } from "@/lib/utils";
-import {
-    accommodationSubTypeLabels,
-    getOfferDetailsSummary,
-    getTourTeamOfferingIcon,
-    getTourTeamOfferingLabel,
-} from "@/lib/data/tour-team-offerings";
+import { cn, getFullLocationName } from "@/lib/utils";
+import { getOfferDetailFields, getTourTeamOfferingIcon, getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 import { useOfferMemberDetails } from "./use-offer-member-details";
 import ImageCarousel from "@/components/ui/image-carousel";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -57,7 +52,9 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
     // pin-eligible, or the request raced a page navigation) — both render nothing extra rather
     // than an error, same as the pre-existing bare-bones fallback for legacy offerings.
     const details = useOfferMemberDetails(isGrouped ? undefined : pin._id);
-    const summary = details ? getOfferDetailsSummary(details) : undefined;
+    const detailFields = details
+        ? getOfferDetailFields({ type: details.offerType, accommodationType: details.accommodationType, details: details.details })
+        : [];
     const photoMedia: Media[] = (details?.photos ?? []).map((photo, index) => ({
         name: photo.originalName || `Offer photo ${index + 1}`,
         type: "image",
@@ -147,15 +144,36 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
                 )}
                 {!isGrouped && details && (
                     <div className="mt-4 space-y-4">
-                        <div className="space-y-1.5 text-sm">
-                            {details.accommodationType && (
-                                <p className="font-medium">{accommodationSubTypeLabels[details.accommodationType]}</p>
-                            )}
-                            {summary && <p className="text-muted-foreground">{summary}</p>}
-                            {details.detail && (
-                                <p className="whitespace-pre-wrap text-muted-foreground">{details.detail}</p>
-                            )}
-                        </div>
+                        {/* Type-specific fields (label, value) — same labels CreateOfferModal's own
+                            Step 2 form uses for these (e.g. "Route notes"), so a viewer sees the same
+                            question the host answered, kept visually separate from the freeform
+                            `detail` note below (their own general blurb, not an answer to any one
+                            type's question). */}
+                        {detailFields.length > 0 && (
+                            <dl className="space-y-2 text-sm">
+                                {detailFields.map((field) => (
+                                    <div key={field.label}>
+                                        <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                            {field.label}
+                                        </dt>
+                                        <dd className="whitespace-pre-wrap text-foreground">{field.value}</dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        )}
+                        {details.detail && (
+                            <div
+                                className={cn(
+                                    "space-y-1 text-sm",
+                                    detailFields.length > 0 && "border-t pt-3",
+                                )}
+                            >
+                                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                    Tell people more about this offer
+                                </p>
+                                <p className="whitespace-pre-wrap text-foreground">{details.detail}</p>
+                            </div>
+                        )}
                         {/* Static placeholder only — no working contact form, no role/tier gating logic
                             yet. The host stays unreachable from this panel until that's actually built. */}
                         <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">

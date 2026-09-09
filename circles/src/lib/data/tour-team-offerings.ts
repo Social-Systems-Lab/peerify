@@ -116,3 +116,74 @@ export function getOfferDetailsSummary(offering: Pick<TourTeamOffering, "details
             return undefined;
     }
 }
+
+export type OfferDetailField = { label: string; value: string };
+
+// Structured (label, value) pairs for an offering's type-specific fields, for
+// CrewOfferMapPreview's member-facing full offer panel — labels match CreateOfferModal's own
+// field labels verbatim (e.g. "Route notes", "Tell us about the space") so a viewer sees the same
+// question the host answered, rather than getOfferDetailsSummary's compact " · "-joined one-liner
+// (still used as-is by the Presence-settings offer list, where that density is the point).
+// Deliberately excludes `detail` (the universal freeform note, own field on TourTeamOffering, not
+// part of `details`) — callers render that separately, under its own "Tell people more about this
+// offer" label, so it reads as the host's general blurb rather than one more type-specific answer.
+export function getOfferDetailFields(
+    offering: Pick<TourTeamOffering, "type" | "accommodationType" | "details">,
+): OfferDetailField[] {
+    const fields: OfferDetailField[] = [];
+
+    if (offering.type === "spare_room" && offering.accommodationType) {
+        fields.push({ label: "What kind of space?", value: accommodationSubTypeLabels[offering.accommodationType] });
+    }
+
+    const details = offering.details;
+    if (!details) return fields;
+
+    switch (details.type) {
+        case "accommodation":
+            if (details.maxStayNights) {
+                fields.push({
+                    label: "Max stay (nights)",
+                    value: `${details.maxStayNights} night${details.maxStayNights === 1 ? "" : "s"}`,
+                });
+            }
+            if (details.checkInFlexible) {
+                fields.push({ label: "Check-in", value: "Flexible" });
+            }
+            break;
+        case "hostingShow":
+            if (details.capacity) {
+                fields.push({ label: "Rough capacity", value: `~${details.capacity}` });
+            }
+            if (details.spaceDescription) {
+                fields.push({ label: "Tell us about the space", value: details.spaceDescription });
+            }
+            break;
+        case "meal":
+            if (details.cuisine) {
+                fields.push({ label: "Cuisine", value: details.cuisine });
+            }
+            if (details.dietaryNotes) {
+                fields.push({ label: "Dietary notes", value: details.dietaryNotes });
+            }
+            break;
+        case "transport":
+            if (details.routeNotes) {
+                fields.push({ label: "Route notes", value: details.routeNotes });
+            }
+            break;
+        case "promotion":
+            if (details.channels?.length) {
+                fields.push({
+                    label: "Channels",
+                    value: details.channels.map((c) => promotionChannelLabels[c]).join(", "),
+                });
+            }
+            if (details.notes) {
+                fields.push({ label: "Anything else about how they'd promote it?", value: details.notes });
+            }
+            break;
+    }
+
+    return fields;
+}
