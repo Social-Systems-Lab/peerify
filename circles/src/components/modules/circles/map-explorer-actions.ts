@@ -2,12 +2,12 @@
 
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getOpenEventsForMap, getOpenEventsForList } from "@/lib/data/event";
-import { getCircleById, getOfferMapPins } from "@/lib/data/circle";
+import { getCircleById, getOfferDetailsForMember, getOfferMapPins } from "@/lib/data/circle";
 import { getTracksByCircleId } from "@/lib/data/track";
 import { signAudioToken } from "@/lib/audio/audio-token";
 import { isPeerifyArtistIdentity, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 import { features } from "@/lib/data/constants";
-import { EventDisplay, OfferMapPin } from "@/models/models";
+import { EventDisplay, OfferMapPin, OfferMemberDetails } from "@/models/models";
 
 type RangeInput = { from?: string; to?: string };
 
@@ -84,6 +84,30 @@ export async function getOfferMapPinsAction(): Promise<OfferMapPin[]> {
     } catch (err) {
         console.error("getOfferMapPinsAction error:", err);
         return [];
+    }
+}
+
+/**
+ * Fetch full details (photos, description, type-specific fields) for a single offer a member
+ * has already discovered via its map pin — offerId is that pin's own `_id`
+ * (`${circleId}:${offeringId}`, see getOfferMapPins). Unlike getOfferMapPinsAction, this
+ * explicitly requires an authenticated session and returns null rather than silently treating
+ * the caller as anonymous — pin-level type/location is meant to be public, but photos and
+ * description are not, so obscurity is never the only gate here. getOfferDetailsForMember
+ * (lib/data/circle.ts) then re-derives the same offersVisible/published/circleType eligibility
+ * getOfferMapPins uses, so an offer that was never actually pin-eligible can't be read this way
+ * either, even by a logged-in member. Deliberately single-offer-by-id, no bulk/list variant, to
+ * keep scraping surface limited to whatever a client can click one pin at a time.
+ */
+export async function getOfferDetailsForMemberAction(offerId: string): Promise<OfferMemberDetails | null> {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return null;
+
+        return await getOfferDetailsForMember(offerId, userDid);
+    } catch (err) {
+        console.error("getOfferDetailsForMemberAction error:", err);
+        return null;
     }
 }
 

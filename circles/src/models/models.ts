@@ -1010,6 +1010,21 @@ export type OfferMapPin = {
     groupedOfferings?: Array<{ offerType: TourTeamOffering["type"]; offerLabel?: string }>;
 };
 
+// Fetched on demand (getOfferDetailsForMember, single-offer-by-id, never bulk) once a member
+// opens an OfferMapPin's full slider panel — this is deliberately everything OfferMapPin leaves
+// out (photos, description, type-specific detail) and nothing OfferMapPin already carries
+// (location, circle identity), so the client merges this onto the pin it already has rather than
+// re-fetching it. `_id` matches the pin's own `_id` (`${circleId}:${offeringId}`) one-for-one.
+export type OfferMemberDetails = {
+    _id: string;
+    offerType: TourTeamOffering["type"];
+    offerLabel?: string;
+    detail?: string;
+    details?: OfferDetails;
+    accommodationType?: TourTeamOffering["accommodationType"];
+    photos: FileInfo[];
+};
+
 export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin;
 
 // Define Permissions type based on what IssuesModule passes

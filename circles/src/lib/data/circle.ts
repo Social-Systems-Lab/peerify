@@ -7,6 +7,7 @@ import {
     FileInfo,
     Location,
     OfferMapPin,
+    OfferMemberDetails,
     PlatformMetrics,
     Post,
     ServerSettings,
@@ -430,6 +431,76 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
         }
     }
     return pins;
+};
+
+// Narrow projection for getOfferDetailsForMember — deliberately not SAFE_CIRCLE_PROJECTION
+// (members/accessRules/etc. have no business being read for this lookup) and deliberately not
+// OFFER_MAP_PIN_PROJECTION (that one excludes photos/detail/details on purpose — see its own
+// comment; this is the one query in the codebase that's supposed to include them).
+const OFFER_MEMBER_DETAIL_PROJECTION = {
+    _id: 1,
+    circleType: 1,
+    publishStatus: 1,
+    offersVisible: 1,
+    "metadata.peerify.identityType": 1,
+    tourTeamOfferings: 1,
+} as const;
+
+// Any authenticated member can call this for a single offer they discovered via a map pin —
+// see the module-level comment on getOfferDetailsForMember's caller (getOfferDetailsForMemberAction,
+// map-explorer-actions.ts) for the auth check itself; this function assumes it's already been
+// enforced and only handles "does this offer exist and is it the kind of offer that's allowed to
+// be publicly discoverable at all".
+//
+// offerId is the same composite `${circleId}:${offeringId}` id getOfferMapPins already hands out
+// as OfferMapPin._id — reusing it (rather than minting a separate detail-lookup id) means the
+// client never needs a second id scheme to correlate a pin with its own details.
+//
+// Gated by the same three conditions getOfferMapPins uses to decide whether an offer is pin-
+// eligible at all (published, user-or-venue circleType, offersVisible unless platform admin) —
+// without this, a member could enumerate circleId:offeringId pairs for offers that were never
+// actually surfaced on the map (owner has offersVisible off, or the circle is unpublished/not a
+// user-or-venue type) and read their photos/description anyway. Bypassing the map is not consent.
+export const getOfferDetailsForMember = async (
+    offerId: string,
+    viewerDid?: string,
+): Promise<OfferMemberDetails | null> => {
+    const separatorIndex = offerId.indexOf(":");
+    if (separatorIndex <= 0 || separatorIndex === offerId.length - 1) return null;
+    const circleId = offerId.slice(0, separatorIndex);
+    const offeringId = offerId.slice(separatorIndex + 1);
+
+    let circle: any;
+    try {
+        circle = await Circles.findOne({ _id: new ObjectId(circleId) }, { projection: OFFER_MEMBER_DETAIL_PROJECTION });
+    } catch {
+        return null; // malformed circleId half of offerId
+    }
+    if (!circle) return null;
+
+    const isPublished = circle.publishStatus === "published" || circle.publishStatus === undefined;
+    const isEligibleCircleType =
+        circle.circleType === "user" ||
+        (circle.circleType === "circle" && circle.metadata?.peerify?.identityType === "venue");
+    if (!isPublished || !isEligibleCircleType) return null;
+
+    if (circle.offersVisible !== true) {
+        const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
+        if (!viewerIsAdmin) return null;
+    }
+
+    const offering = (circle.tourTeamOfferings as TourTeamOffering[] | undefined)?.find((o) => o.id === offeringId);
+    if (!offering) return null;
+
+    return {
+        _id: offerId,
+        offerType: offering.type,
+        offerLabel: offering.type === "custom" ? offering.label : undefined,
+        detail: offering.detail,
+        details: offering.details,
+        accommodationType: offering.accommodationType,
+        photos: offering.photos ?? [],
+    };
 };
 
 export const getCircles = async (

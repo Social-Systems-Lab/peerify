@@ -75,12 +75,13 @@ export const promotionChannelLabels: Record<(typeof promotionChannels)[number], 
     other: "Other",
 };
 
-// One-line summary of an offering's structured `details`, for the Presence-settings offer list —
-// undefined for legacy/bare-bones offerings (no `details` yet) or types with no Step 2 form, so
-// callers can render nothing extra rather than an empty line. Not used on any public-facing
-// surface yet (map pins, the profile Offers card) — those still show label/detail only, unchanged,
-// pending a later phase.
-export function getOfferDetailsSummary(offering: TourTeamOffering): string | undefined {
+// One-line summary of an offering's structured `details`, for the Presence-settings offer list
+// and (now) CrewOfferMapPreview's member-facing full offer panel — undefined for legacy/
+// bare-bones offerings (no `details` yet) or types with no Step 2 form, so callers can render
+// nothing extra rather than an empty line. Takes just `{ details }` rather than the full
+// TourTeamOffering so the member-facing OfferMemberDetails shape (models.ts) — which carries the
+// same `details` field but not the rest of TourTeamOffering — can reuse this directly.
+export function getOfferDetailsSummary(offering: Pick<TourTeamOffering, "details">): string | undefined {
     const details = offering.details;
     if (!details) return undefined;
 

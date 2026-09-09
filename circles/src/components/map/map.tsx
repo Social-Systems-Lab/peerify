@@ -27,6 +27,7 @@ import { usePathname } from "next/navigation";
 import ContentPreview from "../layout/content-preview";
 import { Content, ContentPreviewData, Location, OfferMapPin, PostDisplay, EventDisplay } from "@/models/models";
 import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
+import { fetchOfferMemberDetails } from "../modules/circles/use-offer-member-details";
 import { TbFocus2 } from "react-icons/tb";
 import Onboarding from "../onboarding/onboarding";
 import { Dialog, DialogContent } from "../ui/dialog";
@@ -403,8 +404,14 @@ const createMarkerPopupHtml = (content: Content, viewerIsAdmin: boolean): string
               384,
               72,
           ) ?? "/images/default-user-cover.png";
+    // data-marker-popup-photo-slot: an anonymous individual-host offer has no photo to show here
+    // yet — this pin never carries one (see OfferMapPin, models.ts; pin-level data intentionally
+    // excludes photos/description). openMarkerPopup fetches the offer's own details after this
+    // HTML is already on screen and swaps this slot's icon for the offer's first photo if one
+    // exists, leaving the icon as-is otherwise. Venue-sourced offer pins are untouched — they
+    // already show the venue's own picture here, not a per-offer photo.
     const backgroundHtml = isAnonymousOffer
-        ? `<div style="position:absolute;inset:0;background:${getMarkerTheme(content).background};display:flex;align-items:center;justify-content:center;color:${getMarkerTheme(content).color};">${getOfferTypeIconSvg(content.offerType, 72)}</div>`
+        ? `<div data-marker-popup-photo-slot="true" style="position:absolute;inset:0;background:${getMarkerTheme(content).background};display:flex;align-items:center;justify-content:center;color:${getMarkerTheme(content).color};">${getOfferTypeIconSvg(content.offerType, 72)}</div>`
         : `<div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl!)}');background-size:cover;background-position:center;"></div>`;
     const openHref = getMarkerOpenHref(content);
     const openIcon = `<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>`;
@@ -795,6 +802,33 @@ const MapBox = ({
             popupRef.current.style.display = "";
             const point = map.current.project(content.location.lngLat as any);
             popupRef.current.style.transform = getMarkerPopupTransform(point, content);
+
+            // Lightweight fetch-on-open, not preloaded for every pin on the map — see
+            // createMarkerPopupHtml's data-marker-popup-photo-slot comment. fetchOfferMemberDetails
+            // caches by offerId, so re-hovering the same pin (or later clicking it open, which reads
+            // the same cache) never re-fetches. Guards against the popup having since moved on to a
+            // different pin (or closed) by re-checking popupContentRef against this offer's own id
+            // once the fetch resolves, since this is plain async code racing against further
+            // hover/click events, not a cancellable effect.
+            if (isOfferMapPin(content) && !content.circleHandle) {
+                const requestedOfferId = content._id;
+                fetchOfferMemberDetails(requestedOfferId).then((details) => {
+                    const photoUrl = details?.photos?.[0]?.url;
+                    if (!photoUrl) return;
+                    const stillShowingThisOffer =
+                        popupRef.current &&
+                        popupRef.current.style.display !== "none" &&
+                        isOfferMapPin(popupContentRef.current) &&
+                        (popupContentRef.current as OfferMapPin)._id === requestedOfferId;
+                    if (!stillShowingThisOffer) return;
+                    const slot = popupRef.current!.querySelector<HTMLElement>("[data-marker-popup-photo-slot]");
+                    if (!slot) return;
+                    slot.innerHTML = "";
+                    slot.style.backgroundImage = `url('${escapeHtml(photoUrl)}')`;
+                    slot.style.backgroundSize = "cover";
+                    slot.style.backgroundPosition = "center";
+                });
+            }
         },
         [closeMarkerPopup, onMarkerClick, zoomToMarkerContent, viewerIsAdmin],
     );
