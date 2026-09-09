@@ -4094,3 +4094,75 @@ before proceeding — same UX as the click/popstate paths, just reached differen
 anchor for the generic interceptor to catch.
 
 Typecheck, lint, and build all clean.
+
+### 2026-09-09 — Offer photos/description made member-visible from the map; EXIF stripping
+
+**Investigation first (no code changes) confirmed:** the admin editor (Presence settings page)
+fetches offers via `getCircleByHandle`/`SAFE_CIRCLE_PROJECTION` (which includes full
+`tourTeamOfferings`), gated by an explicit `isAuthorized(..., features.settings.edit_about)`
+circle-admin check in the page itself — not something that already works for an arbitrary
+authenticated session. `OFFER_MAP_PIN_PROJECTION`/`getOfferMapPins` genuinely strips photos and
+`detail`/`details` server-side before ever building an `OfferMapPin` — not just UI-hidden. No
+route was found that returns full offer detail to an unauthenticated caller, or to an
+authenticated non-admin/non-crew member. `getOfferMapPinsAction` itself is callable without auth
+(by design — map pins are meant to be public), but only ever carries the trimmed pin shape.
+
+**EXIF stripping (`7bb5a7f4`):** `resolveOfferingPhotos` (presence/actions.ts) now runs every
+newly uploaded offer photo through `sharp` (`.rotate()` to bake in EXIF orientation, then
+re-encode without metadata) before `saveFile`. Scoped here rather than in `saveFile()` itself,
+which is shared by ~15 other upload paths with no privacy need for this. This closes the gap
+flagged in the 2026-09-07 entries above (no EXIF stripping anywhere in the codebase; an
+accommodation photo's embedded GPS EXIF would leak the exact address the map's coarse-jitter grid
+is designed to hide) — now that offer photos are becoming visible to any member (see below), not
+just the circle's own admin, that revisit condition is met.
+
+**One-time reprocessing:** before writing a bulk migration, checked how many circles actually had
+offer photos already saved — staging had exactly 1 circle (`tim-admin`, a test/demo account), 6
+offerings, 9 photos total. Small enough to run in-session: `scripts/strip-offer-photo-exif.ts`
+(dry-run by default, `--apply` to write) re-fetches each photo from MinIO by its existing object
+key, strips it the same way, and re-uploads to the *same* key — no Mongo write needed since
+`url`/`fileName` never change. Ran dry-run then `--apply` against staging; all 9 rewritten, 0
+failures, verified one rewritten object is still readable with its original content-type intact.
+
+**Member-facing offer visibility (`5019582c`):** any authenticated member can now view an offer's
+full details (photos, description, type-specific fields) from the map, not just the circle's own
+admin. Map pins/`OFFER_MAP_PIN_PROJECTION` are untouched — still icon-only/anonymous for
+individual hosts, same jitter as before.
+- `OfferMemberDetails` (models.ts) + `getOfferDetailsForMember` (lib/data/circle.ts): single-
+  offer-by-id, re-deriving the same published/circleType/offersVisible eligibility
+  `getOfferMapPins` uses — an offer that was never actually pin-eligible (owner has offersVisible
+  off, unpublished circle, wrong circleType) can't be read this way either, even by a logged-in
+  member. Prevents ID-enumeration of `circleId:offeringId` pairs from reaching hidden offers.
+- `getOfferDetailsForMemberAction` (map-explorer-actions.ts): the exposed server action.
+  Explicitly requires a session and returns `null` otherwise (no reliance on obscurity).
+  Deliberately single-offer-by-id only, no bulk/list variant, to limit scraping surface to one
+  click at a time.
+- `use-offer-member-details.ts`: shared client-side cache/hook (keyed by offerId) so hovering a
+  pin and then clicking it open never double-fetches the same offer.
+- Pin popup (map.tsx): an anonymous individual-host offer's popup now fetches on open (not
+  preloaded for every pin) and swaps its icon for the offer's first photo if one exists. Venue-
+  sourced pins, which already show the venue's own picture here, are untouched.
+- `CrewOfferMapPreview` (the pin-click side panel — despite the "Crew" name, this is the generic
+  offer-pin preview, see its own module comment) now shows the full photo carousel (reusing
+  `ImageThumbnailCarousel`/the app-wide `ImageGallery` lightbox), the freeform description,
+  type-specific structured fields (via `getOfferDetailsSummary`, widened to accept just
+  `{ details }` so this member-facing shape can reuse it without needing the rest of
+  `TourTeamOffering`), and a static "Contact currently disabled" placeholder — no working
+  form/role/tier gating yet, deliberately out of scope this pass. Skipped entirely for grouped
+  venue markers (2+ merged offerings), rather than showing detail for just one of several.
+
+Typecheck, lint, and a full production build all clean throughout. **Not verified in a browser** —
+same caveat as every other Offers-feature entry above; this environment has no browser-testing
+tooling for peerify-staging. Recommend a manual pass (hover an anonymous individual-host offer pin
+and confirm the photo swap, click it open and confirm the full panel — photos, description,
+type-specific fields, contact placeholder — then repeat for a venue pin and a grouped venue
+marker) before treating this as done.
+
+**Status:** 2 commits on `staging` (`7bb5a7f4` EXIF stripping + one-time reprocessing,
+`5019582c` member-facing offer visibility + UI). Not deployed to staging, not cherry-picked to
+main. Reprocessing script's `--apply` run already happened against staging's live MinIO/Mongo
+(see above) — that part is not a no-op to re-run, though it's idempotent-safe if repeated
+(re-stripping an already-stripped photo just re-encodes it once more).
+
+**What's next:** manual browser verification (see above); the real "Contact currently disabled"
+flow (role/tier-gated messaging) is a separate future task, out of scope here by design.
