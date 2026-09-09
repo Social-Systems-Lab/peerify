@@ -14,7 +14,7 @@ import {
     getTourTeamOfferingLabel,
 } from "@/lib/data/tour-team-offerings";
 import { useOfferMemberDetails } from "./use-offer-member-details";
-import ImageThumbnailCarousel from "@/components/ui/image-thumbnail-carousel";
+import ImageCarousel from "@/components/ui/image-carousel";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type CrewOfferMapPreviewProps = {
@@ -65,84 +65,114 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
     }));
 
     return (
-        <div className="custom-scrollbar h-full overflow-y-auto p-4">
-            <div className="flex items-center gap-3">
-                {isVenue && pin.circlePicture?.url ? (
-                    <Image
-                        src={pin.circlePicture.url}
-                        alt=""
-                        width={56}
-                        height={56}
-                        className="h-14 w-14 shrink-0 rounded-full object-cover"
-                    />
-                ) : (
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-900">
-                        <Icon className="h-6 w-6" />
-                    </div>
-                )}
-                <div className="min-w-0">
-                    <div className="truncate text-lg font-semibold">{isVenue ? pin.circleName : label}</div>
-                    {isVenue && !isGrouped && <div className="truncate text-sm text-muted-foreground">{label}</div>}
-                    {locationLabel && (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <MapPin className="h-3.5 w-3.5 shrink-0" />
-                            <span className="truncate">{locationLabel}</span>
+        <div className="custom-scrollbar h-full overflow-y-auto">
+            {/* Full-width hero, matching CirclePreview/EventDetail's compact preview (both use this
+                same ImageCarousel at this same height) — not shown for a grouped venue marker,
+                which represents several distinct offers and keeps its existing icon-list layout
+                below, untouched. `details === undefined` (still loading) shows a same-sized
+                skeleton rather than flashing the icon fallback and then swapping to a photo. */}
+            {!isGrouped && (
+                <div className="relative h-[270px] w-full shrink-0">
+                    {details === undefined ? (
+                        <Skeleton className="h-full w-full rounded-none" />
+                    ) : photoMedia.length > 0 ? (
+                        <ImageCarousel
+                            images={photoMedia}
+                            options={{ loop: photoMedia.length > 1 }}
+                            containerClassName="h-full"
+                            imageClassName="object-cover"
+                            showArrows={false}
+                            showDots={photoMedia.length > 1}
+                            dotsPosition="bottom-right"
+                        />
+                    ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-green-100 text-green-900">
+                            <Icon className="h-16 w-16" />
                         </div>
                     )}
                 </div>
-            </div>
-            {isGrouped && (
-                <ul className="mt-4 space-y-2">
-                    {pin.groupedOfferings!.map((offering, index) => {
-                        const OfferIcon = getTourTeamOfferingIcon({ type: offering.offerType });
-                        const offerLabel = getTourTeamOfferingLabel({
-                            type: offering.offerType,
-                            label: offering.offerLabel,
-                        });
-                        return (
-                            <li key={`${offering.offerType}:${index}`} className="flex items-center gap-2 text-sm">
-                                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-900">
-                                    <OfferIcon className="h-3.5 w-3.5" />
-                                </span>
-                                <span className="truncate">{offerLabel}</span>
-                            </li>
-                        );
-                    })}
-                </ul>
             )}
-            {!isGrouped && details === undefined && (
-                <div className="mt-4 space-y-2">
-                    <Skeleton className="h-24 w-full rounded-md" />
-                    <Skeleton className="h-4 w-3/4 rounded" />
-                    <Skeleton className="h-4 w-1/2 rounded" />
-                </div>
-            )}
-            {!isGrouped && details && (
-                <div className="mt-4 space-y-4">
-                    {photoMedia.length > 0 && <ImageThumbnailCarousel images={photoMedia} />}
-                    <div className="space-y-1.5 text-sm">
-                        {details.accommodationType && (
-                            <p className="font-medium">{accommodationSubTypeLabels[details.accommodationType]}</p>
+            <div className="p-4">
+                <div className="flex items-center gap-3">
+                    {isVenue && pin.circlePicture?.url ? (
+                        <Image
+                            src={pin.circlePicture.url}
+                            alt=""
+                            width={56}
+                            height={56}
+                            className="h-14 w-14 shrink-0 rounded-full object-cover"
+                        />
+                    ) : (
+                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-900">
+                            <Icon className="h-6 w-6" />
+                        </div>
+                    )}
+                    <div className="min-w-0">
+                        <div className="truncate text-lg font-semibold">{isVenue ? pin.circleName : label}</div>
+                        {isVenue && !isGrouped && (
+                            <div className="truncate text-sm text-muted-foreground">{label}</div>
                         )}
-                        {summary && <p className="text-muted-foreground">{summary}</p>}
-                        {details.detail && <p className="whitespace-pre-wrap text-muted-foreground">{details.detail}</p>}
-                    </div>
-                    {/* Static placeholder only — no working contact form, no role/tier gating logic yet.
-                        The host stays unreachable from this panel until that's actually built. */}
-                    <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
-                        <MessageCircleOff className="h-4 w-4 shrink-0" />
-                        <span>Contact currently disabled</span>
+                        {locationLabel && (
+                            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                                <span className="truncate">{locationLabel}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
-            )}
-            {isVenue && pin.circleHandle && (
-                <Link
-                    href={`/circles/${pin.circleHandle}`}
-                    className="mt-4 inline-flex items-center text-sm font-medium text-primary hover:underline"
-                >
-                    View profile
-                </Link>
-            )}
+                {isGrouped && (
+                    <ul className="mt-4 space-y-2">
+                        {pin.groupedOfferings!.map((offering, index) => {
+                            const OfferIcon = getTourTeamOfferingIcon({ type: offering.offerType });
+                            const offerLabel = getTourTeamOfferingLabel({
+                                type: offering.offerType,
+                                label: offering.offerLabel,
+                            });
+                            return (
+                                <li key={`${offering.offerType}:${index}`} className="flex items-center gap-2 text-sm">
+                                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-green-100 text-green-900">
+                                        <OfferIcon className="h-3.5 w-3.5" />
+                                    </span>
+                                    <span className="truncate">{offerLabel}</span>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                )}
+                {!isGrouped && details === undefined && (
+                    <div className="mt-4 space-y-2">
+                        <Skeleton className="h-4 w-3/4 rounded" />
+                        <Skeleton className="h-4 w-1/2 rounded" />
+                    </div>
+                )}
+                {!isGrouped && details && (
+                    <div className="mt-4 space-y-4">
+                        <div className="space-y-1.5 text-sm">
+                            {details.accommodationType && (
+                                <p className="font-medium">{accommodationSubTypeLabels[details.accommodationType]}</p>
+                            )}
+                            {summary && <p className="text-muted-foreground">{summary}</p>}
+                            {details.detail && (
+                                <p className="whitespace-pre-wrap text-muted-foreground">{details.detail}</p>
+                            )}
+                        </div>
+                        {/* Static placeholder only — no working contact form, no role/tier gating logic
+                            yet. The host stays unreachable from this panel until that's actually built. */}
+                        <div className="flex items-center gap-2 rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+                            <MessageCircleOff className="h-4 w-4 shrink-0" />
+                            <span>Contact currently disabled</span>
+                        </div>
+                    </div>
+                )}
+                {isVenue && pin.circleHandle && (
+                    <Link
+                        href={`/circles/${pin.circleHandle}`}
+                        className="mt-4 inline-flex items-center text-sm font-medium text-primary hover:underline"
+                    >
+                        View profile
+                    </Link>
+                )}
+            </div>
         </div>
     );
 }
