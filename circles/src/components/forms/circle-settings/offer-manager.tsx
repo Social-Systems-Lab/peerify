@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, X } from "lucide-react";
@@ -22,14 +22,21 @@ interface OfferManagerProps {
     // that constant's comment in tour-team-offerings.ts.
     allowedTypes?: readonly (typeof OFFER_MODAL_TYPES)[number][];
     // Offers save as one atomic write via the page's own "Save Changes" button, not per-offer —
-    // this is the last-successfully-persisted snapshot (the page's form defaultValues at mount,
-    // re-set to the same array passed to form.reset() after each successful save), used only to
-    // detect which cards have edits pending that save. Not required — omit to skip the "Unsaved"
-    // markers entirely (e.g. a future non-form consumer of this component).
-    savedOfferings?: TourTeamOffering[];
+    // this increments each time that save succeeds, and is the signal this component clears its
+    // "touched since last save" id set on (see touchedIds below). NOT a version of the offerings
+    // themselves — a plain counter is enough since all we need is "a save just happened."
+    // Originally this tried to detect "unsaved" via object-reference comparison against a
+    // last-saved snapshot, but react-hook-form deep-clones (cloneObject) form values on every
+    // reset() and at init, so field.value's objects are never the same references as anything
+    // held outside RHF's store — that broke the marker both on initial load and right after a
+    // successful save. Tracking touched ids explicitly at the actual edit action, instead of
+    // inferring "changed" from either object identity or a content diff, sidesteps both that
+    // clone issue and the need to special-case in-flight photo File objects (not meaningfully
+    // content-comparable) for a deep-equality check.
+    saveVersion?: number;
 }
 
-export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES, savedOfferings }: OfferManagerProps) {
+export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES, saveVersion }: OfferManagerProps) {
     const [modalOpen, setModalOpen] = useState(false);
     // Non-null while editing an existing offering — CreateOfferModal reads this to open straight
     // to a pre-filled Step 2 instead of the create flow's Step 1 grid. Cleared on close so the
@@ -42,27 +49,43 @@ export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES
         [offerings],
     );
 
-    // addOffering/saveOffering above only ever replace the one offering that changed — every
-    // other offering keeps its exact object reference across onChange calls — so "unsaved" is
-    // just "this offering isn't the same object as the one with this id in the last-saved
-    // snapshot": no diffing, no extra state to keep in sync, and it survives edits that touch
-    // structured `details`/photos without needing type-specific comparison logic.
-    const savedOfferingById = useMemo(() => {
-        const map = new Map<string, TourTeamOffering>();
-        (savedOfferings ?? []).forEach((offering) => map.set(offering.id, offering));
-        return map;
-    }, [savedOfferings]);
+    // Ids of offerings added/edited via the modal since the last successful page-level save —
+    // set explicitly at the two points a real edit happens (addOffering/saveOffering), not
+    // inferred from a diff, so it directly records the user action rather than something that
+    // could be fooled by object identity or content-shape changes.
+    const [touchedIds, setTouchedIds] = useState<Set<string>>(new Set());
+
+    // This effect fires on mount too (every useEffect does, regardless of its deps array), but
+    // there's nothing to clear yet — touchedIds already starts empty — so skip that first run
+    // rather than do a no-op set-state. Ref-based (not e.g. comparing saveVersion to its initial
+    // value), since a caller's initial saveVersion isn't necessarily 0/undefined.
+    const isFirstRender = React.useRef(true);
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+        setTouchedIds(new Set());
+    }, [saveVersion]);
 
     const removeOffering = (id: string) => {
         onChange(offerings.filter((offering) => offering.id !== id));
+        setTouchedIds((prev) => {
+            if (!prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+        });
     };
 
     const addOffering = (offering: TourTeamOffering) => {
         onChange([...offerings, offering]);
+        setTouchedIds((prev) => new Set(prev).add(offering.id));
     };
 
     const saveOffering = (updated: TourTeamOffering) => {
         onChange(offerings.map((offering) => (offering.id === updated.id ? updated : offering)));
+        setTouchedIds((prev) => new Set(prev).add(updated.id));
     };
 
     const openAddModal = () => {
@@ -88,9 +111,7 @@ export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES
                         const Icon = getTourTeamOfferingIcon(offering);
                         const summary = getOfferDetailsSummary(offering);
                         const thumbnail = offering.photos?.[0]?.url;
-                        // undefined savedOfferings means "no baseline provided" — don't flag
-                        // anything rather than mark every offering unsaved by default.
-                        const isUnsaved = savedOfferings !== undefined && savedOfferingById.get(offering.id) !== offering;
+                        const isUnsaved = touchedIds.has(offering.id);
                         return (
                             <div key={offering.id} className="flex items-start gap-3 rounded-md border px-3 py-2">
                                 {thumbnail ? (
