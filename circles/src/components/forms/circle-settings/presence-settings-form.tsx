@@ -298,13 +298,11 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
     // can't false-positive right after saving.
     useUnsavedChangesGuard(form.formState.isDirty);
 
-    // Last-successfully-persisted snapshot of tourTeamOfferings, passed to OfferManager as
-    // `savedOfferings` so it can show a per-card "Unsaved" marker — see that component's own
-    // comment for why plain object-reference comparison against this snapshot is enough (no deep
-    // diffing needed). Lazy initializer so this is computed once at mount, same as useForm's
-    // defaultValues above; re-set (not appended to) in onSubmit's success branch, to the exact
-    // same array form.reset() applies there, so the two stay in lockstep.
-    const [savedOfferings, setSavedOfferings] = useState<TourTeamOffering[]>(() => circle.tourTeamOfferings || []);
+    // Passed to OfferManager as `saveVersion` — a plain counter it uses to know when to clear its
+    // own "touched since last save" offering-id set (see that component's own comment for why
+    // this replaced an earlier object-reference-based approach that react-hook-form's internal
+    // deep-cloning broke). Incremented, not reset, in onSubmit's success branch below.
+    const [saveVersion, setSaveVersion] = useState(0);
 
     const onSubmit = async (data: any) => {
         setIsSubmitting(true);
@@ -335,7 +333,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                     ...data,
                     tourTeamOfferings: resolvedOfferings,
                 });
-                setSavedOfferings(resolvedOfferings);
+                setSaveVersion((v) => v + 1);
                 toast({
                     title: "Success",
                     description: isUser ? "Offers updated successfully" : "Offers and needs updated successfully",
@@ -452,7 +450,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                         <OfferManager
                                             value={field.value as TourTeamOffering[] | undefined}
                                             onChange={field.onChange}
-                                            savedOfferings={savedOfferings}
+                                            saveVersion={saveVersion}
                                         />
                                     )}
                                 />
@@ -485,7 +483,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                             value={field.value as TourTeamOffering[] | undefined}
                                             onChange={field.onChange}
                                             allowedTypes={VENUE_OFFER_MODAL_TYPES}
-                                            savedOfferings={savedOfferings}
+                                            saveVersion={saveVersion}
                                         />
                                     )}
                                 />
