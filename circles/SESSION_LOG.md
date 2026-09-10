@@ -4456,71 +4456,141 @@ type-specific offer fields separately from the freeform note (folded into
 **Status:** fully deployed to prod and staging, both branches pushed to
 origin. Nothing pending from this session.
 
-### 2026-09-10 — Offer text limit raise + safeParse bug + fileInfoSchema null fix (staging arc, one isolated prod commit)
+### 2026-09-10 — Offer text limits + validation, fileInfoSchema null fix (+ dormant Funding Asks bug), offer-field content pass, per-offer Unsaved marker
 
-**Staging-only arc (branch `staging`, all four commits deployed to staging,
-none promoted to `main`/prod yet):**
-1. Raised `tourTeamOfferingSchema`'s five freeform text fields (`detail`,
-   `spaceDescription`, `dietaryNotes`, `routeNotes`, promotion `notes`)
-   from 300 to 1000 chars; added a real `tourTeamOfferingSchema.safeParse()`
-   gate in `savePresence()` before the Mongo write (there was none before —
-   `updateCircle()` wrote straight through). Added live "used / max"
-   character counters to the offer text fields, reusing the existing
-   muted-foreground counter pattern and `text-destructive` for an
-   already-over-limit legacy value.
-2. **Bug:** the new safeParse gate started rejecting saves on the
-   `tim-admin` staging circle with a hardcoded "too-long details" message
-   that was wrong — actual cause (confirmed by running
-   `z.array(tourTeamOfferingSchema).safeParse()` directly against the real
-   circle data pulled from Mongo) was 3 legacy `tourTeamOfferings.photos`
-   entries storing literal `fileName: null, originalName: null` instead of
-   omitting the field — `fileInfoSchema` used `z.string().optional()`,
-   which allows `undefined`, not `null`. Fixed the error message to report
-   the real `ZodError.issues` (offering + field path + reason) instead of
-   a guessed-at generic string, and widened `fileInfoSchema.fileName`/
-   `originalName` to `.nullable().optional()` on staging. Re-verified
-   against the real `tim-admin` data: all 7 offerings, including the two
-   that were stuck (Accommodation, Show space), now pass.
+Six pieces of work, same overall arc, all shipped and verified on both
+staging and `main`/prod by end of session.
 
-**Isolated prod commit (branch `main`, this repo — NOT bundled with the
-four staging commits above, on its own timeline per Tim's instruction):**
-widened `fileInfoSchema.fileName`/`originalName` to `.nullable().optional()`
-here too. This is an independent bug from the offers arc: checking prod
-data during the investigation above found 33 circles with the same null
-`fileName`/`originalName` pattern already in `Circle.images` — and
+**1. Offer text limits raised, real server-side enforcement added.**
+`tourTeamOfferingSchema`'s five freeform fields (`detail`,
+`spaceDescription`, `dietaryNotes`, `routeNotes`, promotion `notes`)
+raised from 300 to 1000 chars. Previously the 300-char cap was enforced
+client-side only (a plain `maxLength` attribute) — `savePresence()` wrote
+straight to Mongo via `updateCircle()` with no schema validation at all.
+Added a real `tourTeamOfferingSchema.safeParse()` gate before the write,
+so an oversized/malformed offering is now rejected with a message instead
+of silently persisted. (staging `22680804`, prod `7c47f819`)
+
+**2. Live character counter added.** "Used / max" counters on the same
+five fields, reusing the existing muted-foreground counter pattern
+(`text-destructive` for an already-over-limit legacy value). Extracted
+`OFFER_NOTES_MAX_LENGTH` as a shared constant so the schema's `.max()`
+calls, the UI's `maxLength` props, and the counters all read one number —
+the cap only needs changing in one place going forward. (staging
+`a19c8c93`, prod `f926ba2b`)
+
+**3. Bug: the new safeParse gate's error message was generic and
+misdiagnosed a real bug as a length issue.** It rejected saves on the
+`tim-admin` staging circle with a hardcoded "one of your offers has
+invalid or too-long details" message — none of that circle's fields were
+actually over the limit. Fixed to report the real `ZodError.issues`
+(offering name, field path, reason) instead of a guessed-at generic
+string, so a mismatch between symptom and message can't happen again.
+(staging `bc20d65d`, prod `770f675b`)
+
+**4. Root cause, found via item 3's fix: `fileInfoSchema.fileName`/
+`originalName` were optional but not nullable, while real persisted data
+stores literal `null`.** Confirmed by running
+`z.array(tourTeamOfferingSchema).safeParse()` directly against the real
+`tim-admin` circle data pulled from Mongo: 3 legacy
+`tourTeamOfferings.photos` entries had `fileName: null, originalName:
+null` instead of omitting the field — `z.string().optional()` allows
+`undefined`, not `null`. Checking prod data (not just this one staging
+circle) found the same shape in 33 circles' worth of `Circle.images` —
+this is `fileInfoSchema`'s real historical output, not a one-off glitch.
+Widened both fields to `.nullable().optional()` to match.
+
+This also closed a **separate, independently-discovered dormant bug in
+Funding Asks** (legacy Kamooni code, not yet used by any real Peerify
+user — `fundingAsks` has 0 documents with a `coverImage` on prod).
 `funding/actions.ts`'s `getCoverImageInput()` calls
 `fileInfoSchema.safeParse()` on every funding-ask edit (the client
 resubmits the existing `coverImage` unchanged as JSON when it isn't being
-replaced). Under the old non-nullable schema, a `coverImage` with a null
+replaced); under the old non-nullable schema, a `coverImage` with a null
 `fileName`/`originalName` would silently fail that parse, read as "no
-image provided," and **delete the ask's existing cover image via
-`deleteFile()`** on an unrelated edit — no error shown to the user.
+image provided," and delete the ask's existing cover image via
+`deleteFile()` on an unrelated edit, no error shown. Retroactive check —
+`deleteFile()` (`storage.ts`) logs every attempt/success via plain
+`console.log`, object name embedding the `saveFile()` caller's label
+(`"funding-ask-cover"` for this feature); searched
+`~/.pm2/logs/peerify-{out,error}.log` (no rotation configured, content
+spans 2026-06-15 through today) for that label and every `deleteFile`
+line: zero matches, so this never actually fired — a real negative
+within the log's retention window, not provable further back (MinIO's
+`circles` bucket has versioning disabled, so the log is the only
+forensic trail, not a cross-checkable one).
 
-**Retroactive check — has this actually fired on prod?** `fundingAsks`
-currently has 0 documents with a `coverImage` at all, so not currently
-live. Checked whether it ever fired in the past:
-- `deleteFile()` (`storage.ts`) logs both "Attempting to delete object: …"
-  and "Successfully deleted object: …" via plain `console.log` on every
-  call, success or failure, and the object name always embeds the
-  `saveFile()` caller's label — `"funding-ask-cover"` for this feature
-  specifically, so a past occurrence would be directly greppable.
-  Searched `~/.pm2/logs/peerify-out.log` + `peerify-error.log` (no
-  rotation/archiving configured, no `pm2-logrotate`; content's embedded
-  upload timestamps span 2026-06-15 through today, ~3 months) for
-  `"funding-ask-cover"` and for every `deleteFile` log line: **zero
-  matches** — no funding-ask-cover object has ever been deleted in that
-  window, by this bug or by legitimate replacement.
-- MinIO `circles` bucket has versioning **disabled** (`getBucketVersioning`
-  → empty/unversioned) — a delete would be unrecoverable and leaves no
-  independent trail beyond the PM2 log line above, which is why the log
-  check above is the only forensic evidence available, not a
-  cross-checkable one.
-- Caveat: this is a real negative result within the log's actual retention
-  window, not a mathematical proof — can't rule out an occurrence before
-  2026-06-15 or across an unlogged gap (no evidence either was truncated,
-  but it isn't independently verifiable).
+Given the data-loss risk, this fix was pushed and deployed to **prod
+ahead of the offers work**, isolated in its own commit rather than
+bundled with the offers-arc commits that also needed it (staging
+`4ac44aa0`, prod `cd135d22` — prod's version built independently in that
+repo, not a cherry-pick of staging's, per instruction to keep the two
+promotable/revertable on separate timelines).
 
-**Status:** staging fully deployed (4 commits). Prod fix prepared as one
-isolated local commit on `main`, **NOT pushed to origin, NOT deployed** —
-Tim will confirm both separately, on their own timeline, independent of
-whether/when the offers arc itself gets promoted.
+**5. Content pass on the offer type forms**, following the
+Meal/Accommodation pattern (structured fields for distinctly different
+kinds of input, freeform text for genuine open-ended notes). Accommodation
+gained *Guest capacity* (number) and *Typical check-in time* (short
+text); Show space gained a *Space type* (Home / Private venue) toggle;
+Promotion's two overlapping freeform fields collapsed into one (the
+promotion-specific "anything else about how you'd promote it?" removed —
+the universal "Tell people more about this offer" field already covered
+it); Transport's `routeNotes`/"Route notes" renamed to
+`usageDetails`/"Usage details" with a placeholder prompting for range
+limits, borrowing rules, and driver-included vs. self-drive; a static
+privacy reminder added to the top of the offer form. No data migration —
+only one account (`tim-admin`) had posted offers, so fields were
+changed/renamed directly rather than kept backward-compatible. **Known
+consequence:** the Transport rename meant existing `routeNotes` content
+would be silently dropped on next save (Zod strips unrecognized keys) —
+`tim-admin`'s real content under the old field was manually re-entered
+under `usageDetails` before this went to prod. (staging `e9594b4f`, prod
+`0a5830ab`)
+
+**6. Per-offer "Unsaved" badge on the Presence settings page**, so users
+can tell which offer cards have edits pending before clicking Save
+Changes (offers save as one atomic write, not per-offer). First attempt
+used object-reference equality between rendered offerings and a
+last-saved-offerings baseline — seemed sound given how `OfferManager`
+builds its arrays (`addOffering`/`saveOffering` only ever replace the one
+offering that changed, so untouched offerings keep their object
+reference) — but shipped broken: every card showed "Unsaved" always,
+including right after a successful save. Root cause: react-hook-form
+deep-clones (`cloneObject`) form values both at `useForm` init (from
+`defaultValues`) and on every `reset()` call (confirmed by reading
+`node_modules/react-hook-form/dist/index.esm.mjs` directly) — so
+`field.value`'s objects are never the same references as anything held
+outside RHF's internal store, not even the exact array just passed into
+`reset()`. (staging `1a359f8d`, prod `1e10f51c` — the broken version)
+
+Fixed with an explicit `touchedIds` (`Set<string>`) tracked at the actual
+edit points (`addOffering`/`saveOffering`), cleared via a `saveVersion`
+counter prop incremented by the page on successful save — records the
+real user action directly rather than inferring "changed" from object
+identity or a content diff, which also sidesteps needing to
+content-compare in-flight photo `File` objects. Verified via a
+logic-level simulation (no browser tooling in this environment) mirroring
+`OfferManager`'s exact state machine against the real `tim-admin`
+offering ids — fresh load (0 pills), editing one offer (pill only on
+that one), simulated save (clears all) — then manually click-tested
+after deploy. (staging `76019125`, prod `19728d3e`)
+
+**Promotion.** All six prod commits above cherry-picked from staging in
+dependency order (the `fileInfoSchema` widening had to land before the
+offers-arc commits that assumed it) — one expected merge conflict in a
+comment block during the cherry-pick, resolved by keeping the more
+detailed prod-side comment.
+
+**Status:** fully shipped and verified on both staging and prod. `main`
+@ `19728d3e`, deployed (`current` → `releases/20260910-144456-19728d3e`).
+
+**Backlog, carried forward unchanged — none touched today:** venue offer
+creation (`TourTeamOfferingsEditor` is `circleType:"user"`-only, the pin
+query hardcoded the same way — needs its own scoping session);
+`offersPanelVisibility` activation on the About page (scaffolded 2026-09-09,
+default still unconditionally `"visible"`, trim logic never fires); About
+page visual polish for Offers (thumbnails + slider); Contacts-tier private
+profiles; general profile access rules.
+
+**Next session:** detour to scope a new card-based discovery/search
+feature (separate chat) before returning to venue offers.
