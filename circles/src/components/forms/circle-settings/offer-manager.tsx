@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Pencil, X } from "lucide-react";
 import { TourTeamOffering } from "@/models/models";
 import {
@@ -20,9 +21,15 @@ interface OfferManagerProps {
     // VENUE_OFFER_MODAL_TYPES to hide predefined types that don't fit a business profile. See
     // that constant's comment in tour-team-offerings.ts.
     allowedTypes?: readonly (typeof OFFER_MODAL_TYPES)[number][];
+    // Offers save as one atomic write via the page's own "Save Changes" button, not per-offer —
+    // this is the last-successfully-persisted snapshot (the page's form defaultValues at mount,
+    // re-set to the same array passed to form.reset() after each successful save), used only to
+    // detect which cards have edits pending that save. Not required — omit to skip the "Unsaved"
+    // markers entirely (e.g. a future non-form consumer of this component).
+    savedOfferings?: TourTeamOffering[];
 }
 
-export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES }: OfferManagerProps) {
+export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES, savedOfferings }: OfferManagerProps) {
     const [modalOpen, setModalOpen] = useState(false);
     // Non-null while editing an existing offering — CreateOfferModal reads this to open straight
     // to a pre-filled Step 2 instead of the create flow's Step 1 grid. Cleared on close so the
@@ -34,6 +41,17 @@ export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES
         () => new Set(offerings.filter((o) => o.type !== "custom").map((o) => o.type)),
         [offerings],
     );
+
+    // addOffering/saveOffering above only ever replace the one offering that changed — every
+    // other offering keeps its exact object reference across onChange calls — so "unsaved" is
+    // just "this offering isn't the same object as the one with this id in the last-saved
+    // snapshot": no diffing, no extra state to keep in sync, and it survives edits that touch
+    // structured `details`/photos without needing type-specific comparison logic.
+    const savedOfferingById = useMemo(() => {
+        const map = new Map<string, TourTeamOffering>();
+        (savedOfferings ?? []).forEach((offering) => map.set(offering.id, offering));
+        return map;
+    }, [savedOfferings]);
 
     const removeOffering = (id: string) => {
         onChange(offerings.filter((offering) => offering.id !== id));
@@ -70,6 +88,9 @@ export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES
                         const Icon = getTourTeamOfferingIcon(offering);
                         const summary = getOfferDetailsSummary(offering);
                         const thumbnail = offering.photos?.[0]?.url;
+                        // undefined savedOfferings means "no baseline provided" — don't flag
+                        // anything rather than mark every offering unsaved by default.
+                        const isUnsaved = savedOfferings !== undefined && savedOfferingById.get(offering.id) !== offering;
                         return (
                             <div key={offering.id} className="flex items-start gap-3 rounded-md border px-3 py-2">
                                 {thumbnail ? (
@@ -81,7 +102,14 @@ export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES
                                     </div>
                                 )}
                                 <div className="min-w-0 flex-1 space-y-0.5">
-                                    <p className="text-sm font-medium">{getTourTeamOfferingLabel(offering)}</p>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <p className="text-sm font-medium">{getTourTeamOfferingLabel(offering)}</p>
+                                        {isUnsaved && (
+                                            <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-medium">
+                                                Unsaved
+                                            </Badge>
+                                        )}
+                                    </div>
                                     {offering.accommodationType && (
                                         <p className="text-xs text-muted-foreground">
                                             {accommodationSubTypeLabels[offering.accommodationType]}

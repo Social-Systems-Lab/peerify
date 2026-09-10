@@ -298,6 +298,14 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
     // can't false-positive right after saving.
     useUnsavedChangesGuard(form.formState.isDirty);
 
+    // Last-successfully-persisted snapshot of tourTeamOfferings, passed to OfferManager as
+    // `savedOfferings` so it can show a per-card "Unsaved" marker — see that component's own
+    // comment for why plain object-reference comparison against this snapshot is enough (no deep
+    // diffing needed). Lazy initializer so this is computed once at mount, same as useForm's
+    // defaultValues above; re-set (not appended to) in onSubmit's success branch, to the exact
+    // same array form.reset() applies there, so the two stay in lockstep.
+    const [savedOfferings, setSavedOfferings] = useState<TourTeamOffering[]>(() => circle.tourTeamOfferings || []);
+
     const onSubmit = async (data: any) => {
         setIsSubmitting(true);
         try {
@@ -320,12 +328,14 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                 // forces every subscribed Controller to re-render, with no dependency on a field
                 // having already been "seen" by RHF's internal registry the way setValue's
                 // notification path does; also clears isDirty now that the save succeeded.
+                const resolvedOfferings: TourTeamOffering[] = Array.isArray(result.data?.tourTeamOfferings)
+                    ? result.data.tourTeamOfferings
+                    : tourTeamOfferings;
                 form.reset({
                     ...data,
-                    tourTeamOfferings: Array.isArray(result.data?.tourTeamOfferings)
-                        ? result.data.tourTeamOfferings
-                        : tourTeamOfferings,
+                    tourTeamOfferings: resolvedOfferings,
                 });
+                setSavedOfferings(resolvedOfferings);
                 toast({
                     title: "Success",
                     description: isUser ? "Offers updated successfully" : "Offers and needs updated successfully",
@@ -442,6 +452,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                         <OfferManager
                                             value={field.value as TourTeamOffering[] | undefined}
                                             onChange={field.onChange}
+                                            savedOfferings={savedOfferings}
                                         />
                                     )}
                                 />
@@ -474,6 +485,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                             value={field.value as TourTeamOffering[] | undefined}
                                             onChange={field.onChange}
                                             allowedTypes={VENUE_OFFER_MODAL_TYPES}
+                                            savedOfferings={savedOfferings}
                                         />
                                     )}
                                 />
