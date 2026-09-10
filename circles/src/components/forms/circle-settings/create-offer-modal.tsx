@@ -439,7 +439,7 @@ export function CreateOfferModal({
                                         id="offer-space-description"
                                         value={spaceDescription}
                                         onChange={(e) => setSpaceDescription(e.target.value)}
-                                        maxLength={300}
+                                        maxLength={1000}
                                         placeholder="Optional"
                                     />
                                 </div>
@@ -464,7 +464,7 @@ export function CreateOfferModal({
                                         id="offer-dietary-notes"
                                         value={dietaryNotes}
                                         onChange={(e) => setDietaryNotes(e.target.value)}
-                                        maxLength={300}
+                                        maxLength={1000}
                                         placeholder="Optional"
                                     />
                                 </div>
@@ -478,7 +478,7 @@ export function CreateOfferModal({
                                     id="offer-route-notes"
                                     value={routeNotes}
                                     onChange={(e) => setRouteNotes(e.target.value)}
-                                    maxLength={300}
+                                    maxLength={1000}
                                     placeholder="Optional — e.g. usual routes, how far you can go"
                                 />
                             </div>
@@ -502,7 +502,7 @@ export function CreateOfferModal({
                                         id="offer-promotion-notes"
                                         value={promotionNotes}
                                         onChange={(e) => setPromotionNotes(e.target.value)}
-                                        maxLength={300}
+                                        maxLength={1000}
                                         placeholder="Optional"
                                     />
                                 </div>
@@ -518,7 +518,7 @@ export function CreateOfferModal({
                                 id="offer-detail"
                                 value={detail}
                                 onChange={(e) => setDetail(e.target.value)}
-                                maxLength={300}
+                                maxLength={1000}
                                 placeholder="Optional"
                             />
                         </div>
