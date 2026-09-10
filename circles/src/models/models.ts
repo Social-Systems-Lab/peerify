@@ -48,9 +48,18 @@ export const getImageSchema = (maxSize?: number) => {
         );
 };
 
+// originalName/fileName are nullable, not just optional — a lot of persisted FileInfo records
+// (Circle.images especially, 33 circles' worth as of 2026-09) store an explicit `null` here
+// rather than omitting the field. That's the real historical shape this data has, not a one-off
+// glitch, so the schema should accept it. Concretely, funding/actions.ts's getCoverImageInput()
+// re-parses an existing funding ask's coverImage via fileInfoSchema.safeParse() on every edit
+// (the client resubmits it unchanged as JSON when the cover image isn't being replaced) — with
+// the old non-nullable fields, a coverImage with a null fileName/originalName would silently fail
+// that parse, read as "no image provided", and delete the ask's existing cover image on an
+// unrelated edit. See SESSION_LOG.md 2026-09-10 for the investigation.
 export const fileInfoSchema = z.object({
-    originalName: z.string().optional(),
-    fileName: z.string().optional(),
+    originalName: z.string().nullable().optional(),
+    fileName: z.string().nullable().optional(),
     url: z.string(),
 });
 

@@ -4455,3 +4455,72 @@ type-specific offer fields separately from the freeform note (folded into
 
 **Status:** fully deployed to prod and staging, both branches pushed to
 origin. Nothing pending from this session.
+
+### 2026-09-10 — Offer text limit raise + safeParse bug + fileInfoSchema null fix (staging arc, one isolated prod commit)
+
+**Staging-only arc (branch `staging`, all four commits deployed to staging,
+none promoted to `main`/prod yet):**
+1. Raised `tourTeamOfferingSchema`'s five freeform text fields (`detail`,
+   `spaceDescription`, `dietaryNotes`, `routeNotes`, promotion `notes`)
+   from 300 to 1000 chars; added a real `tourTeamOfferingSchema.safeParse()`
+   gate in `savePresence()` before the Mongo write (there was none before —
+   `updateCircle()` wrote straight through). Added live "used / max"
+   character counters to the offer text fields, reusing the existing
+   muted-foreground counter pattern and `text-destructive` for an
+   already-over-limit legacy value.
+2. **Bug:** the new safeParse gate started rejecting saves on the
+   `tim-admin` staging circle with a hardcoded "too-long details" message
+   that was wrong — actual cause (confirmed by running
+   `z.array(tourTeamOfferingSchema).safeParse()` directly against the real
+   circle data pulled from Mongo) was 3 legacy `tourTeamOfferings.photos`
+   entries storing literal `fileName: null, originalName: null` instead of
+   omitting the field — `fileInfoSchema` used `z.string().optional()`,
+   which allows `undefined`, not `null`. Fixed the error message to report
+   the real `ZodError.issues` (offering + field path + reason) instead of
+   a guessed-at generic string, and widened `fileInfoSchema.fileName`/
+   `originalName` to `.nullable().optional()` on staging. Re-verified
+   against the real `tim-admin` data: all 7 offerings, including the two
+   that were stuck (Accommodation, Show space), now pass.
+
+**Isolated prod commit (branch `main`, this repo — NOT bundled with the
+four staging commits above, on its own timeline per Tim's instruction):**
+widened `fileInfoSchema.fileName`/`originalName` to `.nullable().optional()`
+here too. This is an independent bug from the offers arc: checking prod
+data during the investigation above found 33 circles with the same null
+`fileName`/`originalName` pattern already in `Circle.images` — and
+`funding/actions.ts`'s `getCoverImageInput()` calls
+`fileInfoSchema.safeParse()` on every funding-ask edit (the client
+resubmits the existing `coverImage` unchanged as JSON when it isn't being
+replaced). Under the old non-nullable schema, a `coverImage` with a null
+`fileName`/`originalName` would silently fail that parse, read as "no
+image provided," and **delete the ask's existing cover image via
+`deleteFile()`** on an unrelated edit — no error shown to the user.
+
+**Retroactive check — has this actually fired on prod?** `fundingAsks`
+currently has 0 documents with a `coverImage` at all, so not currently
+live. Checked whether it ever fired in the past:
+- `deleteFile()` (`storage.ts`) logs both "Attempting to delete object: …"
+  and "Successfully deleted object: …" via plain `console.log` on every
+  call, success or failure, and the object name always embeds the
+  `saveFile()` caller's label — `"funding-ask-cover"` for this feature
+  specifically, so a past occurrence would be directly greppable.
+  Searched `~/.pm2/logs/peerify-out.log` + `peerify-error.log` (no
+  rotation/archiving configured, no `pm2-logrotate`; content's embedded
+  upload timestamps span 2026-06-15 through today, ~3 months) for
+  `"funding-ask-cover"` and for every `deleteFile` log line: **zero
+  matches** — no funding-ask-cover object has ever been deleted in that
+  window, by this bug or by legitimate replacement.
+- MinIO `circles` bucket has versioning **disabled** (`getBucketVersioning`
+  → empty/unversioned) — a delete would be unrecoverable and leaves no
+  independent trail beyond the PM2 log line above, which is why the log
+  check above is the only forensic evidence available, not a
+  cross-checkable one.
+- Caveat: this is a real negative result within the log's actual retention
+  window, not a mathematical proof — can't rule out an occurrence before
+  2026-06-15 or across an unlogged gap (no evidence either was truncated,
+  but it isn't independently verifiable).
+
+**Status:** staging fully deployed (4 commits). Prod fix prepared as one
+isolated local commit on `main`, **NOT pushed to origin, NOT deployed** —
+Tim will confirm both separately, on their own timeline, independent of
+whether/when the offers arc itself gets promoted.

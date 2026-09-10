@@ -11,7 +11,7 @@ type VerificationThreadMessage = {
     senderPictureUrl?: string | null;
     body?: string;
     createdAt?: string | null;
-    attachments: Array<{ url: string; fileName?: string; originalName?: string }>;
+    attachments: Array<{ url: string; fileName?: string | null; originalName?: string | null }>;
 };
 
 const formatDate = (value?: string | null) => {
@@ -25,7 +25,7 @@ const formatDate = (value?: string | null) => {
 const MessageAttachments = ({
     attachments,
 }: {
-    attachments: Array<{ url: string; fileName?: string; originalName?: string }>;
+    attachments: Array<{ url: string; fileName?: string | null; originalName?: string | null }>;
 }) => {
     if (!attachments.length) {
         return null;
