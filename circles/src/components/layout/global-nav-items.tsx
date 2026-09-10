@@ -14,7 +14,7 @@ import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { CgFeed } from "react-icons/cg";
 import { MdRssFeed } from "react-icons/md";
 import GlobalCreateButton from "./global-create-button";
-import { Star, Plus, Calendar as CalendarIcon } from "lucide-react";
+import { Star, Plus, Headphones } from "lucide-react";
 import { Circle } from "@/models/models";
 import { CirclePicture } from "../modules/circles/circle-picture";
 import PinPicker from "../modules/home/pin-picker";
@@ -153,27 +153,14 @@ export default function GlobalNavItems() {
                     </motion.div>
                 </div>
 
-                {/* Events nav item */}
-                <div
-                    onClick={() => {
-                        if (!confirmLeaveIfDirty()) return;
-                        if (isMobile) {
-                            if (pathname !== "/explore") {
-                                router.push("/explore");
-                            }
-                            setDrawerContent("events");
-                        } else {
-                            setSidePanelMode("events");
-                            router.push("/explore?panel=events&category=events");
-                        }
-                    }}
-                >
+                {/* Discover nav item — a plain route + <Link>, matching Favorites below, not the
+                    SidePanelMode/drawerContentAtom pattern Events used: this screen has no
+                    desktop-panel/mobile-drawer split to coordinate. */}
+                <Link href={"/discover"}>
                     <motion.div
+                        onClick={() => setSidePanelMode("none")}
                         className={`flex flex-shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg transition-colors md:w-[64px] md:pb-2 md:pt-2 ${hoverNavClassName} ${
-                            (pathname === "/explore" && panelMode === "events") ||
-                            (isMobile && drawerContent === "events" && pathname === "/explore")
-                                ? activeNavClassName
-                                : inactiveNavClassName
+                            pathname === "/discover" ? activeNavClassName : inactiveNavClassName
                         }`}
                         whileHover={{ scale: 1.1 }}
                         whileTap={{ scale: 0.95 }}
@@ -181,17 +168,17 @@ export default function GlobalNavItems() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5, delay: 0 * 0.1 }}
                     >
-                        <CalendarIcon size={"24px"} />
+                        <Headphones size={"24px"} />
                         <motion.span
                             className="mt-[2px] text-[11px]"
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ duration: 0.3, delay: 0.2 + 0 * 0.1 }}
                         >
-                            Events
+                            Discover
                         </motion.span>
                     </motion.div>
-                </div>
+                </Link>
 
                 {/* Mobile: Favorites nav item */}
                 <Link href={"/bookmarks"}>
