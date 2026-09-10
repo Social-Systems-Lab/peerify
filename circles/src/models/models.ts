@@ -48,9 +48,14 @@ export const getImageSchema = (maxSize?: number) => {
         );
 };
 
+// originalName/fileName are nullable, not just optional — a lot of persisted FileInfo records
+// (Circle.images especially, 33 circles' worth on prod as of 2026-09) store an explicit `null`
+// here rather than omitting the field. That's the real historical shape this data has, not a
+// one-off glitch, so the schema should accept it rather than every save path having to normalize
+// null -> undefined before validating.
 export const fileInfoSchema = z.object({
-    originalName: z.string().optional(),
-    fileName: z.string().optional(),
+    originalName: z.string().nullable().optional(),
+    fileName: z.string().nullable().optional(),
     url: z.string(),
 });
 
