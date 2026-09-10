@@ -145,7 +145,7 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
                 {!isGrouped && details && (
                     <div className="mt-4 space-y-4">
                         {/* Type-specific fields (label, value) — same labels CreateOfferModal's own
-                            Step 2 form uses for these (e.g. "Route notes"), so a viewer sees the same
+                            Step 2 form uses for these (e.g. "Usage details"), so a viewer sees the same
                             question the host answered, kept visually separate from the freeform
                             `detail` note below (their own general blurb, not an answer to any one
                             type's question). */}

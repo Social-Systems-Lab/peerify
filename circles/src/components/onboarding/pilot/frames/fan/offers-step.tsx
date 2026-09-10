@@ -80,6 +80,13 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
 
     return (
         <div className="space-y-6">
+            {/* Static copy, no gating logic — matches CreateOfferModal's own reminder, offers are
+                visible to any signed-in member, not just Crew/contacts. */}
+            <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+                This information is visible to any signed-in member. Avoid sharing anything you
+                wouldn&apos;t want a stranger to know.
+            </p>
+
             <div className="flex flex-wrap gap-2">
                 {tourTeamOfferingTypes.map((type) => {
                     const isSelected = offerings.some((offering) => offering.id === type);
