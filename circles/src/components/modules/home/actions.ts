@@ -7,7 +7,7 @@ import { ChatRoom, Circle, UserPrivate } from "@/models/models";
 import { cookies } from "next/headers";
 import { createPendingMembershipRequest, deletePendingMembershipRequest } from "@/lib/data/membership-requests";
 import { createPendingCrewApplication } from "@/lib/data/crew-applications";
-import { getCircleById, getCirclePath, updateCircle, getCircleByDid, getCirclesByIds } from "@/lib/data/circle";
+import { getCircleById, getCirclePath, updateCircle, getCircleByDid, getCirclesByIds, isCirclePublished } from "@/lib/data/circle";
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { getAuthenticatedUserDid, getAuthorizedMembers, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
@@ -298,6 +298,22 @@ export const toggleBookmarkAction = async (circleId: string): Promise<UserPrivat
         const userDid = payload.userDid as string;
         if (!userDid) {
             return undefined;
+        }
+
+        // Server-side visibility check, mirroring isDiscoverableCircle/isSuppressedPersonalProfile
+        // (search.ts / content-preview.tsx) rather than a new rule: a personal profile the owner
+        // hasn't made searchable is only visible to admins, followers, or accepted contacts — same
+        // bypass getProfilePreviewAccessAction already computes for the preview card itself. Non-user
+        // circles (communities/venues) have no such restriction, matching isDiscoverableCircle.
+        const targetCircle = await getCircleById(circleId);
+        if (!targetCircle || !isCirclePublished(targetCircle)) {
+            return undefined;
+        }
+        if (targetCircle.circleType === "user" && (targetCircle as any)?.searchable !== true) {
+            const { hasAccess } = await getProfilePreviewAccessAction(circleId, targetCircle.did as string);
+            if (!hasAccess) {
+                return undefined;
+            }
         }
 
         // Get current user and toggle bookmark based on current state
