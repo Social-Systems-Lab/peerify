@@ -571,6 +571,11 @@ export const tourTeamOfferingTypes = [
 // Sub-types for the "spare_room" (displayed as "Accommodation") offering type.
 export const accommodationSubTypes = ["room", "couch", "other"] as const;
 
+// Sub-types for the "hosting_show" (displayed as "Show space") offering type — is this a home, or
+// a non-public/private venue (an office meeting room, a private hall)? Deliberately a flat
+// two-option distinction, not a venue-type taxonomy.
+export const hostingShowSpaceTypes = ["home", "private_venue"] as const;
+
 // Structured detail per offering type, added for the "Create an offer" modal's Step 2 form.
 // Deliberately its own discriminant vocabulary (accommodation/hostingShow/meal/transport/
 // promotion) rather than reusing tourTeamOfferingTypes' legacy snake_case values verbatim —
@@ -584,23 +589,29 @@ export const accommodationSubTypes = ["room", "couch", "other"] as const;
 // event (no linkedEventId, no event-creation handoff). UI copy calls this type "Show space" to
 // avoid confusion with the Home Shows event feature; the enum values (both here and on
 // offering.type, "hosting_show") are unchanged.
-// routeNotes/maxStayNights/checkInFlexible are intentionally freeform/simple fields, not
-// structured date-availability modeling — that's a separate future task.
+// maxStayNights/checkInFlexible/checkInTime/usageDetails are intentionally freeform/simple
+// fields, not structured date-availability modeling — that's a separate future task.
 // Shared cap for every freeform offer "notes" field (detail, spaceDescription, dietaryNotes,
-// routeNotes, promotion notes) — exported so the CreateOfferModal/offers-step UI's maxLength
-// attributes and character counters read the same number this schema enforces server-side.
+// usageDetails) — exported so the CreateOfferModal/offers-step UI's maxLength attributes and
+// character counters read the same number this schema enforces server-side.
 export const OFFER_NOTES_MAX_LENGTH = 1000;
 
 export const offerDetailsAccommodationSchema = z.object({
     type: z.literal("accommodation"),
     maxStayNights: z.number().int().positive().optional(),
     checkInFlexible: z.boolean().optional(),
+    guestCapacity: z.number().int().positive().optional(),
+    // Short free text ("After 3pm", "3-6pm"), not a structured time/range picker — no such
+    // pattern exists elsewhere in this form yet, matches the short-phrase treatment of fields
+    // like Meal's `cuisine` (a capped single-line Input, not a Textarea/notes field).
+    checkInTime: z.string().max(100).optional(),
 });
 
 export const offerDetailsHostingShowSchema = z.object({
     type: z.literal("hostingShow"),
     capacity: z.number().int().positive().optional(),
     spaceDescription: z.string().max(OFFER_NOTES_MAX_LENGTH).optional(),
+    spaceType: z.enum(hostingShowSpaceTypes).optional(),
 });
 
 export const offerDetailsMealSchema = z.object({
@@ -611,15 +622,22 @@ export const offerDetailsMealSchema = z.object({
 
 export const offerDetailsTransportSchema = z.object({
     type: z.literal("transport"),
-    routeNotes: z.string().max(OFFER_NOTES_MAX_LENGTH).optional(),
+    // Renamed from `routeNotes` (2026-09-10) — label changed from "Route notes" to "Usage
+    // details" to more clearly prompt for range limits, borrowing rules, and driver-included vs.
+    // self-drive, not just routes. No existing offer data to migrate (only one account had posted
+    // offers at the time of this rename), so the schema field itself was renamed to match rather
+    // than leaving an internal name mismatched with its label.
+    usageDetails: z.string().max(OFFER_NOTES_MAX_LENGTH).optional(),
 });
 
 export const promotionChannels = ["social_media", "radio", "press", "flyering", "newsletter", "other"] as const;
 
+// `notes` (2026-09-10) removed — it duplicated the universal `detail` field on
+// tourTeamOfferingSchema ("Tell people more about this offer"), which every offering already has
+// regardless of type. Channels stays the only promotion-specific structured field.
 export const offerDetailsPromotionSchema = z.object({
     type: z.literal("promotion"),
     channels: z.array(z.enum(promotionChannels)).optional(),
-    notes: z.string().max(OFFER_NOTES_MAX_LENGTH).optional(),
 });
 
 export const offerDetailsSchema = z.discriminatedUnion("type", [

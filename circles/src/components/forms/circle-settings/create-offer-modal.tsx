@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
 import {
     accommodationSubTypes,
+    hostingShowSpaceTypes,
     Media,
     OFFER_NOTES_MAX_LENGTH,
     OfferDetails,
@@ -32,6 +33,7 @@ import {
 import {
     accommodationSubTypeLabels,
     getTourTeamOfferingIcon,
+    hostingShowSpaceTypeLabels,
     OFFER_MODAL_TYPES,
     promotionChannelLabels,
     tourTeamOfferingTypeLabels,
@@ -44,6 +46,12 @@ import {
 const ACCOMMODATION_PHOTO_NUDGE =
     "Show the room or interior — avoid the building's exterior, street signs, or house numbers that could reveal your address.";
 const GENERIC_PHOTO_NUDGE = "Avoid faces and other identifying details.";
+
+// Static copy, no gating logic behind it — offers are visible to any signed-in member (see
+// offersVisible/getOfferMapPins), not just Crew/contacts, so this is a plain reminder shown at
+// Step 2, not a real access control.
+const OFFER_PRIVACY_REMINDER =
+    "This information is visible to any signed-in member. Avoid sharing anything you wouldn't want a stranger to know.";
 
 type ModalOfferingType = (typeof OFFER_MODAL_TYPES)[number] | "custom";
 
@@ -141,13 +149,15 @@ export function CreateOfferModal({
     const [accommodationType, setAccommodationType] = useState<(typeof accommodationSubTypes)[number] | "">("");
     const [maxStayNights, setMaxStayNights] = useState("");
     const [checkInFlexible, setCheckInFlexible] = useState(false);
+    const [guestCapacity, setGuestCapacity] = useState("");
+    const [checkInTime, setCheckInTime] = useState("");
     const [capacity, setCapacity] = useState("");
     const [spaceDescription, setSpaceDescription] = useState("");
+    const [spaceType, setSpaceType] = useState<(typeof hostingShowSpaceTypes)[number] | "">("");
     const [cuisine, setCuisine] = useState("");
     const [dietaryNotes, setDietaryNotes] = useState("");
-    const [routeNotes, setRouteNotes] = useState("");
+    const [usageDetails, setUsageDetails] = useState("");
     const [channels, setChannels] = useState<string[]>([]);
-    const [promotionNotes, setPromotionNotes] = useState("");
 
     // `photos` in particular isn't type-scoped in the data model — without clearing it here,
     // picking a type, uploading photos, hitting Back, and picking a *different* type would
@@ -161,13 +171,15 @@ export function CreateOfferModal({
         setAccommodationType("");
         setMaxStayNights("");
         setCheckInFlexible(false);
+        setGuestCapacity("");
+        setCheckInTime("");
         setCapacity("");
         setSpaceDescription("");
+        setSpaceType("");
         setCuisine("");
         setDietaryNotes("");
-        setRouteNotes("");
+        setUsageDetails("");
         setChannels([]);
-        setPromotionNotes("");
     };
 
     const resetForm = () => {
@@ -202,21 +214,23 @@ export function CreateOfferModal({
             case "accommodation":
                 setMaxStayNights(details.maxStayNights ? String(details.maxStayNights) : "");
                 setCheckInFlexible(Boolean(details.checkInFlexible));
+                setGuestCapacity(details.guestCapacity ? String(details.guestCapacity) : "");
+                setCheckInTime(details.checkInTime || "");
                 break;
             case "hostingShow":
                 setCapacity(details.capacity ? String(details.capacity) : "");
                 setSpaceDescription(details.spaceDescription || "");
+                setSpaceType(details.spaceType || "");
                 break;
             case "meal":
                 setCuisine(details.cuisine || "");
                 setDietaryNotes(details.dietaryNotes || "");
                 break;
             case "transport":
-                setRouteNotes(details.routeNotes || "");
+                setUsageDetails(details.usageDetails || "");
                 break;
             case "promotion":
                 setChannels(details.channels ? [...details.channels] : []);
-                setPromotionNotes(details.notes || "");
                 break;
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -253,6 +267,8 @@ export function CreateOfferModal({
                     type: "accommodation",
                     maxStayNights: maxStayNights ? Number(maxStayNights) : undefined,
                     checkInFlexible: checkInFlexible || undefined,
+                    guestCapacity: guestCapacity ? Number(guestCapacity) : undefined,
+                    checkInTime: checkInTime.trim() || undefined,
                 };
                 break;
             case "hosting_show":
@@ -260,6 +276,7 @@ export function CreateOfferModal({
                     type: "hostingShow",
                     capacity: capacity ? Number(capacity) : undefined,
                     spaceDescription: spaceDescription.trim() || undefined,
+                    spaceType: spaceType || undefined,
                 };
                 break;
             case "home_cooked_meal":
@@ -272,14 +289,13 @@ export function CreateOfferModal({
             case "local_transport":
                 details = {
                     type: "transport",
-                    routeNotes: routeNotes.trim() || undefined,
+                    usageDetails: usageDetails.trim() || undefined,
                 };
                 break;
             case "promotion":
                 details = {
                     type: "promotion",
                     channels: channels.length ? (channels as (typeof promotionChannels)[number][]) : undefined,
-                    notes: promotionNotes.trim() || undefined,
                 };
                 break;
             default:
@@ -361,6 +377,8 @@ export function CreateOfferModal({
 
                 {step === 2 && selectedType && (
                     <div className="space-y-4 py-2">
+                        <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">{OFFER_PRIVACY_REMINDER}</p>
+
                         {isCustom && (
                             <div className="space-y-2">
                                 <Label htmlFor="offer-label">What are you offering? *</Label>
@@ -395,6 +413,17 @@ export function CreateOfferModal({
                                     </Select>
                                 </div>
                                 <div className="space-y-2">
+                                    <Label htmlFor="offer-guest-capacity">Guest capacity</Label>
+                                    <Input
+                                        id="offer-guest-capacity"
+                                        type="number"
+                                        min={1}
+                                        value={guestCapacity}
+                                        onChange={(e) => setGuestCapacity(e.target.value)}
+                                        placeholder="Optional"
+                                    />
+                                </div>
+                                <div className="space-y-2">
                                     <Label htmlFor="offer-max-stay">Max stay (nights)</Label>
                                     <Input
                                         id="offer-max-stay"
@@ -403,6 +432,16 @@ export function CreateOfferModal({
                                         value={maxStayNights}
                                         onChange={(e) => setMaxStayNights(e.target.value)}
                                         placeholder="Optional"
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="offer-checkin-time">Typical check-in time</Label>
+                                    <Input
+                                        id="offer-checkin-time"
+                                        value={checkInTime}
+                                        onChange={(e) => setCheckInTime(e.target.value)}
+                                        maxLength={100}
+                                        placeholder="e.g. After 3pm, or 3-6pm"
                                     />
                                 </div>
                                 <div className="space-y-1">
@@ -424,6 +463,24 @@ export function CreateOfferModal({
 
                         {selectedType === "hosting_show" && (
                             <>
+                                <div className="space-y-2">
+                                    <Label>Space type</Label>
+                                    <Select
+                                        value={spaceType}
+                                        onValueChange={(v) => setSpaceType(v as (typeof hostingShowSpaceTypes)[number])}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Optional" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {hostingShowSpaceTypes.map((type) => (
+                                                <SelectItem key={type} value={type}>
+                                                    {hostingShowSpaceTypeLabels[type]}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="offer-capacity">Rough capacity</Label>
                                     <Input
@@ -477,42 +534,32 @@ export function CreateOfferModal({
 
                         {selectedType === "local_transport" && (
                             <div className="space-y-2">
-                                <Label htmlFor="offer-route-notes">Route notes</Label>
+                                <Label htmlFor="offer-usage-details">Usage details</Label>
                                 <Textarea
-                                    id="offer-route-notes"
-                                    value={routeNotes}
-                                    onChange={(e) => setRouteNotes(e.target.value)}
+                                    id="offer-usage-details"
+                                    value={usageDetails}
+                                    onChange={(e) => setUsageDetails(e.target.value)}
                                     maxLength={OFFER_NOTES_MAX_LENGTH}
-                                    placeholder="Optional — e.g. usual routes, how far you can go"
+                                    placeholder="Optional — e.g. how far you're willing to go, any rules if someone else drives, whether a driver's included or it's self-drive only"
                                 />
-                                <CharCounter value={routeNotes} max={OFFER_NOTES_MAX_LENGTH} />
+                                <CharCounter value={usageDetails} max={OFFER_NOTES_MAX_LENGTH} />
                             </div>
                         )}
 
                         {selectedType === "promotion" && (
-                            <>
-                                <div className="space-y-2">
-                                    <Label>Channels</Label>
-                                    <ToggleGroup type="multiple" value={channels} onValueChange={setChannels} className="flex-wrap justify-start">
-                                        {promotionChannels.map((channel) => (
-                                            <ToggleGroupItem key={channel} value={channel} className="text-xs">
-                                                {promotionChannelLabels[channel]}
-                                            </ToggleGroupItem>
-                                        ))}
-                                    </ToggleGroup>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="offer-promotion-notes">Anything else about how you&apos;d promote it?</Label>
-                                    <Textarea
-                                        id="offer-promotion-notes"
-                                        value={promotionNotes}
-                                        onChange={(e) => setPromotionNotes(e.target.value)}
-                                        maxLength={OFFER_NOTES_MAX_LENGTH}
-                                        placeholder="Optional"
-                                    />
-                                    <CharCounter value={promotionNotes} max={OFFER_NOTES_MAX_LENGTH} />
-                                </div>
-                            </>
+                            <div className="space-y-2">
+                                <Label>Channels</Label>
+                                <ToggleGroup type="multiple" value={channels} onValueChange={setChannels} className="flex-wrap justify-start">
+                                    {promotionChannels.map((channel) => (
+                                        <ToggleGroupItem key={channel} value={channel} className="text-xs">
+                                            {promotionChannelLabels[channel]}
+                                        </ToggleGroupItem>
+                                    ))}
+                                </ToggleGroup>
+                                {/* No promotion-specific freeform field anymore (2026-09-10) — it
+                                    duplicated the generic "Tell people more about this offer" field
+                                    below, which every offer type already has. */}
+                            </div>
                         )}
 
                         {/* Generic freeform note, shown for every type (including Other, where this

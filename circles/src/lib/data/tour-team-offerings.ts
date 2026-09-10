@@ -1,5 +1,5 @@
 import { BedDouble, Car, Compass, Megaphone, Mic2, Sparkles, UtensilsCrossed, Volume2, type LucideIcon } from "lucide-react";
-import { accommodationSubTypes, promotionChannels, tourTeamOfferingTypes, TourTeamOffering } from "@/models/models";
+import { accommodationSubTypes, hostingShowSpaceTypes, promotionChannels, tourTeamOfferingTypes, TourTeamOffering } from "@/models/models";
 
 // "hosting_show" reads as "Show space" here (not "Hosting a show") to avoid confusion with the
 // separate Home Shows event feature — this offering is a pitch/contact mechanism only, it never
@@ -59,6 +59,11 @@ export const accommodationSubTypeLabels: Record<(typeof accommodationSubTypes)[n
     other: "Other",
 };
 
+export const hostingShowSpaceTypeLabels: Record<(typeof hostingShowSpaceTypes)[number], string> = {
+    home: "Home",
+    private_venue: "Private venue",
+};
+
 export function getTourTeamOfferingLabel(offering: Pick<TourTeamOffering, "type" | "label">): string {
     if (offering.type === "custom") {
         return offering.label?.trim() || "Custom offering";
@@ -88,12 +93,15 @@ export function getOfferDetailsSummary(offering: Pick<TourTeamOffering, "details
     switch (details.type) {
         case "accommodation": {
             const parts: string[] = [];
+            if (details.guestCapacity) parts.push(`Up to ${details.guestCapacity} guest${details.guestCapacity === 1 ? "" : "s"}`);
             if (details.maxStayNights) parts.push(`Up to ${details.maxStayNights} night${details.maxStayNights === 1 ? "" : "s"}`);
+            if (details.checkInTime) parts.push(`Check-in: ${details.checkInTime}`);
             if (details.checkInFlexible) parts.push("Flexible check-in");
             return parts.join(" · ") || undefined;
         }
         case "hostingShow": {
             const parts: string[] = [];
+            if (details.spaceType) parts.push(hostingShowSpaceTypeLabels[details.spaceType]);
             if (details.capacity) parts.push(`Capacity ~${details.capacity}`);
             if (details.spaceDescription) parts.push(details.spaceDescription);
             return parts.join(" · ") || undefined;
@@ -105,11 +113,10 @@ export function getOfferDetailsSummary(offering: Pick<TourTeamOffering, "details
             return parts.join(" · ") || undefined;
         }
         case "transport":
-            return details.routeNotes || undefined;
+            return details.usageDetails || undefined;
         case "promotion": {
             const parts: string[] = [];
             if (details.channels?.length) parts.push(details.channels.map((c) => promotionChannelLabels[c]).join(", "));
-            if (details.notes) parts.push(details.notes);
             return parts.join(" · ") || undefined;
         }
         default:
@@ -121,7 +128,7 @@ export type OfferDetailField = { label: string; value: string };
 
 // Structured (label, value) pairs for an offering's type-specific fields, for
 // CrewOfferMapPreview's member-facing full offer panel — labels match CreateOfferModal's own
-// field labels verbatim (e.g. "Route notes", "Tell us about the space") so a viewer sees the same
+// field labels verbatim (e.g. "Usage details", "Tell us about the space") so a viewer sees the same
 // question the host answered, rather than getOfferDetailsSummary's compact " · "-joined one-liner
 // (still used as-is by the Presence-settings offer list, where that density is the point).
 // Deliberately excludes `detail` (the universal freeform note, own field on TourTeamOffering, not
@@ -141,17 +148,26 @@ export function getOfferDetailFields(
 
     switch (details.type) {
         case "accommodation":
+            if (details.guestCapacity) {
+                fields.push({ label: "Guest capacity", value: `${details.guestCapacity}` });
+            }
             if (details.maxStayNights) {
                 fields.push({
                     label: "Max stay (nights)",
                     value: `${details.maxStayNights} night${details.maxStayNights === 1 ? "" : "s"}`,
                 });
             }
+            if (details.checkInTime) {
+                fields.push({ label: "Typical check-in time", value: details.checkInTime });
+            }
             if (details.checkInFlexible) {
                 fields.push({ label: "Check-in", value: "Flexible" });
             }
             break;
         case "hostingShow":
+            if (details.spaceType) {
+                fields.push({ label: "Space type", value: hostingShowSpaceTypeLabels[details.spaceType] });
+            }
             if (details.capacity) {
                 fields.push({ label: "Rough capacity", value: `~${details.capacity}` });
             }
@@ -168,8 +184,8 @@ export function getOfferDetailFields(
             }
             break;
         case "transport":
-            if (details.routeNotes) {
-                fields.push({ label: "Route notes", value: details.routeNotes });
+            if (details.usageDetails) {
+                fields.push({ label: "Usage details", value: details.usageDetails });
             }
             break;
         case "promotion":
@@ -178,9 +194,6 @@ export function getOfferDetailFields(
                     label: "Channels",
                     value: details.channels.map((c) => promotionChannelLabels[c]).join(", "),
                 });
-            }
-            if (details.notes) {
-                fields.push({ label: "Anything else about how they'd promote it?", value: details.notes });
             }
             break;
     }
