@@ -147,7 +147,7 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
                                     if (event.key === "Enter") event.stopPropagation();
                                 }}
                                 placeholder="Add detail (optional)"
-                                maxLength={300}
+                                maxLength={1000}
                                 className="min-h-[60px]"
                             />
                         </div>

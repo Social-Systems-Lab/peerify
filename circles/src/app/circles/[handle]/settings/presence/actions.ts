@@ -4,9 +4,10 @@ import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getCircleById, getCirclePath, updateCircle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
 import { isFile, saveFile } from "@/lib/data/storage";
-import { Circle, FileInfo, FormSubmitResponse, TourTeamOffering } from "@/models/models";
+import { Circle, FileInfo, FormSubmitResponse, TourTeamOffering, tourTeamOfferingSchema } from "@/models/models";
 import { revalidatePath } from "next/cache";
 import sharp from "sharp";
+import { z } from "zod";
 
 // An offering's `photos` arrives from CreateOfferModal as MultiImageUploader's draft ImageItem
 // shape ({id, file?, preview, existingMediaUrl?}), not the persisted fileInfoSchema[] — mirrors
@@ -91,6 +92,22 @@ export async function savePresence(data: Circle): Promise<FormSubmitResponse> {
         const resolvedOfferings = data.tourTeamOfferings
             ? await Promise.all(data.tourTeamOfferings.map((offering) => resolveOfferingPhotos(offering, data._id as string)))
             : data.tourTeamOfferings;
+
+        // Nothing upstream of this point (the modal's own maxLength attributes, react-hook-form)
+        // actually enforces tourTeamOfferingSchema server-side — those are client-only UX, easily
+        // bypassed by a direct server-action call. Validate the real shape that's about to be
+        // written to Mongo before it gets there, so an oversized or malformed offering is rejected
+        // here rather than silently persisted.
+        if (resolvedOfferings) {
+            const offeringsCheck = z.array(tourTeamOfferingSchema).safeParse(resolvedOfferings);
+            if (!offeringsCheck.success) {
+                console.error("Invalid tourTeamOfferings in savePresence:", offeringsCheck.error.flatten());
+                return {
+                    success: false,
+                    message: "One of your offers has invalid or too-long details. Please shorten it and try again.",
+                };
+            }
+        }
 
         // offersVisible is deliberately NOT included here — it auto-saves on click via its own
         // dedicated action (setOffersVisibleAction below), the same reasoning as crewEnabled

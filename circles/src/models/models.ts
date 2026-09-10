@@ -586,18 +586,18 @@ export const offerDetailsAccommodationSchema = z.object({
 export const offerDetailsHostingShowSchema = z.object({
     type: z.literal("hostingShow"),
     capacity: z.number().int().positive().optional(),
-    spaceDescription: z.string().max(300).optional(),
+    spaceDescription: z.string().max(1000).optional(),
 });
 
 export const offerDetailsMealSchema = z.object({
     type: z.literal("meal"),
     cuisine: z.string().max(100).optional(),
-    dietaryNotes: z.string().max(300).optional(),
+    dietaryNotes: z.string().max(1000).optional(),
 });
 
 export const offerDetailsTransportSchema = z.object({
     type: z.literal("transport"),
-    routeNotes: z.string().max(300).optional(),
+    routeNotes: z.string().max(1000).optional(),
 });
 
 export const promotionChannels = ["social_media", "radio", "press", "flyering", "newsletter", "other"] as const;
@@ -605,7 +605,7 @@ export const promotionChannels = ["social_media", "radio", "press", "flyering", 
 export const offerDetailsPromotionSchema = z.object({
     type: z.literal("promotion"),
     channels: z.array(z.enum(promotionChannels)).optional(),
-    notes: z.string().max(300).optional(),
+    notes: z.string().max(1000).optional(),
 });
 
 export const offerDetailsSchema = z.discriminatedUnion("type", [
@@ -622,7 +622,7 @@ export const tourTeamOfferingSchema = z.object({
     id: z.string(),
     type: z.enum([...tourTeamOfferingTypes, "custom"]),
     label: z.string().max(60).optional(), // required (enforced in UI) when type === "custom"
-    detail: z.string().max(300).optional(),
+    detail: z.string().max(1000).optional(),
     accommodationType: z.enum(accommodationSubTypes).optional(), // only meaningful when type === "spare_room"
     // Optional and absent on every existing (demo) offering — legacy/undefined `details` must
     // parse cleanly and render bare-bones until the owner edits the offering via the new modal.
