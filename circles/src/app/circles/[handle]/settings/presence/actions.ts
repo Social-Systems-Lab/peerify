@@ -3,6 +3,7 @@
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getCircleById, getCirclePath, updateCircle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
+import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 import { isFile, saveFile } from "@/lib/data/storage";
 import { Circle, FileInfo, FormSubmitResponse, TourTeamOffering, tourTeamOfferingSchema } from "@/models/models";
 import { revalidatePath } from "next/cache";
@@ -44,6 +45,25 @@ async function stripPhotoMetadata(file: File): Promise<File> {
         console.error("Error stripping EXIF metadata from offer photo, saving original:", error);
         return file;
     }
+}
+
+// Turns a tourTeamOfferingSchema validation failure into a message naming the actual offering and
+// field that failed and why (e.g. "Show space" - photos.0.fileName: Expected string, received
+// null), instead of a guessed-at generic explanation — a prior version of this hardcoded a
+// length-specific message that was wrong for this exact case (legacy photo records with a literal
+// `null` fileName/originalName instead of the field being omitted, which fileInfoSchema's
+// z.string().optional() rejects — optional() allows undefined, not null).
+function formatOfferingValidationError(error: z.ZodError, offerings: TourTeamOffering[]): string {
+    const MAX_ISSUES_SHOWN = 3;
+    const parts = error.issues.slice(0, MAX_ISSUES_SHOWN).map((issue) => {
+        const [offeringIndex, ...fieldPath] = issue.path;
+        const offering = typeof offeringIndex === "number" ? offerings[offeringIndex] : undefined;
+        const offeringName = offering ? getTourTeamOfferingLabel(offering) : `offer ${offeringIndex}`;
+        const field = fieldPath.length > 0 ? fieldPath.join(".") : "(top level)";
+        return `"${offeringName}" - ${field}: ${issue.message}`;
+    });
+    const remaining = error.issues.length - parts.length;
+    return parts.join("; ") + (remaining > 0 ? ` (+${remaining} more issue${remaining === 1 ? "" : "s"})` : "");
 }
 
 async function resolveOfferingPhotos(offering: TourTeamOffering, circleId: string): Promise<TourTeamOffering> {
@@ -101,10 +121,13 @@ export async function savePresence(data: Circle): Promise<FormSubmitResponse> {
         if (resolvedOfferings) {
             const offeringsCheck = z.array(tourTeamOfferingSchema).safeParse(resolvedOfferings);
             if (!offeringsCheck.success) {
-                console.error("Invalid tourTeamOfferings in savePresence:", offeringsCheck.error.flatten());
+                console.error(
+                    "Invalid tourTeamOfferings in savePresence:",
+                    JSON.stringify(offeringsCheck.error.issues, null, 2),
+                );
                 return {
                     success: false,
-                    message: "One of your offers has invalid or too-long details. Please shorten it and try again.",
+                    message: `Couldn't save your offers - ${formatOfferingValidationError(offeringsCheck.error, resolvedOfferings)}`,
                 };
             }
         }
