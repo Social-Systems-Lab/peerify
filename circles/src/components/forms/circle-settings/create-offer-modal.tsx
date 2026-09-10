@@ -17,11 +17,13 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MultiImageUploader, ImageItem } from "@/components/forms/controls/multi-image-uploader";
+import { CharCounter } from "@/components/forms/controls/char-counter";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
 import {
     accommodationSubTypes,
     Media,
+    OFFER_NOTES_MAX_LENGTH,
     OfferDetails,
     promotionChannels,
     TourTeamOffering,
@@ -439,9 +441,10 @@ export function CreateOfferModal({
                                         id="offer-space-description"
                                         value={spaceDescription}
                                         onChange={(e) => setSpaceDescription(e.target.value)}
-                                        maxLength={1000}
+                                        maxLength={OFFER_NOTES_MAX_LENGTH}
                                         placeholder="Optional"
                                     />
+                                    <CharCounter value={spaceDescription} max={OFFER_NOTES_MAX_LENGTH} />
                                 </div>
                             </>
                         )}
@@ -464,9 +467,10 @@ export function CreateOfferModal({
                                         id="offer-dietary-notes"
                                         value={dietaryNotes}
                                         onChange={(e) => setDietaryNotes(e.target.value)}
-                                        maxLength={1000}
+                                        maxLength={OFFER_NOTES_MAX_LENGTH}
                                         placeholder="Optional"
                                     />
+                                    <CharCounter value={dietaryNotes} max={OFFER_NOTES_MAX_LENGTH} />
                                 </div>
                             </>
                         )}
@@ -478,9 +482,10 @@ export function CreateOfferModal({
                                     id="offer-route-notes"
                                     value={routeNotes}
                                     onChange={(e) => setRouteNotes(e.target.value)}
-                                    maxLength={1000}
+                                    maxLength={OFFER_NOTES_MAX_LENGTH}
                                     placeholder="Optional — e.g. usual routes, how far you can go"
                                 />
+                                <CharCounter value={routeNotes} max={OFFER_NOTES_MAX_LENGTH} />
                             </div>
                         )}
 
@@ -502,9 +507,10 @@ export function CreateOfferModal({
                                         id="offer-promotion-notes"
                                         value={promotionNotes}
                                         onChange={(e) => setPromotionNotes(e.target.value)}
-                                        maxLength={1000}
+                                        maxLength={OFFER_NOTES_MAX_LENGTH}
                                         placeholder="Optional"
                                     />
+                                    <CharCounter value={promotionNotes} max={OFFER_NOTES_MAX_LENGTH} />
                                 </div>
                             </>
                         )}
@@ -518,9 +524,10 @@ export function CreateOfferModal({
                                 id="offer-detail"
                                 value={detail}
                                 onChange={(e) => setDetail(e.target.value)}
-                                maxLength={1000}
+                                maxLength={OFFER_NOTES_MAX_LENGTH}
                                 placeholder="Optional"
                             />
+                            <CharCounter value={detail} max={OFFER_NOTES_MAX_LENGTH} />
                         </div>
 
                         <div className="space-y-2">

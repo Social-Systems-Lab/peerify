@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import { Circle, TourTeamOffering, tourTeamOfferingTypes } from "@/models/models";
+import { CharCounter } from "@/components/forms/controls/char-counter";
+import { Circle, OFFER_NOTES_MAX_LENGTH, TourTeamOffering, tourTeamOfferingTypes } from "@/models/models";
 import { tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
 import { savePresence } from "@/app/circles/[handle]/settings/presence/actions";
 
@@ -147,9 +148,10 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
                                     if (event.key === "Enter") event.stopPropagation();
                                 }}
                                 placeholder="Add detail (optional)"
-                                maxLength={1000}
+                                maxLength={OFFER_NOTES_MAX_LENGTH}
                                 className="min-h-[60px]"
                             />
+                            <CharCounter value={offering.detail || ""} max={OFFER_NOTES_MAX_LENGTH} />
                         </div>
                     ))}
                 </div>

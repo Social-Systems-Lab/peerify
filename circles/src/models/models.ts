@@ -586,6 +586,11 @@ export const accommodationSubTypes = ["room", "couch", "other"] as const;
 // offering.type, "hosting_show") are unchanged.
 // routeNotes/maxStayNights/checkInFlexible are intentionally freeform/simple fields, not
 // structured date-availability modeling — that's a separate future task.
+// Shared cap for every freeform offer "notes" field (detail, spaceDescription, dietaryNotes,
+// routeNotes, promotion notes) — exported so the CreateOfferModal/offers-step UI's maxLength
+// attributes and character counters read the same number this schema enforces server-side.
+export const OFFER_NOTES_MAX_LENGTH = 1000;
+
 export const offerDetailsAccommodationSchema = z.object({
     type: z.literal("accommodation"),
     maxStayNights: z.number().int().positive().optional(),
@@ -595,18 +600,18 @@ export const offerDetailsAccommodationSchema = z.object({
 export const offerDetailsHostingShowSchema = z.object({
     type: z.literal("hostingShow"),
     capacity: z.number().int().positive().optional(),
-    spaceDescription: z.string().max(1000).optional(),
+    spaceDescription: z.string().max(OFFER_NOTES_MAX_LENGTH).optional(),
 });
 
 export const offerDetailsMealSchema = z.object({
     type: z.literal("meal"),
     cuisine: z.string().max(100).optional(),
-    dietaryNotes: z.string().max(1000).optional(),
+    dietaryNotes: z.string().max(OFFER_NOTES_MAX_LENGTH).optional(),
 });
 
 export const offerDetailsTransportSchema = z.object({
     type: z.literal("transport"),
-    routeNotes: z.string().max(1000).optional(),
+    routeNotes: z.string().max(OFFER_NOTES_MAX_LENGTH).optional(),
 });
 
 export const promotionChannels = ["social_media", "radio", "press", "flyering", "newsletter", "other"] as const;
@@ -614,7 +619,7 @@ export const promotionChannels = ["social_media", "radio", "press", "flyering", 
 export const offerDetailsPromotionSchema = z.object({
     type: z.literal("promotion"),
     channels: z.array(z.enum(promotionChannels)).optional(),
-    notes: z.string().max(1000).optional(),
+    notes: z.string().max(OFFER_NOTES_MAX_LENGTH).optional(),
 });
 
 export const offerDetailsSchema = z.discriminatedUnion("type", [
@@ -631,7 +636,7 @@ export const tourTeamOfferingSchema = z.object({
     id: z.string(),
     type: z.enum([...tourTeamOfferingTypes, "custom"]),
     label: z.string().max(60).optional(), // required (enforced in UI) when type === "custom"
-    detail: z.string().max(1000).optional(),
+    detail: z.string().max(OFFER_NOTES_MAX_LENGTH).optional(),
     accommodationType: z.enum(accommodationSubTypes).optional(), // only meaningful when type === "spare_room"
     // Optional and absent on every existing (demo) offering — legacy/undefined `details` must
     // parse cleanly and render bare-bones until the owner edits the offering via the new modal.
