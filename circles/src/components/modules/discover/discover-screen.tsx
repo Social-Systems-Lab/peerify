@@ -9,8 +9,7 @@ import { Search, X, SlidersHorizontal } from "lucide-react";
 import { userAtom } from "@/lib/data/atoms";
 import { useDebounce } from "@/components/utils/use-debounce";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
-import { Circle, WithMetric, EventDisplay } from "@/models/models";
-import { CirclePicture } from "@/components/modules/circles/circle-picture";
+import { EventDisplay } from "@/models/models";
 import {
     SearchFilters,
     SearchFiltersValue,
@@ -18,6 +17,7 @@ import {
     GenreFilterChips,
 } from "@/components/modules/search/search-filters";
 import { getDiscoverResultsAction, DiscoverResults } from "./actions";
+import ArtistCard from "./artist-card";
 
 const DISCOVER_CATEGORIES = ["users", "events"] as const;
 const DISCOVER_CATEGORY_LABELS: Record<string, string> = { users: "Artists", events: "Events" };
@@ -326,7 +326,7 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
                     ) : (
                         <div className="flex flex-col gap-2">
                             {results.artists.map((artist) => (
-                                <DiscoverArtistRow key={artist._id as string} artist={artist} />
+                                <ArtistCard key={artist._id as string} artist={artist} />
                             ))}
                         </div>
                     )}
@@ -348,26 +348,6 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
                 </section>
             )}
         </div>
-    );
-}
-
-// Placeholder row for commit 2 — replaced by the compact/expandable artist card in the next
-// commit. Kept intentionally minimal so this commit can be reviewed for the data/filter/
-// persistence plumbing on its own.
-function DiscoverArtistRow({ artist }: { artist: WithMetric<Circle> }) {
-    return (
-        <Link
-            href={`/circles/${artist.handle}`}
-            className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-black/5"
-        >
-            <CirclePicture circle={artist} size="48px" openPreview={false} />
-            <div className="min-w-0 flex-1">
-                <div className="truncate font-medium text-gray-900">{artist.name}</div>
-                {artist.primaryGenres && artist.primaryGenres.length > 0 && (
-                    <div className="truncate text-sm text-gray-500">{artist.primaryGenres.join(", ")}</div>
-                )}
-            </div>
-        </Link>
     );
 }
 
