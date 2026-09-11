@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAtomValue } from "jotai";
-import { ChevronDown, ChevronUp, Pause, Play } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Pause, Play } from "lucide-react";
 import { userAtom } from "@/lib/data/atoms";
 import { haversineKm, getUserLocation } from "@/lib/utils";
 import { useExclusiveAudio } from "@/lib/audio/use-exclusive-audio";
@@ -79,22 +79,30 @@ export default function ArtistCard({ artist }: ArtistCardProps) {
 // A single play button for the artist's top track — reuses the same exclusive-audio mechanism
 // TrackPreviewRow uses (mutual exclusion with every other playing track site-wide) without
 // pulling in that row's full markup (title/duration/comment-count/ovate button), which doesn't
-// fit a compact single-button row. Fetches lazily per card; see the pagination/memoization note
-// in the commit report about this running once per visible card at once.
+// fit a compact single-button row.
+//
+// Lazy, not eager: getTracksForCirclePreviewAction only runs once the user actually taps this
+// button — matching TrackPreviewList's own lazy-on-open pattern — not on mount for every visible
+// card. Expanding the card does NOT also trigger this fetch: CirclePreview's own TrackPreviewList
+// fetches independently once expanded, so this button staying idle until tapped doesn't leave a
+// gap — it just means the compact and expanded song data are fetched by whichever the visitor
+// reaches first, never both.
+//
+// Since we don't know in advance whether this artist has any tracks (that's the whole point of
+// not fetching eagerly), the button starts in a generic, always-visible "idle" state rather than
+// staying hidden until data arrives. First tap: brief "loading" spinner while the fetch resolves,
+// then either becomes an interactive play/pause control or disappears (this artist has no
+// tracks). Every tap after that first one is instant — the fetched track stays cached in state.
 function ArtistCardPlayButton({ circleId, artistName }: { circleId: string; artistName: string }) {
+    const [status, setStatus] = useState<"idle" | "loading" | "ready" | "empty">("idle");
     const [track, setTrack] = useState<TrackPreview | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const audioRef = useExclusiveAudio();
-
-    useEffect(() => {
-        let cancelled = false;
-        getTracksForCirclePreviewAction(circleId).then((tracks) => {
-            if (!cancelled) setTrack(tracks[0] ?? null);
-        });
-        return () => {
-            cancelled = true;
-        };
-    }, [circleId]);
+    // Set right before the lazy fetch kicks off on a user tap; consumed once the fetched track's
+    // <audio> element mounts (see the effect below) to start playback automatically — without
+    // this flag, a track loaded some other way (there isn't one today, but nothing here should
+    // assume it stays that way) would also auto-play, which is not what "tap play" should do.
+    const autoPlayOnLoadRef = useRef(false);
 
     useEffect(() => {
         const el = audioRef.current;
@@ -111,10 +119,35 @@ function ArtistCardPlayButton({ circleId, artistName }: { circleId: string; arti
         };
     }, [audioRef]);
 
-    if (!track) return null;
+    // The <audio> element only mounts once `track` is set (below), so audioRef.current is null
+    // until this effect's own render commits — .play() has to wait for that, it can't happen
+    // inline in the tap handler right after setTrack().
+    useEffect(() => {
+        if (track && autoPlayOnLoadRef.current) {
+            autoPlayOnLoadRef.current = false;
+            audioRef.current?.play();
+        }
+    }, [track, audioRef]);
 
-    const togglePlay = (e: React.MouseEvent) => {
+    if (status === "empty") return null;
+
+    const handleTap = async (e: React.MouseEvent) => {
         e.stopPropagation();
+
+        if (status === "idle") {
+            setStatus("loading");
+            autoPlayOnLoadRef.current = true;
+            const tracks = await getTracksForCirclePreviewAction(circleId);
+            const first = tracks[0] ?? null;
+            if (!first) {
+                autoPlayOnLoadRef.current = false;
+            }
+            setTrack(first);
+            setStatus(first ? "ready" : "empty");
+            return;
+        }
+
+        if (status !== "ready") return;
         const el = audioRef.current;
         if (!el) return;
         if (el.paused) {
@@ -128,15 +161,24 @@ function ArtistCardPlayButton({ circleId, artistName }: { circleId: string; arti
         <span className="flex-shrink-0">
             <button
                 type="button"
-                onClick={togglePlay}
+                onClick={handleTap}
+                disabled={status === "loading"}
                 aria-label={isPlaying ? `Pause ${artistName}` : `Play ${artistName}`}
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 text-white transition-colors hover:bg-orange-600"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 text-white transition-colors hover:bg-orange-600 disabled:opacity-70"
             >
-                {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 pl-0.5" />}
+                {status === "loading" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isPlaying ? (
+                    <Pause className="h-4 w-4" />
+                ) : (
+                    <Play className="h-4 w-4 pl-0.5" />
+                )}
             </button>
-            <audio ref={audioRef} src={track.streamUrl} preload="none" className="hidden">
-                Your browser does not support the audio element.
-            </audio>
+            {track && (
+                <audio ref={audioRef} src={track.streamUrl} preload="none" className="hidden">
+                    Your browser does not support the audio element.
+                </audio>
+            )}
         </span>
     );
 }
