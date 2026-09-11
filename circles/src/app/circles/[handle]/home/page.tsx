@@ -197,7 +197,9 @@ export default async function CircleHomePage(props: PageProps) {
               : false;
 
         if (canViewMusic) {
-            const tracks = (await getTracksByCircleId(circle._id as string)).slice(0, 3);
+            // Named featuredTracks below, so make it actually respect Circle.featuredTrackId
+            // (previously just the 3 most recent uploads, nothing artist-chosen).
+            const tracks = (await getTracksByCircleId(circle._id as string, circle.featuredTrackId)).slice(0, 3);
             featuredTracks = await Promise.all(
                 tracks.map(async (track) => ({
                     id: track._id!.toString(),
