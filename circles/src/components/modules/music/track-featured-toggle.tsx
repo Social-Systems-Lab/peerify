@@ -2,8 +2,7 @@
 
 import React, { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Circle, CircleDot, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import { setFeaturedTrackAction } from "./actions";
 
@@ -41,24 +40,15 @@ export const TrackFeaturedToggle: React.FC<TrackFeaturedToggleProps> = ({ circle
     };
 
     return (
-        <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleToggle}
-            disabled={isPending}
-            aria-pressed={isFeatured}
-            className={`flex items-center gap-1.5 px-2 ${isFeatured ? "text-amber-500 hover:text-amber-600" : "text-gray-500 hover:text-gray-700"}`}
-        >
-            {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-            ) : isFeatured ? (
-                <CircleDot className="h-4 w-4" />
-            ) : (
-                <Circle className="h-4 w-4" />
-            )}
-            <span className="text-xs">{isFeatured ? "Featured" : "Feature"}</span>
-        </Button>
+        <label className="flex items-center gap-2 px-2 text-xs text-gray-500">
+            <span>{isFeatured ? "Featured" : "Feature"}</span>
+            <Switch
+                checked={isFeatured}
+                onCheckedChange={handleToggle}
+                disabled={isPending}
+                aria-label={isFeatured ? `Un-feature ${title}` : `Feature ${title}`}
+            />
+        </label>
     );
 };
 
