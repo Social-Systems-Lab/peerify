@@ -71,20 +71,24 @@ const sanitizePersistedDiscoverFilters = (value: unknown): SearchFiltersValue | 
 const isArtistsOnlySelection = (selectedCategories: string[]): boolean =>
     selectedCategories.length === 1 && selectedCategories[0] === "users";
 
-// Not getActiveSearchFilterCount (search-filters.tsx): that helper treats exactly one selected
-// category as the "neutral" shape, matching Explore's own default of a single active pill
-// (["users"]) — which, as it happens, now IS also Discover's own neutral shape, but this local
-// check still covers genres/date/physicalOnly/searchQuery too, which that shared helper doesn't
-// need to (Explore tracks those as a separate "active filter count", not a single "is this the
-// untouched default" boolean).
+const sameCategorySet = (a: string[], b: string[]): boolean => a.length === b.length && a.every((v) => b.includes(v));
+
+const sameDateRange = (a: DateRange | undefined, b: DateRange | undefined): boolean =>
+    a?.from?.getTime() === b?.from?.getTime() && a?.to?.getTime() === b?.to?.getTime();
+
+// A genuine structural comparison against DEFAULT_DISCOVER_FILTERS itself (order-independent for
+// the array fields, since neither the pill row nor Advanced Filters guarantee a stable build
+// order) — not a hand-maintained "does this look empty" predicate that could quietly drift from
+// what DEFAULT_DISCOVER_FILTERS actually is if one changes without the other. Both the
+// restored-filters banner and the skip-the-redundant-initial-fetch optimization below rely on
+// this meaning exactly "identical to the real default", nothing looser.
 const isDefaultDiscoverFilters = (value: SearchFiltersValue): boolean =>
-    isArtistsOnlySelection(value.selectedCategories) &&
-    value.selectedGenres.length === 0 &&
-    value.selectedOfferTypes.length === 0 &&
-    !value.dateRange?.from &&
-    !value.dateRange?.to &&
-    !value.physicalOnly &&
-    !value.searchQuery;
+    sameCategorySet(value.selectedCategories, DEFAULT_DISCOVER_FILTERS.selectedCategories) &&
+    sameCategorySet(value.selectedGenres, DEFAULT_DISCOVER_FILTERS.selectedGenres) &&
+    sameCategorySet(value.selectedOfferTypes, DEFAULT_DISCOVER_FILTERS.selectedOfferTypes) &&
+    sameDateRange(value.dateRange, DEFAULT_DISCOVER_FILTERS.dateRange) &&
+    value.physicalOnly === DEFAULT_DISCOVER_FILTERS.physicalOnly &&
+    value.searchQuery === DEFAULT_DISCOVER_FILTERS.searchQuery;
 
 const describeFilters = (value: SearchFiltersValue): string => {
     const parts: string[] = [];
@@ -312,22 +316,25 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
             />
 
             {restoredFromStorage && (
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-orange-50 px-4 py-2.5 text-sm text-orange-900">
+                // Neutral/informational, not a warning — this is just telling the visitor what's
+                // already showing, not flagging a problem, so it shouldn't compete visually with
+                // the page the way an orange/warm alert treatment would.
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-gray-600">
                     <span>
-                        Showing your saved filters: <strong>{describeFilters(filtersValue)}</strong>
+                        Showing your saved filters: <strong className="text-gray-900">{describeFilters(filtersValue)}</strong>
                     </span>
                     <div className="flex gap-3">
                         <button
                             type="button"
                             onClick={() => setShowAdvancedFilters(true)}
-                            className="inline-flex items-center gap-1 font-medium underline underline-offset-2"
+                            className="inline-flex items-center gap-1 font-medium text-gray-900 underline underline-offset-2"
                         >
                             <SlidersHorizontal className="h-3.5 w-3.5" /> Change
                         </button>
                         <button
                             type="button"
                             onClick={() => handleFiltersChange(DEFAULT_DISCOVER_FILTERS)}
-                            className="font-medium underline underline-offset-2"
+                            className="font-medium text-gray-900 underline underline-offset-2"
                         >
                             Reset
                         </button>
