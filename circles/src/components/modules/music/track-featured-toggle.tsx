@@ -2,7 +2,7 @@
 
 import React, { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Star } from "lucide-react";
+import { Circle, CircleDot, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { setFeaturedTrackAction } from "./actions";
@@ -52,8 +52,10 @@ export const TrackFeaturedToggle: React.FC<TrackFeaturedToggleProps> = ({ circle
         >
             {isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
+            ) : isFeatured ? (
+                <CircleDot className="h-4 w-4" />
             ) : (
-                <Star className={`h-4 w-4 ${isFeatured ? "fill-amber-500" : ""}`} />
+                <Circle className="h-4 w-4" />
             )}
             <span className="text-xs">{isFeatured ? "Featured" : "Feature"}</span>
         </Button>
