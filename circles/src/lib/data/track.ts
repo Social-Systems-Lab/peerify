@@ -3,7 +3,7 @@
 
 import { ObjectId } from "mongodb";
 import { Comment, CommentDisplay, Track } from "@/models/models";
-import { Comments, Reactions, Tracks } from "./db";
+import { Circles, Comments, Reactions, Tracks } from "./db";
 import { removePrivateObject } from "./storage";
 
 export const createTrack = async (trackData: Omit<Track, "_id">): Promise<Track> => {
@@ -60,6 +60,15 @@ export const deleteTrack = async (trackId: string): Promise<void> => {
     if (!track) return;
     await Promise.allSettled([removePrivateObject(track.originalKey), removePrivateObject(track.previewKey)]);
     await Tracks.deleteOne({ _id: new ObjectId(trackId) });
+
+    // Best-effort follow-up write, not atomic with the delete above (this codebase doesn't use
+    // Mongo transactions anywhere). Matched against the current featuredTrackId value so this
+    // can't clobber a concurrent re-feature of a different track that lands in between; a
+    // non-featured track's deletion matches zero documents and is a no-op.
+    await Circles.updateOne(
+        { _id: new ObjectId(track.artistProfileId), featuredTrackId: trackId },
+        { $set: { featuredTrackId: null } },
+    );
 };
 
 // Ovation ("clap") taps are repeatable and uncapped: a single (userDid, trackId,
