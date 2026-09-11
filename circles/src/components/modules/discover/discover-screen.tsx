@@ -18,18 +18,10 @@ import {
 } from "@/components/modules/search/search-filters";
 import { getDiscoverResultsAction, DiscoverResults } from "./actions";
 import ArtistCard from "./artist-card";
+import { DEFAULT_DISCOVER_FILTERS } from "./constants";
 
 const DISCOVER_CATEGORIES = ["users", "events"] as const;
 const DISCOVER_CATEGORY_LABELS: Record<string, string> = { users: "Artists", events: "Events" };
-
-const DEFAULT_DISCOVER_FILTERS: SearchFiltersValue = {
-    selectedCategories: [],
-    selectedGenres: [],
-    selectedOfferTypes: [],
-    dateRange: undefined,
-    physicalOnly: false,
-    searchQuery: "",
-};
 
 const DISCOVER_FILTERS_STORAGE_VERSION = 1;
 
@@ -71,13 +63,22 @@ const sanitizePersistedDiscoverFilters = (value: unknown): SearchFiltersValue | 
     };
 };
 
+// This screen's own "Artists only" shape — used both as the pristine-default check below and to
+// decide whether the Artists/Events pill row and search placeholder should treat the current
+// selection as narrowed to Artists. Distinct from "All" (selectedCategories: []), which also
+// counts as a mixed view (it implicitly includes Events, same "empty means All" convention as
+// MapExplorer) and should keep the pill row visible.
+const isArtistsOnlySelection = (selectedCategories: string[]): boolean =>
+    selectedCategories.length === 1 && selectedCategories[0] === "users";
+
 // Not getActiveSearchFilterCount (search-filters.tsx): that helper treats exactly one selected
 // category as the "neutral" shape, matching Explore's own default of a single active pill
-// (["users"]). Discover's neutral/untouched default is "All" (selectedCategories: []) instead, so
-// reusing it here would count a completely-untouched filtersValue as "1 active filter" and both
-// wrongly show the restored-filters banner and wrongly skip the initial-fetch optimization below.
+// (["users"]) — which, as it happens, now IS also Discover's own neutral shape, but this local
+// check still covers genres/date/physicalOnly/searchQuery too, which that shared helper doesn't
+// need to (Explore tracks those as a separate "active filter count", not a single "is this the
+// untouched default" boolean).
 const isDefaultDiscoverFilters = (value: SearchFiltersValue): boolean =>
-    value.selectedCategories.length === 0 &&
+    isArtistsOnlySelection(value.selectedCategories) &&
     value.selectedGenres.length === 0 &&
     value.selectedOfferTypes.length === 0 &&
     !value.dateRange?.from &&
@@ -89,6 +90,11 @@ const describeFilters = (value: SearchFiltersValue): string => {
     const parts: string[] = [];
     if (value.selectedCategories.length === 1) {
         parts.push(DISCOVER_CATEGORY_LABELS[value.selectedCategories[0]] ?? value.selectedCategories[0]);
+    } else if (value.selectedCategories.length === 0) {
+        // A pre-existing saved "All" (from before Artists-only became the default) is a genuine,
+        // deliberate-looking mixed-view preference now, not just an unset field — name it instead
+        // of silently falling through to "no filters" below.
+        parts.push("Artists & Events");
     }
     if (value.selectedGenres.length > 0) {
         parts.push(value.selectedGenres.join(", "));
@@ -236,6 +242,12 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
 
     const showArtists = filtersValue.selectedCategories.length === 0 || filtersValue.selectedCategories.includes("users");
     const showEvents = filtersValue.selectedCategories.length === 0 || filtersValue.selectedCategories.includes("events");
+    // Derived from filtersValue on every render, not tracked as its own state — so it updates in
+    // the exact same commit as everything else derived from filtersValue (showArtists/showEvents,
+    // the restored-filters banner, the fetch effect), including the one where the persisted-filter
+    // restore effect replaces the pre-hydration default. There's nothing here to get out of sync
+    // with that restore; it's the same source of truth, not a second one.
+    const isArtistsOnly = isArtistsOnlySelection(filtersValue.selectedCategories);
 
     return (
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pb-24 pt-4 md:pt-8">
@@ -246,7 +258,7 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
                     <Search className="h-4 w-4 flex-shrink-0 text-gray-400" />
                     <input
                         type="text"
-                        placeholder="Search artists and events"
+                        placeholder={isArtistsOnly ? "Search artists" : "Search artists and events"}
                         value={filtersValue.searchQuery}
                         onChange={(e) => handleFiltersChange({ ...filtersValue, searchQuery: e.target.value })}
                         className="min-w-0 flex-1 border-none bg-transparent px-2 py-2 text-base outline-none focus:ring-0"
@@ -273,14 +285,21 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
                 />
             </div>
 
-            <CategoryFilterCarousel
-                categories={[...DISCOVER_CATEGORIES]}
-                categoryCounts={{ users: results.artists.length, events: visibleEvents.length }}
-                selectedCategories={filtersValue.selectedCategories}
-                onSelectionChange={(next) => handleFiltersChange({ ...filtersValue, selectedCategories: next })}
-                hasSearched={true}
-                displayLabelMap={DISCOVER_CATEGORY_LABELS}
-            />
+            {/* Hidden while narrowed to Artists-only — there's no point showing a choice of one.
+                Reappears the moment the selection includes Events (via Advanced Filters, since
+                the pill row itself is how you'd otherwise add Events back — see the Advanced
+                Filters Category checkboxes, which stay available regardless of this row's
+                visibility). */}
+            {!isArtistsOnly && (
+                <CategoryFilterCarousel
+                    categories={[...DISCOVER_CATEGORIES]}
+                    categoryCounts={{ users: results.artists.length, events: visibleEvents.length }}
+                    selectedCategories={filtersValue.selectedCategories}
+                    onSelectionChange={(next) => handleFiltersChange({ ...filtersValue, selectedCategories: next })}
+                    hasSearched={true}
+                    displayLabelMap={DISCOVER_CATEGORY_LABELS}
+                />
+            )}
 
             <GenreFilterChips
                 selectedGenres={filtersValue.selectedGenres}
