@@ -727,6 +727,12 @@ export const circleSchema = z.object({
     description: z.string().optional(),
     content: z.string().optional(),
     mission: z.string().optional(),
+    // Artist-chosen Track._id (see trackSchema) to play first wherever a single representative
+    // track is shown (ArtistCard's play button, CirclePreview's song list, the circle home page),
+    // overriding the otherwise-newest-first default from getTracksByCircleId. null/absent, or a
+    // ref to a track that no longer exists (e.g. deleted), both fall back to that default — see
+    // getTracksByCircleId's featuredTrackId param.
+    featuredTrackId: z.string().nullable().optional(),
     // Shown to fans in join-crew-dialog.tsx before they apply to Crew. Falls back to a generic
     // default message when unset — see JOIN_CREW_DEFAULT_WELCOME_MESSAGE.
     crewWelcomeMessage: z.string().optional(),

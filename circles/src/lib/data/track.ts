@@ -25,9 +25,21 @@ export const createTrack = async (trackData: Omit<Track, "_id">): Promise<Track>
     }
 };
 
-export const getTracksByCircleId = async (circleId: string): Promise<Track[]> => {
+// featuredTrackId (Circle.featuredTrackId) moves that one track to the front, leaving the rest in
+// their normal createdAt: -1 (newest-first) order behind it. Passed as undefined/null (no
+// featured track set) or a value that doesn't match any track here (e.g. it was deleted) both
+// fall back to plain newest-first, silently — callers never need to handle a "not found" case.
+export const getTracksByCircleId = async (circleId: string, featuredTrackId?: string | null): Promise<Track[]> => {
     const tracks = (await Tracks.find({ artistProfileId: circleId }).sort({ createdAt: -1 }).toArray()) as Track[];
-    return tracks.map((t) => ({ ...t, _id: t._id!.toString() }));
+    const normalized = tracks.map((t) => ({ ...t, _id: t._id!.toString() }));
+
+    if (!featuredTrackId) return normalized;
+    const featuredIndex = normalized.findIndex((t) => t._id === featuredTrackId);
+    if (featuredIndex <= 0) return normalized; // not found, or already first — nothing to reorder
+
+    const [featured] = normalized.splice(featuredIndex, 1);
+    normalized.unshift(featured);
+    return normalized;
 };
 
 export const getTrackById = async (trackId: string): Promise<Track | null> => {
