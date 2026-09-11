@@ -252,6 +252,11 @@ export type SearchFiltersProps = {
     // matchMedia listener mounts — treated as falsy everywhere below, same as the original
     // inline isMobile ? ... : ... this replaces.
     isMobile: boolean | null;
+    // Restricts the modal's own Category checklist to a subset of RESULT_TYPE_OPTIONS — same
+    // "caller passes the categories it actually supports" pattern CategoryFilterCarousel's own
+    // `categories` prop already uses for the pill row. Defaults to the full 4-option list, so an
+    // existing caller (MapExplorer) that never passes this sees no change at all.
+    categoryOptions?: { value: string; label: string }[];
 };
 
 export const SearchFilters: React.FC<SearchFiltersProps> = ({
@@ -262,6 +267,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
     openSection,
     onOpenSectionChange,
     isMobile,
+    categoryOptions = RESULT_TYPE_OPTIONS,
 }) => {
     const hasDateFilter = Boolean(value.dateRange?.from || value.dateRange?.to);
     const dateLabel = useMemo(() => {
@@ -393,7 +399,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                     updates the same state the pills read, so a pill lights up the instant its
                     type is checked here, with no separate sync step. */}
                 <div className="grid grid-cols-3 gap-2">
-                    {RESULT_TYPE_OPTIONS.map((option) => {
+                    {categoryOptions.map((option) => {
                         const checked = value.selectedCategories.includes(option.value);
                         return (
                             <label
