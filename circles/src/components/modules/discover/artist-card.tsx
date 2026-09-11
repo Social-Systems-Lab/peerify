@@ -25,6 +25,32 @@ type ArtistCardProps = {
 export default function ArtistCard({ artist }: ArtistCardProps) {
     const [expanded, setExpanded] = useState(false);
     const user = useAtomValue(userAtom);
+    const cardRef = useRef<HTMLDivElement>(null);
+
+    // Pause-on-scroll-away, matching the convention elsewhere (e.g. Instagram video). Observes
+    // the whole card — compact header plus the expanded CirclePreview content when open — as one
+    // element and sweeps for any <audio> inside it (this card's own play button, or a
+    // TrackPreviewRow inside the expanded CirclePreview — both render real <audio> tags
+    // somewhere in this subtree) rather than tracking a specific one, so it doesn't matter which
+    // surface started playing. threshold: 0 means this only fires once literally zero pixels of
+    // the card remain on screen, not as soon as any part scrolls past — see the commit report for
+    // what that means for a tall expanded card.
+    useEffect(() => {
+        const node = cardRef.current;
+        if (!node) return;
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry.isIntersecting) {
+                    node.querySelectorAll("audio").forEach((audio) => {
+                        if (!audio.paused) audio.pause();
+                    });
+                }
+            },
+            { threshold: 0 },
+        );
+        observer.observe(node);
+        return () => observer.disconnect();
+    }, []);
 
     const genre = artist.primaryGenres?.[0];
     // location is stripped server-side (searchDiscoverableCircles) for any personal profile that
@@ -36,7 +62,7 @@ export default function ArtistCard({ artist }: ArtistCardProps) {
     const subtitle = [genre, distanceLabel].filter(Boolean).join(" · ") || "Artist";
 
     return (
-        <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+        <div ref={cardRef} className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
             {/* A <div role="button">, not a real <button> — ArtistCardPlayButton below renders its
                 own <button>, and nested <button> elements are invalid HTML (the browser would
                 auto-close this one early, breaking the tap target for whatever follows the play
@@ -119,9 +145,10 @@ function ArtistCardPlayButton({ circleId, artistName }: { circleId: string; arti
         };
     }, [audioRef]);
 
-    // The <audio> element only mounts once `track` is set (below), so audioRef.current is null
-    // until this effect's own render commits — .play() has to wait for that, it can't happen
-    // inline in the tap handler right after setTrack().
+    // The <audio> element is always mounted (see the render below), but `src` only gets a real
+    // URL once `track` is set — .play() has to wait for that attribute update to commit, it can't
+    // happen inline in the tap handler right after setTrack() (the element would still be
+    // pointing at nothing at that moment in the same tick).
     useEffect(() => {
         if (track && autoPlayOnLoadRef.current) {
             autoPlayOnLoadRef.current = false;
@@ -174,11 +201,17 @@ function ArtistCardPlayButton({ circleId, artistName }: { circleId: string; arti
                     <Play className="h-4 w-4 pl-0.5" />
                 )}
             </button>
-            {track && (
-                <audio ref={audioRef} src={track.streamUrl} preload="none" className="hidden">
-                    Your browser does not support the audio element.
-                </audio>
-            )}
+            {/* Always rendered, never conditionally mounted on `track` — useExclusiveAudio's own
+                registration effect (see audio-manager.ts) only runs once, on this component's
+                first commit, and only registers if the element already exists at that point.
+                Conditionally mounting this on `track` meant it was never actually registered with
+                the shared singleton at all: this button neither paused other playing tracks nor
+                got paused by them, and its own play/pause listeners (above) were attached to a
+                ref that was still null when that effect ran. `src` stays unset (not "") until a
+                track loads, so there's nothing to fetch/error on before the first tap. */}
+            <audio ref={audioRef} src={track?.streamUrl} preload="none" className="hidden">
+                Your browser does not support the audio element.
+            </audio>
         </span>
     );
 }
