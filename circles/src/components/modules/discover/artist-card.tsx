@@ -85,7 +85,7 @@ export default function ArtistCard({ artist }: ArtistCardProps) {
                 aria-expanded={expanded}
                 aria-label={expanded ? `Collapse ${artist.name}` : `Expand ${artist.name}`}
             >
-                <CirclePicture circle={artist} size="64px" openPreview={false} />
+                <CirclePicture circle={artist} size="56px" openPreview={false} />
                 <div className="min-w-0 flex-1">
                     <div className="truncate font-medium text-gray-900">{artist.name}</div>
                     <div className="truncate text-sm text-gray-500">{subtitle}</div>
