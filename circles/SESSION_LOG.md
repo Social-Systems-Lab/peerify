@@ -4594,3 +4594,86 @@ profiles; general profile access rules.
 
 **Next session:** detour to scope a new card-based discovery/search
 feature (separate chat) before returning to venue offers.
+
+### 2026-09-11 — Feature shipped: artist-discovery "Discover" screen
+
+Replaced the bottom-nav Events icon with a new Discover screen for
+browsing artists (and optionally events) via search/filters, presented as
+a scrollable list of compact, expandable cards. Built across several
+staging sessions, then cherry-picked to `main` and deployed.
+
+**Commits cherry-picked to `main`, in order:**
+1. `caaa7f56` — Add server-side visibility check to toggleBookmarkAction
+2. `633e0493` — Extract Advanced Filters into a standalone search-filters component
+3. `f5343dec` — Replace bottom-nav Events entry with Discover
+4. `b5b93578` — Add /discover screen: search input, filters, and persisted defaults
+5. `dc56fcf8` — Add compact/expandable artist card for Discover, wire Follow/Bookmark
+6. `beed2cee` — Make ArtistCard's play button fetch tracks lazily, not on mount
+7. `333a37cb` — Fix ArtistCard play button: wire into shared audio-manager, pause on scroll-away
+
+**Key decisions/context worth preserving:**
+
+- Removing the Events nav icon was confirmed safe before touching it — it
+  was one of three independent entry points into `/explore`'s
+  event-browsing feature (the others: the "View on map" link in the
+  Events side panel, and address-clicks on event-detail pages). Event
+  browsing remains fully reachable via Explore's own filter row; this was
+  a deliberate trade, not an oversight.
+- `SearchFilters` was extracted from `MapExplorer` into a standalone
+  module (`src/components/modules/search/search-filters.tsx`) as a small
+  cohesive set of exports (trigger/modal, `CategoryFilterCarousel`,
+  `GenreFilterChips`, `OfferTypeFilterChips`, the `SearchFiltersValue`
+  type, `getActiveSearchFilterCount`) rather than one drop-in component —
+  the real UI has non-contiguous DOM insertion points (a trigger nested in
+  a search pill, a pill-row sibling, chip rows as column siblings), so a
+  single mountable widget wasn't realistic without changing Explore's own
+  layout. Explore's behavior is unchanged after the extraction (verified
+  on staging and prod).
+- No distance/radius filtering exists anywhere in the codebase — confirmed
+  absent by investigation before building, deliberately out of scope for
+  this feature.
+- Filter defaults persist per-user via localStorage
+  (`discover-filters:<did>`), modeled on the tasks-list view-state
+  persistence pattern rather than `userSettingsAtom`, since
+  `SearchFiltersValue` is a richer shape (a Date-bearing range, several
+  arrays) than `UserSettings` supports, and per-user scoping fits a
+  genre/date preference better than one global shared key.
+- `ArtistCard`'s play button was changed to fetch tracks lazily (on tap,
+  not on mount, to avoid 8-11 unnecessary auth checks/DB fetches/signed
+  tokens on every page load) — but that broke `useExclusiveAudio`'s
+  registration: the `<audio>` element only mounted once a track finished
+  loading, and that hook's registration effect only runs once, on first
+  commit, and only if the element already exists at that point — so the
+  button was never actually registered with the shared `audio-manager.ts`
+  singleton at all. Caused three bugs: the play icon never synced to real
+  playback state, the same track could play twice at once (compact button
+  + expanded CirclePreview's song list), and two different artist cards
+  could play simultaneously. Fixed by always mounting `<audio>` and
+  leaving `src` unset until a track exists, matching `TrackPreviewRow`'s
+  own pattern.
+- Known minor limitation, not fixed: the compact card and the expanded
+  `CirclePreview` are separate `<audio>` elements for the same track —
+  switching between them restarts playback from 0 rather than resuming
+  position. Accepted as low priority.
+
+**Status:** shipped and verified on staging, cherry-picked to `main` and
+deployed to prod (`current` → `releases/20260911-111918-333a37cb`). Both
+branches pushed to origin.
+
+**Open follow-ups, not yet scoped/built:**
+- Artists-only default presentation: hide the Artists/Events pill row when
+  the filter is Artists-only, show a "Search artists" placeholder, reveal
+  the pill row only when a mixed/non-artist search is active.
+- Card richness: the current compact card (avatar, name, distance) feels
+  sparse; considering a small thumbnail + one-line bio addition without
+  adding a second full-size image fetch per card.
+- No-track icon: artists with zero uploaded tracks should show a distinct
+  icon instead of the play button, to avoid implying something's broken.
+  Requires adding a cheap `hasTracks` boolean/count to the initial
+  Discover list query, since track data is now fetched lazily and isn't
+  known upfront.
+- Sort tabs (Top/Near/New, possibly Activity/Resonates) for the Discover
+  list, modeled loosely on Feed's existing sort options — needs
+  investigation into what each sort criterion actually means today before
+  assuming it transfers to artist discovery. Resonates in particular is
+  confirmed not linked to any criteria yet.
