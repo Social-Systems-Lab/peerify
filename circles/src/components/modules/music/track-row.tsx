@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { Circle, UserPrivate } from "@/models/models";
 import AudioPlayer from "./audio-player";
 import TrackDeleteButton from "./track-delete-button";
+import TrackFeaturedToggle from "./track-featured-toggle";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { MessageCircle } from "lucide-react";
@@ -58,6 +59,14 @@ export const TrackRow: React.FC<TrackRowProps> = ({
                     <span className="text-xs text-gray-400" title="Total ovations — visible only to you">
                         {ovationCount} {ovationCount === 1 ? "ovation" : "ovations"}
                     </span>
+                )}
+                {canManage && (
+                    <TrackFeaturedToggle
+                        circleId={circle._id!.toString()}
+                        trackId={trackId}
+                        title={title}
+                        isFeatured={circle.featuredTrackId === trackId}
+                    />
                 )}
                 {canManage && <TrackDeleteButton trackId={trackId} title={title} />}
             </div>

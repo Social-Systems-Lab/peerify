@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
-import { getCircleById } from "@/lib/data/circle";
+import { getCircleById, updateCircle } from "@/lib/data/circle";
 import { putPrivateObject } from "@/lib/data/storage";
 import { createTrack, getTracksByCircleId, getTrackById, deleteTrack } from "@/lib/data/track";
 import { generateMp3Preview } from "@/lib/audio/ffmpeg";
@@ -166,5 +166,46 @@ export async function deleteTrackAction(trackId: string): Promise<{ success: boo
     } catch (error) {
         console.error("Error deleting track:", error);
         return { success: false, message: "Failed to delete track" };
+    }
+}
+
+// Pass trackId: null to un-feature (falls back to newest-first — see getTracksByCircleId).
+// Circle.featuredTrackId is a single field, so pinning a different track silently replaces
+// whatever was featured before — there's never a second one to explicitly clear.
+export async function setFeaturedTrackAction(
+    circleId: string,
+    trackId: string | null,
+): Promise<{ success: boolean; message?: string }> {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in" };
+    }
+
+    try {
+        const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+        if (!authorized) {
+            return { success: false, message: "You are not authorized to edit this profile's music" };
+        }
+
+        if (trackId) {
+            // Confirm the track actually belongs to this circle before pinning it — without this,
+            // a caller could feature an arbitrary trackId belonging to a different artist profile.
+            const track = await getTrackById(trackId);
+            if (!track || track.artistProfileId !== circleId) {
+                return { success: false, message: "Track not found on this profile" };
+            }
+        }
+
+        await updateCircle({ _id: circleId, featuredTrackId: trackId }, userDid);
+
+        const circle = await getCircleById(circleId);
+        if (circle?.handle) {
+            revalidatePath(`/circles/${circle.handle}/music`);
+        }
+
+        return { success: true };
+    } catch (error) {
+        console.error("Error setting featured track:", error);
+        return { success: false, message: "Failed to update featured track" };
     }
 }
