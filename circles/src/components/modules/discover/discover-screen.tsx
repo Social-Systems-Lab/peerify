@@ -22,6 +22,12 @@ import { DEFAULT_DISCOVER_FILTERS } from "./constants";
 
 const DISCOVER_CATEGORIES = ["users", "events"] as const;
 const DISCOVER_CATEGORY_LABELS: Record<string, string> = { users: "Artists", events: "Events" };
+// Passed to SearchFilters' categoryOptions prop to restrict its Advanced Filters Category
+// checklist to what this screen actually supports — the same restriction the pill row above
+// already applies via CategoryFilterCarousel's own `categories` prop, just extended to the
+// modal too. Explore's own SearchFilters usage never passes this, so it still shows all four
+// (Artists/Venues/Events/Offers) unaffected.
+const DISCOVER_CATEGORY_OPTIONS = DISCOVER_CATEGORIES.map((value) => ({ value, label: DISCOVER_CATEGORY_LABELS[value] }));
 
 const DISCOVER_FILTERS_STORAGE_VERSION = 1;
 
@@ -286,14 +292,14 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
                     openSection={openAdvancedSection}
                     onOpenSectionChange={setOpenAdvancedSection}
                     isMobile={isMobile}
+                    categoryOptions={DISCOVER_CATEGORY_OPTIONS}
                 />
             </div>
 
             {/* Hidden while narrowed to Artists-only — there's no point showing a choice of one.
-                Reappears the moment the selection includes Events (via Advanced Filters, since
-                the pill row itself is how you'd otherwise add Events back — see the Advanced
-                Filters Category checkboxes, which stay available regardless of this row's
-                visibility). */}
+                Reappears the moment the selection includes Events, whether from Advanced Filters'
+                Category checklist (restricted to Artists/Events above, so Events is always
+                available there even while this row is hidden) or a restored saved selection. */}
             {!isArtistsOnly && (
                 <CategoryFilterCarousel
                     categories={[...DISCOVER_CATEGORIES]}
