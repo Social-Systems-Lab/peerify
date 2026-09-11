@@ -140,7 +140,7 @@ export async function getTracksForCirclePreviewAction(circleId: string): Promise
               : false;
         if (!canViewMusic) return [];
 
-        const tracks = (await getTracksByCircleId(circleId)).slice(0, MAX_PREVIEW_TRACKS);
+        const tracks = (await getTracksByCircleId(circleId, circle.featuredTrackId)).slice(0, MAX_PREVIEW_TRACKS);
         return await Promise.all(
             tracks.map(async (track) => ({
                 id: track._id!.toString(),

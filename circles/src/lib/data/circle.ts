@@ -53,6 +53,7 @@ export const SAFE_CIRCLE_PROJECTION = {
     description: 1,
     content: 1,
     mission: 1,
+    featuredTrackId: 1,
     crewWelcomeMessage: 1,
     crewEnabled: 1,
     isPublic: 1,
