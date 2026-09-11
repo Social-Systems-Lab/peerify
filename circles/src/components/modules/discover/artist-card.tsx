@@ -60,6 +60,10 @@ export default function ArtistCard({ artist }: ArtistCardProps) {
     const distanceKm = artistLngLat ? haversineKm(artistLngLat, getUserLocation(user)) : undefined;
     const distanceLabel = distanceKm !== undefined && isFinite(distanceKm) ? `${Math.round(distanceKm)} km away` : undefined;
     const subtitle = [genre, distanceLabel].filter(Boolean).join(" · ") || "Artist";
+    // Same two fields CirclePreview shows as its own bio blocks (content-preview.tsx), already
+    // present on this list's WithMetric<Circle> payload — no new fetch. Omitted entirely (not a
+    // placeholder string) when neither is set, so a bio-less artist's row doesn't grow at all.
+    const bio = artist.mission || artist.description;
 
     return (
         <div ref={cardRef} className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
@@ -81,10 +85,11 @@ export default function ArtistCard({ artist }: ArtistCardProps) {
                 aria-expanded={expanded}
                 aria-label={expanded ? `Collapse ${artist.name}` : `Expand ${artist.name}`}
             >
-                <CirclePicture circle={artist} size="56px" openPreview={false} />
+                <CirclePicture circle={artist} size="64px" openPreview={false} />
                 <div className="min-w-0 flex-1">
                     <div className="truncate font-medium text-gray-900">{artist.name}</div>
                     <div className="truncate text-sm text-gray-500">{subtitle}</div>
+                    {bio && <div className="line-clamp-1 text-xs text-gray-400">{bio}</div>}
                 </div>
                 <ArtistCardPlayButton circleId={artist._id as string} artistName={artist.name || "artist"} />
                 {expanded ? (
