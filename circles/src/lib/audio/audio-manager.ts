@@ -5,6 +5,12 @@ export function registerAudioElement(id: string, el: HTMLAudioElement): () => vo
     registry.set(id, el);
 
     const handlePlay = () => {
+        // .volume is a persistent property that never resets on its own — without this, a track
+        // faded to 0 by ArtistCard's scroll-away fade (artist-card.tsx) would silently resume at
+        // 0 volume the next time it plays. General correctness fix, not specific to that fade:
+        // any track starting should always be audible, regardless of what its volume was left at.
+        el.volume = 1;
+
         registry.forEach((otherEl, otherId) => {
             if (otherId !== id && !otherEl.paused) {
                 otherEl.pause();
