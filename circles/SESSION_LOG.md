@@ -4677,3 +4677,158 @@ branches pushed to origin.
   investigation into what each sort criterion actually means today before
   assuming it transfers to artist discovery. Resonates in particular is
   confirmed not linked to any criteria yet.
+
+### 2026-09-12 — Discover card richness, featured-track selection, and scroll-away audio fade shipped
+
+Continuation of the 2026-09-11 Discover screen work (previous entry) —
+three independent features plus two smaller polish fixes carried over
+from that entry's open-follow-ups list, all built and verified on
+staging first, then cherry-picked to `main` in small isolated batches
+and deployed to prod.
+
+**Commits cherry-picked to `main`, in order:**
+1. `ceb8aa7f` — Default Discover to Artists-only, hide Artists/Events pill row to match
+2. `f9b0583c` — Discover: banner only shows on a real difference from default, restyled neutral
+3. `348ac90d` — Restrict Discover's Advanced Filters Category checklist to Artists/Events
+4. `8a330813` — Discover: add bio snippet + slightly larger avatar to ArtistCard row
+5. `0b0fb1ae` — Revert ArtistCard avatar to 56px, keep bio line
+6. `caefc8f7` — Add featuredTrackId schema field + featured-first track ordering
+7. `c082d1ce` — Add "mark as featured" control to Music tab's TrackRow
+8. `937b2ea1` — Circle home page: make featuredTracks actually respect featuredTrackId
+9. `7752259f` — deleteTrack: clear Circle.featuredTrackId when the deleted track was featured
+10. `476591bb` — Swap featured-track icon to radio-style Circle/CircleDot
+11. `8e2fa7a4` — Swap Feature/Featured control to the existing Switch primitive
+12. `3b51a778` — Fade audio out on scroll-away instead of an abrupt stop
+13. `f97404fe` — Reset volume to 1 whenever an <audio> element starts playing
+14. `b95a4ec6` — Increase scroll-away fade duration from 350ms to 450ms
+
+**Card richness.** Added a one-line bio snippet (`artist.mission ||
+artist.description`) to the compact ArtistCard row — free, since both
+fields were already in `searchDiscoverableCircles`'s existing
+`SAFE_CIRCLE_PROJECTION`-backed payload, no new fetch. Tried a slightly
+larger avatar (56px → 64px) alongside it, but reverted after visual
+review — the bio line did the real work; the size bump wasn't
+perceptible enough to justify keeping as a separate variable. Final
+state: bio line only, avatar unchanged at 56px. Also confirmed (as
+investigation, not a fix) that no thumbnail/image-pipeline work is
+needed for this or future card-image work: no pre-sized image variants
+exist anywhere in the app — every `CirclePicture` render downloads the
+same full-resolution original, cropped via CSS only. A pre-existing
+characteristic of the whole app, not specific to Discover, not touched.
+
+**Featured track selection.** Problem: track order was previously
+most-recently-uploaded-first with no artist control, so a new upload
+could silently bump an artist's intended lead track out of the "plays
+first" position everywhere it's previewed. Added an optional
+`featuredTrackId` field to `circleSchema` (included in
+`SAFE_CIRCLE_PROJECTION`); `getTracksByCircleId` now sorts the featured
+track first when set and valid, falling back to `createdAt: -1`
+otherwise — silently, with no "not found" case callers need to handle
+(covers both an unset field and a stale reference to a deleted track).
+`getTracksForCirclePreviewAction` — the single call site already feeding
+both Discover's ArtistCard play button and `CirclePreview`'s
+`TrackPreviewList` — picked up the new sort automatically, confirmed one
+fix covers both surfaces. Also fixed the circle home page's
+misleadingly-named `featuredTracks` variable (previously just "3 most
+recent uploads," not artist-chosen) to actually respect the real field.
+Added a "mark as featured" control to each `TrackRow` on the artist's own
+Music management page (`/circles/[handle]/music`) — only one track can
+be featured at a time, selecting a new one un-features the previous one
+by construction (single field on the circle document, nothing extra to
+clear). `deleteTrack` now also clears `Circle.featuredTrackId` when the
+deleted track was the featured one, as a best-effort follow-up write
+(not atomic with the delete — this codebase doesn't use Mongo
+transactions anywhere; matches the existing sequential-write convention
+`createTrackComment`/`deleteTrackComment` already use), filtered on
+`{ _id: circleId, featuredTrackId: trackId }` so it can't clobber a
+concurrent re-feature and is a no-op when deleting a non-featured track.
+
+The control's visual design went through two rejected iterations before
+landing: a star icon (rejected — visually collided with the unrelated
+Favorites star already in nav) → radio-style `Circle`/`CircleDot` icons
+(semantically correct for a mutual-exclusivity control, but too subtle
+at the small size these render) → final: a real toggle switch using the
+existing `Switch` UI primitive (`src/components/ui/switch.tsx`, the same
+Radix-based component `presence-settings-form.tsx`'s offers-visible
+toggle already uses), landing on a "mixer board, one channel live"
+mental model. Each iteration was a visual swap only — confirmed no
+underlying logic changed across any of the three.
+
+**Scroll-away audio fade.** Problem: playback on a scrolled-away
+Discover card cut off abruptly (the existing IntersectionObserver-
+triggered instant `.pause()`), feeling harsh against the page's dwell-
+oriented scrolling flow. Replaced the instant pause with a volume
+fade-out — ramping `.volume` to 0 over the fade duration via
+`requestAnimationFrame`, then pausing — inside `ArtistCard`'s existing
+observer callback, kept isolated to the scroll-away path only.
+`audio-manager.ts`'s exclusivity-triggered pause (a different track
+starting elsewhere) intentionally stays an instant stop, not a fade,
+since a new track is about to play immediately there. The fade is
+cancelable: it stops cleanly if the exclusivity mechanism pauses the
+same element mid-fade, if the component unmounts mid-fade, or if the
+card scrolls out/in/out again before a fade completes (never more than
+one fade loop per `<audio>` element at a time, verified for all three
+cases). Critical companion fix: `audio-manager.ts`'s `handlePlay` now
+resets `el.volume = 1` unconditionally whenever any track starts playing
+— without it, a track faded to 0 would have silently resumed at 0 volume
+on replay, since `.volume` is a persistent property that never resets
+itself. This also affects `TrackPreviewList` and `Music.tsx`'s
+standalone `AudioPlayer` as a harmless, intended side effect (any track
+starting should always be at full volume). Fade duration tuned by feel
+on staging: started at 350ms, increased to 450ms for a calmer feel.
+
+**Discover polish fixes** (smaller, carried over from the 2026-09-11
+open-follow-ups list, done early this session before the two features
+above): fixed the "Showing your saved filters" banner appearing even
+when restored filters exactly matched the Artists-only default — it now
+does a real structural comparison against `DEFAULT_DISCOVER_FILTERS`
+instead of a hand-maintained "does this look empty" check that could
+drift from the actual default, and restyled from orange/alert to
+neutral gray. Also restricted Discover's Advanced Filters Category
+checklist to Artists/Events only — it previously also listed
+Venues/Offers, which were silently non-functional here (no pill, no
+results, looked broken). Explore's own Advanced Filters modal confirmed
+unaffected, still shows all four categories.
+
+**Investigated, explicitly deferred:** distinguishing musical performers
+(musicians) from other performer types (jugglers, comedians, etc.) on
+Discover. No `performerType`/category field exists on `Circle`; the
+"is this an artist" check (`isPeerifyArtistIdentity`) is built entirely
+around `intent`/`identityType` values that are all implicitly musical by
+product design, with genre never used as a gate. The closest existing
+"type" tag (`artistProfile.artistTypes`, includes "Other") is free-text
+and display-only, not a filter. Real support would require a new
+categorization system — deciding what genre/tracks/Discover-card layout
+even mean for a non-musical act — and auditing every place that
+currently conflates "artist identity" with "musician." Matches the scope
+of the already-logged, deliberately-deferred "Musicians as a profile
+flag" backlog item. Not started.
+
+**Process note, worth remembering:** before cherry-picking a commit that
+depends on earlier staging work, always verify with `git log <hash>
+main` (or the actual current tip via `git log --oneline -3`) that the
+dependency genuinely landed on `main` — don't infer it from a prior
+session's summary. An incorrect assumption here caused two rounds of
+merge conflicts and required a `git reset --hard` recovery earlier this
+session (safe only because nothing had been pushed yet). Also noted: a
+`next build` can occasionally die silently mid-build with no error and
+no orphaned process — if `deploy-peerify.sh` appears frozen at "Creating
+an optimized production build..." for several minutes, check `ps aux |
+grep "next build"` in a second terminal before waiting further; if no
+process is found, it already died and a clean retry is the right move.
+
+**Status:** all work verified on staging before promotion, cherry-picked
+to `main` in small isolated batches, deployed to production via
+`deploy-peerify.sh`, and spot-checked live on peerify.one before pushing
+both branches to origin.
+
+**Open follow-ups still on the list, not yet scoped:**
+- No-track icon for artists with zero uploaded tracks (needs a cheap
+  `hasTracks` field added to the initial Discover list query, since track
+  data is fetched lazily and isn't known upfront).
+- Sort tabs (Top/Near/New, possibly Activity/Resonates) for the Discover
+  list — needs investigation into what each sort criterion means in Feed
+  today before assuming it transfers to Discover; Resonates confirmed not
+  linked to any real criteria yet.
+- Musician vs. other performer type distinction (see above — deferred,
+  larger scope).
