@@ -15,7 +15,7 @@ type ArtistCardProps = {
     artist: WithMetric<Circle>;
 };
 
-const SCROLL_FADE_DURATION_MS = 350;
+const SCROLL_FADE_DURATION_MS = 450;
 
 // Ramps audio.volume down to 0 over SCROLL_FADE_DURATION_MS, then pauses — used for the
 // scroll-away path only. audio-manager.ts's exclusivity pause (a different track starting) stays
