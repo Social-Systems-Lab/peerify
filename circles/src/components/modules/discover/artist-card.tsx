@@ -15,6 +15,46 @@ type ArtistCardProps = {
     artist: WithMetric<Circle>;
 };
 
+const SCROLL_FADE_DURATION_MS = 350;
+
+// Ramps audio.volume down to 0 over SCROLL_FADE_DURATION_MS, then pauses — used for the
+// scroll-away path only. audio-manager.ts's exclusivity pause (a different track starting) stays
+// an instant .pause(): a new track is about to play immediately there, so fading the old one out
+// serves no purpose.
+//
+// activeFades tracks the rAF handle per element so a second call for the same element (the card
+// leaving view again before the first fade finished) cancels the earlier loop instead of running
+// two overlapping ones. Each tick also checks audio.paused first — if something else paused this
+// element in the meantime (audio-manager's exclusivity handler, or the user tapping play/pause),
+// the loop stops adjusting volume rather than fighting whatever already handled it. Commit 2
+// (audio-manager.ts) is what makes a later replay start back at full volume, not this function.
+function fadeOutAndPause(audio: HTMLAudioElement, activeFades: Map<HTMLAudioElement, number>) {
+    const existingFrame = activeFades.get(audio);
+    if (existingFrame !== undefined) cancelAnimationFrame(existingFrame);
+
+    const startVolume = audio.volume;
+    const startTime = performance.now();
+
+    const step = (now: number) => {
+        if (audio.paused) {
+            activeFades.delete(audio);
+            return;
+        }
+
+        const t = Math.min((now - startTime) / SCROLL_FADE_DURATION_MS, 1);
+        audio.volume = startVolume * (1 - t);
+
+        if (t < 1) {
+            activeFades.set(audio, requestAnimationFrame(step));
+        } else {
+            activeFades.delete(audio);
+            audio.pause();
+        }
+    };
+
+    activeFades.set(audio, requestAnimationFrame(step));
+}
+
 /**
  * Compact, expandable row for the Discover artist list. The collapsed header (thumbnail, name,
  * genre/distance, one play button) is the new part; expanding it reveals the existing
@@ -26,6 +66,7 @@ export default function ArtistCard({ artist }: ArtistCardProps) {
     const [expanded, setExpanded] = useState(false);
     const user = useAtomValue(userAtom);
     const cardRef = useRef<HTMLDivElement>(null);
+    const fadeHandlesRef = useRef<Map<HTMLAudioElement, number>>(new Map());
 
     // Pause-on-scroll-away, matching the convention elsewhere (e.g. Instagram video). Observes
     // the whole card — compact header plus the expanded CirclePreview content when open — as one
@@ -38,18 +79,25 @@ export default function ArtistCard({ artist }: ArtistCardProps) {
     useEffect(() => {
         const node = cardRef.current;
         if (!node) return;
+        const activeFades = fadeHandlesRef.current;
         const observer = new IntersectionObserver(
             ([entry]) => {
                 if (!entry.isIntersecting) {
                     node.querySelectorAll("audio").forEach((audio) => {
-                        if (!audio.paused) audio.pause();
+                        if (!audio.paused) fadeOutAndPause(audio, activeFades);
                     });
                 }
             },
             { threshold: 0 },
         );
         observer.observe(node);
-        return () => observer.disconnect();
+        return () => {
+            observer.disconnect();
+            // Component unmounting mid-fade (e.g. the list re-renders this card away) — don't
+            // leave an orphaned rAF loop running against a detached element.
+            activeFades.forEach((frame) => cancelAnimationFrame(frame));
+            activeFades.clear();
+        };
     }, []);
 
     const genre = artist.primaryGenres?.[0];
