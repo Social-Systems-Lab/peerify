@@ -4,6 +4,7 @@ import React, { useEffect } from "react";
 import { useAtom } from "jotai";
 import { Button } from "@/components/ui/button";
 import { contentPreviewAtom, imageGalleryAtom, userAtom } from "@/lib/data/atoms";
+import { fadeOutPlayingAudio } from "@/lib/audio/fade";
 import Image from "next/image";
 import { FaUsers } from "react-icons/fa6";
 import { useRouter } from "next/navigation";
@@ -101,6 +102,7 @@ const isSuppressedPersonalProfile = (
 
 export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps) => {
     const router = useRouter();
+    const previewRef = React.useRef<HTMLDivElement>(null);
     const ownerRestrictsVisibility = isSuppressedPersonalProfile(circle, circleType, source);
     const memberCount = circle?.members ? (circleType === "user" ? circle.members - 1 : circle.members) : 0;
     const [, setImageGallery] = useAtom(imageGalleryAtom); // Keep for profile picture click
@@ -144,6 +146,24 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
         };
     }, [circle, user?.did]);
     const closeDelayMs = 400;
+    // Shorter than the scroll-away fade (450ms, artist-card.tsx) on purpose — this is a quick
+    // "duck out" right before the panel leaves the page, not something the user is meant to sit
+    // and listen to. Comfortably under closeDelayMs too, so the audio is already silent well
+    // before router.push actually fires — it runs alongside that delay, not in place of it.
+    const CLOSE_FADE_DURATION_MS = 250;
+
+    // Shared by the Open/followers-count/View Crew buttons below: fade out whatever's playing in
+    // this preview, close the panel (its exit animation keeps the DOM — and the fading <audio> —
+    // mounted for a bit longer regardless), then navigate once closeDelayMs elapses.
+    const closeAndNavigate = (path: string) => {
+        if (previewRef.current) {
+            fadeOutPlayingAudio(previewRef.current, CLOSE_FADE_DURATION_MS);
+        }
+        setContentPreview(undefined);
+        window.setTimeout(() => {
+            router.push(path);
+        }, closeDelayMs);
+    };
 
     // Relationship-aware bypass: a follower or accepted contact still sees the full profile
     // even when the owner hasn't opted into search/map discoverability. Defaults to "no
@@ -241,7 +261,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                     </div>
                 )}
             </div>
-            <div className="flex flex-1 flex-col">
+            <div ref={previewRef} className="flex flex-1 flex-col">
                 <div className="relative flex justify-center">
                     {!suppressed && (
                         <div className="absolute left-1 top-1 flex w-[100px]">
@@ -250,10 +270,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                 className="m-2 w-full"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    setContentPreview(undefined);
-                                    window.setTimeout(() => {
-                                        router.push(getCircleDefaultPath(circle));
-                                    }, closeDelayMs);
+                                    closeAndNavigate(getCircleDefaultPath(circle));
                                 }}
                             >
                                 Open
@@ -309,10 +326,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             className="flex flex-row items-center justify-center pt-2 text-black transition-opacity hover:opacity-70"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                setContentPreview(undefined);
-                                window.setTimeout(() => {
-                                    router.push(`/circles/${circle.handle}/followers`);
-                                }, closeDelayMs);
+                                closeAndNavigate(`/circles/${circle.handle}/followers`);
                             }}
                         >
                             <FaUsers />
@@ -379,10 +393,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                             className="bg-[#1A1612] text-white hover:bg-[#2b2621]"
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                setContentPreview(undefined);
-                                                window.setTimeout(() => {
-                                                    router.push(`/circles/${circle.handle}/crew`);
-                                                }, closeDelayMs);
+                                                closeAndNavigate(`/circles/${circle.handle}/crew`);
                                             }}
                                         >
                                             View Crew
