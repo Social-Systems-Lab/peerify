@@ -137,7 +137,7 @@ export default function PeerifyLandingPage() {
                             <p className={"sLabel"}>The idea</p>
                             <h2 className={"serif"}>1,000 fans is all it takes</h2>
                             <p>Streaming pays fractions of a cent per play. Touring rarely breaks even. But an artist doesn&apos;t need to go viral &mdash; they need a thousand people who actually show up, buy the music, and open their homes. Peerify is the infrastructure for finding those people, and turning their support into a real, sustainable career.</p>
-                            <Link href="/explore" className={"btnOrange"} style={{ marginTop: "8px" }}>Or explore artists on the map</Link>
+                            <Link href="/explore" className={"btnOrange"} style={{ marginTop: "8px" }}>Explore artists on the map</Link>
                         </div>
                         <div className={"photoFrame"}>
                             <Image src="/peerify/fans.jpg" alt="Fans at an intimate house concert" fill className={"photoImg"} sizes="(max-width: 768px) 100vw, 50vw" />
