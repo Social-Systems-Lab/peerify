@@ -484,6 +484,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                             onChange={field.onChange}
                                             allowedTypes={VENUE_OFFER_MODAL_TYPES}
                                             saveVersion={saveVersion}
+                                            isVenue={isVenue}
                                         />
                                     )}
                                 />

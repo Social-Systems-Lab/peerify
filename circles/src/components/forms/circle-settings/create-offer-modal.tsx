@@ -71,6 +71,11 @@ interface CreateOfferModalProps {
     // Step 1 grid, no Back) — editing an offering reuses the same two-step form, it just skips
     // choosing a type since that's already decided. Pass null/undefined for the "Add an offer" flow.
     editingOffering?: TourTeamOffering | null;
+    // Branches the free-of-charge notice copy only — "register as a Venue instead" is circular
+    // when shown to a profile that's already a registered venue (see OfferManager's own comment
+    // for why this is threaded down rather than derived here from a circle this component doesn't
+    // have in scope).
+    isVenue?: boolean;
 }
 
 const EMPTY_IMAGES: ImageItem[] = [];
@@ -134,6 +139,7 @@ export function CreateOfferModal({
     onAdd,
     onSave,
     editingOffering,
+    isVenue = false,
 }: CreateOfferModalProps) {
     const isEditing = Boolean(editingOffering);
 
@@ -345,12 +351,15 @@ export function CreateOfferModal({
                     </DialogDescription>
                 </DialogHeader>
 
-                {/* Universal platform rule, not venue-specific — shown on both steps (not just
-                    Step 1) so it's visible regardless of where someone is in the flow, including
-                    right before they hit Add offer/Update on Step 2. */}
+                {/* Universal platform rule — shown on both steps (not just Step 1) so it's visible
+                    regardless of where someone is in the flow, including right before they hit Add
+                    offer/Update on Step 2. Copy branches only for isVenue: "register as a Venue
+                    instead" is circular when the profile creating this offer is already a
+                    registered venue. */}
                 <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                    Offers must be free — no rental fees, ticket splits, or other compensation. If you charge for
-                    your space, register as a Venue instead.
+                    {isVenue
+                        ? "Offers must be free — no rental fees, ticket splits, or other compensation. Paid bookings are handled through your Venue listing, not here."
+                        : "Offers must be free — no rental fees, ticket splits, or other compensation. If you charge for your space, register as a Venue instead."}
                 </div>
 
                 {step === 1 && !isEditing && (
