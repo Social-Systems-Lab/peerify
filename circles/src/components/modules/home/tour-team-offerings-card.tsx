@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
+import { isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import {
     accommodationSubTypeLabels,
     getOfferDetailFields,
@@ -23,6 +24,12 @@ interface TourTeamOfferingsCardProps {
 export default function TourTeamOfferingsCard({ circle, canManage }: TourTeamOfferingsCardProps) {
     const router = useRouter();
     const offerings = sortOfferingsForDisplay(circle.tourTeamOfferings || []);
+    // Same isVenue-branches-copy pattern presence-settings-form.tsx already uses for this section
+    // ("Unlike an individual profile, a venue offer pin shows your venue's name...") — first-person
+    // singular reads oddly on a venue's business profile, so venues get "we" instead of "I".
+    const subtitleCopy = isPeerifyVenueIdentity(circle)
+        ? "Ways we can contribute to visiting artists."
+        : "Ways I can contribute to visiting artists.";
 
     // Presence settings is also where CreateOfferModal actually lives (via OfferManager) and
     // where an added/edited offer gets persisted (its own "Save Changes" button) — CreateOfferModal
@@ -40,9 +47,7 @@ export default function TourTeamOfferingsCard({ circle, canManage }: TourTeamOff
         <PresenceCard title="Offers" isOwner={canManage} onEdit={goToPresenceSettings}>
             {offerings.length > 0 ? (
                 <>
-                    <p className="mb-3 text-xs font-medium text-muted-foreground">
-                        Ways I can contribute to visiting artists.
-                    </p>
+                    <p className="mb-3 text-xs font-medium text-muted-foreground">{subtitleCopy}</p>
                     <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
                         <CarouselContent className="-ml-3">
                             {offerings.map((offering) => (
@@ -55,7 +60,7 @@ export default function TourTeamOfferingsCard({ circle, canManage }: TourTeamOff
                 </>
             ) : (
                 <div className="flex flex-col items-center gap-3 py-2 text-center text-muted-foreground">
-                    <p>Ways I can contribute to visiting artists.</p>
+                    <p>{subtitleCopy}</p>
                     <Button type="button" variant="outline" onClick={goToPresenceSettings}>
                         Add an offer
                     </Button>
