@@ -345,6 +345,14 @@ export function CreateOfferModal({
                     </DialogDescription>
                 </DialogHeader>
 
+                {/* Universal platform rule, not venue-specific — shown on both steps (not just
+                    Step 1) so it's visible regardless of where someone is in the flow, including
+                    right before they hit Add offer/Update on Step 2. */}
+                <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                    Offers must be free — no rental fees, ticket splits, or other compensation. If you charge for
+                    your space, register as a Venue instead.
+                </div>
+
                 {step === 1 && !isEditing && (
                     <div className="grid grid-cols-2 gap-3 py-2 sm:grid-cols-3">
                         {tiles.map(({ type, isOther }) => {
