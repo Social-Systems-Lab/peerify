@@ -476,7 +476,17 @@ export default function AboutPage({
     const shouldShowAboutCard = !isPeerifyVenueProfile || !!circle.content || canEditAbout;
     const canContactCircle = hasMatchingOfferNeeds && !isOwner;
     const shouldShowPeerifyVenueCard = hasVenueProfileContent;
-    const shouldShowPeerifyArtistSupportCards = !isPeerifyArtistProfile && !isPeerifyVenueProfile;
+    // Split from a single shouldShowPeerifyArtistSupportCards flag (used only by these two cards)
+    // so TourTeamOfferingsCard could gain its own isPeerifyVenueProfile branch — a Peerify-managed
+    // venue already creates/persists structured tourTeamOfferings (OfferManager, presence-settings-
+    // form.tsx) and already appears on the Explore map (getOfferMapPins), but had no display path
+    // on its own profile page until now. OffersCard's condition is unchanged from before the split.
+    // isPeerifyArtistProfile is preserved as an explicit exclusion on the TourTeamOfferingsCard side
+    // even though every current managed-identity creation path (circle-wizard/actions.ts) already
+    // hardcodes circleType: "circle" for artist identities too (so isUserProfile alone already
+    // excludes them in practice) — kept explicit in case that invariant ever changes.
+    const shouldShowOffersCard = !isUserProfile && !isPeerifyArtistProfile && !isPeerifyVenueProfile;
+    const shouldShowTourTeamOfferingsCard = (isUserProfile && !isPeerifyArtistProfile) || isPeerifyVenueProfile;
     const aboutHeading = isPeerifyArtistProfile
         ? circle.name
             ? `About ${circle.name}`
@@ -956,10 +966,8 @@ export default function AboutPage({
                                 </ul>
                             </div>
                         )}
-                        {shouldShowPeerifyArtistSupportCards && !isUserProfile && (
-                            <OffersCard circle={circle} isOwner={isOwner} />
-                        )}
-                        {shouldShowPeerifyArtistSupportCards && isUserProfile && (
+                        {shouldShowOffersCard && <OffersCard circle={circle} isOwner={isOwner} />}
+                        {shouldShowTourTeamOfferingsCard && (
                             <TourTeamOfferingsCard circle={circle} canManage={canManageOffers} />
                         )}
                     </div>
