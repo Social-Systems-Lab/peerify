@@ -5,6 +5,7 @@ import { useAtom } from "jotai";
 import { Button } from "@/components/ui/button";
 import { contentPreviewAtom, imageGalleryAtom, userAtom } from "@/lib/data/atoms";
 import { fadeOutPlayingAudio } from "@/lib/audio/fade";
+import { getRegisteredAudioElements } from "@/lib/audio/audio-manager";
 import Image from "next/image";
 import { FaUsers } from "react-icons/fa6";
 import { useRouter } from "next/navigation";
@@ -102,7 +103,6 @@ const isSuppressedPersonalProfile = (
 
 export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps) => {
     const router = useRouter();
-    const previewRef = React.useRef<HTMLDivElement>(null);
     const ownerRestrictsVisibility = isSuppressedPersonalProfile(circle, circleType, source);
     const memberCount = circle?.members ? (circleType === "user" ? circle.members - 1 : circle.members) : 0;
     const [, setImageGallery] = useAtom(imageGalleryAtom); // Keep for profile picture click
@@ -152,13 +152,18 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
     // before router.push actually fires — it runs alongside that delay, not in place of it.
     const CLOSE_FADE_DURATION_MS = 250;
 
-    // Shared by the Open/followers-count/View Crew buttons below: fade out whatever's playing in
-    // this preview, close the panel (its exit animation keeps the DOM — and the fading <audio> —
-    // mounted for a bit longer regardless), then navigate once closeDelayMs elapses.
+    // Shared by the Open/followers-count/View Crew buttons below: fade out whatever's playing,
+    // close the panel (its exit animation keeps the DOM — and the fading <audio> — mounted for a
+    // bit longer regardless), then navigate once closeDelayMs elapses.
+    //
+    // Sweeps audio-manager's exclusivity registry rather than this component's own DOM subtree —
+    // the currently-playing <audio> isn't guaranteed to live inside this CirclePreview instance.
+    // E.g. ArtistCard's compact play button (Discover's collapsed row) is a sibling of the
+    // CirclePreview it expands into, not a descendant of it, so a subtree-scoped sweep never
+    // finds it. The registry sweep works regardless of which component started playback, since
+    // at most one entry is ever playing at a time.
     const closeAndNavigate = (path: string) => {
-        if (previewRef.current) {
-            fadeOutPlayingAudio(previewRef.current, CLOSE_FADE_DURATION_MS);
-        }
+        fadeOutPlayingAudio(getRegisteredAudioElements(), CLOSE_FADE_DURATION_MS);
         setContentPreview(undefined);
         window.setTimeout(() => {
             router.push(path);
@@ -261,7 +266,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                     </div>
                 )}
             </div>
-            <div ref={previewRef} className="flex flex-1 flex-col">
+            <div className="flex flex-1 flex-col">
                 <div className="relative flex justify-center">
                     {!suppressed && (
                         <div className="absolute left-1 top-1 flex w-[100px]">
