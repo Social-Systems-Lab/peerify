@@ -160,6 +160,9 @@ export default function AboutPage({
     const [bookingError, setBookingError] = React.useState("");
     const [isSubmittingBooking, setIsSubmittingBooking] = React.useState(false);
     const isOwner = user?.did === circle.did;
+    // Offers-section-specific gate (Edit + Add an offer) — admin-inclusive, unlike the strict
+    // isOwner check above (which stays as-is for canContactCircle/OffersCard below).
+    const canManageOffers = isOwnerOrCircleAdmin(user, circle);
     const canEditAbout = isAuthorized(user, circle, features.settings.edit_about);
     const isUserProfile = circle.circleType === "user";
     const [relationshipState] = useProfileRelationshipState(circle, user?.did);
@@ -957,7 +960,7 @@ export default function AboutPage({
                             <OffersCard circle={circle} isOwner={isOwner} />
                         )}
                         {shouldShowPeerifyArtistSupportCards && isUserProfile && (
-                            <TourTeamOfferingsCard circle={circle} isOwner={isOwner} />
+                            <TourTeamOfferingsCard circle={circle} canManage={canManageOffers} />
                         )}
                     </div>
                 </div>

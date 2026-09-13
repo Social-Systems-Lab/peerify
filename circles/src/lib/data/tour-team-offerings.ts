@@ -71,6 +71,31 @@ export function getTourTeamOfferingLabel(offering: Pick<TourTeamOffering, "type"
     return tourTeamOfferingTypeLabels[offering.type] ?? offering.type;
 }
 
+// Fixed display order for the Offers section on a profile page (not the order offerings were
+// created/saved in). "custom" ("Other") isn't listed — sortOfferingsForDisplay always sorts it
+// last, after every fixed type below.
+const OFFER_DISPLAY_ORDER: readonly (typeof tourTeamOfferingTypes)[number][] = [
+    "hosting_show",
+    "spare_room",
+    "home_cooked_meal",
+    "local_transport",
+    "sound_equipment_help",
+    "city_guide",
+    "promotion",
+];
+
+// Sorts a circle's offerings for display: the 7 fixed types in OFFER_DISPLAY_ORDER, then any
+// "custom" ("Other") offerings last. Array.prototype.sort is stable (guaranteed since ES2019), so
+// offerings that land on the same order-index — multiple "custom" entries, all sorted to the same
+// past-the-end index — keep their original relative order rather than being reshuffled.
+export function sortOfferingsForDisplay(offerings: TourTeamOffering[]): TourTeamOffering[] {
+    const orderIndex = (offering: TourTeamOffering): number => {
+        const index = OFFER_DISPLAY_ORDER.indexOf(offering.type as (typeof tourTeamOfferingTypes)[number]);
+        return index === -1 ? OFFER_DISPLAY_ORDER.length : index;
+    };
+    return [...offerings].sort((a, b) => orderIndex(a) - orderIndex(b));
+}
+
 export const promotionChannelLabels: Record<(typeof promotionChannels)[number], string> = {
     social_media: "Social media",
     radio: "Local radio",
