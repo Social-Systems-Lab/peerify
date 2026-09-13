@@ -349,6 +349,16 @@ h1,
         --pc-orange-soft: #f1a674;
         --pc-orange-tint: #f8e2ce;
         --pc-muted-soft: #a89b89;
+
+        /* Branding-plan tokens (Offers section redesign) — global so any future
+           component can reuse them, not just the Offers card. --pc-ink was
+           previously only defined inside .pilot-chrome; promoted here too since
+           it's now used outside that scope. */
+        --pc-ink: #1a1612;
+        --pc-cream: #f2ebdb;
+        --pc-paper: #faf6ec;
+        --pc-line: #dfd5bf;
+        --pc-muted: #7d7164;
     }
 }
 
