@@ -258,6 +258,13 @@ export function CreateOfferModal({
     const isCustom = selectedType === "custom";
     const canSubmit = selectedType !== null && (!isCustom || label.trim().length > 0);
 
+    // "Home" doesn't make sense for a registered venue circle — excluded when isVenue, except
+    // when it's already the offering's current value (an existing venue offer saved before this
+    // restriction, or a legacy/demo record): kept selectable in that case so the field doesn't
+    // silently blank out on open, while still preventing a venue from picking it fresh once
+    // they've moved to a different value.
+    const spaceTypeOptions = hostingShowSpaceTypes.filter((type) => type !== "home" || !isVenue || spaceType === "home");
+
     const tiles = useMemo(
         () => [...allowedTypes.map((type) => ({ type: type as ModalOfferingType, isOther: false })), { type: "custom" as ModalOfferingType, isOther: true }],
         [allowedTypes],
@@ -490,7 +497,7 @@ export function CreateOfferModal({
                                             <SelectValue placeholder="Optional" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {hostingShowSpaceTypes.map((type) => (
+                                            {spaceTypeOptions.map((type) => (
                                                 <SelectItem key={type} value={type}>
                                                     {hostingShowSpaceTypeLabels[type]}
                                                 </SelectItem>
