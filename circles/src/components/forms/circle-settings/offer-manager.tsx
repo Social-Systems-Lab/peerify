@@ -34,9 +34,20 @@ interface OfferManagerProps {
     // clone issue and the need to special-case in-flight photo File objects (not meaningfully
     // content-comparable) for a deep-equality check.
     saveVersion?: number;
+    // Threaded down to CreateOfferModal purely for its venue-specific copy branch (the
+    // free-of-charge notice) — presence-settings-form.tsx already computes this via
+    // isPeerifyVenueIdentity(circle) for its own copy branches, this just passes it one level
+    // further rather than having CreateOfferModal re-derive it from a circle it doesn't have.
+    isVenue?: boolean;
 }
 
-export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES, saveVersion }: OfferManagerProps) {
+export function OfferManager({
+    value,
+    onChange,
+    allowedTypes = OFFER_MODAL_TYPES,
+    saveVersion,
+    isVenue = false,
+}: OfferManagerProps) {
     const [modalOpen, setModalOpen] = useState(false);
     // Non-null while editing an existing offering — CreateOfferModal reads this to open straight
     // to a pre-filled Step 2 instead of the create flow's Step 1 grid. Cleared on close so the
@@ -178,6 +189,7 @@ export function OfferManager({ value, onChange, allowedTypes = OFFER_MODAL_TYPES
                 onAdd={addOffering}
                 onSave={saveOffering}
                 editingOffering={editingOffering}
+                isVenue={isVenue}
             />
         </div>
     );
