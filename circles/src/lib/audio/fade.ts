@@ -52,12 +52,21 @@ export function fadeOutAndPause(audio: HTMLAudioElement, durationMs: number): vo
 }
 
 /**
- * Fades every currently-playing <audio> element found within `target` — or `target` itself, if
- * it's already an <audio> element rather than a container. Only elements that are actually
- * playing are touched; anything already paused is left alone.
+ * Fades every currently-playing <audio> element in `target`: a single <audio> element, a
+ * container to sweep with querySelectorAll, or an already-resolved list of elements (e.g. from
+ * audio-manager.ts's exclusivity registry, for a caller that needs "whichever track is playing
+ * anywhere" rather than only within its own DOM subtree). Only elements that are actually playing
+ * are touched; anything already paused is left alone.
  */
-export function fadeOutPlayingAudio(target: HTMLAudioElement | Element, durationMs: number): void {
-    const elements = target instanceof HTMLAudioElement ? [target] : Array.from(target.querySelectorAll("audio"));
+export function fadeOutPlayingAudio(
+    target: HTMLAudioElement | Element | HTMLAudioElement[],
+    durationMs: number,
+): void {
+    const elements = Array.isArray(target)
+        ? target
+        : target instanceof HTMLAudioElement
+          ? [target]
+          : Array.from(target.querySelectorAll("audio"));
     elements.forEach((audio) => {
         if (!audio.paused) fadeOutAndPause(audio, durationMs);
     });

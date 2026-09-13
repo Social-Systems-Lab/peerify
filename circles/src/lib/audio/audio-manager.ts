@@ -27,3 +27,16 @@ export function registerAudioElement(id: string, el: HTMLAudioElement): () => vo
         }
     };
 }
+
+/**
+ * Every <audio> element currently registered for exclusive playback, in no particular order.
+ * Since this registry enforces site-wide exclusivity (at most one entry is ever playing), this is
+ * the reliable way to find "whichever track is currently playing" without needing to know which
+ * component rendered it — a DOM-subtree sweep only works if the caller happens to contain the
+ * right element, which isn't guaranteed (e.g. CirclePreview's close-and-navigate fade needs this:
+ * playback started from ArtistCard's own compact play button, a sibling of the expanded
+ * CirclePreview it renders, not a descendant of it).
+ */
+export function getRegisteredAudioElements(): HTMLAudioElement[] {
+    return Array.from(registry.values());
+}
