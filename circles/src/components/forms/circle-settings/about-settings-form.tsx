@@ -810,7 +810,7 @@ export function AboutSettingsForm({
                             )}
                         />
 
-                        {!isIndependentCircle || !representsOrganization ? (
+                        {(!isIndependentCircle || !representsOrganization) && !isPeerifyManagedVenueCircle ? (
                             <Controller
                                 name="websiteUrl"
                                 control={form.control as unknown as Control}
