@@ -28,9 +28,9 @@ export const LocationInput = React.forwardRef<React.ElementRef<typeof CommandPri
         return (
             <div className="flex items-center rounded-lg border px-3" cmdk-input-wrapper="">
                 {isConfirmed ? (
-                    <RiMapPinFill className={"mr-2 h-4 w-4 shrink-0 text-[#e54242]"} />
+                    <RiMapPinFill className={"mr-2 h-5 w-5 shrink-0 text-[#e54242]"} />
                 ) : (
-                    <RiMapPinLine className={"mr-2 h-4 w-4 shrink-0 text-gray-400"} />
+                    <RiMapPinLine className={"mr-2 h-5 w-5 shrink-0 text-gray-400"} />
                 )}
                 <CommandPrimitive.Input
                     ref={ref}
