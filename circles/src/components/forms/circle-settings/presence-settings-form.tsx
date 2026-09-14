@@ -399,7 +399,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
 
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="formatted space-y-6">
-                    {!isUser && (
+                    {!isUser && !isVenue && (
                         <Card>
                             <CardHeader>
                                 <CardTitle>Opportunities</CardTitle>
@@ -492,7 +492,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                         </Card>
                     )}
 
-                    {!isUser && (
+                    {!isUser && !isVenue && (
                         <Card>
                             <CardHeader>
                                 <CardTitle>What we need help with</CardTitle>
