@@ -207,7 +207,6 @@ const buildVenueProfileFormDefaults = (circle: Circle): PeerifyVenueProfile => {
         cancellationPolicy: venueProfile.cancellationPolicy || "",
         safetyPolicy: venueProfile.safetyPolicy || "",
         website: venueProfile.website || "",
-        instagram: venueProfile.instagram || "",
         contactEmail: venueProfile.contactEmail || "",
         phone: venueProfile.phone || "",
         otherInfo: venueProfile.otherInfo || "",
@@ -628,7 +627,6 @@ export function AboutSettingsForm({
                 cancellationPolicy: data.peerifyVenueProfile.cancellationPolicy?.trim() || undefined,
                 safetyPolicy: data.peerifyVenueProfile.safetyPolicy?.trim() || undefined,
                 website: data.peerifyVenueProfile.website?.trim() || undefined,
-                instagram: data.peerifyVenueProfile.instagram?.trim() || undefined,
                 contactEmail: data.peerifyVenueProfile.contactEmail?.trim() || undefined,
                 phone: data.peerifyVenueProfile.phone?.trim() || undefined,
                 otherInfo: data.peerifyVenueProfile.otherInfo?.trim() || undefined,
@@ -1504,18 +1502,6 @@ export function AboutSettingsForm({
                                             <ArtistTextField
                                                 label="Website"
                                                 placeholder="https://venue.example"
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.instagram"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextField
-                                                label="Instagram"
-                                                placeholder="https://instagram.com/venue"
                                                 value={field.value}
                                                 onChange={field.onChange}
                                             />
