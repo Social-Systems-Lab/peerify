@@ -52,6 +52,7 @@ import { useProfileRelationshipState } from "./message-button";
 import {
     getPeerifyArtistProfile,
     getPeerifyArtistIdentityLabel,
+    getPeerifyVenueProfile,
     PEERIFY_BOOKING_SUPPORT_OPTIONS,
     isPeerifyArtistIdentity,
     isPeerifyVenueIdentity,
@@ -169,6 +170,7 @@ export default function AboutPage({
     const isPeerifyArtistProfile = isPeerifyArtistIdentity(circle);
     const isPeerifyVenueProfile = isPeerifyVenueIdentity(circle);
     const peerifyArtistProfile = getPeerifyArtistProfile(circle);
+    const peerifyVenueProfile = getPeerifyVenueProfile(circle);
     const peerifyIdentityLabel = getPeerifyArtistIdentityLabel(circle);
     const bookingSettings = peerifyArtistProfile.bookingSettings;
     const peerifyMusicLinks = (
@@ -343,6 +345,10 @@ export default function AboutPage({
     ].filter((chip): chip is { key: string; label: string; className: string } => Boolean(chip));
     const shouldShowProfileStatus =
         isUserProfile && !isPeerifyArtistProfile && (relationshipStatusLabel || followerCount > 0 || memberStatusLabel);
+    // Mirrors hasBandInfoContent's shape (isPeerifyVenueProfile + at least one populated field) —
+    // gates the new venue sidebar contact card (website/contact email; see AboutPage sidebar JSX).
+    const hasVenueContactContent =
+        isPeerifyVenueProfile && Boolean(peerifyVenueProfile.website || peerifyVenueProfile.contactEmail);
     const hasSidebarContent =
         isPeerifyArtistProfile ||
         hasBandInfoContent ||
@@ -354,7 +360,8 @@ export default function AboutPage({
         shouldShowMembershipCredential ||
         shouldShowVerifiedContributions ||
         shouldShowFundingPanel ||
-        shouldShowUpcomingShiftsPanel;
+        shouldShowUpcomingShiftsPanel ||
+        hasVenueContactContent;
 
     const hasMainContent = isPeerifyVenueProfile
         ? !!circle.content
