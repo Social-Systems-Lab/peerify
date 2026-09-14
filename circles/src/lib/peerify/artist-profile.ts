@@ -94,7 +94,6 @@ export type PeerifyVenueProfile = {
     cancellationPolicy?: string;
     safetyPolicy?: string;
     website?: string;
-    instagram?: string;
     contactEmail?: string;
     phone?: string;
     otherInfo?: string;
@@ -349,7 +348,6 @@ const DEFAULT_VENUE_PROFILE: PeerifyVenueProfile = {
     cancellationPolicy: "",
     safetyPolicy: "",
     website: "",
-    instagram: "",
     contactEmail: "",
     phone: "",
     otherInfo: "",
@@ -529,7 +527,6 @@ export const normalizePeerifyVenueProfile = (value: unknown): PeerifyVenueProfil
         cancellationPolicy: asString(input.cancellationPolicy),
         safetyPolicy: asString(input.safetyPolicy),
         website: normalizeExternalUrl(input.website),
-        instagram: normalizeExternalUrl(input.instagram),
         contactEmail: asString(input.contactEmail),
         phone: asString(input.phone),
         otherInfo: asString(input.otherInfo),

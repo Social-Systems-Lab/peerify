@@ -49,12 +49,13 @@ export default function VenueAboutSection({
         peerifyVenueProfile.venueType ? { label: "Venue type", value: peerifyVenueProfile.venueType } : null,
         venueLocation ? { label: "Location", value: venueLocation } : null,
     ].filter((item): item is { label: string; value: string } => Boolean(item?.value));
+    // instagram removed from PeerifyVenueProfile (Step 3 of the venue-contact-card work) - this
+    // array only carries "website" now. Full removal of this box (Step 4, not done yet) will
+    // replace venueLinks entirely; this is the minimal type-compat fix needed to keep the build
+    // green in the interim, not a start on that removal.
     const venueLinks = [
         peerifyVenueProfile.website
             ? { platform: "website", label: "Website", url: peerifyVenueProfile.website }
-            : null,
-        peerifyVenueProfile.instagram
-            ? { platform: "instagram", label: "Instagram", url: peerifyVenueProfile.instagram }
             : null,
     ].filter((item): item is { platform: string; label: string; url: string } => Boolean(item?.url));
     const upcomingVenueEvents = venueUpcomingEvents.slice(0, 3);
