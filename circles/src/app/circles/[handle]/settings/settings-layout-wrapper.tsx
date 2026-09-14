@@ -93,8 +93,9 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
                 return user?.handle === circle.handle;
             }
 
-            // Hidden per request: re-enable by removing this block
-            if (item.handle === "presence" || item.handle === "questionnaire") {
+            // Questionnaire is legacy Kamooni functionality (pre-join screening questions), not
+            // currently relevant to Peerify. Intentionally hidden — not a bug.
+            if (item.handle === "questionnaire") {
                 return false;
             }
 
