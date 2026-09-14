@@ -24,6 +24,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Check, Search, X } from "lucide-react";
+import Link from "next/link";
 import { skillsV2, skillCategoryLabels, SkillCategory } from "@/lib/data/skills-v2";
 import { VENUE_OFFER_MODAL_TYPES } from "@/lib/data/tour-team-offerings";
 import { OfferManager } from "./offer-manager";
@@ -391,9 +392,8 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                     </p>
                                 ) : (
                                     <p>
-                                        Choose whether to show your offers as anonymous pins on the public Explore map
-                                        — off by default, and nothing identifying is ever shown even when it&apos;s
-                                        on.
+                                        Choose whether to show your offers as anonymous pins on the public Explore map —
+                                        off by default, and nothing identifying is ever shown even when it&apos;s on.
                                     </p>
                                 )}
                             </DialogDescription>
@@ -475,9 +475,13 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 <p className="text-xs font-medium text-muted-foreground">
-                                    You decide what to share and with whom. Unlike an individual profile, a venue
-                                    offer pin shows your venue&apos;s name — an anonymous pin isn&apos;t actionable
-                                    for booking.
+                                    Does your venue offer performing artists anything free of charge, such as a meal or
+                                    promotion? Feel free to add them here, and they will be displayed on the map along
+                                    with all the other offers. For venue booking, use{" "}
+                                    <Link href={`/circles/${circle.handle}/settings/about`} className="underline">
+                                        your settings page
+                                    </Link>
+                                    .
                                 </p>
                                 {/* Same auto-save-on-click pattern as the isUser Offers card above — see that
                                     card's comment for why this stays out of the form's state/submit. */}
