@@ -4832,3 +4832,157 @@ both branches to origin.
   linked to any real criteria yet.
 - Musician vs. other performer type distinction (see above — deferred,
   larger scope).
+
+### 2026-09-13 — Fade-out on navigate (Open/View Crew/followers-count) shipped
+
+Extended the scroll-away audio fade (see 2026-09-12 entry) to also apply
+when `CirclePreview` closes to navigate (clicking Open, View Crew, or the
+followers-count link), instead of audio cutting off abruptly the instant
+the panel's exit animation unmounts it.
+
+**Extraction.** Pulled `fadeOutAndPause` out of `artist-card.tsx`'s
+private scroll-away-fade scope into a shared utility
+(`src/lib/audio/fade.ts`), moving cancel-tracking from a per-component ref
+to a module-level map keyed by element. Confirmed byte-for-byte identical
+behavior for the original scroll-away fade after the extraction.
+
+**Wiring.** Hooked the shared fade into `content-preview.tsx`'s existing
+`closeAndNavigate` flow — a pre-existing 400ms delay-before-navigate
+pattern, built ~Nov 2025 purely to let the panel's slide-away animation
+finish before routing, with no prior awareness of audio. Fade duration:
+250ms, comfortably under the untouched 400ms delay so playback is fully
+paused before `router.push` actually fires.
+
+**Bug found during testing, then fixed.** Open appeared not to fade while
+View Crew appeared to work. Investigation showed both buttons ran
+identical code — the real bug was that `closeAndNavigate` swept
+`CirclePreview`'s own DOM subtree for `<audio>` elements, but Discover's
+compact card play button (`ArtistCardPlayButton`) is a sibling of the
+expanded `CirclePreview` block, not a descendant of it — so starting
+playback via the compact row's button, then expanding and clicking Open,
+left that audio element unreached by the sweep. View Crew only appeared to
+work because it was normally tested after starting playback via
+`TrackPreviewList`, which does live inside the swept subtree — not a real
+behavioral difference between the buttons. Fixed by sweeping
+`audio-manager.ts`'s existing exclusivity registry instead (every
+`<audio>` element in the app already registers there via
+`useExclusiveAudio`, regardless of which component started it) — correct
+by construction, since the registry guarantees at most one element is
+ever playing regardless of origin, and more robust than a DOM-shape-
+specific fix since it doesn't depend on any particular component's
+container structure.
+
+Applies uniformly everywhere `CirclePreview`'s Open/View Crew/
+followers-count buttons are used — map pins, search results, members
+list, admin views, Discover — not just Discover-specific.
+
+**Process note, worth remembering:** a deploy mixup occurred mid-session
+— code was committed and pushed to staging's git history but the staging
+PM2 process was never actually rebuilt/restarted (`deploy-staging.sh`
+wasn't run after committing), so testing against staging.peerify.one was
+silently testing a 12-hour-old build. Confirmed via `git log` (showing
+the new commits present) vs. PM2 uptime (12h, predating the commits).
+Resolved by simply running `deploy-staging.sh`. Worth remembering:
+committing/pushing to a branch does not deploy it — always confirm via
+the deploy script's own `GIT_SHA` in its summary output matches the
+commit actually being tested, especially if behavior seems unexpectedly
+unchanged after a fix.
+
+**Status:** all work verified on staging before promotion, cherry-picked
+to `main`, deployed to production via `deploy-peerify.sh`, confirmed live
+on peerify.one, both branches pushed to origin.
+
+### 2026-09-14 — Venue settings fixes: presence nav link, location-button affordance, and Presence/Offers page simplified for venues
+
+Six pieces of work, all investigated read-only first (two separate
+investigation-only passes, no code touched until findings were reported
+back), then implemented and verified on staging before being
+cherry-picked to `main` individually.
+
+**1. Presence nav link restored, Questionnaire stays hidden.** The
+"Offers and needs" settings nav entry was filtered out by the same
+condition hiding the legacy Kamooni Questionnaire item, even though the
+Presence page itself worked fine — a first-time venue owner had no way to
+reach it except via edit-pencil icons on the About page's Offers cards,
+and only once offer content already existed. Split the filter so only
+Questionnaire (confirmed legacy Kamooni pre-join screening, not relevant
+to Peerify) stays hidden. (staging `30edc46b`, prod `aca8afa4`)
+
+**2. "Use Current Location" button affordance fixed.** Investigation
+found this was a UX bug, not the data-loss bug it was reported as: the
+button's green was the app's default button color everywhere, never tied
+to save state, and the location field was already included correctly in
+the form's save payload. Fixed the false affordance instead of the
+(already-working) data path — switched the button to a neutral outline
+style, increased the size of the real confirmed/unconfirmed pin
+indicator (previously easy to miss), and added a transient "Location set
+— remember to save" message on click. Save/submit wiring untouched.
+(staging `604ba2a5`, prod `41061e53`)
+
+**3. Kamooni-legacy Opportunities/Needs cards hidden for venues.**
+Second investigation (specifically on the Presence/Offers page) found
+the "Opportunities" and "What we need help with" cards — skill-tag
+needs picker under Kamooni-era category headings — were only gated to
+exclude individual profiles, not venues, even though no venue circle in
+staging has ever populated those fields. Narrowed `!isUser` to
+`!isUser && !isVenue` on both cards. Generic circles and Peerify
+artist-type circles unaffected — neither condition ever referenced
+`isVenue`. (staging `654b0d8e`, prod `cab9d324`)
+
+**4. Pre-existing copy bug fixed: `OffersVisibleToggle` claimed
+anonymity venues don't have.** Found during the same investigation, not
+part of the original ask: the toggle rendered identical copy for
+individual and venue circles, claiming offer pins are always anonymous —
+but `getOfferMapPins`/`OfferMapPin` explicitly attach name/handle/picture
+to venue rows, and this same page's own explainer dialog already said so
+correctly a few lines above. Added an `isVenue` prop and branched the
+copy; the underlying `offersVisible` field/action is unchanged, copy-only
+fix. (staging `dfc2c4fe`, prod `e8289606`)
+
+**5. New venue Offers card intro copy.** Replaced the venue Offers
+card's description with plain-language copy explaining the feature (free
+perks for touring artists, e.g. a meal or promotion) and linking "your
+settings page" to the venue's About settings (`/settings/about`) for
+booking-related fields (Room & Capacity, Booking terms, Hospitality,
+etc.) — confirmed no anchor/deep-link infrastructure exists for that
+card's subsections, so it links to the top of the page as-is.
+Individual-profile copy untouched. (staging `b02fcdff`, prod `5a62119d`)
+
+**6. Venue presence page label reads "Offers", not "Offers and needs."**
+Follow-up now that Needs is hidden for venues (item 3): updated all
+three places the stale label appeared — nav sidebar entry, page `<h1>`,
+and the post-save success toast — to read "Offers" for venues only,
+everywhere else unchanged. The nav sidebar entry needed a different
+approach than a plain ternary: `settingsForms` is a static config array
+shared by all circle types, and its existing user/circle name split
+already goes through the general-purpose `UserAndCircleInfo`/
+`getUserOrCircleInfo` (also used for unrelated form-field labels
+elsewhere) — special-cased the venue override at render time instead of
+widening that shared type. (staging `accdfae5`, prod `65bbf957`)
+
+**Promotion.** All six commits cherry-picked from staging to `main`
+individually (not squashed), verified via `deploy-staging.sh` after each
+staging commit before promotion.
+
+**Process note, worth remembering:** the prod deploy hit the same
+intermittent `next build` failure mode already documented in the
+2026-09-12 entry above — died silently mid-build, no error, no orphaned
+process. Resolved the same way: a clean `.next` removal and retry
+succeeded. No release directory was left behind by the failed attempt,
+consistent with that entry's description.
+
+**Status:** all six shipped and verified on staging before promotion,
+cherry-picked to `main`, deployed to production via `deploy-peerify.sh`,
+confirmed live on peerify.one (`current` → `releases/20260914-111108-65bbf957`),
+both branches pushed to origin.
+
+**Open follow-ups, not yet scoped:** the broader About page / "Venue
+Identity" card work — items 3-6 from the original venue settings
+investigation list (Venue Identity card's scope-creep into Room &
+Capacity with no per-section save; Website/Instagram rendered as raw
+text instead of the existing social-link pattern; contact email
+captured but never surfaced anywhere; general About page structural
+overhaul) — is scoped for its own future investigation-first session.
+Not started; `AboutPage.tsx` is a single ~1700-line component shared by
+every circle type, so that session should expect a wider blast radius
+than this one.
