@@ -96,6 +96,8 @@ export type PeerifyVenueProfile = {
     website?: string;
     instagram?: string;
     contactEmail?: string;
+    phone?: string;
+    otherInfo?: string;
 };
 
 export type PeerifyMetadata = {
@@ -349,6 +351,8 @@ const DEFAULT_VENUE_PROFILE: PeerifyVenueProfile = {
     website: "",
     instagram: "",
     contactEmail: "",
+    phone: "",
+    otherInfo: "",
 };
 
 const asString = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
@@ -527,6 +531,8 @@ export const normalizePeerifyVenueProfile = (value: unknown): PeerifyVenueProfil
         website: normalizeExternalUrl(input.website),
         instagram: normalizeExternalUrl(input.instagram),
         contactEmail: asString(input.contactEmail),
+        phone: asString(input.phone),
+        otherInfo: asString(input.otherInfo),
     };
 };
 

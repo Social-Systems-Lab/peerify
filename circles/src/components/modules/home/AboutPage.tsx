@@ -4,7 +4,7 @@ import React from "react";
 import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MapPin, ExternalLink, Mail } from "lucide-react";
+import { MapPin, ExternalLink, Mail, Phone } from "lucide-react";
 import { SiSpotify, SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getSkillDefinitionByHandle, skillCategoryLabels } from "@/lib/data/skills";
@@ -346,9 +346,16 @@ export default function AboutPage({
     const shouldShowProfileStatus =
         isUserProfile && !isPeerifyArtistProfile && (relationshipStatusLabel || followerCount > 0 || memberStatusLabel);
     // Mirrors hasBandInfoContent's shape (isPeerifyVenueProfile + at least one populated field) —
-    // gates the new venue sidebar contact card (website/contact email; see AboutPage sidebar JSX).
+    // gates the new venue sidebar contact card (website/contact email/phone/other info; see
+    // AboutPage sidebar JSX).
     const hasVenueContactContent =
-        isPeerifyVenueProfile && Boolean(peerifyVenueProfile.website || peerifyVenueProfile.contactEmail);
+        isPeerifyVenueProfile &&
+        Boolean(
+            peerifyVenueProfile.website ||
+                peerifyVenueProfile.contactEmail ||
+                peerifyVenueProfile.phone ||
+                peerifyVenueProfile.otherInfo,
+        );
     const hasSidebarContent =
         isPeerifyArtistProfile ||
         hasBandInfoContent ||
@@ -770,7 +777,7 @@ export default function AboutPage({
                                     )}
 
                                     {peerifyVenueProfile.contactEmail && (
-                                        <div className="flex w-full flex-col text-sm text-muted-foreground">
+                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
                                             <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
                                                 Contact email
                                             </div>
@@ -781,6 +788,32 @@ export default function AboutPage({
                                                 <Mail className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                                                 <span>{peerifyVenueProfile.contactEmail}</span>
                                             </a>
+                                        </div>
+                                    )}
+
+                                    {peerifyVenueProfile.phone && (
+                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Phone
+                                            </div>
+                                            <a
+                                                href={`tel:${peerifyVenueProfile.phone}`}
+                                                className="flex items-center gap-2 break-all text-[15px] text-foreground underline"
+                                            >
+                                                <Phone className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                                <span>{peerifyVenueProfile.phone}</span>
+                                            </a>
+                                        </div>
+                                    )}
+
+                                    {peerifyVenueProfile.otherInfo && (
+                                        <div className="flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Other info
+                                            </div>
+                                            <div className="whitespace-pre-wrap text-[15px] text-foreground">
+                                                {peerifyVenueProfile.otherInfo}
+                                            </div>
                                         </div>
                                     )}
                                 </div>

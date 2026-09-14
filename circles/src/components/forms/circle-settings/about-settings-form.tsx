@@ -209,6 +209,8 @@ const buildVenueProfileFormDefaults = (circle: Circle): PeerifyVenueProfile => {
         website: venueProfile.website || "",
         instagram: venueProfile.instagram || "",
         contactEmail: venueProfile.contactEmail || "",
+        phone: venueProfile.phone || "",
+        otherInfo: venueProfile.otherInfo || "",
     };
 };
 
@@ -628,6 +630,8 @@ export function AboutSettingsForm({
                 website: data.peerifyVenueProfile.website?.trim() || undefined,
                 instagram: data.peerifyVenueProfile.instagram?.trim() || undefined,
                 contactEmail: data.peerifyVenueProfile.contactEmail?.trim() || undefined,
+                phone: data.peerifyVenueProfile.phone?.trim() || undefined,
+                otherInfo: data.peerifyVenueProfile.otherInfo?.trim() || undefined,
             };
 
             const result = await saveAbout({
@@ -1525,6 +1529,31 @@ export function AboutSettingsForm({
                                                 label="Contact email"
                                                 placeholder="booking@venue.example"
                                                 type="email"
+                                                value={field.value}
+                                                onChange={field.onChange}
+                                            />
+                                        )}
+                                    />
+                                    <Controller
+                                        name="peerifyVenueProfile.phone"
+                                        control={form.control}
+                                        render={({ field }) => (
+                                            <ArtistTextField
+                                                label="Phone"
+                                                placeholder="+1 555 123 4567"
+                                                type="tel"
+                                                value={field.value}
+                                                onChange={field.onChange}
+                                            />
+                                        )}
+                                    />
+                                    <Controller
+                                        name="peerifyVenueProfile.otherInfo"
+                                        control={form.control}
+                                        render={({ field }) => (
+                                            <ArtistTextareaField
+                                                label="Other info"
+                                                description="Anything else artists or bookers should know about this venue."
                                                 value={field.value}
                                                 onChange={field.onChange}
                                             />
