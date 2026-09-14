@@ -1,4 +1,5 @@
 import { FaTwitter, FaLinkedin, FaGithub, FaFacebook, FaInstagram, FaYoutube } from "react-icons/fa";
+import { Globe } from "lucide-react";
 import { KamooniIcon } from "@/components/modules/home/KamooniIcon";
 
 export const socialPlatforms = [
@@ -9,4 +10,5 @@ export const socialPlatforms = [
     { name: "Instagram", handle: "instagram", icon: FaInstagram },
     { name: "YouTube", handle: "youtube", icon: FaYoutube },
     { name: "Kamooni", handle: "kamooni", icon: KamooniIcon },
+    { name: "Website", handle: "website", icon: Globe },
 ];

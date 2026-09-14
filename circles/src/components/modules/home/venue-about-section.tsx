@@ -7,6 +7,17 @@ import { MapPin, ExternalLink, CalendarRange, CheckCircle2 } from "lucide-react"
 import { useRouter } from "next/navigation";
 import { useIsCompact } from "@/components/utils/use-is-compact";
 import { getPeerifyVenueProfile, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
+import { socialPlatforms } from "@/lib/data/social";
+
+// Reuses the same platform → icon registry SocialLinks (social-links.tsx) is driven by, so a
+// venue's website/Instagram get the same icon-resolution logic as everywhere else in the app —
+// but rendered as this card's existing labeled-box pattern rather than SocialLinks' plain icon
+// row, since venue.website/.instagram are flat peerifyVenueProfile strings, not circle.socialLinks
+// entries (no schema change here, display-only adapter).
+const socialIconMap: Record<string, React.ElementType> = socialPlatforms.reduce(
+    (acc, { handle, icon }) => ({ ...acc, [handle]: icon }),
+    {} as Record<string, React.ElementType>,
+);
 
 interface VenueAboutSectionProps {
     circle: Circle;
@@ -39,9 +50,13 @@ export default function VenueAboutSection({
         venueLocation ? { label: "Location", value: venueLocation } : null,
     ].filter((item): item is { label: string; value: string } => Boolean(item?.value));
     const venueLinks = [
-        peerifyVenueProfile.website ? { label: "Website", url: peerifyVenueProfile.website } : null,
-        peerifyVenueProfile.instagram ? { label: "Instagram", url: peerifyVenueProfile.instagram } : null,
-    ].filter((item): item is { label: string; url: string } => Boolean(item?.url));
+        peerifyVenueProfile.website
+            ? { platform: "website", label: "Website", url: peerifyVenueProfile.website }
+            : null,
+        peerifyVenueProfile.instagram
+            ? { platform: "instagram", label: "Instagram", url: peerifyVenueProfile.instagram }
+            : null,
+    ].filter((item): item is { platform: string; label: string; url: string } => Boolean(item?.url));
     const upcomingVenueEvents = venueUpcomingEvents.slice(0, 3);
     const venueRoomDetails = [
         peerifyVenueProfile.capacityStanding
@@ -222,22 +237,25 @@ export default function VenueAboutSection({
                                     </div>
                                 </div>
                             ))}
-                            {venueLinks.map((link) => (
-                                <div key={link.label} className="rounded-xl border bg-muted/30 p-4">
-                                    <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                        {link.label}
+                            {venueLinks.map((link) => {
+                                const SocialIcon = socialIconMap[link.platform] ?? ExternalLink;
+                                return (
+                                    <div key={link.label} className="rounded-xl border bg-muted/30 p-4">
+                                        <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                            {link.label}
+                                        </div>
+                                        <a
+                                            href={link.url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-2 break-all text-sm text-foreground underline"
+                                        >
+                                            {link.url}
+                                            <SocialIcon className="h-4 w-4 text-muted-foreground" />
+                                        </a>
                                     </div>
-                                    <a
-                                        href={link.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-2 break-all text-sm text-foreground underline"
-                                    >
-                                        {link.url}
-                                        <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                                    </a>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </section>
