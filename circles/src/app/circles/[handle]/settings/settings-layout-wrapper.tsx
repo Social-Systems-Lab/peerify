@@ -9,6 +9,7 @@ import { getUserOrCircleInfo } from "@/lib/utils/form";
 import { usePathname } from "next/navigation";
 import { isOwnerOrCircleAdmin } from "@/lib/auth/client-auth";
 import { CommunityParticipationBanner } from "@/components/modules/community/community-participation-banner";
+import { isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 
 type SettingsForm = {
     name: string | UserAndCircleInfo;
@@ -77,6 +78,7 @@ export type SettingsLayoutWrapperProps = {
 export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrapperProps) => {
     const isCompact = useIsCompact();
     const isUser = circle.circleType === "user";
+    const isVenue = isPeerifyVenueIdentity(circle);
     const [user] = useAtom(userAtom);
     const pathname = usePathname();
     const hideSettingsNav = pathname.endsWith("/settings/pledges") || pathname.endsWith("/settings/crew");
@@ -115,7 +117,12 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
             return true;
         })
         .map((item) => ({
-            name: getUserOrCircleInfo(item.name, isUser),
+            // Venue circles hide the Needs section on this page (see presence-settings-form.tsx),
+            // making "Offers and needs" stale for them — a third case getUserOrCircleInfo/
+            // UserAndCircleInfo (a shared user-vs-circle type used well beyond this one nav item,
+            // e.g. dynamic-field.tsx form labels) has no notion of, so it's special-cased here
+            // instead of widening that shared type for one label.
+            name: item.handle === "presence" && isVenue ? "Offers" : getUserOrCircleInfo(item.name, isUser),
             handle: item.handle,
         })) as NavItem[];
 
