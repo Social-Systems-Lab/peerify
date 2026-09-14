@@ -4,7 +4,7 @@ import React from "react";
 import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MapPin, ExternalLink } from "lucide-react";
+import { MapPin, ExternalLink, Mail } from "lucide-react";
 import { SiSpotify, SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getSkillDefinitionByHandle, skillCategoryLabels } from "@/lib/data/skills";
@@ -737,6 +737,50 @@ export default function AboutPage({
                                                     );
                                                 })}
                                             </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {hasVenueContactContent && (
+                                <div
+                                    className={`flex flex-col bg-white p-6 md:order-[15] ${
+                                        isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
+                                    }`}
+                                >
+                                    <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Contact
+                                    </div>
+
+                                    {peerifyVenueProfile.website && (
+                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Website
+                                            </div>
+                                            <a
+                                                href={peerifyVenueProfile.website}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="flex items-center gap-2 break-all text-[15px] text-foreground underline"
+                                            >
+                                                <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                                <span>Visit website</span>
+                                            </a>
+                                        </div>
+                                    )}
+
+                                    {peerifyVenueProfile.contactEmail && (
+                                        <div className="flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Contact email
+                                            </div>
+                                            <a
+                                                href={`mailto:${peerifyVenueProfile.contactEmail}`}
+                                                className="flex items-center gap-2 break-all text-[15px] text-foreground underline"
+                                            >
+                                                <Mail className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                                <span>{peerifyVenueProfile.contactEmail}</span>
+                                            </a>
                                         </div>
                                     )}
                                 </div>
