@@ -4,7 +4,7 @@ import React from "react";
 import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MapPin, ExternalLink, CalendarRange, CheckCircle2 } from "lucide-react";
+import { MapPin, ExternalLink } from "lucide-react";
 import { SiSpotify, SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getSkillDefinitionByHandle, skillCategoryLabels } from "@/lib/data/skills";
@@ -35,6 +35,7 @@ import { features } from "@/lib/data/constants";
 import { CommunityParticipationBanner } from "@/components/modules/community/community-participation-banner";
 import OffersCard from "./offers-card";
 import TourTeamOfferingsCard from "./tour-team-offerings-card";
+import VenueAboutSection from "./venue-about-section";
 import AudioPlayer from "@/components/modules/music/audio-player";
 import VerifiedContributionsPanel, { type VerifiedContributionItem } from "./VerifiedContributionsPanel";
 import { FundingPanel } from "@/components/modules/funding/funding-panel";
@@ -51,7 +52,6 @@ import { useProfileRelationshipState } from "./message-button";
 import {
     getPeerifyArtistProfile,
     getPeerifyArtistIdentityLabel,
-    getPeerifyVenueProfile,
     PEERIFY_BOOKING_SUPPORT_OPTIONS,
     isPeerifyArtistIdentity,
     isPeerifyVenueIdentity,
@@ -169,7 +169,6 @@ export default function AboutPage({
     const isPeerifyArtistProfile = isPeerifyArtistIdentity(circle);
     const isPeerifyVenueProfile = isPeerifyVenueIdentity(circle);
     const peerifyArtistProfile = getPeerifyArtistProfile(circle);
-    const peerifyVenueProfile = getPeerifyVenueProfile(circle);
     const peerifyIdentityLabel = getPeerifyArtistIdentityLabel(circle);
     const bookingSettings = peerifyArtistProfile.bookingSettings;
     const peerifyMusicLinks = (
@@ -179,117 +178,6 @@ export default function AboutPage({
     const peerifyBandInfoSocialLinks = peerifyMusicLinks.filter(([key]) => key !== "website");
     const hasBandInfoContent =
         isPeerifyArtistProfile && Boolean(peerifyBandInfoWebsite || peerifyBandInfoSocialLinks.length > 0);
-    const venueLocation =
-        peerifyVenueProfile.addressVisibility === "public" && peerifyVenueProfile.address
-            ? peerifyVenueProfile.address
-            : peerifyVenueProfile.publicCity;
-    const venueOverviewDetails = [
-        peerifyVenueProfile.venueType ? { label: "Venue type", value: peerifyVenueProfile.venueType } : null,
-        venueLocation ? { label: "Location", value: venueLocation } : null,
-    ].filter((item): item is { label: string; value: string } => Boolean(item?.value));
-    const venueLinks = [
-        peerifyVenueProfile.website ? { label: "Website", url: peerifyVenueProfile.website } : null,
-        peerifyVenueProfile.instagram ? { label: "Instagram", url: peerifyVenueProfile.instagram } : null,
-    ].filter((item): item is { label: string; url: string } => Boolean(item?.url));
-    const upcomingVenueEvents = venueUpcomingEvents.slice(0, 3);
-    const venueRoomDetails = [
-        peerifyVenueProfile.capacityStanding
-            ? { label: "Standing capacity", value: peerifyVenueProfile.capacityStanding }
-            : null,
-        peerifyVenueProfile.capacitySeated
-            ? { label: "Seated capacity", value: peerifyVenueProfile.capacitySeated }
-            : null,
-        peerifyVenueProfile.typicalShowCapacity
-            ? { label: "Typical show capacity", value: peerifyVenueProfile.typicalShowCapacity }
-            : null,
-        peerifyVenueProfile.accessibilityNotes
-            ? { label: "Accessibility notes", value: peerifyVenueProfile.accessibilityNotes, wide: true }
-            : null,
-        peerifyVenueProfile.agePolicy
-            ? { label: "Age policy", value: peerifyVenueProfile.agePolicy, wide: true }
-            : null,
-    ].filter((item): item is { label: string; value: string; wide?: boolean } => Boolean(item?.value));
-    const venueTechnicalDetails = [
-        peerifyVenueProfile.paAvailable ? { label: "PA", value: "Available" } : null,
-        peerifyVenueProfile.inHouseEngineer ? { label: "In-house engineer", value: "Available" } : null,
-        peerifyVenueProfile.backline
-            ? { label: "Backline / instruments", value: peerifyVenueProfile.backline, wide: true }
-            : null,
-        peerifyVenueProfile.lighting ? { label: "Lighting", value: peerifyVenueProfile.lighting, wide: true } : null,
-        peerifyVenueProfile.loadInNotes
-            ? { label: "Load-in notes", value: peerifyVenueProfile.loadInNotes, wide: true }
-            : null,
-        peerifyVenueProfile.parkingNotes
-            ? { label: "Parking notes", value: peerifyVenueProfile.parkingNotes, wide: true }
-            : null,
-    ].filter((item): item is { label: string; value: string; wide?: boolean } => Boolean(item?.value));
-    const venueFeeCoveredByLabels: Record<string, string> = {
-        venue: "Venue",
-        artist: "Artist",
-        shared: "Shared",
-        not_specified: "Not specified",
-    };
-    const venueBookingDetails = [
-        peerifyVenueProfile.bookingEnquiriesEnabled ? { label: "Booking enquiries", value: "Enabled" } : null,
-        peerifyVenueProfile.minimumFee ? { label: "Minimum fee", value: peerifyVenueProfile.minimumFee } : null,
-        peerifyVenueProfile.doorSplit ? { label: "Door split", value: peerifyVenueProfile.doorSplit } : null,
-        peerifyVenueProfile.houseCut
-            ? { label: "House cut / production fee", value: peerifyVenueProfile.houseCut }
-            : null,
-        peerifyVenueProfile.peerifyFeeCoveredBy && peerifyVenueProfile.peerifyFeeCoveredBy !== "not_specified"
-            ? {
-                  label: "Peerify ticket fee covered by",
-                  value: venueFeeCoveredByLabels[peerifyVenueProfile.peerifyFeeCoveredBy],
-              }
-            : null,
-        peerifyVenueProfile.availableDays
-            ? { label: "Available days", value: peerifyVenueProfile.availableDays }
-            : null,
-        peerifyVenueProfile.typicalResponseTime
-            ? { label: "Typical response time", value: peerifyVenueProfile.typicalResponseTime }
-            : null,
-        peerifyVenueProfile.bookingNote
-            ? { label: "Booking note", value: peerifyVenueProfile.bookingNote, wide: true }
-            : null,
-    ].filter((item): item is { label: string; value: string; wide?: boolean } => Boolean(item?.value));
-    const venueHospitalityDetails = [
-        peerifyVenueProfile.greenRoom ? { label: "Green room", value: "Available" } : null,
-        peerifyVenueProfile.merchTable ? { label: "Merch table", value: "Available" } : null,
-        peerifyVenueProfile.foodDrink
-            ? { label: "Food/drink", value: peerifyVenueProfile.foodDrink, wide: true }
-            : null,
-        peerifyVenueProfile.accommodationHelp
-            ? { label: "Accommodation help", value: peerifyVenueProfile.accommodationHelp, wide: true }
-            : null,
-        peerifyVenueProfile.localTransportHelp
-            ? { label: "Local transport help", value: peerifyVenueProfile.localTransportHelp, wide: true }
-            : null,
-        peerifyVenueProfile.guestListPolicy
-            ? { label: "Guest list policy", value: peerifyVenueProfile.guestListPolicy, wide: true }
-            : null,
-    ].filter((item): item is { label: string; value: string; wide?: boolean } => Boolean(item?.value));
-    const venuePolicyDetails = [
-        peerifyVenueProfile.houseRules
-            ? { label: "House rules", value: peerifyVenueProfile.houseRules, wide: true }
-            : null,
-        peerifyVenueProfile.soundCurfew ? { label: "Sound curfew", value: peerifyVenueProfile.soundCurfew } : null,
-        peerifyVenueProfile.cancellationPolicy
-            ? { label: "Cancellation policy", value: peerifyVenueProfile.cancellationPolicy, wide: true }
-            : null,
-        peerifyVenueProfile.safetyPolicy
-            ? { label: "Safety / conduct policy", value: peerifyVenueProfile.safetyPolicy, wide: true }
-            : null,
-    ].filter((item): item is { label: string; value: string; wide?: boolean } => Boolean(item?.value));
-    const hasVenueProfileContent =
-        isPeerifyVenueProfile &&
-        (!!circle.description ||
-            venueOverviewDetails.length > 0 ||
-            venueLinks.length > 0 ||
-            venueRoomDetails.length > 0 ||
-            venueTechnicalDetails.length > 0 ||
-            venueBookingDetails.length > 0 ||
-            venueHospitalityDetails.length > 0 ||
-            venuePolicyDetails.length > 0);
     const profileOfferSkills = circle.offers?.skills?.length ? circle.offers.skills : circle.skills || [];
     const currentUserOfferSkills = !isUserProfile
         ? user?.offers?.skills?.length
@@ -475,7 +363,6 @@ export default function AboutPage({
           : !!circle.content || !!circle.description;
     const shouldShowAboutCard = !isPeerifyVenueProfile || !!circle.content || canEditAbout;
     const canContactCircle = hasMatchingOfferNeeds && !isOwner;
-    const shouldShowPeerifyVenueCard = hasVenueProfileContent;
     // Split from a single shouldShowPeerifyArtistSupportCards flag (used only by these two cards)
     // so TourTeamOfferingsCard could gain its own isPeerifyVenueProfile branch — a Peerify-managed
     // venue already creates/persists structured tourTeamOfferings (OfferManager, presence-settings-
@@ -657,33 +544,6 @@ export default function AboutPage({
         }));
     };
 
-    const renderVenueDetailSection = (
-        title: string,
-        details: Array<{ label: string; value: string; wide?: boolean }>,
-    ) => {
-        if (details.length === 0) {
-            return null;
-        }
-
-        return (
-            <section className="space-y-3">
-                <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                    {details.map((detail) => (
-                        <div
-                            key={`${title}-${detail.label}`}
-                            className={`rounded-xl border bg-muted/30 p-4 ${detail.wide ? "sm:col-span-2" : ""}`}
-                        >
-                            <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                {detail.label}
-                            </div>
-                            <div className="whitespace-pre-wrap text-sm text-foreground">{detail.value}</div>
-                        </div>
-                    ))}
-                </div>
-            </section>
-        );
-    };
     const isVenueBookingContact = isPeerifyVenueProfile && contactType === "ask_question";
 
     const submitBookingEnquiry = async () => {
@@ -734,168 +594,12 @@ export default function AboutPage({
                 {/* Adjust column span based on sidebar visibility */}
                 <div className={hasSidebarContent ? "md:col-span-2" : "md:col-span-3"}>
                     <div className="space-y-6">
-                        {shouldShowPeerifyVenueCard && (
-                            <div
-                                id="venue-profile"
-                                className={`bg-white p-6 ${isCompact ? "rounded-none" : "rounded-[15px] border-0 shadow-lg"}`}
-                            >
-                                <div className="space-y-8">
-                                    <section className="space-y-4">
-                                        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                                            <div className="space-y-2">
-                                                <div className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                                                    Venue
-                                                </div>
-                                                <h2 className="m-0 text-2xl font-semibold text-foreground">
-                                                    Venue overview
-                                                </h2>
-                                                {circle.description ? (
-                                                    <p className="max-w-2xl text-sm text-muted-foreground">
-                                                        {circle.description}
-                                                    </p>
-                                                ) : null}
-                                            </div>
-                                            {peerifyVenueProfile.bookingEnquiriesEnabled ? (
-                                                <div className="rounded-xl border border-[#e7d8c7] bg-[#f6efe6] p-4 sm:max-w-xs">
-                                                    <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[#8f5a2a]">
-                                                        <CheckCircle2 className="h-4 w-4" />
-                                                        Booking enquiries enabled
-                                                    </div>
-                                                    <p className="mb-3 text-sm text-[#6a4728]">
-                                                        Artists can send this venue a booking enquiry.
-                                                    </p>
-                                                    <Button type="button" size="sm" onClick={openVenueBookingContact}>
-                                                        Send booking enquiry
-                                                    </Button>
-                                                </div>
-                                            ) : null}
-                                        </div>
-
-                                        {(venueOverviewDetails.length > 0 || venueLinks.length > 0) && (
-                                            <div className="grid gap-3 sm:grid-cols-2">
-                                                {venueOverviewDetails.map((detail) => (
-                                                    <div
-                                                        key={detail.label}
-                                                        className="rounded-xl border bg-muted/30 p-4"
-                                                    >
-                                                        <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                                            {detail.label}
-                                                        </div>
-                                                        <div className="flex items-center gap-2 text-sm text-foreground">
-                                                            {detail.label === "Location" ? (
-                                                                <MapPin className="h-4 w-4 text-muted-foreground" />
-                                                            ) : null}
-                                                            <span>{detail.value}</span>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                {venueLinks.map((link) => (
-                                                    <div key={link.label} className="rounded-xl border bg-muted/30 p-4">
-                                                        <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                                            {link.label}
-                                                        </div>
-                                                        <a
-                                                            href={link.url}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex items-center gap-2 break-all text-sm text-foreground underline"
-                                                        >
-                                                            {link.url}
-                                                            <ExternalLink className="h-4 w-4 text-muted-foreground" />
-                                                        </a>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </section>
-
-                                    <section className="space-y-4">
-                                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                            <div>
-                                                <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                                    Events
-                                                </div>
-                                                <h3 className="m-0 text-xl font-semibold text-foreground">
-                                                    Upcoming events
-                                                </h3>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    onClick={() => router.push(`/circles/${circle.handle}/events`)}
-                                                >
-                                                    View events
-                                                </Button>
-                                                {canCreateVenueEvent ? (
-                                                    <Button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            router.push(`/circles/${circle.handle}/events/create`)
-                                                        }
-                                                    >
-                                                        Create event
-                                                    </Button>
-                                                ) : null}
-                                            </div>
-                                        </div>
-
-                                        {upcomingVenueEvents.length > 0 ? (
-                                            <div className="grid gap-3">
-                                                {upcomingVenueEvents.map((event) => {
-                                                    const eventId = String(event._id ?? "");
-                                                    const startAt = event.startAt ? new Date(event.startAt) : null;
-
-                                                    return (
-                                                        <button
-                                                            key={eventId || event.title}
-                                                            type="button"
-                                                            className="flex w-full items-start gap-3 rounded-xl border bg-muted/20 p-4 text-left transition hover:bg-muted/40"
-                                                            onClick={() =>
-                                                                eventId
-                                                                    ? router.push(
-                                                                          `/circles/${circle.handle}/events/${eventId}`,
-                                                                      )
-                                                                    : router.push(`/circles/${circle.handle}/events`)
-                                                            }
-                                                        >
-                                                            <CalendarRange className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
-                                                            <span className="min-w-0">
-                                                                <span className="block text-sm font-medium text-foreground">
-                                                                    {event.title}
-                                                                </span>
-                                                                {startAt ? (
-                                                                    <span className="mt-1 block text-xs text-muted-foreground">
-                                                                        {startAt.toLocaleDateString("en-US", {
-                                                                            month: "short",
-                                                                            day: "numeric",
-                                                                            year: "numeric",
-                                                                        })}
-                                                                    </span>
-                                                                ) : null}
-                                                            </span>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : (
-                                            <div className="rounded-xl border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-                                                <p>No upcoming events yet.</p>
-                                                {canCreateVenueEvent ? (
-                                                    <p className="mt-1">Create the first event for this venue.</p>
-                                                ) : null}
-                                            </div>
-                                        )}
-                                    </section>
-
-                                    {renderVenueDetailSection("Room & capacity", venueRoomDetails)}
-                                    {renderVenueDetailSection("Technical setup", venueTechnicalDetails)}
-                                    {renderVenueDetailSection("Booking terms", venueBookingDetails)}
-                                    {renderVenueDetailSection("Hospitality & support", venueHospitalityDetails)}
-                                    {renderVenueDetailSection("House rules & policies", venuePolicyDetails)}
-                                </div>
-                            </div>
-                        )}
+                        <VenueAboutSection
+                            circle={circle}
+                            canCreateVenueEvent={canCreateVenueEvent}
+                            venueUpcomingEvents={venueUpcomingEvents}
+                            onOpenBookingContact={openVenueBookingContact}
+                        />
                         {shouldShowAboutCard && (
                             <div
                                 className={`bg-white p-6 ${isCompact ? "rounded-none" : "rounded-[15px] border-0 shadow-lg"}`}
@@ -1046,8 +750,7 @@ export default function AboutPage({
                                             Base fee
                                         </div>
                                         <div className="text-[15px] text-foreground">
-                                            {typeof bookingSettings.baseFee === "number" &&
-                                            bookingSettings.baseFee > 0
+                                            {typeof bookingSettings.baseFee === "number" && bookingSettings.baseFee > 0
                                                 ? `${bookingSettings.currency ? `${bookingSettings.currency} ` : ""}${bookingSettings.baseFee}`
                                                 : "Contact for rate"}
                                         </div>
@@ -1086,9 +789,7 @@ export default function AboutPage({
                                     {isBookingDetailsExpanded && (
                                         <div className="mt-4 flex flex-col gap-4 border-t border-border/60 pt-4">
                                             {bookingSettings.localBookingsOnly && (
-                                                <div className="text-[15px] text-foreground">
-                                                    Local bookings only
-                                                </div>
+                                                <div className="text-[15px] text-foreground">Local bookings only</div>
                                             )}
                                             {bookingSettings.preferredEventTypes?.length ? (
                                                 <div className="flex w-full flex-col text-sm text-muted-foreground">
