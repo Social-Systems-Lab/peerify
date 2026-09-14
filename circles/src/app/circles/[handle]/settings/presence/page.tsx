@@ -3,6 +3,7 @@ import { PresenceSettingsForm } from "@/components/forms/circle-settings/presenc
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getCircleByHandle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
+import { isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 
 type PageProps = {
     params: Promise<{ handle: string }>;
@@ -31,10 +32,11 @@ export default async function PresenceSettingsPage(props: PageProps) {
     }
 
     const isUser = circle.circleType === "user";
+    const isVenue = isPeerifyVenueIdentity(circle);
 
     return (
         <div className="container py-6">
-            <h1 className="mb-6 text-2xl font-bold">{isUser ? "Offers" : "Offers and needs"}</h1>
+            <h1 className="mb-6 text-2xl font-bold">{isUser || isVenue ? "Offers" : "Offers and needs"}</h1>
             <p className="mb-6 text-muted-foreground">
                 {isUser
                     ? "Ways I can contribute to visiting artists."

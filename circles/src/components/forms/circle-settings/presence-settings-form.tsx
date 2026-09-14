@@ -347,7 +347,8 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                 setSaveVersion((v) => v + 1);
                 toast({
                     title: "Success",
-                    description: isUser ? "Offers updated successfully" : "Offers and needs updated successfully",
+                    description:
+                        isUser || isVenue ? "Offers updated successfully" : "Offers and needs updated successfully",
                 });
                 router.refresh();
             } else {
