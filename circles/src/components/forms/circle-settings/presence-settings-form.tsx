@@ -191,7 +191,15 @@ function StructuredSkillSelector({ value, onChange }: StructuredSkillSelectorPro
 // the shared form means neither direction of accidental interference is possible: clicking this
 // never saves/discards unrelated unsaved offerings/needs/engagements edits, and the form's own
 // Save Changes button never resets this back to a stale default value.
-const OffersVisibleToggle = ({ circleId, initialValue }: { circleId: string; initialValue: boolean }) => {
+const OffersVisibleToggle = ({
+    circleId,
+    initialValue,
+    isVenue = false,
+}: {
+    circleId: string;
+    initialValue: boolean;
+    isVenue?: boolean;
+}) => {
     const { toast } = useToast();
     const [visible, setVisible] = useState(initialValue);
     const [isSaving, setIsSaving] = useState(false);
@@ -221,9 +229,11 @@ const OffersVisibleToggle = ({ circleId, initialValue }: { circleId: string; ini
             <Label htmlFor="offers-visible-toggle">
                 <span className="block font-medium">Show my offers on the map</span>
                 <span className="mt-1 block text-muted-foreground">
-                    {visible
-                        ? "Your offers appear as anonymous pins on the public Explore map — no name, photo, or profile link, just the offer type."
-                        : "Your offers are hidden from the public Explore map. They're still saved and visible to your own Crew, if any."}
+                    {isVenue
+                        ? "Turn this off if you don't currently have anything to offer touring artists. Your venue will still appear on the map as usual."
+                        : visible
+                          ? "Your offers appear as anonymous pins on the public Explore map — no name, photo, or profile link, just the offer type."
+                          : "Your offers are hidden from the public Explore map. They're still saved and visible to your own Crew, if any."}
                 </span>
             </Label>
             <div className="flex shrink-0 items-center gap-2">
@@ -474,6 +484,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                 <OffersVisibleToggle
                                     circleId={circle._id ?? ""}
                                     initialValue={circle.offersVisible === true}
+                                    isVenue
                                 />
                                 <Controller
                                     name="tourTeamOfferings"
