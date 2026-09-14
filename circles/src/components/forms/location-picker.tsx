@@ -48,6 +48,10 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
         label: "",
     });
     const [isLocationConfirmed, setIsLocationConfirmed] = useState(value?.lngLat ? true : false);
+    // Transient "something happened" feedback for the Use Current Location button — it only
+    // updates this form's local state via onChange, so without this the user has no signal that
+    // anything happened until they notice the (easy-to-miss) confirmed-pin indicator elsewhere.
+    const [justUsedCurrentLocation, setJustUsedCurrentLocation] = useState(false);
 
     useEffect(() => {
         if (logLevel >= LOG_LEVEL_TRACE) {
@@ -349,6 +353,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
             const updated = await updateLocation({ lng: longitude, lat: latitude }, true);
             if (updated) {
                 setIsLocationConfirmed(true);
+                setJustUsedCurrentLocation(true);
+                window.setTimeout(() => setJustUsedCurrentLocation(false), 4000);
             }
         } catch (error) {
             const geolocationError = error as GeolocationPositionError;
@@ -411,12 +417,16 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
             />
             <Button
                 type="button"
+                variant="outline"
                 onClick={handleUseCurrentLocation}
                 disabled={isLocating || geolocationAvailable === false || isSecureContext === false}
             >
                 <MapPin className="mr-2 h-4 w-4" />
                 {isLocating ? "Finding Location..." : "Use Current Location"}
             </Button>
+            {justUsedCurrentLocation && !locationError && (
+                <p className="text-xs text-muted-foreground">Location set — remember to save your changes.</p>
+            )}
             {locationError && <p className="text-xs text-destructive">{locationError}</p>}
             {isSecureContext === false && !locationError && (
                 <p className="text-xs text-muted-foreground">Current location requires HTTPS or localhost.</p>
