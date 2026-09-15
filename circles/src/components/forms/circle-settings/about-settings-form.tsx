@@ -59,6 +59,7 @@ import {
     PEERIFY_EVENT_TYPE_OPTIONS,
     PRIMARY_GENRE_OPTIONS,
     PRIMARY_GENRE_MAX_SELECTIONS,
+    VENUE_TAG_OPTIONS,
     type PeerifyArtistProfile,
     type PeerifyVenueProfile,
 } from "@/lib/peerify/artist-profile";
@@ -378,20 +379,6 @@ const CrewEnabledToggle = ({ circleId, initialValue }: { circleId: string; initi
     );
 };
 
-const VENUE_TYPE_OPTIONS = [
-    { value: "", label: "Select venue type" },
-    { value: "Bar", label: "Bar" },
-    { value: "Café", label: "Café" },
-    { value: "Club", label: "Club" },
-    { value: "Theatre", label: "Theatre" },
-    { value: "Gallery", label: "Gallery" },
-    { value: "Community space", label: "Community space" },
-    { value: "House venue", label: "House venue" },
-    { value: "Outdoor", label: "Outdoor" },
-    { value: "Studio", label: "Studio" },
-    { value: "Other", label: "Other" },
-];
-
 const ADDRESS_VISIBILITY_OPTIONS = [
     { value: "private", label: "Private — show city/area only" },
     { value: "city_area", label: "Approximate — show general area" },
@@ -557,6 +544,7 @@ export function AboutSettingsForm({
     const bookingEnabled = form.watch("peerifyArtistProfile.bookingEnabled");
     const venueBookingEnabled = form.watch("peerifyVenueProfile.bookingEnquiriesEnabled");
     const venueAddressVisibility = form.watch("peerifyVenueProfile.addressVisibility");
+    const venueTags = form.watch("peerifyVenueProfile.venueTags");
 
     const onSubmit = async (data: AboutSettingsFormValues) => {
         setIsSubmitting(true);
@@ -1422,11 +1410,35 @@ export function AboutSettingsForm({
                             <section className="space-y-4">
                                 <h3 className="font-medium">Venue basics</h3>
                                 <div className="grid gap-4 md:grid-cols-2">
-                                    {/* Venue tags Controller lands here in the next commit
-                                        (venueType -> multi-select venueTags migration) - removed
-                                        the broken single-select venueType Controller in this
-                                        commit only to keep the type-check green after the schema
-                                        rename, not a start on that UI work. */}
+                                    <Controller
+                                        name="peerifyVenueProfile.venueTags"
+                                        control={form.control}
+                                        render={({ field }) => (
+                                            <CheckboxGroup
+                                                label="Venue tags"
+                                                description="Pick everything that applies to this venue."
+                                                options={VENUE_TAG_OPTIONS}
+                                                values={field.value || []}
+                                                onChange={field.onChange}
+                                            />
+                                        )}
+                                    />
+
+                                    {(venueTags || []).includes("Other") ? (
+                                        <Controller
+                                            name="peerifyVenueProfile.venueTagsOther"
+                                            control={form.control}
+                                            render={({ field }) => (
+                                                <ArtistTextField
+                                                    label="Venue tag (other)"
+                                                    placeholder="e.g. Rooftop"
+                                                    value={field.value}
+                                                    onChange={field.onChange}
+                                                />
+                                            )}
+                                        />
+                                    ) : null}
+
                                     <Controller
                                         name="peerifyVenueProfile.publicCity"
                                         control={form.control}
