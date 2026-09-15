@@ -173,7 +173,8 @@ const buildVenueProfileFormDefaults = (circle: Circle): PeerifyVenueProfile => {
     const venueProfile = getPeerifyVenueProfile(circle);
 
     return {
-        venueType: venueProfile.venueType || "",
+        venueTags: venueProfile.venueTags || [],
+        venueTagsOther: venueProfile.venueTagsOther || "",
         publicCity: venueProfile.publicCity || "",
         address: venueProfile.address || "",
         addressVisibility: venueProfile.addressVisibility || "private",
@@ -600,7 +601,8 @@ export function AboutSettingsForm({
             };
             const peerifyVenueProfile: PeerifyVenueProfile = {
                 ...data.peerifyVenueProfile,
-                venueType: data.peerifyVenueProfile.venueType?.trim() || undefined,
+                venueTags: data.peerifyVenueProfile.venueTags || [],
+                venueTagsOther: data.peerifyVenueProfile.venueTagsOther?.trim() || undefined,
                 publicCity: data.peerifyVenueProfile.publicCity?.trim() || undefined,
                 address: data.peerifyVenueProfile.address?.trim() || undefined,
                 capacityStanding: data.peerifyVenueProfile.capacityStanding?.trim() || undefined,
@@ -1420,18 +1422,11 @@ export function AboutSettingsForm({
                             <section className="space-y-4">
                                 <h3 className="font-medium">Venue basics</h3>
                                 <div className="grid gap-4 md:grid-cols-2">
-                                    <Controller
-                                        name="peerifyVenueProfile.venueType"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <PeerifySelectField
-                                                label="Venue type"
-                                                options={VENUE_TYPE_OPTIONS}
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
+                                    {/* Venue tags Controller lands here in the next commit
+                                        (venueType -> multi-select venueTags migration) - removed
+                                        the broken single-select venueType Controller in this
+                                        commit only to keep the type-check green after the schema
+                                        rename, not a start on that UI work. */}
                                     <Controller
                                         name="peerifyVenueProfile.publicCity"
                                         control={form.control}

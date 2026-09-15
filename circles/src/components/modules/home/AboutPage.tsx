@@ -351,11 +351,10 @@ export default function AboutPage({
     // still gets this sidebar card even when the main "Venue overview" card doesn't render.
     const sidebarUpcomingEvents = venueUpcomingEvents.slice(0, 3);
     const hasVenueEventsContent = isPeerifyVenueProfile && sidebarUpcomingEvents.length > 0;
-    // Sourced directly from peerifyVenueProfile.venueType, not from venueOverviewDetails - that
-    // array now only carries Location (venueType moved to its own sidebar card), so deriving this
-    // flag from it would be both redundant and wrong once Location-only content shouldn't imply
-    // "has venue type" content.
-    const hasVenueInfoContent = isPeerifyVenueProfile && Boolean(peerifyVenueProfile.venueType);
+    // Sourced directly from peerifyVenueProfile.venueTags (the multi-select replacement for the
+    // old single-select venueType), not from venueOverviewDetails - that array only carries
+    // Location, so deriving this flag from it would be both redundant and wrong.
+    const hasVenueInfoContent = isPeerifyVenueProfile && Boolean(peerifyVenueProfile.venueTags?.length);
     // Mirrors hasBandInfoContent's shape (isPeerifyVenueProfile + at least one populated field) —
     // gates the new venue sidebar contact card (website/contact email/phone/other info; see
     // AboutPage sidebar JSX).
@@ -827,8 +826,12 @@ export default function AboutPage({
                                         <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
                                             Venue type
                                         </div>
+                                        {/* Temporary plain-text rendering to keep this valid
+                                            after the venueType -> venueTags schema rename - the
+                                            real pill-row display (plus folding Location into this
+                                            card) is the next commit's job, not started here. */}
                                         <div className="text-[15px] text-foreground">
-                                            {peerifyVenueProfile.venueType}
+                                            {(peerifyVenueProfile.venueTags || []).join(", ")}
                                         </div>
                                     </div>
                                 </div>

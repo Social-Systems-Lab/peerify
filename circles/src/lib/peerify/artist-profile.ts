@@ -60,7 +60,8 @@ export type PeerifyVenueAddressVisibility = "private" | "city_area" | "public";
 export type PeerifyVenueFeeCoveredBy = "venue" | "artist" | "shared" | "not_specified";
 
 export type PeerifyVenueProfile = {
-    venueType?: string;
+    venueTags?: string[];
+    venueTagsOther?: string;
     publicCity?: string;
     address?: string;
     addressVisibility?: PeerifyVenueAddressVisibility;
@@ -184,6 +185,27 @@ export const PRIMARY_GENRE_MAX_SELECTIONS = 3;
 
 export const formatPrimaryGenreLabel = (genre: string, other?: string): string =>
     genre === "Other" && other ? `Other (${other})` : genre;
+
+// Replaces the old single-select venueType field — same 10 real categories that field's
+// <select> offered (minus its "Select venue type" placeholder, which has no meaning in a
+// multi-select). Deliberately no selection cap, unlike PRIMARY_GENRE_MAX_SELECTIONS: a venue can
+// genuinely be several of these at once (e.g. both "Bar" and "Outdoor"), and at only 10 options
+// an unbounded multi-select isn't unwieldy the way it would be for the much larger genre list.
+export const VENUE_TAG_OPTIONS = [
+    "Bar",
+    "Café",
+    "Club",
+    "Theatre",
+    "Gallery",
+    "Community space",
+    "House venue",
+    "Outdoor",
+    "Studio",
+    "Other",
+] as const;
+
+export const formatVenueTagLabel = (tag: string, other?: string): string =>
+    tag === "Other" && other ? `Other (${other})` : tag;
 
 export const PEERIFY_MANAGED_IDENTITY_TYPE_OPTIONS: ReadonlyArray<{
     value: PeerifyArtistIdentityType;
@@ -314,7 +336,8 @@ const DEFAULT_ARTIST_PROFILE: PeerifyArtistProfile = {
 };
 
 const DEFAULT_VENUE_PROFILE: PeerifyVenueProfile = {
-    venueType: "",
+    venueTags: [],
+    venueTagsOther: "",
     publicCity: "",
     address: "",
     addressVisibility: "private",
@@ -406,6 +429,24 @@ const normalizeArtistTypeOtherLabels = (value: unknown): string[] => {
     return Array.from(new Set(nextValues));
 };
 
+// hasVenueTagsField distinguishes "this document predates venueTags" from "venueTags was
+// explicitly saved as empty" - only the former falls back to the legacy venueType value. Once a
+// venue's settings are saved even once under the new shape, venueTags exists on the document
+// (even as []) and this fallback stops applying to it, as intended - it's a one-time read-time
+// bridge for pre-migration documents (e.g. the one real venue circle with venueType: "Theatre" at
+// the time of this change), not a permanent alternate source of truth. No DB write involved.
+const normalizeVenueTags = (value: unknown, legacyVenueType: unknown, hasVenueTagsField: boolean): string[] => {
+    const validOptions = VENUE_TAG_OPTIONS as readonly string[];
+    const nextValues = Array.from(new Set(asStringArray(value).filter((tag) => validOptions.includes(tag))));
+
+    if (hasVenueTagsField) {
+        return nextValues;
+    }
+
+    const legacyTag = asString(legacyVenueType);
+    return legacyTag && validOptions.includes(legacyTag) ? [legacyTag] : nextValues;
+};
+
 const normalizeVenueAddressVisibility = (value: unknown): PeerifyVenueAddressVisibility => {
     const nextValue = asString(value);
     return nextValue === "city_area" || nextValue === "public" || nextValue === "private" ? nextValue : "private";
@@ -493,7 +534,8 @@ export const normalizePeerifyVenueProfile = (value: unknown): PeerifyVenueProfil
     const input = value as Record<string, unknown>;
 
     return {
-        venueType: asString(input.venueType),
+        venueTags: normalizeVenueTags(input.venueTags, input.venueType, "venueTags" in input),
+        venueTagsOther: asString(input.venueTagsOther),
         publicCity: asString(input.publicCity),
         address: asString(input.address),
         addressVisibility: normalizeVenueAddressVisibility(input.addressVisibility),
