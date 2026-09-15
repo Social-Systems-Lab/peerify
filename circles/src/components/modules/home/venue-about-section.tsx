@@ -118,8 +118,7 @@ export default function VenueAboutSection({ circle, onOpenBookingContact }: Venu
     ].filter((item): item is { label: string; value: string; wide?: boolean } => Boolean(item?.value));
     const hasVenueProfileContent =
         isPeerifyVenueProfile &&
-        (!!circle.description ||
-            venueOverviewDetails.length > 0 ||
+        (venueOverviewDetails.length > 0 ||
             venueRoomDetails.length > 0 ||
             venueTechnicalDetails.length > 0 ||
             venueBookingDetails.length > 0 ||
@@ -171,9 +170,6 @@ export default function VenueAboutSection({ circle, onOpenBookingContact }: Venu
                                 Venue
                             </div>
                             <h2 className="m-0 text-2xl font-semibold text-foreground">Venue overview</h2>
-                            {circle.description ? (
-                                <p className="max-w-2xl text-sm text-muted-foreground">{circle.description}</p>
-                            ) : null}
                         </div>
                         {peerifyVenueProfile.bookingEnquiriesEnabled ? (
                             <div className="rounded-xl border border-[#e7d8c7] bg-[#f6efe6] p-4 sm:max-w-xs">
