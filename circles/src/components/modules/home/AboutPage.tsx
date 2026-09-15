@@ -172,10 +172,14 @@ export default function AboutPage({
     const isPeerifyVenueProfile = isPeerifyVenueIdentity(circle);
     const peerifyArtistProfile = getPeerifyArtistProfile(circle);
     const peerifyVenueProfile = getPeerifyVenueProfile(circle);
-    const venueLocation =
-        peerifyVenueProfile.addressVisibility === "public" && peerifyVenueProfile.address
-            ? peerifyVenueProfile.address
-            : peerifyVenueProfile.publicCity;
+    // Every real venue's location lives in circle.location (the map-based "Map location" field
+    // in settings) - peerifyVenueProfile.address/publicCity are separate, always-empty manual
+    // text fields in practice (confirmed across all 5 staging venue circles). Mirrors the exact
+    // city/region/country join the generic "Overview" sidebar card already uses for circle.location
+    // (hasOverviewDetails below, gated off for venues, so no duplicate render).
+    const venueLocation = circle.location
+        ? [circle.location.city, circle.location.region, circle.location.country].filter(Boolean).join(", ")
+        : "";
     const peerifyIdentityLabel = getPeerifyArtistIdentityLabel(circle);
     const bookingSettings = peerifyArtistProfile.bookingSettings;
     const peerifyMusicLinks = (
