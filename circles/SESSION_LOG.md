@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ b62adf88 (2026-09-06 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 2d555ac7 (2026-09-15 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -4986,3 +4986,174 @@ overhaul) — is scoped for its own future investigation-first session.
 Not started; `AboutPage.tsx` is a single ~1700-line component shared by
 every circle type, so that session should expect a wider blast radius
 than this one.
+
+### 2026-09-15 — Venue About page restructured: VenueAboutSection extracted, sidebar Contact/Venue Info/Events cards shipped
+
+Eleven pieces of work, all investigated read-only first (four separate
+investigation-only passes across the session), then implemented and
+verified on staging before being cherry-picked to `main` individually
+in dependency order.
+
+**1. `VenueAboutSection` extracted from the ~1700-line `AboutPage.tsx`
+monolith.** That component renders all four profile types (user,
+generic circle, Peerify artist, Peerify venue) via ~40 derived boolean
+flags computed at the top of the function. The venue profile card, its
+entire derivation block, and a `renderVenueDetailSection` helper were
+confirmed 100% venue-exclusive with zero reuse elsewhere in the file —
+extracted into its own component taking `circle` + a few props,
+mirroring the `TourTeamOfferingsCard`/`OffersCard` externalization
+pattern already in the same render tree. Pure refactor, zero behavior
+change — confirmed via server-rendered output before/after for venue,
+artist, and generic circles. (staging `92de7548`, prod `9f6f3959`)
+
+**2. Venue website/Instagram display via adapter, no schema change.**
+Superseded the raw-text website/Instagram box with a small adapter
+reusing the same platform → icon registry `SocialLinks` is driven by
+(`socialPlatforms`, extended with one new "website" entry) — display-
+only, `peerifyVenueProfile.website`/`.instagram` stay flat strings,
+no settings-form or schema change. Deliberately not a literal
+`<SocialLinks>` drop-in, since that component's plain icon-row pattern
+didn't match this card's labeled-box layout. (staging `fde3756d`,
+prod `c31c8cbe`)
+
+**3. Venue sidebar layout groundwork.** Added `hasVenueContactContent`
+as a new disjunct to `hasSidebarContent` — confirmed the shared grid
+mechanism (main/sidebar column-span toggle) required no structural
+changes, since it already generically keyed off one boolean rather
+than assuming only non-venue circles have a sidebar. Purely additive;
+re-added `peerifyVenueProfile` to `AboutPage.tsx` (removed in the
+extraction, needed again for the new flag). (staging `f35001cd`,
+prod `593d2a6c`)
+
+**4. New venue "Contact" sidebar card (website + email).** Mirrors the
+artist profile's inline sidebar-card convention (Band Info/Booking/Get
+Involved) — confirmed those aren't componentized in this codebase, just
+copy-pasted inline blocks sharing a wrapper style string, so this
+followed the same pattern rather than inventing a new one. Contact
+email renders as a `mailto:` link — its first real display path
+anywhere in the app; previously captured in settings and never read
+back. (staging `8adb32ac`, prod `53865785`)
+
+**5. Pre-existing bug fixed: generic `Circle.websiteUrl` field
+editable by venues despite being dead on read.** `AboutPage.tsx`
+already correctly excluded venues from ever displaying this field
+(`hasOverviewDetails` gated `!isPeerifyVenueProfile`), but the
+settings-form write-side gate (`!isIndependentCircle`) didn't exclude
+them — every venue circle has `circleLevel: "profile_child"`, making
+`isIndependentCircle` false and the field visible/editable regardless.
+Added the missing venue exclusion to the same condition; confirmed the
+one-line fix requires no `defaultValues`/`onSubmit` changes, since this
+field has exactly one write path in the whole codebase (a plain scalar
+assignment, not a subdocument merge) with no out-of-band writer that
+could get silently reverted. (staging `2ead8272`, prod `d6a3ccb5`)
+
+**6. Added `phone` and `otherInfo` fields to `PeerifyVenueProfile`.**
+Followed the exact three-spot pattern every existing field already
+uses (type, `DEFAULT_VENUE_PROFILE`, `normalizePeerifyVenueProfile`,
+via the existing `asString` helper — confirmed safe, no risk of the
+undefined-vs-null Zod bug class documented elsewhere in this codebase,
+since this schema isn't Zod-validated at all). Phone renders as a
+`tel:` link; other info as plain free text, matching the
+`bookingNote`/`houseRules` precedent. (staging `c17ff48b`,
+prod `8719cd6a`)
+
+**7. Removed the venue-specific `instagram` field properly, not just
+its display.** Left in place, it would have become a fourth dead field
+alongside `contactEmail`'s original state and `Circle.websiteUrl`'s
+write-side leak (item 5). Re-confirmed the "no venue circle has
+meaningful data" precondition before deleting, since staging data can
+change between sessions — it no longer held: one venue circle had
+picked up a real Instagram value since the original investigation.
+Flagged and confirmed before proceeding (staging test data, low
+stakes). Required an in-session, narrowly-scoped deviation from the
+original plan: removing the field broke `venue-about-section.tsx`'s
+`venueLinks` construction with a real TypeScript compile error, not
+the "empty value" the investigation had anticipated — `next build`
+fails on TS errors by default here, so leaving it as originally planned
+("defer the fix to the next commit") would have made this and every
+subsequent commit undeployable. Made only the minimal type-compat fix
+needed (removed the one broken array entry), leaving the actual
+`venueLinks` removal for the next commit as intended. (staging
+`a9cb9d21`, prod `911df3fa`)
+
+**8. Removed the now-superseded `venueLinks` display from the main
+"Venue overview" card.** Correctness fix, not optional cleanup:
+removed `venueLinks.length > 0` from both `hasVenueProfileContent`'s
+OR-chain and the Venue-overview grid's own render condition, so a
+venue whose only content was a website link no longer shows an
+empty/near-empty overview card — that information lives in the sidebar
+Contact card now. Verified all four combinations (overview content
+only, contact-only, both, neither) on staging with temporary data.
+(staging `aa33d36e`, prod `a943a6d3`)
+
+**9. Removed the now-orphaned "website" `socialPlatforms` entry.** Its
+only consumer was the adapter removed in item 8; also passively added
+"Website" as a selectable platform in the unrelated generic Social
+Links dropdown, a side effect flagged but not acted on when it first
+shipped. Searched the entire database for any `circle.socialLinks`
+entry with `platform: "website"` before removing — zero matches, no
+real data orphaned. (staging `bcedc96b`, prod `1fedd76c`)
+
+**10. Moved "Venue type" to a dedicated "Venue Info" sidebar card.**
+Removed it from `venueOverviewDetails`' construction (Location stays
+exactly where it was, unchanged) and added a new `hasVenueInfoContent`
+flag mirroring the Contact card's pattern exactly. Simpler than item
+8's equivalent fix: `venueOverviewDetails` was already a generic array
+feeding both length-checks, so no separate OR-chain edit was needed —
+just stop putting the field into the array. `md:order-[12]`, no
+collision with existing slots. (staging `fa267cc2`,
+prod `69c72ec1`)
+
+**11. Moved "Upcoming events" into a condensed sidebar card — desktop-
+only reorder, explicitly accepted as such.** Removed the full
+header-plus-list section from `VenueAboutSection`'s main content;
+added a condensed version (same 3 events already fetched — confirmed
+`home/page.tsx` already caps this, no fetch change needed — single
+"View all" link replacing the two-button header, "Create event"
+dropped from the sidebar slot entirely) at `md:order-[5]`, above Venue
+Info and Contact. Investigated first whether reordering would actually
+achieve "Events visible early on mobile": confirmed via literal
+byte-offset inspection of server-rendered HTML that `md:order` has no
+effect below the `md:` breakpoint, and no non-prefixed `order` class
+exists anywhere in the file — so on mobile the entire sidebar still
+renders after the full main column regardless of internal ordering.
+True mobile-first visibility would need venue-specific
+`isCompact`-driven conditional rendering (a real, separately-scoped
+change), not an `md:order` tweak — deferred. This move also happened
+to fix a latent gap: events previously sat behind
+`hasVenueProfileContent` (which never referenced them), so a venue with
+events and nothing else showed nothing at all; the new independent
+flag means it now correctly shows just the Events card. (staging
+`926c7270`, prod `2d555ac7`)
+
+**Promotion.** All eleven commits cherry-picked from staging to `main`
+individually in dependency order, no conflicts. Prod deploy via
+`deploy-peerify.sh` succeeded cleanly, all 9 verification steps
+passing.
+
+**Status:** all eleven shipped and verified on staging (build + live
+scenario checks with temporary test data, reverted after each) before
+promotion, cherry-picked to `main`, deployed to production, confirmed
+live on peerify.one (`current` → `releases/20260915-103741-2d555ac7`),
+both branches pushed to origin.
+
+**Open follow-ups, not yet scoped:**
+- Duplicate "Venue overview" card content: `circle.description` is
+  read in both the profile hero and the venue card's own heading —
+  a pre-existing soft redundancy, now more visible with the page
+  otherwise cleaner. Location's eventual destination (own card vs.
+  sidebar vs. folded into About) still needs deciding.
+- Venue tags/pills, matching the artist genre/mood pill convention —
+  should be the venue's own profile field, explicitly *not* a
+  repurposing of the existing `EventTagVenueType` mechanism (which
+  tags individual events, not venues, and is unrelated to
+  `PeerifyVenueProfile` despite the similar name). Logged as its own
+  backlog item, not yet scoped.
+- Mobile-first Events visibility (see item 11) — confirmed to require
+  venue-specific `isCompact`-driven conditional rendering, not an
+  `md:order` change. Deferred; current mobile behavior shows the full
+  main column before any sidebar content.
+- `canCreateVenueEvent` is now unused dead plumbing in
+  `AboutPage.tsx`/`home/page.tsx` since the sidebar Events card dropped
+  the "Create event" button — harmless (no TS error), flagged for
+  optional cleanup.
