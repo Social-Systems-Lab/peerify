@@ -345,6 +345,11 @@ export default function AboutPage({
     ].filter((chip): chip is { key: string; label: string; className: string } => Boolean(chip));
     const shouldShowProfileStatus =
         isUserProfile && !isPeerifyArtistProfile && (relationshipStatusLabel || followerCount > 0 || memberStatusLabel);
+    // Sourced directly from peerifyVenueProfile.venueType, not from venueOverviewDetails - that
+    // array now only carries Location (venueType moved to its own sidebar card), so deriving this
+    // flag from it would be both redundant and wrong once Location-only content shouldn't imply
+    // "has venue type" content.
+    const hasVenueInfoContent = isPeerifyVenueProfile && Boolean(peerifyVenueProfile.venueType);
     // Mirrors hasBandInfoContent's shape (isPeerifyVenueProfile + at least one populated field) —
     // gates the new venue sidebar contact card (website/contact email/phone/other info; see
     // AboutPage sidebar JSX).
@@ -368,6 +373,7 @@ export default function AboutPage({
         shouldShowVerifiedContributions ||
         shouldShowFundingPanel ||
         shouldShowUpcomingShiftsPanel ||
+        hasVenueInfoContent ||
         hasVenueContactContent;
 
     const hasMainContent = isPeerifyVenueProfile
@@ -746,6 +752,26 @@ export default function AboutPage({
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {hasVenueInfoContent && (
+                                <div
+                                    className={`flex flex-col bg-white p-6 md:order-[12] ${
+                                        isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
+                                    }`}
+                                >
+                                    <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                        Venue Info
+                                    </div>
+                                    <div className="flex w-full flex-col text-sm text-muted-foreground">
+                                        <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                            Venue type
+                                        </div>
+                                        <div className="text-[15px] text-foreground">
+                                            {peerifyVenueProfile.venueType}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 

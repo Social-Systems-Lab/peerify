@@ -34,10 +34,9 @@ export default function VenueAboutSection({
         peerifyVenueProfile.addressVisibility === "public" && peerifyVenueProfile.address
             ? peerifyVenueProfile.address
             : peerifyVenueProfile.publicCity;
-    const venueOverviewDetails = [
-        peerifyVenueProfile.venueType ? { label: "Venue type", value: peerifyVenueProfile.venueType } : null,
-        venueLocation ? { label: "Location", value: venueLocation } : null,
-    ].filter((item): item is { label: string; value: string } => Boolean(item?.value));
+    const venueOverviewDetails = [venueLocation ? { label: "Location", value: venueLocation } : null].filter(
+        (item): item is { label: string; value: string } => Boolean(item?.value),
+    );
     const upcomingVenueEvents = venueUpcomingEvents.slice(0, 3);
     const venueRoomDetails = [
         peerifyVenueProfile.capacityStanding
