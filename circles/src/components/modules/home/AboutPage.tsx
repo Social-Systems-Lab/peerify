@@ -4,7 +4,7 @@ import React from "react";
 import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MapPin, ExternalLink, Mail, Phone } from "lucide-react";
+import { MapPin, ExternalLink, Mail, Phone, CalendarRange } from "lucide-react";
 import { SiSpotify, SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getSkillDefinitionByHandle, skillCategoryLabels } from "@/lib/data/skills";
@@ -345,6 +345,12 @@ export default function AboutPage({
     ].filter((chip): chip is { key: string; label: string; className: string } => Boolean(chip));
     const shouldShowProfileStatus =
         isUserProfile && !isPeerifyArtistProfile && (relationshipStatusLabel || followerCount > 0 || memberStatusLabel);
+    // Data layer (home/page.tsx) already caps this at 3 - already within the desired 3-5 range,
+    // no fetch change needed. Independent of hasVenueProfileContent (VenueAboutSection's own
+    // gate, which never referenced events) so a venue with events but no other profile content
+    // still gets this sidebar card even when the main "Venue overview" card doesn't render.
+    const sidebarUpcomingEvents = venueUpcomingEvents.slice(0, 3);
+    const hasVenueEventsContent = isPeerifyVenueProfile && sidebarUpcomingEvents.length > 0;
     // Sourced directly from peerifyVenueProfile.venueType, not from venueOverviewDetails - that
     // array now only carries Location (venueType moved to its own sidebar card), so deriving this
     // flag from it would be both redundant and wrong once Location-only content shouldn't imply
@@ -373,6 +379,7 @@ export default function AboutPage({
         shouldShowVerifiedContributions ||
         shouldShowFundingPanel ||
         shouldShowUpcomingShiftsPanel ||
+        hasVenueEventsContent ||
         hasVenueInfoContent ||
         hasVenueContactContent;
 
@@ -614,12 +621,7 @@ export default function AboutPage({
                 {/* Adjust column span based on sidebar visibility */}
                 <div className={hasSidebarContent ? "md:col-span-2" : "md:col-span-3"}>
                     <div className="space-y-6">
-                        <VenueAboutSection
-                            circle={circle}
-                            canCreateVenueEvent={canCreateVenueEvent}
-                            venueUpcomingEvents={venueUpcomingEvents}
-                            onOpenBookingContact={openVenueBookingContact}
-                        />
+                        <VenueAboutSection circle={circle} onOpenBookingContact={openVenueBookingContact} />
                         {shouldShowAboutCard && (
                             <div
                                 className={`bg-white p-6 ${isCompact ? "rounded-none" : "rounded-[15px] border-0 shadow-lg"}`}
@@ -700,6 +702,63 @@ export default function AboutPage({
                 {hasSidebarContent && (
                     <div className="md:col-span-1">
                         <div className="flex flex-col gap-6">
+                            {hasVenueEventsContent && (
+                                <div
+                                    className={`flex flex-col bg-white p-6 md:order-[5] ${
+                                        isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
+                                    }`}
+                                >
+                                    <div className="mb-4 flex items-center justify-between gap-2">
+                                        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                                            Events
+                                        </div>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => router.push(`/circles/${circle.handle}/events`)}
+                                        >
+                                            View all
+                                        </Button>
+                                    </div>
+                                    <div className="flex flex-col gap-3">
+                                        {sidebarUpcomingEvents.map((event) => {
+                                            const eventId = String(event._id ?? "");
+                                            const startAt = event.startAt ? new Date(event.startAt) : null;
+
+                                            return (
+                                                <button
+                                                    key={eventId || event.title}
+                                                    type="button"
+                                                    className="flex w-full items-start gap-3 rounded-xl border bg-muted/20 p-4 text-left transition hover:bg-muted/40"
+                                                    onClick={() =>
+                                                        eventId
+                                                            ? router.push(`/circles/${circle.handle}/events/${eventId}`)
+                                                            : router.push(`/circles/${circle.handle}/events`)
+                                                    }
+                                                >
+                                                    <CalendarRange className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
+                                                    <span className="min-w-0">
+                                                        <span className="block text-sm font-medium text-foreground">
+                                                            {event.title}
+                                                        </span>
+                                                        {startAt ? (
+                                                            <span className="mt-1 block text-xs text-muted-foreground">
+                                                                {startAt.toLocaleDateString("en-US", {
+                                                                    month: "short",
+                                                                    day: "numeric",
+                                                                    year: "numeric",
+                                                                })}
+                                                            </span>
+                                                        ) : null}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
                             {hasBandInfoContent && (
                                 <div
                                     className={`flex flex-col bg-white p-6 md:order-[10] ${

@@ -1,17 +1,14 @@
 "use client";
 
 import React from "react";
-import { Circle, EventDisplay } from "@/models/models";
+import { Circle } from "@/models/models";
 import { Button } from "@/components/ui/button";
-import { MapPin, CalendarRange, CheckCircle2 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { MapPin, CheckCircle2 } from "lucide-react";
 import { useIsCompact } from "@/components/utils/use-is-compact";
 import { getPeerifyVenueProfile, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 
 interface VenueAboutSectionProps {
     circle: Circle;
-    canCreateVenueEvent?: boolean;
-    venueUpcomingEvents?: EventDisplay[];
     onOpenBookingContact: () => void;
 }
 
@@ -19,13 +16,7 @@ interface VenueAboutSectionProps {
 // sibling cards in that render tree (OffersCard, TourTeamOfferingsCard): a standalone component
 // taking `circle` + a couple of computed props, deciding its own visibility internally rather
 // than being gated by a flag computed in the parent's ~40-flag block.
-export default function VenueAboutSection({
-    circle,
-    canCreateVenueEvent = false,
-    venueUpcomingEvents = [],
-    onOpenBookingContact,
-}: VenueAboutSectionProps) {
-    const router = useRouter();
+export default function VenueAboutSection({ circle, onOpenBookingContact }: VenueAboutSectionProps) {
     const isCompact = useIsCompact();
     const isPeerifyVenueProfile = isPeerifyVenueIdentity(circle);
     const peerifyVenueProfile = getPeerifyVenueProfile(circle);
@@ -37,7 +28,6 @@ export default function VenueAboutSection({
     const venueOverviewDetails = [venueLocation ? { label: "Location", value: venueLocation } : null].filter(
         (item): item is { label: string; value: string } => Boolean(item?.value),
     );
-    const upcomingVenueEvents = venueUpcomingEvents.slice(0, 3);
     const venueRoomDetails = [
         peerifyVenueProfile.capacityStanding
             ? { label: "Standing capacity", value: peerifyVenueProfile.capacityStanding }
@@ -216,79 +206,6 @@ export default function VenueAboutSection({
                                     </div>
                                 </div>
                             ))}
-                        </div>
-                    )}
-                </section>
-
-                <section className="space-y-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                Events
-                            </div>
-                            <h3 className="m-0 text-xl font-semibold text-foreground">Upcoming events</h3>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => router.push(`/circles/${circle.handle}/events`)}
-                            >
-                                View events
-                            </Button>
-                            {canCreateVenueEvent ? (
-                                <Button
-                                    type="button"
-                                    onClick={() => router.push(`/circles/${circle.handle}/events/create`)}
-                                >
-                                    Create event
-                                </Button>
-                            ) : null}
-                        </div>
-                    </div>
-
-                    {upcomingVenueEvents.length > 0 ? (
-                        <div className="grid gap-3">
-                            {upcomingVenueEvents.map((event) => {
-                                const eventId = String(event._id ?? "");
-                                const startAt = event.startAt ? new Date(event.startAt) : null;
-
-                                return (
-                                    <button
-                                        key={eventId || event.title}
-                                        type="button"
-                                        className="flex w-full items-start gap-3 rounded-xl border bg-muted/20 p-4 text-left transition hover:bg-muted/40"
-                                        onClick={() =>
-                                            eventId
-                                                ? router.push(`/circles/${circle.handle}/events/${eventId}`)
-                                                : router.push(`/circles/${circle.handle}/events`)
-                                        }
-                                    >
-                                        <CalendarRange className="mt-0.5 h-5 w-5 flex-shrink-0 text-muted-foreground" />
-                                        <span className="min-w-0">
-                                            <span className="block text-sm font-medium text-foreground">
-                                                {event.title}
-                                            </span>
-                                            {startAt ? (
-                                                <span className="mt-1 block text-xs text-muted-foreground">
-                                                    {startAt.toLocaleDateString("en-US", {
-                                                        month: "short",
-                                                        day: "numeric",
-                                                        year: "numeric",
-                                                    })}
-                                                </span>
-                                            ) : null}
-                                        </span>
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="rounded-xl border border-dashed bg-muted/20 p-4 text-sm text-muted-foreground">
-                            <p>No upcoming events yet.</p>
-                            {canCreateVenueEvent ? (
-                                <p className="mt-1">Create the first event for this venue.</p>
-                            ) : null}
                         </div>
                     )}
                 </section>
