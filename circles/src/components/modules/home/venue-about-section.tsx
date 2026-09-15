@@ -3,7 +3,7 @@
 import React from "react";
 import { Circle } from "@/models/models";
 import { Button } from "@/components/ui/button";
-import { MapPin, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { useIsCompact } from "@/components/utils/use-is-compact";
 import { getPeerifyVenueProfile, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 
@@ -21,13 +21,6 @@ export default function VenueAboutSection({ circle, onOpenBookingContact }: Venu
     const isPeerifyVenueProfile = isPeerifyVenueIdentity(circle);
     const peerifyVenueProfile = getPeerifyVenueProfile(circle);
 
-    const venueLocation =
-        peerifyVenueProfile.addressVisibility === "public" && peerifyVenueProfile.address
-            ? peerifyVenueProfile.address
-            : peerifyVenueProfile.publicCity;
-    const venueOverviewDetails = [venueLocation ? { label: "Location", value: venueLocation } : null].filter(
-        (item): item is { label: string; value: string } => Boolean(item?.value),
-    );
     const venueRoomDetails = [
         peerifyVenueProfile.capacityStanding
             ? { label: "Standing capacity", value: peerifyVenueProfile.capacityStanding }
@@ -118,8 +111,7 @@ export default function VenueAboutSection({ circle, onOpenBookingContact }: Venu
     ].filter((item): item is { label: string; value: string; wide?: boolean } => Boolean(item?.value));
     const hasVenueProfileContent =
         isPeerifyVenueProfile &&
-        (venueOverviewDetails.length > 0 ||
-            venueRoomDetails.length > 0 ||
+        (venueRoomDetails.length > 0 ||
             venueTechnicalDetails.length > 0 ||
             venueBookingDetails.length > 0 ||
             venueHospitalityDetails.length > 0 ||
@@ -186,24 +178,6 @@ export default function VenueAboutSection({ circle, onOpenBookingContact }: Venu
                             </div>
                         ) : null}
                     </div>
-
-                    {venueOverviewDetails.length > 0 && (
-                        <div className="grid gap-3 sm:grid-cols-2">
-                            {venueOverviewDetails.map((detail) => (
-                                <div key={detail.label} className="rounded-xl border bg-muted/30 p-4">
-                                    <div className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                        {detail.label}
-                                    </div>
-                                    <div className="flex items-center gap-2 text-sm text-foreground">
-                                        {detail.label === "Location" ? (
-                                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                                        ) : null}
-                                        <span>{detail.value}</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
                 </section>
 
                 {renderVenueDetailSection("Room & capacity", venueRoomDetails)}

@@ -53,6 +53,7 @@ import {
     getPeerifyArtistProfile,
     getPeerifyArtistIdentityLabel,
     getPeerifyVenueProfile,
+    formatVenueTagLabel,
     PEERIFY_BOOKING_SUPPORT_OPTIONS,
     isPeerifyArtistIdentity,
     isPeerifyVenueIdentity,
@@ -171,6 +172,10 @@ export default function AboutPage({
     const isPeerifyVenueProfile = isPeerifyVenueIdentity(circle);
     const peerifyArtistProfile = getPeerifyArtistProfile(circle);
     const peerifyVenueProfile = getPeerifyVenueProfile(circle);
+    const venueLocation =
+        peerifyVenueProfile.addressVisibility === "public" && peerifyVenueProfile.address
+            ? peerifyVenueProfile.address
+            : peerifyVenueProfile.publicCity;
     const peerifyIdentityLabel = getPeerifyArtistIdentityLabel(circle);
     const bookingSettings = peerifyArtistProfile.bookingSettings;
     const peerifyMusicLinks = (
@@ -351,10 +356,11 @@ export default function AboutPage({
     // still gets this sidebar card even when the main "Venue overview" card doesn't render.
     const sidebarUpcomingEvents = venueUpcomingEvents.slice(0, 3);
     const hasVenueEventsContent = isPeerifyVenueProfile && sidebarUpcomingEvents.length > 0;
-    // Sourced directly from peerifyVenueProfile.venueTags (the multi-select replacement for the
-    // old single-select venueType), not from venueOverviewDetails - that array only carries
-    // Location, so deriving this flag from it would be both redundant and wrong.
-    const hasVenueInfoContent = isPeerifyVenueProfile && Boolean(peerifyVenueProfile.venueTags?.length);
+    // Location moved here from VenueAboutSection's old venueOverviewDetails (removed - it only
+    // ever carried Location) so it now gates the card alongside venueTags, the multi-select
+    // replacement for the old single-select venueType.
+    const hasVenueInfoContent =
+        isPeerifyVenueProfile && Boolean(venueLocation || peerifyVenueProfile.venueTags?.length);
     // Mirrors hasBandInfoContent's shape (isPeerifyVenueProfile + at least one populated field) —
     // gates the new venue sidebar contact card (website/contact email/phone/other info; see
     // AboutPage sidebar JSX).
@@ -822,18 +828,35 @@ export default function AboutPage({
                                     <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                                         Venue Info
                                     </div>
-                                    <div className="flex w-full flex-col text-sm text-muted-foreground">
-                                        <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
-                                            Venue type
+                                    {venueLocation && (
+                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground last:mb-0">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Location
+                                            </div>
+                                            <div className="flex items-center gap-2 text-[15px] text-foreground">
+                                                <MapPin className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                                <span>{venueLocation}</span>
+                                            </div>
                                         </div>
-                                        {/* Temporary plain-text rendering to keep this valid
-                                            after the venueType -> venueTags schema rename - the
-                                            real pill-row display (plus folding Location into this
-                                            card) is the next commit's job, not started here. */}
-                                        <div className="text-[15px] text-foreground">
-                                            {(peerifyVenueProfile.venueTags || []).join(", ")}
+                                    )}
+
+                                    {peerifyVenueProfile.venueTags && peerifyVenueProfile.venueTags.length > 0 && (
+                                        <div className="flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Venue tags
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                                {peerifyVenueProfile.venueTags.map((tag) => (
+                                                    <Badge
+                                                        key={tag}
+                                                        className="rounded-full bg-primary px-3 py-1 text-primary-foreground"
+                                                    >
+                                                        {formatVenueTagLabel(tag, peerifyVenueProfile.venueTagsOther)}
+                                                    </Badge>
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             )}
 
