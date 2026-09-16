@@ -67,9 +67,7 @@ const IconTagButton = ({
         >
             <Icon className="h-5 w-5" />
         </span>
-        <span
-            className={`text-xs leading-tight ${selected ? "font-medium text-foreground" : "text-muted-foreground"}`}
-        >
+        <span className={`text-xs leading-tight ${selected ? "font-medium text-foreground" : "text-muted-foreground"}`}>
             {label}
         </span>
     </button>
@@ -151,9 +149,14 @@ const MultiSelectTagGroup = <T extends string>({
 export interface EventTagsSettingsProps {
     value: EventTagsValue | undefined;
     onChange: (value: EventTagsValue) => void;
+    // Registered Peerify venue circles already have their own venueTags (Bar, Theatre, Outdoor,
+    // etc. — see artist-profile.ts) — asking for this separate, smaller "Venue type" vocabulary
+    // too is redundant for them. Purely a render skip: the underlying value is left untouched, so
+    // an existing venueType (set before this prop existed) survives unedited through a save.
+    hideVenueType?: boolean;
 }
 
-export function EventTagsSettings({ value, onChange }: EventTagsSettingsProps): React.ReactElement {
+export function EventTagsSettings({ value, onChange, hideVenueType }: EventTagsSettingsProps): React.ReactElement {
     const tags = value || {};
 
     const setField = <K extends keyof EventTagsValue>(key: K, next: EventTagsValue[K]) => {
@@ -180,8 +183,8 @@ export function EventTagsSettings({ value, onChange }: EventTagsSettingsProps): 
     return (
         <div className="space-y-6">
             <p className="text-sm text-muted-foreground">
-                Default feature tags shown on new events created under this circle. Each event can still override
-                these individually after it&apos;s created.
+                Default feature tags shown on new events created under this circle. Each event can still override these
+                individually after it&apos;s created.
             </p>
 
             <div className="grid gap-6 sm:grid-cols-2">
@@ -197,12 +200,14 @@ export function EventTagsSettings({ value, onChange }: EventTagsSettingsProps): 
                     value={tags.alcohol}
                     onChange={(next) => setField("alcohol", next)}
                 />
-                <SingleSelectTagGroup
-                    label="Venue type"
-                    options={VENUE_TYPE_OPTIONS}
-                    value={tags.venueType}
-                    onChange={(next) => setField("venueType", next)}
-                />
+                {hideVenueType ? null : (
+                    <SingleSelectTagGroup
+                        label="Venue type"
+                        options={VENUE_TYPE_OPTIONS}
+                        value={tags.venueType}
+                        onChange={(next) => setField("venueType", next)}
+                    />
+                )}
                 <MultiSelectTagGroup
                     label="Food"
                     options={FOOD_OPTIONS}
