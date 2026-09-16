@@ -20,7 +20,7 @@ interface VenueAboutSectionProps {
 //
 // Room & Capacity / Technical setup / Booking terms / Hospitality & support / House rules &
 // policies used to render here in full; that detail now lives on its own page
-// (/circles/{handle}/booking, venue-booking-detail.tsx) since it serves a different audience
+// (/circles/{handle}/home/booking, venue-booking-detail.tsx) since it serves a different audience
 // (artists/crews actively booking) than this general About page. This component keeps only the
 // booking-enquiries-enabled callout — a CTA, not data the reader is browsing — as a lightweight
 // pointer toward that page.
@@ -46,7 +46,7 @@ export default function VenueAboutSection({ circle, onOpenBookingContact }: Venu
                         </div>
                         <h2 className="m-0 text-2xl font-semibold text-foreground">Venue overview</h2>
                         <Button type="button" variant="outline" size="sm" asChild>
-                            <Link href={`/circles/${circle.handle}/booking`}>View booking details</Link>
+                            <Link href={`/circles/${circle.handle}/home/booking`}>View booking details</Link>
                         </Button>
                     </div>
                     {peerifyVenueProfile.bookingEnquiriesEnabled ? (
