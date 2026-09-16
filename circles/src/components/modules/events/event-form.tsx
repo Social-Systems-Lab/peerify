@@ -187,6 +187,11 @@ export default function EventForm({
 }: Props) {
     console.log("EventForm mounted/updated. Event recurrence:", event?.recurrence);
     const [selectedCircle, setSelectedCircle] = useState<string | undefined>(circleHandle);
+    // Gates the redundant "Venue type" event-tag category (see EventTagsSettings' hideVenueType)
+    // for whichever circle is currently selected as host via the CircleSelector flow below. The
+    // edit flow never calls handleCircleSelected at all (no picker when editing an existing
+    // event), so it seeds this from a server-computed prop instead — see isHostCircleVenue.
+    const [isSelectedCircleVenue, setIsSelectedCircleVenue] = useState<boolean>(false);
     const router = useRouter();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
@@ -461,6 +466,10 @@ export default function EventForm({
     const handleCircleSelected = useCallback(
         (circle: Circle | null) => {
             setSelectedCircle(circle?.handle);
+            // Tracks whichever circle is currently selected as host, not just the first pick —
+            // "Venue type" is redundant only while a registered Peerify venue is the host, so this
+            // needs to stay in sync if the host is changed via the picker.
+            setIsSelectedCircleVenue(circle ? isPeerifyVenueIdentity(circle) : false);
             if (!hasReceivedInitialCircleSelection.current) {
                 hasReceivedInitialCircleSelection.current = true;
                 // Only for new events — an edit form already seeded `location`/`currency` from
@@ -476,7 +485,9 @@ export default function EventForm({
                     // Only Venue circles have a meaningful circle-level default (see
                     // about-settings-form.tsx) — every other circle type starts blank.
                     const circleDefaultTags =
-                        circle && isPeerifyVenueIdentity(circle) ? normalizeEventTags(circle.defaultEventTags) : undefined;
+                        circle && isPeerifyVenueIdentity(circle)
+                            ? normalizeEventTags(circle.defaultEventTags)
+                            : undefined;
                     if (circleDefaultTags) {
                         setTags(circleDefaultTags);
                     }
@@ -1051,7 +1062,7 @@ export default function EventForm({
                                     ? "Editing these only changes this event — it never changes the circle's defaults."
                                     : "Pre-filled from this circle's default event tags. Change anything before saving."}
                             </p>
-                            <EventTagsSettings value={tags} onChange={setTags} />
+                            <EventTagsSettings value={tags} onChange={setTags} hideVenueType={isSelectedCircleVenue} />
                         </div>
                     </CollapsibleContent>
                 </Collapsible>
