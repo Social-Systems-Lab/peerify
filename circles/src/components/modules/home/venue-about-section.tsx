@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Circle } from "@/models/models";
 import { Button } from "@/components/ui/button";
 import { CheckCircle2 } from "lucide-react";
@@ -44,6 +45,9 @@ export default function VenueAboutSection({ circle, onOpenBookingContact }: Venu
                             Venue
                         </div>
                         <h2 className="m-0 text-2xl font-semibold text-foreground">Venue overview</h2>
+                        <Button type="button" variant="outline" size="sm" asChild>
+                            <Link href={`/circles/${circle.handle}/booking`}>View booking details</Link>
+                        </Button>
                     </div>
                     {peerifyVenueProfile.bookingEnquiriesEnabled ? (
                         <div className="rounded-xl border border-[#e7d8c7] bg-[#f6efe6] p-4 sm:max-w-xs">
