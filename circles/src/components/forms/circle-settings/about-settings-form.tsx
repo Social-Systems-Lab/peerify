@@ -1009,7 +1009,10 @@ export function AboutSettingsForm({
                                 name="defaultEventTags"
                                 control={form.control}
                                 render={({ field }) => (
-                                    <EventTagsSettings value={field.value} onChange={field.onChange} />
+                                    // This card only ever renders for venue circles (isPeerifyManagedVenueCircle
+                                    // above), so hiding "Venue type" here is unconditional - it's always
+                                    // redundant with the venue's own venueTags in this context.
+                                    <EventTagsSettings value={field.value} onChange={field.onChange} hideVenueType />
                                 )}
                             />
                         </CardContent>
