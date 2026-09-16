@@ -109,6 +109,13 @@ const PEERIFY_SOCIAL_LINK_ICONS: Partial<Record<PeerifyMusicLinkKey, React.Compo
     linktree: SiLinktree,
 };
 
+// No existing URL-to-display-text utility found elsewhere in the codebase (social-links.tsx's
+// SocialLinks component renders icon-only, no text; social-links.ts's helpers normalize/infer
+// platform, not format for display) - scoped here since only the venue Contact card's website
+// link needs it today. Strips the scheme and one trailing slash only; the href keeps the
+// original, unmodified URL.
+const formatWebsiteDisplayUrl = (url: string): string => url.replace(/^https?:\/\//i, "").replace(/\/$/, "");
+
 const EMPTY_BOOKING_FORM: BookingFormState = {
     bookerLocation: "",
     eventType: "",
@@ -886,7 +893,7 @@ export default function AboutPage({
                                                 className="flex items-center gap-2 break-all text-[15px] text-foreground underline"
                                             >
                                                 <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                                                <span>Visit website</span>
+                                                <span>{formatWebsiteDisplayUrl(peerifyVenueProfile.website)}</span>
                                             </a>
                                         </div>
                                     )}
