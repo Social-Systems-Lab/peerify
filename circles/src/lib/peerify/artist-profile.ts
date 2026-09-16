@@ -681,6 +681,42 @@ export const hasPeerifyArtistProfileContent = (profile: PeerifyArtistProfile): b
     profile.bookingEnabled ||
     Boolean(profile.availability);
 
+// Mirrors the presence check venue-about-section.tsx / venue-booking-detail.tsx use to decide
+// whether there's anything to show across Room & Capacity, Technical setup, Booking terms,
+// Hospitality & support, and House rules & policies — the shared source of truth for both the
+// About page's "booking info available" pointer and the dedicated booking page's own
+// empty-state gate, so the two stay in sync without duplicating the field list.
+export const hasPeerifyVenueProfileContent = (profile: PeerifyVenueProfile): boolean =>
+    Boolean(profile.capacityStanding) ||
+    Boolean(profile.capacitySeated) ||
+    Boolean(profile.typicalShowCapacity) ||
+    Boolean(profile.accessibilityNotes) ||
+    Boolean(profile.agePolicy) ||
+    profile.paAvailable === true ||
+    profile.inHouseEngineer === true ||
+    Boolean(profile.backline) ||
+    Boolean(profile.lighting) ||
+    Boolean(profile.loadInNotes) ||
+    Boolean(profile.parkingNotes) ||
+    profile.bookingEnquiriesEnabled === true ||
+    Boolean(profile.minimumFee) ||
+    Boolean(profile.doorSplit) ||
+    Boolean(profile.houseCut) ||
+    (Boolean(profile.peerifyFeeCoveredBy) && profile.peerifyFeeCoveredBy !== "not_specified") ||
+    Boolean(profile.availableDays) ||
+    Boolean(profile.typicalResponseTime) ||
+    Boolean(profile.bookingNote) ||
+    profile.greenRoom === true ||
+    profile.merchTable === true ||
+    Boolean(profile.foodDrink) ||
+    Boolean(profile.accommodationHelp) ||
+    Boolean(profile.localTransportHelp) ||
+    Boolean(profile.guestListPolicy) ||
+    Boolean(profile.houseRules) ||
+    Boolean(profile.soundCurfew) ||
+    Boolean(profile.cancellationPolicy) ||
+    Boolean(profile.safetyPolicy);
+
 const formatArtistName = (circle?: Partial<Circle> | null): string => asString(circle?.name) || "Unknown artist";
 
 const formatBulletLines = (items: string[]): string =>
