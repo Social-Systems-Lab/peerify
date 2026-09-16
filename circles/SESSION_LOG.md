@@ -4,7 +4,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
 ## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 2d555ac7 (2026-09-15 promotion — see dated entry below).
+- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 9e2d0f8d (2026-09-16 promotion — see dated entry below).
 - Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
 - Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
@@ -5157,3 +5157,28 @@ both branches pushed to origin.
   `AboutPage.tsx`/`home/page.tsx` since the sidebar Events card dropped
   the "Create event" button — harmless (no TS error), flagged for
   optional cleanup.
+
+### 2026-09-16 — Venue tags shipped (multi-select), Location display bug fixed, redundant per-event "Venue type" hidden for venues
+
+Ten commits, investigated first wherever a real design decision was involved (three separate investigation-only passes this round), then implemented and verified on staging before being cherry-picked to `main` individually in dependency order, no conflicts.
+
+**1. Removed duplicate "Venue overview" description text.** `circle.description` was rendered twice — once in the shared profile hero, once again in the venue card's own heading — flagged as an open follow-up in last night's entry. Removed the venue-card copy and the required companion fix: `!!circle.description` also had to come out of `hasVenueProfileContent`'s OR-chain, or a venue whose only content was its description would have shown an empty card instead of nothing — the same empty-card gating bug this project has hit and fixed identically twice before. (staging `5487b9b6`, prod `3f7e6c44`)
+
+**2. `venueType` replaced with multi-select `venueTags`.** Second half of last night's other open follow-up: venue tags now get their own profile field rather than repurposing `EventTagVenueType` (re-confirmed to be a genuinely separate per-event mechanism, unrelated despite the similar name). Seeded a new flat `VENUE_TAG_OPTIONS` constant from the same options the old single-select `venueType` dropdown used, then replaced that dropdown with a `CheckboxGroup` following the artist profile's `primaryGenres`/`primaryGenreOther` pattern exactly — uncapped, with a free-text "Other" reveal. A read-time-only fallback in the normalizer (no DB writes, no migration script) means every venue's pre-existing `venueType` value keeps displaying correctly as a single tag. (staging `619e1480`/`d95ff491`, prod `3714be41`/`86857c03`)
+
+**3. Location and the new tags pill row folded into the "Venue Info" sidebar card.** Resolved the tension flagged in last night's entry (Location's eventual destination "still needs deciding") by giving that card two genuinely independent pieces of content instead of the single field it held before. (staging `c3065bbe`, prod `8cbe544b`)
+
+**4. Real display bug found right after item 3 shipped, fixed as its own follow-up commit.** Location stopped rendering in the Venue Info card despite venues having real, saved location data — root-caused to reading the wrong field (a stale `peerifyVenueProfile.address`/`publicCity` pair instead of the actual `circle.location` the settings form's map picker writes to) and fixed at the source. (staging `36521031`, prod `340d61d3`)
+
+**5. Redundant per-event "Venue type" tag hidden for registered venues.** Now that venues have their own `venueTags`, also asking for the separate, smaller `EventTagVenueType` vocabulary on every new event was duplicated effort with no real decision being made — hidden specifically for venue circles, left completely unchanged for individual/artist/generic circles. Needed care across three converging flows that all render the same shared tag-picker component (circle-level defaults, event creation via the circle picker, event editing), since only the creation flow initially had a venue-identity boolean available at render time. The edit-flow fix was the one that actually mattered — confirmed via a live check against a real staging event that already had a saved `Venue type` value, not just a fresh-create smoke test. (staging `e326795d`/`9655f5e3`/`336ba83b`/`46514d81`, prod `cca0605f`/`90c61cea`/`22f1f857`/`70967216`)
+
+**6. Venue Contact card's website link now shows the actual URL.** Replaced the generic "Visit website" label with the domain/URL itself (protocol and trailing slash stripped for display only, full URL kept in the href) — confirmed no existing URL-to-display-text utility existed anywhere in the codebase before writing the small one this needed. Scoped to the venue Contact card only; the artist Band Info card's own website link is untouched. (staging `34504bd2`, prod `9e2d0f8d`)
+
+**Promotion.** All ten commits cherry-picked from staging to `main` individually in dependency order, no conflicts. Prod deploy via `deploy-peerify.sh` succeeded cleanly on the first attempt, all 9 verification steps passing.
+
+**Process note, worth remembering:** mid-session, a venue tags selector appeared to be missing from settings — investigated as a possible regression, but found no code defect at all. The `CheckboxGroup` was correctly implemented and wired from the moment it was committed; the settings page being checked simply hadn't had a fresh `deploy-staging.sh` run yet, so the live bundle under test still predated that commit. Resolved by re-deploying — no code change was needed for that particular report. Same underlying lesson as the 2026-09-13 entry's deploy-mixup note: committing to a branch is not the same as that code being live, worth re-confirming via the deploy script's own `GIT_SHA` output before treating an unexpected result as a real bug.
+
+**Status:** all ten shipped and verified on staging (build + live scenario checks with temporary test data, reverted after each) before promotion, cherry-picked to `main`, deployed to production, confirmed live on peerify.one (`current` → `releases/20260916-084444-9e2d0f8d`), both branches pushed to origin.
+
+**Open follow-ups, not yet scoped:**
+- **Now flagged as a priority for its own dedicated session:** the "Venue Identity" settings card's scope-creep — Room & Capacity, Technical setup, Booking terms, Hospitality, House rules — still displays on the About page ahead of general venue presentation content, and the settings form itself remains large and unsplit. This is the same scope-creep first flagged in the 2026-09-14 entry's investigation as mechanically tractable to split but never fully addressed; only the read-side `VenueAboutSection` extraction and this round's Location/tags sidebar work have actually happened since. Tim's direction: separate booking/technical/policy information (relevant to artists/crews actively booking) from general public-facing venue presentation, most likely via a dedicated page/module rather than continuing to grow the current About/Settings pages. Needs its own investigation-first session before any implementation.
