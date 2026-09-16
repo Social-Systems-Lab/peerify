@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { isCircleAdminOfAny } from "@/lib/data/member";
+import { isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 
 type PageProps = {
     params: Promise<{ handle: string; eventId: string }>;
@@ -69,7 +70,11 @@ export default async function EditEventPage(props: PageProps) {
             </div>
 
             <div className="p-4">
-                <EventForm circleHandle={circle.handle!} event={event} />
+                <EventForm
+                    circleHandle={circle.handle!}
+                    event={event}
+                    isHostCircleVenue={isPeerifyVenueIdentity(circle)}
+                />
             </div>
         </div>
     );

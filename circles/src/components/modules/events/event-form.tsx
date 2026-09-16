@@ -57,6 +57,11 @@ type Props = {
     showCirclePicker?: boolean;
     initialSelectedCircleId?: string;
     onFormSubmitSuccess?: (data: { id?: string; circleHandle?: string }) => void;
+    // Server-computed from the host circle the edit page already fetches (see
+    // events/[eventId]/edit/page.tsx). The edit flow never renders CircleSelector, so
+    // handleCircleSelected never fires to set isSelectedCircleVenue itself - this seeds it
+    // instead. Unused by the create flows (CircleSelector's own onCircleSelected covers those).
+    isHostCircleVenue?: boolean;
 };
 
 function toISOStringLocal(date: Date) {
@@ -184,14 +189,16 @@ export default function EventForm({
     showCirclePicker,
     initialSelectedCircleId,
     onFormSubmitSuccess,
+    isHostCircleVenue,
 }: Props) {
     console.log("EventForm mounted/updated. Event recurrence:", event?.recurrence);
     const [selectedCircle, setSelectedCircle] = useState<string | undefined>(circleHandle);
     // Gates the redundant "Venue type" event-tag category (see EventTagsSettings' hideVenueType)
     // for whichever circle is currently selected as host via the CircleSelector flow below. The
     // edit flow never calls handleCircleSelected at all (no picker when editing an existing
-    // event), so it seeds this from a server-computed prop instead — see isHostCircleVenue.
-    const [isSelectedCircleVenue, setIsSelectedCircleVenue] = useState<boolean>(false);
+    // event), so it seeds this from isHostCircleVenue instead - the edit page's own
+    // server-computed check on the same host circle.
+    const [isSelectedCircleVenue, setIsSelectedCircleVenue] = useState<boolean>(Boolean(isHostCircleVenue));
     const router = useRouter();
     const { toast } = useToast();
     const [isPending, startTransition] = useTransition();
