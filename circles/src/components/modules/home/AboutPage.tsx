@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -53,6 +54,7 @@ import {
     getPeerifyArtistIdentityLabel,
     getPeerifyVenueProfile,
     formatVenueTagLabel,
+    hasPeerifyVenueProfileContent,
     PEERIFY_BOOKING_SUPPORT_OPTIONS,
     isPeerifyArtistIdentity,
     isPeerifyVenueIdentity,
@@ -368,9 +370,14 @@ export default function AboutPage({
     const hasVenueEventsContent = isPeerifyVenueProfile && sidebarUpcomingEvents.length > 0;
     // Location moved here from VenueAboutSection's old venueOverviewDetails (removed - it only
     // ever carried Location) so it now gates the card alongside venueTags, the multi-select
-    // replacement for the old single-select venueType.
+    // replacement for the old single-select venueType. Also widened (Phase 1b) to include the
+    // "View booking details" link folded in below — a venue with no location/tags but with
+    // booking-page content still needs the card to render so that link isn't silently dropped.
     const hasVenueInfoContent =
-        isPeerifyVenueProfile && Boolean(venueLocation || peerifyVenueProfile.venueTags?.length);
+        isPeerifyVenueProfile &&
+        Boolean(
+            venueLocation || peerifyVenueProfile.venueTags?.length || hasPeerifyVenueProfileContent(peerifyVenueProfile),
+        );
     // Mirrors hasBandInfoContent's shape (isPeerifyVenueProfile + at least one populated field) —
     // gates the new venue sidebar contact card (website/contact email/phone/other info; see
     // AboutPage sidebar JSX).
@@ -869,7 +876,7 @@ export default function AboutPage({
                                     )}
 
                                     {peerifyVenueProfile.venueTags && peerifyVenueProfile.venueTags.length > 0 && (
-                                        <div className="flex w-full flex-col text-sm text-muted-foreground">
+                                        <div className="mb-6 flex w-full flex-col text-sm text-muted-foreground last:mb-0">
                                             <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
                                                 Venue tags
                                             </div>
@@ -883,6 +890,20 @@ export default function AboutPage({
                                                     </Badge>
                                                 ))}
                                             </div>
+                                        </div>
+                                    )}
+
+                                    {hasPeerifyVenueProfileContent(peerifyVenueProfile) && (
+                                        <div className="flex w-full flex-col text-sm text-muted-foreground">
+                                            <div className="mb-1.5 text-xs font-medium uppercase text-muted-foreground">
+                                                Booking info
+                                            </div>
+                                            <Link
+                                                href={`/circles/${circle.handle}/home/booking`}
+                                                className="text-[15px] text-foreground underline"
+                                            >
+                                                View booking details
+                                            </Link>
                                         </div>
                                     )}
                                 </div>
