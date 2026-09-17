@@ -105,6 +105,64 @@ saves become a real pain point. Not scheduled.
 
 ---
 
+## 2026-09-17 — Venue settings collapsible copy + Venue Tags in header
+
+Two small follow-ups to the venue booking-info reorg (2026-09-17 entry above).
+
+**Collapsible "Venue details" explanatory text:**
+The Venue Identity settings form's "Venue details" collapsible (Room & Capacity,
+Technical setup, Booking terms, Hospitality & support, House rules & policies —
+default collapsed, added in the earlier collapsible-split task) had no context beyond
+a label + chevron, risking being overlooked. Added a short always-visible description
+line above the toggle, matching the existing "Default event tags" description's
+typographic treatment on the same page. Visible regardless of collapsed/expanded
+state; collapse behavior itself unchanged. Verified on staging, deployed to prod.
+
+**Venue Tags (Theatre/Club/Bar) surfaced in the circle header:**
+Explored via two Design-artifact mockups comparing header placement of default event
+tags before realizing the more useful candidate was venueTags (the descriptive
+venue-identity tags, distinct from the separate "Default event tags" event-creation
+feature). Option A — tags inline before the follower count, separated by a dot — won
+over B (tags replacing the follower count) since it doesn't sacrifice follower-count
+visibility for a fairly marginal gain, and keeps general venue-identity content out of
+competition with "About the venue" for top billing.
+
+Implementation (commit 2dd37bd0, staging):
+- Added `isPeerifyVenueProfile`/`peerifyVenueProfile` to the shared circle-header
+  component, mirroring the existing `isPeerifyArtistProfile` pattern already used
+  there for circle-type variation — no new gating mechanism introduced.
+- Wrapped the generic follower row in a flex-wrap container; when
+  `isPeerifyVenueProfile && venueTags.length > 0`, renders tag pills + a dot separator
+  (matching the exact dot-separator precedent in VerifiedContributionsPanel.tsx)
+  before the existing follower-count link/text, which is otherwise untouched.
+- Pill styling reused exactly from the Venue Info sidebar's existing Venue Tags
+  badge className — no new styling invented.
+- Data already available: HomeContent receives the full circle prop already used for
+  getPeerifyArtistProfile(circle) the same way, so no new data threading was needed.
+
+Verified on staging:
+- 3-tag venue (the-venue: Theatre/Club/Bar): pills + dot + "2 Followers" render
+  correctly in header; tags also still show in Venue Info sidebar (intentional
+  additive duplication — header = quick identity signal, sidebar = full reference).
+- Zero-tag venues (the-staging-armchair, trancezendance): header shows plain
+  follower count only, no dot, no empty row.
+- Non-venue circle (the-backstage-lounge): unaffected, 0 pills/dot rendered.
+- tsc --noEmit and eslint clean.
+
+**Known gap, accepted:** 5+ tag wrapping behavior was not verified — no test circle
+has more than 3 venueTags, and a one-off DB write to temporarily test a larger tag
+array was correctly blocked by CC's own tool safeguards ("Modify Shared Resources")
+rather than routed around. The pill container reuses the same flex-wrap technique
+already relied on elsewhere in this header (artist primaryGenres/genres rows) and in
+the Venue Info sidebar's own tag display, both of which handle many entries with no
+cap, so the risk is considered low. Visual sanity-checked instead at 3 tags on both
+desktop and mobile — reads cleanly. Revisit if a venue with a long tag list is ever
+observed looking cramped in the header.
+
+Deployed to prod (both changes).
+
+---
+
 ## 2026-09-03 — Landing page CTA overhaul, contact form shipped, and two real prod infra bugs found
 
 Headline: cleaned up the landing page's Create modal and CTA copy, built and shipped a working contact form end-to-end, added URL-based role pre-selection and an auth check to the signup CTAs, hid the not-yet-real venue/host signup path, and along the way found (and fixed) two genuine production infrastructure bugs — not routine app bugs — that were silently breaking things beyond just the contact form.
