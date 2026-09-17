@@ -41,10 +41,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
     formatPrimaryGenreLabel,
+    formatVenueTagLabel,
     getPeerifyArtistProfile,
     getPeerifyIdentityAvatarUrl,
+    getPeerifyVenueProfile,
     isPeerifyArtistIdentity,
     isPeerifyManagedIdentity,
+    isPeerifyVenueIdentity,
 } from "@/lib/peerify/artist-profile";
 import { cn } from "@/lib/utils";
 
@@ -136,6 +139,12 @@ export default function HomeContent({
     const isPeerifyArtistProfile = isPeerifyArtistIdentity(circle);
     const isPeerifyManagedArtistIdentity = isPeerifyManagedIdentity(circle);
     const peerifyArtistProfile = getPeerifyArtistProfile(circle);
+    // Header-level Venue Tags pill row (mockup Option A) — additive to, not a replacement for,
+    // the Venue Info sidebar card's own Venue Tags display (AboutPage.tsx). Reuses the exact
+    // same isPeerifyVenueIdentity/getPeerifyVenueProfile/formatVenueTagLabel already used there,
+    // no new gating mechanism.
+    const isPeerifyVenueProfile = isPeerifyVenueIdentity(circle);
+    const peerifyVenueProfile = getPeerifyVenueProfile(circle);
     const showManagedDraftBanner =
         authorizedToEdit && isPeerifyManagedArtistIdentity && (circle.publishStatus ?? "published") === "draft";
     const showPledgesDashboardButton = authorizedToEdit && isPeerifyManagedArtistIdentity && Boolean(circle.handle);
@@ -705,15 +714,39 @@ export default function HomeContent({
                                 </div>
                             )}
                             {!isUser && !isPeerifyArtistProfile && memberCount > 0 && (
-                                <Link
-                                    href={`/circles/${circle.handle}/followers`}
-                                    className="flex flex-row items-center justify-center text-gray-600 transition-opacity hover:underline hover:opacity-70"
-                                >
-                                    <FaUsers />
-                                    <p className="m-0 ml-2">
-                                        {memberCount} {memberCount !== 1 ? "Followers" : "Follower"}
-                                    </p>
-                                </Link>
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    {isPeerifyVenueProfile &&
+                                        peerifyVenueProfile.venueTags &&
+                                        peerifyVenueProfile.venueTags.length > 0 && (
+                                            <>
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    {peerifyVenueProfile.venueTags.map((tag) => (
+                                                        <Badge
+                                                            key={tag}
+                                                            className="rounded-full bg-primary px-3 py-1 text-primary-foreground"
+                                                        >
+                                                            {formatVenueTagLabel(
+                                                                tag,
+                                                                peerifyVenueProfile.venueTagsOther,
+                                                            )}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                                <span className="text-gray-600" aria-hidden="true">
+                                                    •
+                                                </span>
+                                            </>
+                                        )}
+                                    <Link
+                                        href={`/circles/${circle.handle}/followers`}
+                                        className="flex flex-row items-center justify-center text-gray-600 transition-opacity hover:underline hover:opacity-70"
+                                    >
+                                        <FaUsers />
+                                        <p className="m-0 ml-2">
+                                            {memberCount} {memberCount !== 1 ? "Followers" : "Follower"}
+                                        </p>
+                                    </Link>
+                                </div>
                             )}
                             {isCompact && (
                                 <div className="pb-2 pt-2">
