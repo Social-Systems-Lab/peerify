@@ -10,11 +10,11 @@ interface VenueBookingDetailProps {
 }
 
 // Room & Capacity / Technical setup / Booking terms / Hospitality & support / House rules &
-// policies — moved here from VenueAboutSection (venue-about-section.tsx), which now only
-// surfaces a lightweight "booking info available" pointer on the general About page. Rendering
-// logic (the detail arrays + renderVenueDetailSection) is unchanged from that prior home, just
-// relocated onto its own page since this content serves a different audience (artists/crews
-// actively booking) than the venue's general presentation content.
+// policies — moved here from the old VenueAboutSection main-column card (since removed; see
+// AboutPage.tsx's sidebar Venue Info card and booking-enquiry callout for what replaced it).
+// Rendering logic (the detail arrays + renderVenueDetailSection) is unchanged from that prior
+// home, just relocated onto its own page since this content serves a different audience
+// (artists/crews actively booking) than the venue's general presentation content.
 export default function VenueBookingDetail({ circle }: VenueBookingDetailProps) {
     const isCompact = useIsCompact();
     const peerifyVenueProfile = getPeerifyVenueProfile(circle);
