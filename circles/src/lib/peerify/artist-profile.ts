@@ -681,11 +681,11 @@ export const hasPeerifyArtistProfileContent = (profile: PeerifyArtistProfile): b
     profile.bookingEnabled ||
     Boolean(profile.availability);
 
-// Mirrors the presence check venue-about-section.tsx / venue-booking-detail.tsx use to decide
-// whether there's anything to show across Room & Capacity, Technical setup, Booking terms,
-// Hospitality & support, and House rules & policies — the shared source of truth for both the
-// About page's "booking info available" pointer and the dedicated booking page's own
-// empty-state gate, so the two stay in sync without duplicating the field list.
+// Mirrors the presence check venue-booking-detail.tsx uses to decide whether there's anything to
+// show across Room & Capacity, Technical setup, Booking terms, Hospitality & support, and House
+// rules & policies — the shared source of truth for the About page's Venue Info "Booking info"
+// link, and the dedicated booking page's own empty-state gate, so the three stay in sync without
+// duplicating the field list.
 export const hasPeerifyVenueProfileContent = (profile: PeerifyVenueProfile): boolean =>
     Boolean(profile.capacityStanding) ||
     Boolean(profile.capacitySeated) ||
