@@ -4,7 +4,7 @@ import React from "react";
 import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { MapPin, ExternalLink, Mail, Phone, CalendarRange } from "lucide-react";
+import { MapPin, ExternalLink, Mail, Phone, CalendarRange, CheckCircle2 } from "lucide-react";
 import { SiSpotify, SiBandcamp, SiSoundcloud, SiApplemusic, SiYoutube, SiLinktree } from "react-icons/si";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getSkillDefinitionByHandle, skillCategoryLabels } from "@/lib/data/skills";
@@ -35,7 +35,6 @@ import { features } from "@/lib/data/constants";
 import { CommunityParticipationBanner } from "@/components/modules/community/community-participation-banner";
 import OffersCard from "./offers-card";
 import TourTeamOfferingsCard from "./tour-team-offerings-card";
-import VenueAboutSection from "./venue-about-section";
 import AudioPlayer from "@/components/modules/music/audio-player";
 import VerifiedContributionsPanel, { type VerifiedContributionItem } from "./VerifiedContributionsPanel";
 import { FundingPanel } from "@/components/modules/funding/funding-panel";
@@ -383,6 +382,9 @@ export default function AboutPage({
                 peerifyVenueProfile.phone ||
                 peerifyVenueProfile.otherInfo,
         );
+    // Booking-enquiries-enabled callout, relocated into the sidebar (Phase 1b) — same gate it
+    // always had, just no longer coupled to whatever else is or isn't in the sidebar alongside it.
+    const hasVenueBookingCalloutContent = isPeerifyVenueProfile && peerifyVenueProfile.bookingEnquiriesEnabled === true;
     const hasSidebarContent =
         isPeerifyArtistProfile ||
         hasBandInfoContent ||
@@ -396,6 +398,7 @@ export default function AboutPage({
         shouldShowFundingPanel ||
         shouldShowUpcomingShiftsPanel ||
         hasVenueEventsContent ||
+        hasVenueBookingCalloutContent ||
         hasVenueInfoContent ||
         hasVenueContactContent;
 
@@ -637,7 +640,6 @@ export default function AboutPage({
                 {/* Adjust column span based on sidebar visibility */}
                 <div className={hasSidebarContent ? "md:col-span-2" : "md:col-span-3"}>
                     <div className="space-y-6">
-                        <VenueAboutSection circle={circle} onOpenBookingContact={openVenueBookingContact} />
                         {shouldShowAboutCard && (
                             <div
                                 className={`bg-white p-6 ${isCompact ? "rounded-none" : "rounded-[15px] border-0 shadow-lg"}`}
@@ -827,6 +829,21 @@ export default function AboutPage({
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {hasVenueBookingCalloutContent && (
+                                <div className="flex flex-col rounded-xl border border-[#e7d8c7] bg-[#f6efe6] p-4 md:order-[11]">
+                                    <div className="mb-2 flex items-center gap-2 text-sm font-medium text-[#8f5a2a]">
+                                        <CheckCircle2 className="h-4 w-4" />
+                                        Booking enquiries enabled
+                                    </div>
+                                    <p className="mb-3 text-sm text-[#6a4728]">
+                                        Artists can send this venue a booking enquiry.
+                                    </p>
+                                    <Button type="button" size="sm" onClick={openVenueBookingContact}>
+                                        Send booking enquiry
+                                    </Button>
                                 </div>
                             )}
 
