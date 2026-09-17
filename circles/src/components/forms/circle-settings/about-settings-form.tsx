@@ -13,7 +13,9 @@ import { useState, useEffect } from "react";
 import { useForm, Controller, Control, FieldValues } from "react-hook-form";
 import { saveAbout, setCrewEnabledAction } from "@/app/circles/[handle]/settings/about/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
     Dialog,
     DialogContent,
@@ -416,6 +418,13 @@ export function AboutSettingsForm({
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [bannerDismissed, setBannerDismissed] = useState(false);
+    // Purely visual — collapsing/expanding never touches form state. Every field inside stays
+    // mounted and registered with the shared form.control regardless of open state, so it still
+    // submits with everything else on Save Changes. Defaults collapsed per request; no auto-expand
+    // on error since nothing in this section has validation/error display today (no Zod schema for
+    // PeerifyVenueProfile — see the field-by-field normalization in artist-profile.ts) and no other
+    // Collapsible in the app auto-expands on error either.
+    const [isVenueDetailsOpen, setIsVenueDetailsOpen] = useState(false);
 
     useEffect(() => {
         try {
@@ -1558,393 +1567,412 @@ export function AboutSettingsForm({
                                 </div>
                             </section>
 
-                            <section className="space-y-4">
-                                <h3 className="font-medium">Room & capacity</h3>
-                                <div className="grid gap-4 md:grid-cols-3">
-                                    <Controller
-                                        name="peerifyVenueProfile.capacityStanding"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextField
-                                                label="Standing capacity"
-                                                description="Maximum comfortable standing audience."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.capacitySeated"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextField
-                                                label="Seated capacity"
-                                                description="Maximum comfortable seated audience."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.typicalShowCapacity"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextField
-                                                label="Typical show capacity"
-                                                description="The audience size that usually works best here."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                </div>
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <Controller
-                                        name="peerifyVenueProfile.accessibilityNotes"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Accessibility notes"
-                                                description="Step-free access, toilets, seating, sensory considerations, or other access notes."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.agePolicy"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Age policy"
-                                                description="Any age restrictions, ID requirements, or family-friendly notes."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                </div>
-                            </section>
-
-                            <section className="space-y-4">
-                                <h3 className="font-medium">Technical setup</h3>
-                                <div className="grid gap-3 md:grid-cols-2">
-                                    <Controller
-                                        name="peerifyVenueProfile.paAvailable"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <PeerifyCheckboxField
-                                                label="PA available"
-                                                description="Check if the venue has a usable sound system."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.inHouseEngineer"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <PeerifyCheckboxField
-                                                label="In-house engineer"
-                                                description="Check if someone can run sound during the event."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                </div>
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <Controller
-                                        name="peerifyVenueProfile.backline"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Backline / instruments"
-                                                description="List amps, drums, keys, stands, mics, DI boxes, or other gear artists can use."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.lighting"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Lighting"
-                                                description="Describe basic stage or room lighting."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.loadInNotes"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Load-in notes"
-                                                description="Entrance, stairs, lift access, loading times, or soundcheck notes."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.parkingNotes"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Parking notes"
-                                                description="Parking, unloading, or public transport notes."
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                            />
-                                        )}
-                                    />
-                                </div>
-                            </section>
-
-                            <section className="space-y-4">
-                                <h3 className="font-medium">Booking terms</h3>
-                                <Controller
-                                    name="peerifyVenueProfile.bookingEnquiriesEnabled"
-                                    control={form.control}
-                                    render={({ field }) => (
-                                        <PeerifyCheckboxField
-                                            label="Booking enquiries enabled"
-                                            value={field.value}
-                                            onChange={field.onChange}
+                            <Collapsible open={isVenueDetailsOpen} onOpenChange={setIsVenueDetailsOpen}>
+                                <CollapsibleTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        className="flex w-full items-center justify-between rounded-lg border border-stone-200 bg-stone-50 px-4 py-3 text-left text-sm font-medium text-stone-700 hover:bg-stone-100"
+                                    >
+                                        <span>Venue details</span>
+                                        <ChevronDown
+                                            className={cn(
+                                                "h-4 w-4 transition-transform",
+                                                isVenueDetailsOpen && "rotate-180",
+                                            )}
                                         />
-                                    )}
-                                />
-                                {venueBookingEnabled ? (
-                                    <div className="space-y-4 rounded-lg border bg-slate-50 p-4">
-                                        <div className="grid gap-4 md:grid-cols-2">
+                                    </Button>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="space-y-8 pt-4">
+                                    <section className="space-y-4">
+                                        <h3 className="font-medium">Room & capacity</h3>
+                                        <div className="grid gap-4 md:grid-cols-3">
                                             <Controller
-                                                name="peerifyVenueProfile.minimumFee"
+                                                name="peerifyVenueProfile.capacityStanding"
                                                 control={form.control}
                                                 render={({ field }) => (
                                                     <ArtistTextField
-                                                        label="Minimum fee"
-                                                        description="The minimum amount the venue expects to guarantee or help raise for the artist."
+                                                        label="Standing capacity"
+                                                        description="Maximum comfortable standing audience."
                                                         value={field.value}
                                                         onChange={field.onChange}
                                                     />
                                                 )}
                                             />
                                             <Controller
-                                                name="peerifyVenueProfile.doorSplit"
+                                                name="peerifyVenueProfile.capacitySeated"
                                                 control={form.control}
                                                 render={({ field }) => (
                                                     <ArtistTextField
-                                                        label="Door split"
-                                                        description="How ticket income is split after agreed costs, e.g. 70/30 artist/venue."
+                                                        label="Seated capacity"
+                                                        description="Maximum comfortable seated audience."
                                                         value={field.value}
                                                         onChange={field.onChange}
                                                     />
                                                 )}
                                             />
                                             <Controller
-                                                name="peerifyVenueProfile.houseCut"
+                                                name="peerifyVenueProfile.typicalShowCapacity"
                                                 control={form.control}
                                                 render={({ field }) => (
                                                     <ArtistTextField
-                                                        label="House cut / production fee"
-                                                        description="Any fixed venue fee, production cost, or percentage taken before the door split."
-                                                        value={field.value}
-                                                        onChange={field.onChange}
-                                                    />
-                                                )}
-                                            />
-                                            <Controller
-                                                name="peerifyVenueProfile.peerifyFeeCoveredBy"
-                                                control={form.control}
-                                                render={({ field }) => (
-                                                    <PeerifySelectField
-                                                        label="Peerify ticket fee covered by"
-                                                        description="Who absorbs the Peerify/platform ticket fee if tickets are sold through Peerify."
-                                                        options={PEERIFY_FEE_COVERED_BY_OPTIONS}
-                                                        value={field.value}
-                                                        onChange={field.onChange}
-                                                    />
-                                                )}
-                                            />
-                                            <Controller
-                                                name="peerifyVenueProfile.availableDays"
-                                                control={form.control}
-                                                render={({ field }) => (
-                                                    <ArtistTextField
-                                                        label="Available days"
-                                                        description="Typical days or times you host shows, e.g. Thursdays, weekends, monthly Sundays."
-                                                        value={field.value}
-                                                        onChange={field.onChange}
-                                                    />
-                                                )}
-                                            />
-                                            <Controller
-                                                name="peerifyVenueProfile.typicalResponseTime"
-                                                control={form.control}
-                                                render={({ field }) => (
-                                                    <ArtistTextField
-                                                        label="Typical response time"
-                                                        description="How quickly artists can expect a reply."
+                                                        label="Typical show capacity"
+                                                        description="The audience size that usually works best here."
                                                         value={field.value}
                                                         onChange={field.onChange}
                                                     />
                                                 )}
                                             />
                                         </div>
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <Controller
+                                                name="peerifyVenueProfile.accessibilityNotes"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Accessibility notes"
+                                                        description="Step-free access, toilets, seating, sensory considerations, or other access notes."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
+                                            />
+                                            <Controller
+                                                name="peerifyVenueProfile.agePolicy"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Age policy"
+                                                        description="Any age restrictions, ID requirements, or family-friendly notes."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                    </section>
+
+                                    <section className="space-y-4">
+                                        <h3 className="font-medium">Technical setup</h3>
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                            <Controller
+                                                name="peerifyVenueProfile.paAvailable"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <PeerifyCheckboxField
+                                                        label="PA available"
+                                                        description="Check if the venue has a usable sound system."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
+                                            />
+                                            <Controller
+                                                name="peerifyVenueProfile.inHouseEngineer"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <PeerifyCheckboxField
+                                                        label="In-house engineer"
+                                                        description="Check if someone can run sound during the event."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <Controller
+                                                name="peerifyVenueProfile.backline"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Backline / instruments"
+                                                        description="List amps, drums, keys, stands, mics, DI boxes, or other gear artists can use."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
+                                            />
+                                            <Controller
+                                                name="peerifyVenueProfile.lighting"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Lighting"
+                                                        description="Describe basic stage or room lighting."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
+                                            />
+                                            <Controller
+                                                name="peerifyVenueProfile.loadInNotes"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Load-in notes"
+                                                        description="Entrance, stairs, lift access, loading times, or soundcheck notes."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
+                                            />
+                                            <Controller
+                                                name="peerifyVenueProfile.parkingNotes"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Parking notes"
+                                                        description="Parking, unloading, or public transport notes."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                    </section>
+
+                                    <section className="space-y-4">
+                                        <h3 className="font-medium">Booking terms</h3>
                                         <Controller
-                                            name="peerifyVenueProfile.bookingNote"
+                                            name="peerifyVenueProfile.bookingEnquiriesEnabled"
                                             control={form.control}
                                             render={({ field }) => (
-                                                <ArtistTextareaField
-                                                    label="Booking note"
-                                                    description="Anything artists should know before sending an enquiry."
+                                                <PeerifyCheckboxField
+                                                    label="Booking enquiries enabled"
                                                     value={field.value}
                                                     onChange={field.onChange}
                                                 />
                                             )}
                                         />
-                                    </div>
-                                ) : null}
-                            </section>
+                                        {venueBookingEnabled ? (
+                                            <div className="space-y-4 rounded-lg border bg-slate-50 p-4">
+                                                <div className="grid gap-4 md:grid-cols-2">
+                                                    <Controller
+                                                        name="peerifyVenueProfile.minimumFee"
+                                                        control={form.control}
+                                                        render={({ field }) => (
+                                                            <ArtistTextField
+                                                                label="Minimum fee"
+                                                                description="The minimum amount the venue expects to guarantee or help raise for the artist."
+                                                                value={field.value}
+                                                                onChange={field.onChange}
+                                                            />
+                                                        )}
+                                                    />
+                                                    <Controller
+                                                        name="peerifyVenueProfile.doorSplit"
+                                                        control={form.control}
+                                                        render={({ field }) => (
+                                                            <ArtistTextField
+                                                                label="Door split"
+                                                                description="How ticket income is split after agreed costs, e.g. 70/30 artist/venue."
+                                                                value={field.value}
+                                                                onChange={field.onChange}
+                                                            />
+                                                        )}
+                                                    />
+                                                    <Controller
+                                                        name="peerifyVenueProfile.houseCut"
+                                                        control={form.control}
+                                                        render={({ field }) => (
+                                                            <ArtistTextField
+                                                                label="House cut / production fee"
+                                                                description="Any fixed venue fee, production cost, or percentage taken before the door split."
+                                                                value={field.value}
+                                                                onChange={field.onChange}
+                                                            />
+                                                        )}
+                                                    />
+                                                    <Controller
+                                                        name="peerifyVenueProfile.peerifyFeeCoveredBy"
+                                                        control={form.control}
+                                                        render={({ field }) => (
+                                                            <PeerifySelectField
+                                                                label="Peerify ticket fee covered by"
+                                                                description="Who absorbs the Peerify/platform ticket fee if tickets are sold through Peerify."
+                                                                options={PEERIFY_FEE_COVERED_BY_OPTIONS}
+                                                                value={field.value}
+                                                                onChange={field.onChange}
+                                                            />
+                                                        )}
+                                                    />
+                                                    <Controller
+                                                        name="peerifyVenueProfile.availableDays"
+                                                        control={form.control}
+                                                        render={({ field }) => (
+                                                            <ArtistTextField
+                                                                label="Available days"
+                                                                description="Typical days or times you host shows, e.g. Thursdays, weekends, monthly Sundays."
+                                                                value={field.value}
+                                                                onChange={field.onChange}
+                                                            />
+                                                        )}
+                                                    />
+                                                    <Controller
+                                                        name="peerifyVenueProfile.typicalResponseTime"
+                                                        control={form.control}
+                                                        render={({ field }) => (
+                                                            <ArtistTextField
+                                                                label="Typical response time"
+                                                                description="How quickly artists can expect a reply."
+                                                                value={field.value}
+                                                                onChange={field.onChange}
+                                                            />
+                                                        )}
+                                                    />
+                                                </div>
+                                                <Controller
+                                                    name="peerifyVenueProfile.bookingNote"
+                                                    control={form.control}
+                                                    render={({ field }) => (
+                                                        <ArtistTextareaField
+                                                            label="Booking note"
+                                                            description="Anything artists should know before sending an enquiry."
+                                                            value={field.value}
+                                                            onChange={field.onChange}
+                                                        />
+                                                    )}
+                                                />
+                                            </div>
+                                        ) : null}
+                                    </section>
 
-                            <section className="space-y-4">
-                                <h3 className="font-medium">Hospitality & support</h3>
-                                <div className="grid gap-3 md:grid-cols-2">
-                                    <Controller
-                                        name="peerifyVenueProfile.greenRoom"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <PeerifyCheckboxField
-                                                label="Green room"
-                                                description="Private artist room or quiet backstage space."
-                                                value={field.value}
-                                                onChange={field.onChange}
+                                    <section className="space-y-4">
+                                        <h3 className="font-medium">Hospitality & support</h3>
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                            <Controller
+                                                name="peerifyVenueProfile.greenRoom"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <PeerifyCheckboxField
+                                                        label="Green room"
+                                                        description="Private artist room or quiet backstage space."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
                                             />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.merchTable"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <PeerifyCheckboxField
-                                                label="Merch table"
-                                                description="Whether artists can sell merch."
-                                                value={field.value}
-                                                onChange={field.onChange}
+                                            <Controller
+                                                name="peerifyVenueProfile.merchTable"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <PeerifyCheckboxField
+                                                        label="Merch table"
+                                                        description="Whether artists can sell merch."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
                                             />
-                                        )}
-                                    />
-                                </div>
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <Controller
-                                        name="peerifyVenueProfile.foodDrink"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Food/drink"
-                                                description="What the venue can offer artists and crew."
-                                                value={field.value}
-                                                onChange={field.onChange}
+                                        </div>
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <Controller
+                                                name="peerifyVenueProfile.foodDrink"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Food/drink"
+                                                        description="What the venue can offer artists and crew."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
                                             />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.accommodationHelp"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Accommodation help"
-                                                description="Whether the venue can help arrange a bed, host, hotel discount, or local contact."
-                                                value={field.value}
-                                                onChange={field.onChange}
+                                            <Controller
+                                                name="peerifyVenueProfile.accommodationHelp"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Accommodation help"
+                                                        description="Whether the venue can help arrange a bed, host, hotel discount, or local contact."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
                                             />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.localTransportHelp"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Local transport help"
-                                                description="Whether the venue can help with pickup, local rides, or transport advice."
-                                                value={field.value}
-                                                onChange={field.onChange}
+                                            <Controller
+                                                name="peerifyVenueProfile.localTransportHelp"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Local transport help"
+                                                        description="Whether the venue can help with pickup, local rides, or transport advice."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
                                             />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.guestListPolicy"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Guest list policy"
-                                                description="How many guest spots are usually available, if any."
-                                                value={field.value}
-                                                onChange={field.onChange}
+                                            <Controller
+                                                name="peerifyVenueProfile.guestListPolicy"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Guest list policy"
+                                                        description="How many guest spots are usually available, if any."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
                                             />
-                                        )}
-                                    />
-                                </div>
-                            </section>
+                                        </div>
+                                    </section>
 
-                            <section className="space-y-4">
-                                <h3 className="font-medium">House rules & policies</h3>
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <Controller
-                                        name="peerifyVenueProfile.houseRules"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="House rules"
-                                                description="Important rules artists should know before confirming a show."
-                                                value={field.value}
-                                                onChange={field.onChange}
+                                    <section className="space-y-4">
+                                        <h3 className="font-medium">House rules & policies</h3>
+                                        <div className="grid gap-4 md:grid-cols-2">
+                                            <Controller
+                                                name="peerifyVenueProfile.houseRules"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="House rules"
+                                                        description="Important rules artists should know before confirming a show."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
                                             />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.soundCurfew"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextField
-                                                label="Sound curfew"
-                                                description="When amplified music must stop."
-                                                value={field.value}
-                                                onChange={field.onChange}
+                                            <Controller
+                                                name="peerifyVenueProfile.soundCurfew"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextField
+                                                        label="Sound curfew"
+                                                        description="When amplified music must stop."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
                                             />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.cancellationPolicy"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Cancellation policy"
-                                                description="How cancellations, postponements, or bad weather are handled."
-                                                value={field.value}
-                                                onChange={field.onChange}
+                                            <Controller
+                                                name="peerifyVenueProfile.cancellationPolicy"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Cancellation policy"
+                                                        description="How cancellations, postponements, or bad weather are handled."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
                                             />
-                                        )}
-                                    />
-                                    <Controller
-                                        name="peerifyVenueProfile.safetyPolicy"
-                                        control={form.control}
-                                        render={({ field }) => (
-                                            <ArtistTextareaField
-                                                label="Safety / conduct policy"
-                                                description="Audience, artist, harassment, security, or safer-space expectations."
-                                                value={field.value}
-                                                onChange={field.onChange}
+                                            <Controller
+                                                name="peerifyVenueProfile.safetyPolicy"
+                                                control={form.control}
+                                                render={({ field }) => (
+                                                    <ArtistTextareaField
+                                                        label="Safety / conduct policy"
+                                                        description="Audience, artist, harassment, security, or safer-space expectations."
+                                                        value={field.value}
+                                                        onChange={field.onChange}
+                                                    />
+                                                )}
                                             />
-                                        )}
-                                    />
-                                </div>
-                            </section>
+                                        </div>
+                                    </section>
+                                </CollapsibleContent>
+                            </Collapsible>
                         </CardContent>
                     </Card>
                 ) : null}
