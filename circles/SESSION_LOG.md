@@ -40,6 +40,71 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-09-17 — Venue booking-info page split (Phase 1 + 1b)
+
+Split booking/technical/policy content off the venue About page onto its own
+dedicated, public page — first concrete step out of the deferred "venue booking
+details overhaul" item flagged during the venue cleanup session (2026-09-14/16).
+
+**Investigation first** (read-only): mapped the Venue Identity settings card's six
+subsections (about-settings-form.tsx:1403-1950), confirmed no cross-field validation
+exists between them (no Zod schema for PeerifyVenueProfile at all — plain TS type,
+field-by-field normalization), confirmed the shared submit is a wholesale replace
+inside venueProfile (not a true field-level merge — works today only because the one
+form always submits all ~30 fields together), and confirmed no read-side flag maps
+1:1 to the six subsections. Crew module identified as the closest precedent for a
+gated dedicated sub-page, if audience-gating is ever wanted later.
+
+**Decision:** booking/technical/policy content is not private — a venue that wants it
+hidden just leaves fields blank (existing presence-gating already covers this). No new
+eligibility/role-gating logic introduced. This is a pure content-location and
+ordering change, not an access-control change.
+
+**Phase 1** (23ef068f, 8506239a, ab2fa03c, 2e64d5f0):
+- Added `hasPeerifyVenueProfileContent(profile)` to artist-profile.ts, mirroring the
+  existing `hasPeerifyArtistProfileContent` convention — single shared presence-check
+  for both the About page's pointer and the new page's empty-state gate.
+- New `VenueBookingDetail` component + new route at
+  `/circles/{handle}/home/booking` (nested under the existing public `home` segment,
+  not top-level `/booking` — top-level would have required registering "booking" as a
+  real middleware module in constants.ts/enabledModules, which was explicitly out of
+  scope). Moved Room & Capacity, Technical setup, Booking terms, Hospitality &
+  support, and House rules & policies JSX verbatim off VenueAboutSection.
+- Added "View booking details" link/CTA from the About page, with a "Back to
+  {venue name}" link on the new page.
+- about-settings-form.tsx untouched — one shared submit still edits all six
+  subsections from one place; only the read-side rendering location changed.
+
+**Phase 1b** (dc9d1aad, 4eb26ae6):
+- Removed the now-mostly-empty standalone "Venue overview" main-column card.
+- Relocated the "Booking enquiries enabled" callout into the sidebar (new
+  `hasVenueBookingCalloutContent` flag), positioned between Events and Venue Info.
+  Callout's internal JSX/copy/gating unchanged — container and position only.
+- Folded "View booking details" into the Venue Info sidebar card as a compact
+  label+link row, matching existing Location/Venue tags styling. Widened
+  `hasVenueInfoContent` to also fire on `hasPeerifyVenueProfileContent` so the card
+  (and link) still render for a venue with booking content but no location/tags —
+  and so the link never points at a page that would 404.
+- Final sidebar order: Events → Booking-enquiry callout → Venue Info (Location /
+  Venue tags / Booking info link) → Contact.
+- Result: "About the venue" now renders as the first element in the main column,
+  confirmed against raw HTML output, not just JSX inspection.
+
+**Verified on staging** across three test circles (venue with full booking content,
+venue with booking enquiries off, non-venue circle) before promotion. tsc/eslint
+clean on all touched files at each commit boundary.
+
+**Explicitly not touched:** about-settings-form.tsx, saveAbout/updateCircle write
+path, any Zod/validation, any middleware/accessRules/gating logic, Contact/Events
+cards, the /home/booking page's own content once built in Phase 1.
+
+**Deferred:** splitting the settings form itself into independently-savable pieces
+(would require building genuine field-level read-then-merge inside venueProfile,
+which does not exist anywhere in the codebase today) — only worth doing if per-section
+saves become a real pain point. Not scheduled.
+
+---
+
 ## 2026-09-03 — Landing page CTA overhaul, contact form shipped, and two real prod infra bugs found
 
 Headline: cleaned up the landing page's Create modal and CTA copy, built and shipped a working contact form end-to-end, added URL-based role pre-selection and an auth check to the signup CTAs, hid the not-yet-real venue/host signup path, and along the way found (and fixed) two genuine production infrastructure bugs — not routine app bugs — that were silently breaking things beyond just the contact form.
