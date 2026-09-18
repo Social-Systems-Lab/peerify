@@ -6,7 +6,7 @@ import { sanitizeObjectForJSON } from "../utils/sanitize";
 // Offered userGroup handles resolved to their circle-configured display titles (e.g. "admins" ->
 // "Admin"), same lookup members-table.tsx's userGroups column does - the notification body should
 // read the same role names an admin sees anywhere else in the UI, not raw handles.
-const resolveRoleNames = (circle: Circle, userGroups: string[]): string =>
+export const resolveRoleNames = (circle: Circle, userGroups: string[]): string =>
     userGroups.map((handle) => circle.userGroups?.find((g) => g.handle === handle)?.title || handle).join(", ");
 
 export async function notifyAdminInvitationReceived(

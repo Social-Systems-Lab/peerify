@@ -30,7 +30,7 @@ import {
 import { useAtom } from "jotai";
 import { contentPreviewAtom, sidePanelContentVisibleAtom, userAtom } from "@/lib/data/atoms";
 import { features, LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
-import { hasHigherAccess, isAuthorized } from "@/lib/auth/client-auth";
+import { hasHigherAccess, isAuthorized, isOwnerOrCircleAdmin } from "@/lib/auth/client-auth";
 import {
     Dialog,
     DialogClose,
@@ -45,6 +45,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { FormProvider, useForm } from "react-hook-form";
 import { MemberUserGroupsGrid } from "@/components/forms/dynamic-field";
 import InviteButton from "../home/invite-button";
+import InviteAdminDialog from "./invite-admin-dialog";
 import { useIsCompact } from "@/components/utils/use-is-compact";
 import { UserPicture } from "./user-picture";
 import { motion } from "framer-motion";
@@ -332,6 +333,7 @@ const MemberTable: React.FC<MemberTableProps> = ({ circle, members }) => {
                         />
                     </div>
                     <InviteButton circle={circle} />
+                    {isOwnerOrCircleAdmin(user, circle) && <InviteAdminDialog circle={circle} />}
                     <Select
                         value={(table.getColumn("userGroups")?.getFilterValue() as string) ?? ""}
                         onValueChange={(value) => {
