@@ -543,6 +543,12 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                     return notification.eventId ? `/circles/${circleHandle}/events/${notification.eventId}` : null;
                 case "event_host_change_requested":
                     return `/circles/${circleHandle}/settings/event-host-requests`;
+                case "admin_invitation_received":
+                case "admin_invitation_decided":
+                    // Accept/decline lives in a banner on the Followers page (like the admin-role-
+                    // removal request banner), not a dedicated page - there's no per-invitation id
+                    // to route to here.
+                    return notification.circle?.handle ? `/circles/${notification.circle.handle}/followers` : null;
                 default:
                     return null;
             }
@@ -570,7 +576,10 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
             case "user_verification_reply_received":
             case "event_host_change_requested":
             case "crew_application":
+            case "admin_invitation_received":
                 return "Review";
+            case "admin_invitation_decided":
+                return "View";
             case "crew_application_approved":
                 return "View Crew";
             case "crew_broadcast":

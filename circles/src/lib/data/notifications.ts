@@ -103,6 +103,12 @@ export const buildNotificationBody = (type: string, payload: any): string => {
             // fallback mirrors user_verification_request/proof_of_humanity_verified's defensive
             // convention and should never actually be reached in practice.
             return payload?.messageBody || `${actorName} sent a broadcast to ${circleName}'s Crew`;
+        case "admin_invitation_received":
+            return `${actorName} invited you to become ${payload?.roleNames || "an admin"} of ${circleName}`;
+        case "admin_invitation_decided":
+            return payload?.accepted
+                ? `${actorName} accepted your invitation to become ${payload?.roleNames || "an admin"} of ${circleName}`
+                : `${actorName} declined your invitation to become ${payload?.roleNames || "an admin"} of ${circleName}`;
         case "new_follower":
             return `${actorName} is now following ${circleName}`;
         case "follow_accepted":

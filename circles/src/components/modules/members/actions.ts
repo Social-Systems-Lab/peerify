@@ -10,12 +10,20 @@ import {
 import { getCircleById, getCirclePath } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
-import { countAdmins, getMember, removeMember, updateMemberUserGroups } from "@/lib/data/member";
+import { addMember, countAdmins, getMember, isCircleAdmin, removeMember, updateMemberUserGroups } from "@/lib/data/member";
 import { sendNotifications } from "@/lib/data/notifications";
 import { getUserPrivate } from "@/lib/data/user";
 import { safeModifyMemberUserGroups } from "@/lib/utils";
 import { Circle, MemberDisplay } from "@/models/models";
 import { revalidatePath } from "next/cache";
+import { isAcceptedConnectionForUserDid, listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
+import {
+    acceptAdminInvitation,
+    cancelAdminInvitation,
+    createPendingAdminInvitation,
+    declineAdminInvitation,
+} from "@/lib/data/admin-invitations";
+import { notifyAdminInvitationDecided, notifyAdminInvitationReceived } from "@/lib/data/admin-invitation-notifications";
 
 type RemoveMemberResponse = {
     success: boolean;
@@ -282,6 +290,196 @@ export const declineAdminRoleRemovalRequestAction = async (
         return {
             success: false,
             message: error instanceof Error ? error.message : "Could not decline the admin removal request.",
+        };
+    }
+};
+
+// ---------------------------------------------------------------------------------------------
+// Admin invitations - invite an accepted connection (not yet a follower) to a role, requiring
+// their acceptance before a Member doc is created. See src/lib/data/admin-invitations.ts.
+// ---------------------------------------------------------------------------------------------
+
+type AdminInvitationResponse = {
+    success: boolean;
+    message?: string;
+    alreadyMember?: boolean;
+};
+
+// Candidate pool for the invite picker: the CALLER's own accepted connections, independent of
+// which circle the invite is for (a group circle's own members/events.view eligibility, which
+// getCircleMembersAction/searchEligibleUsersAction use, is the wrong pool here - see UserPicker's
+// fetchInitial/fetchSearch override props).
+export const getMyAcceptedConnectionsAction = async (): Promise<{ circles: Circle[] }> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) return { circles: [] };
+    return { circles: await listAcceptedConnectionsForUserDid(userDid) };
+};
+
+export const searchMyAcceptedConnectionsAction = async (
+    query: string,
+    limit: number = 10,
+): Promise<{ circles: Circle[] }> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) return { circles: [] };
+    return { circles: await searchAcceptedConnectionsForUserDid(userDid, query, limit) };
+};
+
+export const inviteUserToAdminAction = async (
+    circle: Circle,
+    invitedUserDid: string,
+    userGroups: string[],
+): Promise<AdminInvitationResponse> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to send an invitation" };
+    }
+
+    try {
+        if (invitedUserDid === userDid) {
+            return { success: false, message: "You can't invite yourself" };
+        }
+
+        // Sending is restricted to the circle's admins group specifically (not moderators or any
+        // other edit_same_level_user_groups holder) - unlike editing an EXISTING member's groups,
+        // there's no target member yet for hasHigherAccess to compare against, so the generic
+        // isAuthorized/hasHigherAccess pair updateUserGroupsAction uses doesn't apply cleanly here.
+        // This mirrors createAdminRoleRemovalRequest's direct "admins" group check for the same
+        // reason - both actions change who holds admin-level access in the circle.
+        const isAdmin = await isCircleAdmin(userDid, circle._id ?? "");
+        if (!isAdmin) {
+            return { success: false, message: "Only circle admins can send admin invitations" };
+        }
+
+        const existingMember = await getMember(invitedUserDid, circle._id ?? "");
+        if (existingMember) {
+            return {
+                success: false,
+                alreadyMember: true,
+                message: "This user is already a follower - use Edit User Groups on their row instead.",
+            };
+        }
+
+        const isConnection = await isAcceptedConnectionForUserDid(userDid, invitedUserDid);
+        if (!isConnection) {
+            return { success: false, message: "You can only invite one of your accepted connections" };
+        }
+
+        const existingCircle = await getCircleById(circle._id ?? "");
+        if (!existingCircle) {
+            return { success: false, message: "Circle not found" };
+        }
+
+        // Clamp the offered roles to what this admin is actually permitted to grant - same
+        // sanitizer updateUserGroupsAction uses, starting from an empty existing-groups baseline
+        // since the invitee isn't a member yet.
+        const userAccessLevel = await getMemberAccessLevel(userDid, circle._id ?? "");
+        const canEditSameLevel = await isAuthorized(userDid, circle._id ?? "", features.general.edit_same_level_user_groups);
+        const offeredUserGroups = safeModifyMemberUserGroups([], userGroups, existingCircle, userAccessLevel, canEditSameLevel);
+
+        const { invitation, created } = await createPendingAdminInvitation({
+            circleId: circle._id ?? "",
+            invitedUserDid,
+            invitedByUserDid: userDid,
+            userGroups: offeredUserGroups,
+        });
+
+        if (created) {
+            const [inviter, invitedUser] = await Promise.all([getUserPrivate(userDid), getUserPrivate(invitedUserDid)]);
+            if (inviter && invitedUser) {
+                await notifyAdminInvitationReceived(existingCircle, inviter, invitedUser, invitation.userGroups);
+            }
+        }
+
+        let circlePath = await getCirclePath(circle);
+        revalidatePath(`${circlePath}followers`);
+
+        return {
+            success: true,
+            message: created ? "Invitation sent." : "An invitation is already pending for this user.",
+        };
+    } catch (error) {
+        return { success: false, message: "Failed to send invitation. " + error?.toString() };
+    }
+};
+
+export const acceptAdminInvitationAction = async (
+    requestId: string,
+    circle: Circle,
+): Promise<AdminInvitationResponse> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to accept this invitation" };
+    }
+
+    try {
+        const invitation = await acceptAdminInvitation({ requestId, acceptingUserDid: userDid });
+
+        const [inviterCircle, accepter] = await Promise.all([getCircleById(circle._id ?? ""), getUserPrivate(userDid)]);
+        if (inviterCircle && accepter) {
+            await notifyAdminInvitationDecided(inviterCircle, accepter, invitation.invitedByUserDid, invitation.userGroups, true);
+        }
+
+        let circlePath = await getCirclePath(circle);
+        revalidatePath(`${circlePath}followers`);
+
+        return { success: true, message: "You're now a member of this circle." };
+    } catch (error) {
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : "Could not accept this invitation.",
+        };
+    }
+};
+
+export const declineAdminInvitationAction = async (
+    requestId: string,
+    circle: Circle,
+): Promise<AdminInvitationResponse> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to decline this invitation" };
+    }
+
+    try {
+        const invitation = await declineAdminInvitation({ requestId, decliningUserDid: userDid });
+
+        const [inviterCircle, decliner] = await Promise.all([getCircleById(circle._id ?? ""), getUserPrivate(userDid)]);
+        if (inviterCircle && decliner) {
+            await notifyAdminInvitationDecided(inviterCircle, decliner, invitation.invitedByUserDid, invitation.userGroups, false);
+        }
+
+        let circlePath = await getCirclePath(circle);
+        revalidatePath(`${circlePath}followers`);
+
+        return { success: true, message: "Invitation declined." };
+    } catch (error) {
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : "Could not decline this invitation.",
+        };
+    }
+};
+
+export const cancelAdminInvitationAction = async (
+    requestId: string,
+    circle: Circle,
+): Promise<AdminInvitationResponse> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to cancel this invitation" };
+    }
+
+    try {
+        await cancelAdminInvitation({ requestId, cancellingUserDid: userDid });
+
+        let circlePath = await getCirclePath(circle);
+        revalidatePath(`${circlePath}followers`);
+
+        return { success: true, message: "Invitation cancelled." };
+    } catch (error) {
+        return {
+            success: false,
+            message: error instanceof Error ? error.message : "Could not cancel this invitation.",
         };
     }
 };

@@ -49,6 +49,8 @@ export const PUSH_NOTIFICATION_CATEGORIES: Record<
             "crew_application",
             "crew_application_approved",
             "crew_broadcast",
+            "admin_invitation_received",
+            "admin_invitation_decided",
         ],
     },
 };
@@ -136,6 +138,9 @@ export const resolvePushUrl = (type: string, payload: any): string | undefined =
             return circleHandle && payload?.eventId ? `/circles/${circleHandle}/events/${payload.eventId}` : undefined;
         case "event_host_change_requested":
             return circleHandle ? `/circles/${circleHandle}/settings/event-host-requests` : undefined;
+        case "admin_invitation_received":
+        case "admin_invitation_decided":
+            return circleHandle ? `/circles/${circleHandle}/followers` : undefined;
         default:
             return undefined;
     }
