@@ -1,7 +1,7 @@
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { AdminInvitations } from "./db";
 import { addMember, getMember, isCircleAdmin } from "./member";
-import { AdminInvitation } from "@/models/models";
+import { ADMIN_INVITATION_ALLOWED_USER_GROUPS, AdminInvitation } from "@/models/models";
 import { ObjectId } from "mongodb";
 
 export const getPendingAdminInvitationForUserAndCircle = async (
@@ -39,7 +39,14 @@ export const createPendingAdminInvitation = async (params: {
         throw new Error("User is already a member of this circle");
     }
 
-    if (params.userGroups.includes("admins")) {
+    const requestedUserGroups = params.userGroups.filter((group) =>
+        (ADMIN_INVITATION_ALLOWED_USER_GROUPS as readonly string[]).includes(group),
+    );
+    if (requestedUserGroups.length === 0) {
+        throw new Error("Admin invitations can only offer the Admin or Moderator role");
+    }
+
+    if (requestedUserGroups.includes("admins")) {
         const pendingDetachRequest = await getPendingDetachCircleRequest(params.circleId);
         if (pendingDetachRequest) {
             throw new Error(DETACH_ADMIN_CHANGE_BLOCK_MESSAGE);
@@ -58,7 +65,7 @@ export const createPendingAdminInvitation = async (params: {
         circleId: params.circleId,
         invitedUserDid: params.invitedUserDid,
         invitedByUserDid: params.invitedByUserDid,
-        userGroups: params.userGroups,
+        userGroups: requestedUserGroups,
         status: "pending",
         createdAt: new Date(),
     };

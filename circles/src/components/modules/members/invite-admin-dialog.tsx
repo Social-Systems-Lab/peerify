@@ -11,7 +11,7 @@ import { Loader2 } from "lucide-react";
 import UserPicker from "@/components/forms/user-picker";
 import { MemberUserGroupsGrid } from "@/components/forms/dynamic-field";
 import { getMyAcceptedConnectionsAction, inviteUserToAdminAction, searchMyAcceptedConnectionsAction } from "./actions";
-import { Circle, MemberDisplay } from "@/models/models";
+import { ADMIN_INVITATION_ALLOWED_USER_GROUPS, Circle, MemberDisplay } from "@/models/models";
 
 type Props = {
     circle: Circle;
@@ -138,6 +138,7 @@ export default function InviteAdminDialog({ circle }: Props) {
                                     members={candidateRows}
                                     control={methods.control}
                                     circle={circle}
+                                    allowedGroupHandles={ADMIN_INVITATION_ALLOWED_USER_GROUPS}
                                 />
                             </div>
                         </FormProvider>
