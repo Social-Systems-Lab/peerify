@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useMemo, useState, useTransition } from "react";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
-import { FormProvider, useForm, useWatch } from "react-hook-form";
+import { FormProvider, useForm } from "react-hook-form";
 import { Loader2 } from "lucide-react";
 import UserPicker from "@/components/forms/user-picker";
 import { MemberUserGroupsGrid } from "@/components/forms/dynamic-field";
@@ -26,19 +26,27 @@ export default function InviteAdminDialog({ circle }: Props) {
     const methods = useForm<{ memberUserGroups: Record<string, string[]> }>({
         defaultValues: { memberUserGroups: {} },
     });
-    const memberUserGroups = useWatch({ control: methods.control, name: "memberUserGroups" });
 
     // Synthetic rows so MemberUserGroupsGrid - built for existing Members - can be reused to pick
-    // roles for candidates who have no Member doc (and therefore no userGroups) yet.
-    const candidateRows: MemberDisplay[] = selected.map(
-        (candidate) =>
-            ({
-                userDid: candidate.did!,
-                name: candidate.name,
-                picture: candidate.picture,
-                circleId: circle._id ?? "",
-                userGroups: [],
-            }) as unknown as MemberDisplay,
+    // roles for candidates who have no Member doc (and therefore no userGroups) yet. Memoized on
+    // `selected` alone (not on the form's live value) - MemberUserGroupsGrid's own useEffect resets
+    // memberUserGroups to each row's userGroups whenever the `members` array it's given changes
+    // identity, so an unmemoized array recreated every render here would fight that effect: every
+    // setValue triggers a re-render, which recreates the array, which re-triggers the effect,
+    // forever ("Maximum update depth exceeded").
+    const candidateRows: MemberDisplay[] = useMemo(
+        () =>
+            selected.map(
+                (candidate) =>
+                    ({
+                        userDid: candidate.did!,
+                        name: candidate.name,
+                        picture: candidate.picture,
+                        circleId: circle._id ?? "",
+                        userGroups: [],
+                    }) as unknown as MemberDisplay,
+            ),
+        [selected, circle._id],
     );
 
     const resetAndClose = () => {
@@ -50,6 +58,7 @@ export default function InviteAdminDialog({ circle }: Props) {
     const onSubmit = () => {
         if (selected.length === 0) return;
 
+        const memberUserGroups = methods.getValues("memberUserGroups");
         const missingRole = selected.find((candidate) => !(memberUserGroups?.[candidate.did!]?.length > 0));
         if (missingRole) {
             toast({
