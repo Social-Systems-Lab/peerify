@@ -5,6 +5,7 @@ import {
     Member,
     MembershipRequest,
     CrewApplication,
+    AdminInvitation,
     Feed,
     Post,
     Reaction,
@@ -55,6 +56,7 @@ let PlatformSettingsCollection: Collection<PlatformSettings>;
 let Members: Collection<Member>;
 let MembershipRequests: Collection<MembershipRequest>;
 let CrewApplications: Collection<CrewApplication>;
+let AdminInvitations: Collection<AdminInvitation>;
 let Feeds: Collection<Feed>;
 let Posts: Collection<Post>;
 let Comments: Collection<Comment>;
@@ -106,6 +108,7 @@ if (process.env.IS_BUILD !== "true") {
     Members = db.collection<Member>("members");
     MembershipRequests = db.collection<MembershipRequest>("membershipRequests");
     CrewApplications = db.collection<CrewApplication>("crewApplications");
+    AdminInvitations = db.collection<AdminInvitation>("adminInvitations");
     Feeds = db.collection<Feed>("feeds");
     Posts = db.collection<Post>("posts");
     Comments = db.collection<Comment>("comments");
@@ -160,6 +163,7 @@ export {
     Members,
     MembershipRequests,
     CrewApplications,
+    AdminInvitations,
     Feeds,
     Posts,
     Comments,

@@ -190,6 +190,24 @@ export const crewApplicationSchema = z.object({
 
 export type CrewApplication = z.infer<typeof crewApplicationSchema>;
 
+/**
+ * A pending invitation for an existing circle admin to grant a role (e.g. Admin, Moderator) to
+ * someone who is not yet a follower of the circle. No Member doc is created until the invitee
+ * accepts — Members is keyed by (userDid, circleId), so there's nowhere to store a role before
+ * that. Modeled on eventHostChangeRequestSchema's pending/decided shape.
+ */
+export const adminInvitationSchema = z.object({
+    _id: z.any().optional(),
+    circleId: z.string(),
+    invitedUserDid: didSchema,
+    invitedByUserDid: didSchema,
+    userGroups: z.array(z.string()),
+    status: z.enum(["pending", "accepted", "declined"]),
+    createdAt: z.date(),
+    respondedAt: z.date().optional(),
+});
+export type AdminInvitation = z.infer<typeof adminInvitationSchema>;
+
 export const userGroupSchema = z.object({
     name: z.string(),
     handle: handleSchema,
@@ -1468,6 +1486,8 @@ export type NotificationType =
     | "crew_application" // Someone applied to join a circle's Crew - sent to users with permissions to approve crew applications
     | "crew_application_approved" // A circle's admins approved a Crew application - sent to the applicant
     | "crew_broadcast" // A circle's admins sent an announcement to all approved Crew members - sent to every Crew member
+    | "admin_invitation_received" // A circle admin invited this user to become Admin/Moderator/etc - sent to the invitee
+    | "admin_invitation_decided" // The invitee accepted or declined an admin invitation - sent to the inviter
     | "post_comment" // Someone commented on a post - sent to post author
     | "comment_reply" // Someone replied to a comment - sent to comment author and post author
     | "post_like" // Someone liked a post - sent to post author
@@ -1552,6 +1572,8 @@ export const notificationTypeValues = [
     "crew_application",
     "crew_application_approved",
     "crew_broadcast",
+    "admin_invitation_received",
+    "admin_invitation_decided",
     "post_comment",
     "comment_reply",
     "post_like",
