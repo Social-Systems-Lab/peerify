@@ -212,6 +212,11 @@ export const adminInvitationSchema = z.object({
 });
 export type AdminInvitation = z.infer<typeof adminInvitationSchema>;
 
+// Admin invitations only ever offer admin-level roles, never Follower/Crew - kept here (not in
+// src/lib/data/admin-invitations.ts) so client components like the invite picker can import it
+// without pulling in that server-only data module's own imports (auth/cookies/etc).
+export const ADMIN_INVITATION_ALLOWED_USER_GROUPS = ["admins", "moderators"] as const;
+
 export const userGroupSchema = z.object({
     name: z.string(),
     handle: handleSchema,

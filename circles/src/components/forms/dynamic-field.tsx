@@ -755,6 +755,11 @@ type MemberUserGroupsGridProps = {
     members: MemberDisplay[];
     control: any;
     circle: Circle;
+    // Restrict which of the circle's userGroups columns render, e.g. ["admins", "moderators"] for
+    // a context where offering Follower/Crew wouldn't make sense. Undefined (the default) shows
+    // every group, unchanged from this component's original behavior - existing callers like the
+    // Followers list's Edit User Groups dialog aren't affected.
+    allowedGroupHandles?: readonly string[];
 };
 
 export const MemberUserGroupsGrid: React.FC<MemberUserGroupsGridProps> = ({
@@ -762,6 +767,7 @@ export const MemberUserGroupsGrid: React.FC<MemberUserGroupsGridProps> = ({
     members,
     control,
     circle,
+    allowedGroupHandles,
 }) => {
     const { setValue, getValues } = useFormContext();
     const memberUserGroups = useWatch({ control, name: "memberUserGroups" });
@@ -771,6 +777,9 @@ export const MemberUserGroupsGrid: React.FC<MemberUserGroupsGridProps> = ({
         isAuthorized(currentUser, circle, features.general.edit_lower_user_groups) ||
         isAuthorized(currentUser, circle, features.general.edit_same_level_user_groups);
     const canEditSameLevelUserGroups = isAuthorized(currentUser, circle, features.general.edit_same_level_user_groups);
+    const visibleUserGroups = allowedGroupHandles
+        ? (circle.userGroups ?? []).filter((group) => allowedGroupHandles.includes(group.handle))
+        : circle.userGroups;
 
     useEffect(() => {
         const initialMemberUserGroups = members.reduce((acc: { [key: string]: string[] }, member) => {
@@ -799,7 +808,7 @@ export const MemberUserGroupsGrid: React.FC<MemberUserGroupsGridProps> = ({
                 <thead>
                     <tr>
                         <th className="w-1/4"></th>
-                        {circle.userGroups?.map((userGroup, index) => (
+                        {visibleUserGroups?.map((userGroup, index) => (
                             <th key={index} className={cn("relative h-32 overflow-visible font-normal")}>
                                 <div className="absolute bottom-[5px] left-1/2 origin-bottom-left -rotate-45 transform whitespace-nowrap">
                                     {userGroup.name}
@@ -812,7 +821,7 @@ export const MemberUserGroupsGrid: React.FC<MemberUserGroupsGridProps> = ({
                     {members.map((member, rowIndex) => (
                         <tr key={rowIndex} className="border-t">
                             <td className="border-r p-2">{member.name}</td>
-                            {circle.userGroups?.map((userGroup, colIndex) => {
+                            {visibleUserGroups?.map((userGroup, colIndex) => {
                                 const canEdit =
                                     canEditUserGroups &&
                                     (canEditSameLevelUserGroups

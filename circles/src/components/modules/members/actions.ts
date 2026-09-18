@@ -14,7 +14,7 @@ import { addMember, countAdmins, getMember, isCircleAdmin, removeMember, updateM
 import { sendNotifications } from "@/lib/data/notifications";
 import { getUserPrivate } from "@/lib/data/user";
 import { safeModifyMemberUserGroups } from "@/lib/utils";
-import { Circle, MemberDisplay } from "@/models/models";
+import { ADMIN_INVITATION_ALLOWED_USER_GROUPS, Circle, MemberDisplay } from "@/models/models";
 import { revalidatePath } from "next/cache";
 import { isAcceptedConnectionForUserDid, listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 import {
@@ -364,6 +364,17 @@ export const inviteUserToAdminAction = async (
             return { success: false, message: "You can only invite one of your accepted connections" };
         }
 
+        // This flow only ever offers admin-level roles - Follower/Crew are granted by following or
+        // applying, not by admin invitation. Enforced here AND independently in
+        // createPendingAdminInvitation, since that's the actual DB write path - don't rely on the
+        // picker UI (which only shows these two checkboxes) being the sole guard.
+        const requestedUserGroups = userGroups.filter((group) =>
+            (ADMIN_INVITATION_ALLOWED_USER_GROUPS as readonly string[]).includes(group),
+        );
+        if (requestedUserGroups.length === 0) {
+            return { success: false, message: "Admin invitations can only offer the Admin or Moderator role" };
+        }
+
         const existingCircle = await getCircleById(circle._id ?? "");
         if (!existingCircle) {
             return { success: false, message: "Circle not found" };
@@ -374,7 +385,7 @@ export const inviteUserToAdminAction = async (
         // since the invitee isn't a member yet.
         const userAccessLevel = await getMemberAccessLevel(userDid, circle._id ?? "");
         const canEditSameLevel = await isAuthorized(userDid, circle._id ?? "", features.general.edit_same_level_user_groups);
-        const offeredUserGroups = safeModifyMemberUserGroups([], userGroups, existingCircle, userAccessLevel, canEditSameLevel);
+        const offeredUserGroups = safeModifyMemberUserGroups([], requestedUserGroups, existingCircle, userAccessLevel, canEditSameLevel);
 
         const { invitation, created } = await createPendingAdminInvitation({
             circleId: circle._id ?? "",
