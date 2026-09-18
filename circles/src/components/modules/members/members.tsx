@@ -1,9 +1,12 @@
 "use server";
 
 import { getPendingAdminRoleRemovalRequest } from "@/lib/data/admin-role-removal";
+import { getPendingAdminInvitationForUserAndCircle } from "@/lib/data/admin-invitations";
+import { resolveRoleNames } from "@/lib/data/admin-invitation-notifications";
 import { getMembersWithMetrics } from "@/lib/data/member";
 import { getUserPrivate } from "@/lib/data/user";
 import AdminRoleRemovalBanner from "./admin-role-removal-banner";
+import AdminInvitationBanner from "./admin-invitation-banner";
 import MembersTable from "./members-table";
 import ContentDisplayWrapper from "@/components/utils/content-display-wrapper";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
@@ -27,6 +30,9 @@ export default async function MembersModule(props: PageProps) {
         pendingAdminRoleRemovalRequest?.requestedByDid
             ? await getUserPrivate(pendingAdminRoleRemovalRequest.requestedByDid)
             : null;
+    const pendingAdminInvitation =
+        userDid && circle?._id ? await getPendingAdminInvitationForUserAndCircle(circle._id, userDid) : null;
+    const inviter = pendingAdminInvitation ? await getUserPrivate(pendingAdminInvitation.invitedByUserDid) : null;
     if (circle?.circleType === "user") {
         members = members.filter((m) => m.userDid !== circle.did);
     }
@@ -38,6 +44,14 @@ export default async function MembersModule(props: PageProps) {
                     circle={circle}
                     requestId={pendingAdminRoleRemovalRequest._id?.toString?.() ?? ""}
                     requesterName={requester?.name}
+                />
+            ) : null}
+            {pendingAdminInvitation ? (
+                <AdminInvitationBanner
+                    circle={circle}
+                    requestId={pendingAdminInvitation._id?.toString?.() ?? ""}
+                    inviterName={inviter?.name}
+                    roleNames={resolveRoleNames(circle, pendingAdminInvitation.userGroups)}
                 />
             ) : null}
             <MembersTable circle={circle} members={members} />

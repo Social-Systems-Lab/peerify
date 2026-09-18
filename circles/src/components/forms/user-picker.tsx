@@ -12,8 +12,16 @@ import { getCircleMembersAction, searchEligibleUsersAction } from "@/app/circles
 type Props = {
     onSelectionChange: (selected: Circle[]) => void;
     initialSelection?: Circle[];
-    circleHandle: string;
+    circleHandle?: string;
     excludeDids?: string[];
+    placeholder?: string;
+    // Override the candidate pool instead of circleHandle's default (event-eligible members/
+    // connections). Used by the admin-invitation picker, whose pool is always the CALLER's own
+    // accepted connections regardless of which circle the invite is for - unlike circleHandle's
+    // getCircleMembersAction/searchEligibleUsersAction, which branch on the TARGET circle's type
+    // and gate on events.view, the wrong permission for this feature.
+    fetchInitial?: () => Promise<Circle[]>;
+    fetchSearch?: (query: string, limit: number) => Promise<Circle[]>;
 };
 
 export default function UserPicker({
@@ -21,6 +29,9 @@ export default function UserPicker({
     initialSelection = [],
     circleHandle,
     excludeDids = [],
+    placeholder = "Invite users...",
+    fetchInitial,
+    fetchSearch,
 }: Props) {
     const [search, setSearch] = useState("");
     const [results, setResults] = useState<Circle[]>([]);
@@ -29,13 +40,17 @@ export default function UserPicker({
 
     useEffect(() => {
         const fetchInitialUsers = async () => {
-            const { members } = await getCircleMembersAction(circleHandle);
+            const members = fetchInitial
+                ? await fetchInitial()
+                : circleHandle
+                  ? (await getCircleMembersAction(circleHandle)).members
+                  : [];
             const filtered = (members || []).filter((u) => !excludeDids?.includes(u.did!));
             setDefaultUsers(filtered);
             setResults(filtered);
         };
         fetchInitialUsers();
-    }, [circleHandle, excludeDids]);
+    }, [circleHandle, excludeDids, fetchInitial]);
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -44,7 +59,11 @@ export default function UserPicker({
                 return;
             }
             try {
-                const { circles } = await searchEligibleUsersAction(circleHandle, search, 20);
+                const circles = fetchSearch
+                    ? await fetchSearch(search, 20)
+                    : circleHandle
+                      ? (await searchEligibleUsersAction(circleHandle, search, 20)).circles
+                      : [];
                 const filtered = (circles || []).filter((u) => !excludeDids?.includes(u.did!));
                 setResults(filtered);
             } catch (e) {
@@ -55,7 +74,7 @@ export default function UserPicker({
 
         const debounce = setTimeout(fetchUsers, 300);
         return () => clearTimeout(debounce);
-    }, [search, defaultUsers, excludeDids]);
+    }, [search, defaultUsers, excludeDids, fetchSearch, circleHandle]);
 
     const handleSelect = (user: Circle) => {
         if (!selected.find((s) => s.did === user.did)) {
@@ -93,7 +112,7 @@ export default function UserPicker({
                 ))}
                 <Input
                     className="h-auto flex-grow border-none bg-transparent p-0 focus:ring-0"
-                    placeholder="Invite users..."
+                    placeholder={placeholder}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                 />
