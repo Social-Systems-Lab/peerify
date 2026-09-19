@@ -13,10 +13,11 @@ import {
 import { features } from "@/lib/data/constants";
 import { getPendingAttachCircleRequest, getPendingIncomingAttachCircleRequests } from "@/lib/data/circle-attach";
 import { getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
-import { getMember, getMembers } from "@/lib/data/member";
+import { getAdminMembers, getMember, getMembers } from "@/lib/data/member";
 import { publishCircleAction, submitCircleForVerificationAction } from "./actions";
 import { CircleVerificationThreadCard } from "./circle-verification-thread-card";
 import { CircleStructureCard } from "./circle-structure-card";
+import { AdminsListCard } from "./admins-list-card";
 import { getVerificationReadiness } from "@/lib/verification-readiness";
 import { VerificationReadinessChecklist } from "@/components/modules/verification/verification-readiness-checklist";
 import { getPeerifyMetadata, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
@@ -52,6 +53,10 @@ export default async function AboutSettingsPage(props: PageProps) {
         circle._id && circle.circleType !== "user"
             ? (await getMembers(String(circle._id))).filter((member) => member.userGroups?.includes("admins"))
             : [];
+    // Unlike adminMembers above (scoped to non-user circles, for the parent/child CircleStructureCard),
+    // the Admins list card applies to every circle type, including personal profiles - that's exactly
+    // where inviting a second admin is most useful, since there'd otherwise be only the owner.
+    const circleAdmins = circle._id ? await getAdminMembers(String(circle._id)) : [];
     const pendingAttachRequest = circle._id ? await getPendingAttachCircleRequest(String(circle._id)) : null;
     const pendingDetachRequest = circle._id ? await getPendingDetachCircleRequest(String(circle._id)) : null;
     const incomingAttachRequests =
@@ -139,6 +144,7 @@ export default async function AboutSettingsPage(props: PageProps) {
                     ? "Manage your profile information, including name, description, location, and images."
                     : "Manage your circle's profile information, including name, description, mission, and images."}
             </p>
+            <AdminsListCard circle={circle} admins={circleAdmins} />
             {showWorkflowCard ? (
                 <div className="mb-6 rounded-lg border bg-white p-4 shadow-sm">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
