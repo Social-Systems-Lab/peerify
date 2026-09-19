@@ -138,6 +138,40 @@ export const getCrewMembers = async (circleId?: string, viewerDid?: string): Pro
     return filterLocations(members as MemberDisplay[], (member) => member.userDid, { viewerDid, viewerIsAdmin });
 };
 
+// Admins are just Members docs whose userGroups includes "admins", same as getCrewMembers above -
+// no separate "admin membership" collection. Doesn't project location, so unlike
+// getCrewMembers/getMembers there's no filterLocations privacy pass needed here.
+export const getAdminMembers = async (circleId?: string): Promise<MemberDisplay[]> => {
+    if (!circleId) return [];
+
+    const members = await Members.aggregate([
+        { $match: { circleId: circleId, userGroups: "admins" } },
+        {
+            $lookup: {
+                from: "circles",
+                localField: "userDid",
+                foreignField: "did",
+                as: "userDetails",
+            },
+        },
+        { $unwind: "$userDetails" },
+        {
+            $project: {
+                _id: { $toString: "$_id" },
+                userDid: 1,
+                circleId: 1,
+                userGroups: 1,
+                joinedAt: 1,
+                name: "$userDetails.name",
+                picture: "$userDetails.picture",
+                handle: "$userDetails.handle",
+            },
+        },
+    ]).toArray();
+
+    return (members as MemberDisplay[]).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+};
+
 export type CrewOfferer = {
     userDid: string;
     name: string;
