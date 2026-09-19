@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import InviteAdminDialog from "@/components/modules/members/invite-admin-dialog";
+import RemoveAdminButton from "@/components/modules/members/remove-admin-button";
 import { Circle, MemberDisplay } from "@/models/models";
 
 type AdminsListCardProps = {
@@ -37,6 +38,7 @@ export function AdminsListCard({ circle, admins }: AdminsListCardProps) {
                                     Since {new Date(admin.joinedAt).toLocaleDateString()}
                                 </span>
                             ) : null}
+                            <RemoveAdminButton circle={circle} admin={admin} />
                         </div>
                     ))
                 )}
