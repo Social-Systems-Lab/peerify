@@ -5305,3 +5305,84 @@ Ten commits, investigated first wherever a real design decision was involved (th
 
 **Open follow-ups, not yet scoped:**
 - **Now flagged as a priority for its own dedicated session:** the "Venue Identity" settings card's scope-creep — Room & Capacity, Technical setup, Booking terms, Hospitality, House rules — still displays on the About page ahead of general venue presentation content, and the settings form itself remains large and unsplit. This is the same scope-creep first flagged in the 2026-09-14 entry's investigation as mechanically tractable to split but never fully addressed; only the read-side `VenueAboutSection` extraction and this round's Location/tags sidebar work have actually happened since. Tim's direction: separate booking/technical/policy information (relevant to artists/crews actively booking) from general public-facing venue presentation, most likely via a dedicated page/module rather than continuing to grow the current About/Settings pages. Needs its own investigation-first session before any implementation.
+
+## 2026-09-19 — Admin invitation flow (invite-and-accept)
+
+Replaced the "must already be a follower" constraint on granting admin rights with a
+proper invite-and-accept flow, following up on the earlier investigation (2026-09-18)
+that confirmed this was a genuine data-model constraint (role and follow-relationship
+are the same document — Members, keyed by {userDid, circleId}), not a UI limitation.
+
+**Decisions made going in:**
+- Candidate pool: inviting admin's direct accepted connections only
+  (isAcceptedConnectionForUserDid/listAcceptedConnectionsForUserDid — already live,
+  already indexed), not shared-circle members or platform-wide search. Deferred
+  broadening this pool as a separate future task if direct-connections-only proves
+  too narrow in practice.
+- Pending-state model: no Member doc created until the invitee accepts, mirroring the
+  event host-change-request pattern (the cleanest fully-working request→approve
+  precedent found in the investigation) rather than the half-built/dead event-invitation
+  accept-decline path or the zero-consent "additional artists" instant-add pattern.
+
+**Implementation (5 commits, staging → main):**
+1. `ced71c8c` — Added AdminInvitation schema/collection (circleId, invitedUserDid,
+   invitedByUserDid, offered userGroups, status pending/accepted/declined, timestamps),
+   named/structured following the EventHostChangeRequests convention as instructed,
+   flagging that the codebase has two competing conventions for this shape.
+2. `8b6f3c6c` — Server actions: inviteUserToAdminAction (authorizes caller as an
+   existing circle admin via isCircleAdmin — a direct group check, not the
+   isAuthorized+hasHigherAccess pair used elsewhere, since that pair needs an existing
+   target member to compare against, which doesn't exist pre-acceptance), confirms
+   candidate is an accepted connection server-side (not just UI-enforced),
+   acceptAdminInvitationAction (calls existing addMember unchanged), declineAdminInvitationAction,
+   and cancelAdminInvitationAction (added as a trivial mirror of decline, though no UI
+   button wired for it — no "manage sent invitations" list exists, out of scope). Two
+   extra safety checks added beyond spec: offered roles clamped via
+   safeModifyMemberUserGroups so an admin can't offer a role above their own clearance,
+   and the original inviter's admin status is re-verified at accept time so a stale
+   invite from someone since demoted/removed can't be honored. New notification types
+   admin_invitation_received/_decided added, with an explicit case in
+   getNotificationHref from the start — avoiding the exact dead-CTA bug already logged
+   against event_submitted_for_review.
+3. `b657a592` — UI: "Invite Admin" button next to the existing Followers-page "Invite"
+   (copy-link) button. UserPicker extended with optional fetchInitial/fetchSearch
+   override props (existing event-invite usage untouched) to feed it the inviting
+   admin's own connections via two new lightweight actions. Role selection reused
+   MemberUserGroupsGrid. Accept/decline surfaces as an AdminInvitationBanner directly
+   on the Followers page (modeled on the existing AdminRoleRemovalBanner pattern found
+   mid-build as a closer fit than the settings-page or notification-tray patterns) —
+   requires an explicit Accept/Decline click rather than a one-click inline action,
+   given real admin rights are being granted.
+4. `5744eb01` — Fixed an infinite re-render loop in InviteAdminDialog surfaced during
+   manual click-through ("Application error" on the Followers page): candidateRows was
+   rebuilt as a new array on every render while the dialog also useWatch'd the same
+   form field that MemberUserGroupsGrid's own useEffect wrote to on mount, creating a
+   render→setValue→render loop. Fixed by memoizing candidateRows on selected alone and
+   reading offered roles imperatively via methods.getValues() at submit time instead of
+   subscribing to them.
+5. `b91c97ff` — Restricted the Invite Admin dialog's role picker to Admin/Moderator only
+   (was showing all four userGroup options inherited from the shared
+   MemberUserGroupsGrid component, including Followers/Crew, which don't make sense as
+   grantable options in an admin-invitation context). Existing Edit User Groups dialog
+   elsewhere continues to show all four, unaffected.
+
+**Verified end-to-end on staging, then spot-checked on prod:** full accept path
+(invite → notification with working "Review" CTA → deep-link to Followers page → banner
+with correct circle name/role/inviter → Accept → Member doc created with correct
+userGroups); already-a-member case correctly rejected server-side with a message
+pointing at the existing Edit User Groups row (no automatic redirect built — noted as a
+scope trade-off); self-invite blocked; non-connection candidates don't appear in the
+picker and are rejected server-side if attempted directly; non-admin senders rejected.
+tsc --noEmit and eslint clean throughout.
+
+**Deferred / follow-up:**
+- Settings-page admin list (so admins can see who else holds admin rights without
+  reading the Followers list's User Groups column) + a second "Invite Admin" entry
+  point there, reusing the same modal — scoped as its own follow-up task, not yet built.
+- Broadening the candidate pool beyond direct connections (e.g. shared-circle
+  membership) — explicitly deferred; investigation confirmed this would need a new,
+  currently-nonexistent aggregation over Members, not a cheap addition.
+- No UI for cancelling a sent-but-not-yet-responded-to invitation, though the
+  server action (cancelAdminInvitationAction) already exists.
+
+Deployed to prod (a2d4e1e6). Both branches pushed to GitHub.
