@@ -5386,3 +5386,90 @@ tsc --noEmit and eslint clean throughout.
   server action (cancelAdminInvitationAction) already exists.
 
 Deployed to prod (a2d4e1e6). Both branches pushed to GitHub.
+
+## 2026-09-22 — Admin invitation flow: completed and fully shipped
+
+Closed out the admin-invitation feature (started 2026-09-19) by shipping its two
+remaining pieces — a Settings-page admin list with a second invite entry point, and a
+Remove-admin action — plus a follow-up Cancel-invite UI, then reconciling and deploying
+everything to prod as one complete unit.
+
+**Admins list + second invite entry point (commit 2f02a3c2, previously built but
+unshipped, promoted today):**
+- New `AdminsListCard` on `/circles/[handle]/settings/about` — chosen deliberately over
+  the "User Groups" settings sub-page, since that page is hidden entirely for
+  personal-profile circles and would have broken the feature for exactly the circle
+  type used in testing. `/settings/about` is the only settings sub-page guaranteed to
+  exist for every circle type.
+- New `getAdminMembers()` query, a structural clone of the existing `getCrewMembers`
+  aggregation, filtered to "admins" instead of "crew" — `joinedAt` came along for free
+  from the same projection, powering the "Since [date]" display with no extra cost.
+- Embeds the same `InviteAdminDialog` used on the Followers page directly — no fork, no
+  duplicated logic. Sending from here goes through the identical
+  `inviteUserToAdminAction` → notification → `AdminInvitationBanner` flow already
+  verified on prod.
+- No new authorization check: inherits the About page's existing
+  `features.settings.edit_about` gate.
+
+**Remove-admin button (commit 943e3bc0, previously built but unshipped, promoted
+today):**
+- Per-row "Remove admin" action in `AdminsListCard`, reusing `updateUserGroupsAction`'s
+  existing demotion logic and admin-role-removal-request branching — no new demotion
+  logic written.
+- Last-admin guard: found already in place (`countAdmins(circle._id) <= 1` check in
+  `updateUserGroupsAction`, blocking with "Cannot remove the last admin.") — no new
+  guard needed.
+- Self-removal: intentionally asymmetric from other-admin removal. Removing another
+  admin creates a pending admin-role-removal-request they must approve themselves
+  (reusing the existing request/approve state machine, confirmed end-to-end: requester
+  sees "Admin removal request created," target gets a real-time notification with a
+  working "Review" CTA, sees an Admin Role Removal banner with Approve/Decline on their
+  Followers page). Removing yourself applies immediately (no self-approval needed), but
+  requires a genuinely separate extra warning step ("Remove your own admin access?" →
+  Continue) before the normal confirm dialog, per the task's "at minimum require extra
+  confirmation for self-removal" instruction.
+- Confirmation dialogs reused verbatim from members-table.tsx's existing
+  `removeMemberAction` two-dialog pattern (plain confirm + the existing
+  `AdminRoleRemovalDialog` acknowledgment dialog), with only the new self-target warning
+  step added on top.
+- Verified live on staging across all three scenarios: non-self removal (pending
+  request + notification + approval flow, confirmed from both sides), self-removal
+  (extra warning step required), and last-admin block (correctly refused with a clear
+  error).
+
+**Cancel-invite UI (commit fb275c9e, built and shipped same day):**
+- New "Pending invitations" sub-section inside `AdminsListCard`, below the Admins list,
+  showing each pending sent invite (candidate, role offered, sent date) with a Cancel
+  action. New query `getPendingAdminInvitationsSentByUser`, scoped to
+  `{circleId, invitedByUserDid, status: "pending"}`.
+- Cancel button calls the existing `cancelAdminInvitationAction` directly — no new
+  server logic. Confirmation UX: inline two-step "Cancel invite" → Keep/Confirm swap
+  rather than a modal dialog, reasoned that cancelling a still-pending offer doesn't
+  strip anyone's existing access (unlike Remove-admin), so a lighter-weight
+  confirmation than `RemoveAdminButton`'s modal is appropriate while still guarding
+  against a stray click.
+- Visibility scoped sender-only (an admin sees only invitations they personally sent,
+  not ones sent by other admins on the same circle) — deliberate choice, reasoned from
+  the fact that `cancelAdminInvitation` already enforces "only the sender can cancel"
+  server-side; a circle-wide pending list would have surfaced Cancel buttons that throw
+  for every admin except the actual sender.
+- Verified live on staging with two admins and two invitees: each admin sees only their
+  own sent invites; Keep aborts cleanly (row/DB unchanged); Confirm cancels
+  (`cancelAdminInvitation` hard-deletes the record — noted as current behavior, not a
+  "cancelled" status, meaning no audit trail today if that's ever wanted); invitee-side
+  confirmed via reload that the banner disappears and Accept/Decline are gone after
+  cancellation.
+
+**Deploy note:** the Admins-list and Remove-admin commits had been built and verified
+on staging in a prior session but were never actually pushed/deployed — caught before
+today's push by diffing files against staging rather than trusting the cherry-pick
+marker alone. All three commits (2f02a3c2, 943e3bc0, fb275c9e) shipped to prod together
+in one deploy after a clean rebase reconciling a one-commit divergence between local and
+origin `main`. Confirmed live on prod.
+
+**Feature now complete end-to-end:** schema, server actions, notification wiring (with
+an explicit `getNotificationHref` case from the start, avoiding the known dead-CTA
+pattern), picker/banner UI, an infinite-render-loop fix, a role-picker scope fix
+(Admin/Moderator only), a Settings-page admin list with its own invite entry point,
+Remove-admin with proper approve/decline semantics, and Cancel-invite. No further
+follow-ups outstanding on this feature.
