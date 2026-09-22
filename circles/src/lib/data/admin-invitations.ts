@@ -11,6 +11,19 @@ export const getPendingAdminInvitationForUserAndCircle = async (
     return await AdminInvitations.findOne({ circleId, invitedUserDid, status: "pending" });
 };
 
+// The sent-invitation list backing the "Pending invitations" section on Settings/About. Scoped to
+// invitedByUserDid on purpose: cancelAdminInvitation below only lets the admin who actually sent an
+// invitation retract it, so listing the whole circle's pending invites here would render Cancel
+// buttons that can only ever throw for every admin but the sender.
+export const getPendingAdminInvitationsSentByUser = async (
+    circleId: string,
+    invitedByUserDid: string,
+): Promise<AdminInvitation[]> => {
+    return await AdminInvitations.find({ circleId, invitedByUserDid, status: "pending" })
+        .sort({ createdAt: -1 })
+        .toArray();
+};
+
 const getRequiredPendingInvitation = async (requestId: string): Promise<AdminInvitation> => {
     const invitation = await AdminInvitations.findOne({ _id: new ObjectId(requestId), status: "pending" });
     if (!invitation) {
