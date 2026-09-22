@@ -8,8 +8,11 @@ import {
     getCircleByHandle,
     getCircleById,
     getCirclePublishStatus,
+    getCirclesByDids,
     getPilotArtistCircleReadiness,
 } from "@/lib/data/circle";
+import { getPendingAdminInvitationsSentByUser } from "@/lib/data/admin-invitations";
+import { resolveRoleNames } from "@/lib/data/admin-invitation-notifications";
 import { features } from "@/lib/data/constants";
 import { getPendingAttachCircleRequest, getPendingIncomingAttachCircleRequests } from "@/lib/data/circle-attach";
 import { getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
@@ -17,7 +20,7 @@ import { getAdminMembers, getMember, getMembers } from "@/lib/data/member";
 import { publishCircleAction, submitCircleForVerificationAction } from "./actions";
 import { CircleVerificationThreadCard } from "./circle-verification-thread-card";
 import { CircleStructureCard } from "./circle-structure-card";
-import { AdminsListCard } from "./admins-list-card";
+import { AdminsListCard, type PendingAdminInvitationDisplay } from "./admins-list-card";
 import { getVerificationReadiness } from "@/lib/verification-readiness";
 import { VerificationReadinessChecklist } from "@/components/modules/verification/verification-readiness-checklist";
 import { getPeerifyMetadata, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
@@ -57,6 +60,27 @@ export default async function AboutSettingsPage(props: PageProps) {
     // the Admins list card applies to every circle type, including personal profiles - that's exactly
     // where inviting a second admin is most useful, since there'd otherwise be only the owner.
     const circleAdmins = circle._id ? await getAdminMembers(String(circle._id)) : [];
+    // Sent-invitation list for the Admins card's "Pending invitations" section. Scoped to this
+    // viewer's own invitations, matching cancelAdminInvitation's sender-only guard - see the
+    // comment on getPendingAdminInvitationsSentByUser.
+    const pendingAdminInvitationDocs =
+        circle._id && userDid ? await getPendingAdminInvitationsSentByUser(String(circle._id), userDid) : [];
+    // An invitation only stores the invitee's did (no Member doc exists until they accept), so
+    // their name/handle/picture has to come from their own circle.
+    const invitedCircles = pendingAdminInvitationDocs.length
+        ? await getCirclesByDids(pendingAdminInvitationDocs.map((invitation) => invitation.invitedUserDid))
+        : [];
+    const pendingAdminInvitations: PendingAdminInvitationDisplay[] = pendingAdminInvitationDocs.map((invitation) => {
+        const invitedCircle = invitedCircles.find((invitee) => invitee.did === invitation.invitedUserDid);
+        return {
+            requestId: invitation._id?.toString?.() ?? "",
+            inviteeName: invitedCircle?.name || invitation.invitedUserDid,
+            inviteeHandle: invitedCircle?.handle,
+            inviteePictureUrl: invitedCircle?.picture?.url,
+            roleNames: resolveRoleNames(circle, invitation.userGroups),
+            createdAt: invitation.createdAt,
+        };
+    });
     const pendingAttachRequest = circle._id ? await getPendingAttachCircleRequest(String(circle._id)) : null;
     const pendingDetachRequest = circle._id ? await getPendingDetachCircleRequest(String(circle._id)) : null;
     const incomingAttachRequests =
@@ -144,7 +168,7 @@ export default async function AboutSettingsPage(props: PageProps) {
                     ? "Manage your profile information, including name, description, location, and images."
                     : "Manage your circle's profile information, including name, description, mission, and images."}
             </p>
-            <AdminsListCard circle={circle} admins={circleAdmins} />
+            <AdminsListCard circle={circle} admins={circleAdmins} pendingInvitations={pendingAdminInvitations} />
             {showWorkflowCard ? (
                 <div className="mb-6 rounded-lg border bg-white p-4 shadow-sm">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
