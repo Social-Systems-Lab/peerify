@@ -161,6 +161,7 @@ export const PRIMARY_GENRE_OPTIONS = [
     "Gospel & Spiritual",
     "Hip-Hop & Rap",
     "Indie",
+    "Instrumental",
     "Jazz",
     "Latin",
     "Metal",
