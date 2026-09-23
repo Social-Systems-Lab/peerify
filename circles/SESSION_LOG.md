@@ -5473,3 +5473,52 @@ pattern), picker/banner UI, an infinite-render-loop fix, a role-picker scope fix
 (Admin/Moderator only), a Settings-page admin list with its own invite entry point,
 Remove-admin with proper approve/decline semantics, and Cancel-invite. No further
 follow-ups outstanding on this feature.
+
+## 2026-09-22/23 — Privacy fix: private account fields removed from the shared circle projection (search stopgap + commit A1), shipped to prod
+
+**Background:** an investigation into location handling in post previews, started on the evening of 2026-09-22, traced private account fields reaching logged-out visitors. `SAFE_CIRCLE_PROJECTION` (`src/lib/data/circle.ts`) — the projection behind the single-record circle/user getters (`getCircleByHandle`/`ById`/`ByDid`, `getUser*`, `getCirclesByIds`/`ByDids`, `getCircles`/`getCirclesWithMetrics`) and embedded in the event/issue/task/goal author and circle lookups — included `email`, `officialEmail`, `bookmarkedCircles`, `pinnedCircles` and `hiddenCancelledEventIds`. Records fetched through it reached public page renders and the anonymous search endpoint. The projection was inherited from the upstream Circles code base. The exposure was confirmed live on staging and production on the morning of 2026-09-23.
+
+**Stopgap (staging `26885df2` → main `d3608a2c`):** `searchDiscoverableCircles` (`src/lib/data/search.ts`) now omits the five private fields at its return point. Verified live afterwards: a logged-out request to `/api/circles/search` returned no email addresses. Left in place deliberately after A1 as defence in depth.
+
+**Commit A1 (staging `ffda445a` → main `00b0a2c8`, deployed 2026-09-23 19:21 UTC):**
+- Removed the five fields from `SAFE_CIRCLE_PROJECTION`; nothing else in it changed. A pre-change audit confirmed no reader of `email`, `bookmarkedCircles`, `pinnedCircles` or `hiddenCancelledEventIds` depended on this projection — self reads all go through `getUserPrivate`/`getPrivateUserByDid` (including everything that populates the client `userAtom`), and auth, password reset, email verification, admin user management, all `sendEmail` call sites and web-push use their own queries.
+- `officialEmail` had three owner/admin readers that did depend on it. Added `getCircleOfficialEmail(circleId)` (targeted `findOne`, projection `{ officialEmail: 1 }`, no auth of its own) and call it only after each site's existing check:
+  - `settings/about/page.tsx` — merged into the circle passed to `AboutSettingsForm` after the `edit_about` check. **Without this, the form would have seeded an empty field and `saveAbout` would have cleared the stored `officialEmail` on the next save** (data loss, not just a display gap).
+  - `submitCircleForVerificationAction` (`settings/about/actions.ts`) — the login + `edit_about` check moved above all field checks, then `officialEmail` read via the helper.
+  - `getAdminVerificationRequestDetail` (`verification-workflow.ts`) — `targetCircle` gets `officialEmail` so the organization-claim review works; its only caller runs `requireAdminDid` first.
+- Typecheck and lint clean.
+
+**Verified:**
+- Prod: logged-out profile page source contains no email addresses or bookmark lists.
+- Staging: logged-out circle, profile and event page source contain no email addresses or bookmark lists; `officialEmail` persists through save + reload on the About settings page; pinning still works.
+
+**Not yet tested:** submit-for-verification (needs a new draft organization circle on staging — the existing staging org circle is already published, so the button is hidden) and the admin Verification Requests detail view.
+
+**Still open — planned follow-up commits (high level only):**
+- **A2:** per-viewer location handling on circle pages; stop sending unused private profile fields to the client.
+- **A3:** authentication on two server actions that return circle records.
+- **B:** viewer-aware event location handling.
+- **C:** access checks and validation for internal link previews.
+- **D:** location handling in post previews; post page data loading.
+- **E:** image metadata stripping for post images, plus a dry-run backfill.
+
+**To-do list (found this session):**
+- Duplicate "Save Changes" buttons on the About settings page.
+- Admin Verification Requests: no past/approved-requests view; active-queue row isn't clickable; an orphaned request shows "Unknown circle" and a raw submitter ID.
+- Product decision needed: should pending accounts have publicly viewable profiles?
+- Review the location picker's default precision (consider a city-level default).
+- Test submit-for-verification on staging with a new draft organization circle.
+
+**Previously logged, still open:**
+- Slimmer feed projections break some UI (badges, Message button, "profile is private" shown to non-followers).
+- Mention-click discoverability check.
+- Deleted-post visibility needs a check.
+- Proposal/issue/goal pages need URL-to-circle consistency checks.
+- Authorization checks need to consider publish and module state.
+- Shift posts' audience handling needs review.
+- Link preview batches need input validation.
+- Stale code comment in the create-offer modal.
+
+**Handoff:** a brief was written for checking Kamooni (same code base) for the same class of issue.
+
+**Status:** stopgap and A1 are live on both staging and prod. A2–E not started.
