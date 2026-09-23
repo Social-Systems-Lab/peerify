@@ -264,8 +264,18 @@ export const searchDiscoverableCircles = async ({
         // regardless of the (unrelated) searchable/mapVisible flags this function otherwise keys
         // location visibility off of.
         const isOwnCircle = !!viewerDid && circle.did === viewerDid;
+        // Stopgap: SAFE_CIRCLE_PROJECTION still carries private fields, and these results reach
+        // anonymous visitors (/api/circles/search) — omit them here until the projection is slimmed.
+        const {
+            email: _email,
+            officialEmail: _officialEmail,
+            bookmarkedCircles: _bookmarkedCircles,
+            pinnedCircles: _pinnedCircles,
+            hiddenCancelledEventIds: _hiddenCancelledEventIds,
+            ...publicCircle
+        } = circle;
         return {
-            ...circle,
+            ...publicCircle,
             // redactCircleLocationForViewer, not the plain redactLocationForViewer — this result
             // set includes venue circles, which need the extra addressVisibility-based ceiling
             // (see that function's own comment in lib/utils.ts).
