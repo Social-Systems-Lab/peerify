@@ -14,7 +14,7 @@ import {
 } from "@/models/models";
 import { ObjectId } from "mongodb";
 import { getUserPrivate } from "./user";
-import { getCircleById } from "./circle";
+import { getCircleById, getCircleOfficialEmail } from "./circle";
 
 export const ACTIVE_VERIFICATION_REQUEST_STATUSES = [
     "pending",
@@ -726,10 +726,16 @@ export async function getAdminVerificationRequestDetail(requestId: string) {
         return null;
     }
     const requestType = normalizeVerificationRequestType(request.requestType);
-    const targetCircle =
+    const safeTargetCircle =
         requestType === "independent_circle" && request.targetCircleId
             ? await getCircleById(request.targetCircleId)
             : null;
+    // officialEmail is excluded from SAFE_CIRCLE_PROJECTION; getOrganizationClaimReview needs it.
+    // Admin-only: this function's sole caller (getVerificationRequestDetailAction) runs
+    // requireAdminDid first.
+    const targetCircle = safeTargetCircle
+        ? { ...safeTargetCircle, officialEmail: await getCircleOfficialEmail(request.targetCircleId!) }
+        : null;
     const messages = await getVerificationMessagesForRequest(request._id!.toString());
 
     const senderNames = new Map<string, string>([

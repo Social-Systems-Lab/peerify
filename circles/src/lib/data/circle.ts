@@ -40,13 +40,16 @@ import {
 import { buildVerifiedUserSet } from "@/lib/auth/verification";
 import { isCommunityGuidelinesCompleted } from "@/lib/community-guidelines";
 
+// Reaches anonymous viewers (e.g. the circle layout ships the whole document to the client), so
+// private fields — email, officialEmail, bookmarkedCircles, pinnedCircles, hiddenCancelledEventIds
+// — are deliberately NOT projected here. Self reads go through getUserPrivate; officialEmail
+// for owners/admins goes through getCircleOfficialEmail after the caller's own auth check.
 export const SAFE_CIRCLE_PROJECTION = {
     _id: 1,
     did: 1,
     publicKey: 1,
     name: 1,
     type: 1,
-    email: 1,
     handle: 1,
     picture: 1,
     images: 1,
@@ -110,11 +113,7 @@ export const SAFE_CIRCLE_PROJECTION = {
     websiteUrl: 1,
     representsOrganization: 1,
     organizationName: 1,
-    officialEmail: 1,
     donationIntent: 1,
-    bookmarkedCircles: 1,
-    pinnedCircles: 1,
-    hiddenCancelledEventIds: 1,
 } as const;
 
 const DISCOVERY_CIRCLE_PROJECTION = {
@@ -754,6 +753,17 @@ export const getCircleByDid = async (did: string): Promise<Circle> => {
         circle._id = circle._id.toString();
     }
     return circle;
+};
+
+// Owner/admin-only: officialEmail is excluded from SAFE_CIRCLE_PROJECTION. Performs no
+// authorization itself — call only after the caller has verified the viewer may edit this
+// circle's About settings (features.settings.edit_about) or is a platform admin.
+export const getCircleOfficialEmail = async (circleId: string): Promise<string | undefined> => {
+    if (!ObjectId.isValid(circleId)) {
+        return undefined;
+    }
+    const circle = await Circles.findOne({ _id: new ObjectId(circleId) }, { projection: { officialEmail: 1 } });
+    return circle?.officialEmail || undefined;
 };
 
 // The draft/pending_verification->published completion bar for a pilot-signup-provisioned

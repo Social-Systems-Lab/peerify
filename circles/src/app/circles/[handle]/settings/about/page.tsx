@@ -7,6 +7,7 @@ import {
     getAutoProvisionedArtistCircle,
     getCircleByHandle,
     getCircleById,
+    getCircleOfficialEmail,
     getCirclePublishStatus,
     getCirclesByDids,
     getPilotArtistCircleReadiness,
@@ -33,9 +34,9 @@ type PageProps = {
 export default async function AboutSettingsPage(props: PageProps) {
     const params = await props.params;
     const { handle } = params;
-    const circle = await getCircleByHandle(handle);
+    const safeCircle = await getCircleByHandle(handle);
 
-    if (!circle?._id) {
+    if (!safeCircle?._id) {
         return <div>Circle not found</div>;
     }
 
@@ -45,10 +46,15 @@ export default async function AboutSettingsPage(props: PageProps) {
     // the app — this page's safety previously rode entirely on middleware.ts +
     // accessRules.settings.view staying ["admins"], with no independent check here. Explicit
     // re-check, defense-in-depth (matches the pattern settings/crew/page.tsx already used).
-    const canManage = await isAuthorized(userDid, circle._id, features.settings.edit_about);
+    const canManage = await isAuthorized(userDid, safeCircle._id, features.settings.edit_about);
     if (!canManage) {
         redirect(`/circles/${handle}/access-denied?module=settings&redirectTo=/circles/${handle}/settings/about`);
     }
+
+    // officialEmail is excluded from SAFE_CIRCLE_PROJECTION, so read it only now that edit_about
+    // is confirmed. AboutSettingsForm seeds its field from circle.officialEmail and saveAbout
+    // writes the field back verbatim — without this merge, the next save would clear it.
+    const circle = { ...safeCircle, officialEmail: await getCircleOfficialEmail(String(safeCircle._id)) };
 
     const parentCircle = circle.parentCircleId ? await getCircleById(circle.parentCircleId) : undefined;
     const member = userDid && circle._id ? await getMember(userDid, String(circle._id)) : null;
