@@ -1,7 +1,13 @@
 "use server";
 
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
-import { getCircleById, getCirclePath, isPilotArtistCircleReadyToPublish, updateCircle } from "@/lib/data/circle";
+import {
+    getCircleById,
+    getCircleOfficialEmail,
+    getCirclePath,
+    isPilotArtistCircleReadyToPublish,
+    updateCircle,
+} from "@/lib/data/circle";
 import {
     approveAttachCircleRequest,
     createAttachCircleRequest,
@@ -276,6 +282,18 @@ export async function submitCircleForVerificationAction(formData: FormData) {
         return { success: false, message: "Circle not found" };
     }
 
+    // Auth runs before any field checks: the officialEmail read below is owner/admin-only
+    // (excluded from SAFE_CIRCLE_PROJECTION), and the checks' messages describe the circle's state.
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to edit circle settings" };
+    }
+
+    const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+    if (!authorized) {
+        return { success: false, message: "You are not authorized to edit circle settings" };
+    }
+
     // Pilot-signup-provisioned artist circles are created with circleLevel "top_level" (see
     // createPilotArtistCircle, src/components/forms/signup/actions.ts), so they'd otherwise
     // reach this manual-verification path instead of publishCircleAction's "Publish circle"
@@ -314,22 +332,12 @@ export async function submitCircleForVerificationAction(formData: FormData) {
             };
         }
 
-        if (!normalizeOfficialEmail(circle.officialEmail)) {
+        if (!normalizeOfficialEmail(await getCircleOfficialEmail(circleId))) {
             return {
                 success: false,
                 message: "Add an official organization email before submitting this circle for verification.",
             };
         }
-    }
-
-    const userDid = await getAuthenticatedUserDid();
-    if (!userDid) {
-        return { success: false, message: "You need to be logged in to edit circle settings" };
-    }
-
-    const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
-    if (!authorized) {
-        return { success: false, message: "You are not authorized to edit circle settings" };
     }
 
     const existingRequest = await getActiveVerificationRequestForIndependentCircle(circleId);
