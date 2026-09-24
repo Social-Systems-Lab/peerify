@@ -9,15 +9,6 @@ import { Feeds, Members, Posts } from "@/lib/data/db";
 import { getSoleAdminCircles } from "@/lib/data/member";
 import { features } from "@/lib/data/constants";
 
-export async function getCircleByIdAction(id: string) {
-    try {
-        return await getCircleById(id);
-    } catch (error) {
-        console.error("Error getting circle by ID:", error);
-        throw new Error("Failed to get circle");
-    }
-}
-
 /**
  * Get statistics about what will be deleted when a circle is deleted
  * @param circleId The ID of the circle
@@ -25,6 +16,23 @@ export async function getCircleByIdAction(id: string) {
  */
 export async function getCircleDeletionStatsAction(circleId: string) {
     try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) {
+            return {
+                success: false,
+                message: "You need to be logged in to view deletion statistics",
+            };
+        }
+
+        // Same permission deleteCircleAction requires
+        const canDelete = await isAuthorized(userDid, circleId, features.communities.delete);
+        if (!canDelete) {
+            return {
+                success: false,
+                message: "You don't have permission to view deletion statistics for this circle.",
+            };
+        }
+
         // Get the circle to be deleted
         const circle = await getCircleById(circleId);
         if (!circle) {
