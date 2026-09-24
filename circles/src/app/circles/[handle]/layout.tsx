@@ -6,6 +6,7 @@ import {
     isCirclePublished,
     hasAutoProvisionedArtistCircle,
     isPilotArtistCircleReadyToPublish,
+    resolveViewerIsAdmin,
 } from "@/lib/data/circle";
 import { redirect } from "next/navigation";
 import HomeCover from "@/components/modules/home/home-cover";
@@ -17,6 +18,7 @@ import { getHumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
 import { appConfig } from "@/config/app";
 import { getPeerifyMetadata } from "@/lib/peerify/artist-profile";
 import { PilotChromeScope } from "@/components/layout/pilot-chrome-scope";
+import { toPublicCircle } from "@/lib/utils/public-circle";
 
 type Props = { params: Promise<{ handle: string }>; children: React.ReactNode };
 
@@ -47,7 +49,14 @@ export default async function RootLayout(props: Props) {
         circle.circleType === "user" && circle.did
             ? await getHumanityVerificationSummary(circle.did, userDid)
             : null;
-    const plainCircle = JSON.parse(JSON.stringify(circle));
+    // Everything below still reads the full `circle`; only what's serialised to the client
+    // components is shaped (see toPublicCircle for why this is post-fetch).
+    const publicCircle = toPublicCircle(circle, {
+        viewerDid: userDid,
+        viewerIsPlatformAdmin: await resolveViewerIsAdmin(userDid),
+        viewerCanManage: authorizedToEdit,
+    });
+    const plainCircle = JSON.parse(JSON.stringify(publicCircle));
     const plainParentCircle = parentCircle ? JSON.parse(JSON.stringify(parentCircle)) : undefined;
     const plainProofOfHumanitySummary = proofOfHumanitySummary ? JSON.parse(JSON.stringify(proofOfHumanitySummary)) : null;
 
