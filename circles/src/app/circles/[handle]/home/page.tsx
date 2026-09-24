@@ -1,6 +1,6 @@
 import React from "react";
 import { notFound } from "next/navigation";
-import { getCircleByHandle } from "@/lib/data/circle";
+import { getCircleByHandle, resolveViewerIsAdmin } from "@/lib/data/circle";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import AboutPage from "@/components/modules/home/AboutPage";
 import type { VerifiedContributionItem } from "@/components/modules/home/VerifiedContributionsPanel";
@@ -22,6 +22,7 @@ import { isPeerifyArtistIdentity, isPeerifyManagedIdentity, isPeerifyVenueIdenti
 import { getEventsByCircleId, getPublicEventsByCircleId } from "@/lib/data/event";
 import { getTracksByCircleId } from "@/lib/data/track";
 import { signAudioToken } from "@/lib/audio/audio-token";
+import { toPublicCircle } from "@/lib/utils/public-circle";
 
 // TODO: Add error handling and loading states more robustly
 
@@ -234,12 +235,25 @@ export default async function CircleHomePage(props: PageProps) {
     // touching the page-level access-rules gate that already governs whether this page loads at
     // all (see middleware.ts/api/access — accessRules.home.view defaults to "everyone" and stays
     // that way here). A no-op today since offersPanelVisibility is always "visible" above.
+    // Shaped only for AboutPage — everything above still reads the full `circle` server-side
+    // (see toPublicCircle for why this is post-fetch). tourTeamOfferings pass through as-is:
+    // offers are displayed publicly by design for now.
+    const viewerCanManage = await isAuthorized(viewerDid, circle._id ?? "", features.settings.edit_about);
+    const publicCircle = toPublicCircle(
+        circle,
+        {
+            viewerDid,
+            viewerIsPlatformAdmin: await resolveViewerIsAdmin(viewerDid),
+            viewerCanManage,
+        },
+        { includeTourTeamOfferings: true },
+    );
     const circleForAboutPage =
-        offersPanelVisibility === "visible" || !circle.tourTeamOfferings?.length
-            ? circle
+        offersPanelVisibility === "visible" || !publicCircle.tourTeamOfferings?.length
+            ? publicCircle
             : {
-                  ...circle,
-                  tourTeamOfferings: circle.tourTeamOfferings.map((offering) => ({
+                  ...publicCircle,
+                  tourTeamOfferings: publicCircle.tourTeamOfferings.map((offering) => ({
                       ...offering,
                       photos: undefined,
                       detail: undefined,
