@@ -969,10 +969,30 @@ export async function rejectVerificationRequest(id: string) {
 }
 
 export async function getCircleByIdAction(id: string) {
+    // check if user is admin
+    let userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        throw new Error("Unauthorized: You do not have permission to access this resource.");
+    }
+    let user = await getUserPrivate(userDid);
+    if (!user.isAdmin) {
+        throw new Error("Unauthorized: You do not have permission to access this resource.");
+    }
+
     return await getCircleById(id);
 }
 
 export async function getUserByDidAction(did: string) {
+    // check if user is admin
+    let userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        throw new Error("Unauthorized: You do not have permission to access this resource.");
+    }
+    let user = await getUserPrivate(userDid);
+    if (!user.isAdmin) {
+        throw new Error("Unauthorized: You do not have permission to access this resource.");
+    }
+
     return await getUserByDid(did);
 }
 
