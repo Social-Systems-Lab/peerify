@@ -997,6 +997,16 @@ export async function getUserByDidAction(did: string) {
 }
 
 export async function toggleManualMembership(userId: string, manualMember: boolean) {
+    // Check if user is admin
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "Unauthorized: You must be logged in." };
+    }
+    const adminUser = await getUserPrivate(userDid);
+    if (!adminUser.isAdmin) {
+        return { success: false, message: "Unauthorized: You do not have permission." };
+    }
+
     try {
         const users = await db.collection("circles");
         const result = await users.updateOne({ _id: new ObjectId(userId) }, { $set: { manualMember, isMember: manualMember } });
@@ -1244,6 +1254,16 @@ export async function sendReminderEmailForHandle(handle: string) {
 }
 
 export async function refreshSubscriptionStatus(userId: string) {
+    // Only a platform admin, or the user refreshing their own account (compared by circle _id)
+    const callerDid = await getAuthenticatedUserDid();
+    if (!callerDid) {
+        return { success: false, message: "Unauthorized: You must be logged in." };
+    }
+    const caller = await getUserPrivate(callerDid);
+    if (!caller.isAdmin && caller._id?.toString() !== userId) {
+        return { success: false, message: "Unauthorized: You do not have permission." };
+    }
+
     try {
         const user = await Circles.findOne({ _id: new ObjectId(userId) });
         if (!user) {
