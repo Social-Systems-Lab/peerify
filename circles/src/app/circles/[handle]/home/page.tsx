@@ -7,7 +7,7 @@ import type { VerifiedContributionItem } from "@/components/modules/home/Verifie
 import { getTasksByCircleId, getVerifiedTasksForUser } from "@/lib/data/task";
 import { features } from "@/lib/data/constants";
 import { getShiftEndAt, getShiftStartAt, isShiftTask } from "@/components/modules/tasks/shift-task-utils";
-import type { EventDisplay, TaskDisplay, TaskPermissions } from "@/models/models";
+import type { Circle, EventDisplay, TaskDisplay, TaskPermissions } from "@/models/models";
 import type { FundingAskDisplay } from "@/models/models";
 import { getFundingCirclePermissions, isFundingEnabledForCircle, listFundingAsksByCircleId } from "@/lib/data/funding";
 import { getMember, getMembers } from "@/lib/data/member";
@@ -248,6 +248,25 @@ export default async function CircleHomePage(props: PageProps) {
         },
         { includeTourTeamOfferings: true },
     );
+    // The same circle also reaches AboutPage embedded in other props, unshaped: verified
+    // contributions' task author/assignee/verifier/participantProfiles (SAFE_CIRCLE_PROJECTION
+    // lookups — on a personal profile, often this very circle), and funding asks' `circle`
+    // (listFundingAsksByCircleId attaches the circle it was given). Swap in publicCircle there too.
+    const shapeIfThisCircle = <T extends { did?: string } | undefined>(embedded: T): T | Circle =>
+        embedded && circle.did && embedded.did === circle.did ? publicCircle : embedded;
+    const verifiedContributionsForAboutPage = verifiedContributions.map((item) => ({
+        ...item,
+        task: {
+            ...item.task,
+            author: shapeIfThisCircle(item.task.author),
+            assignee: shapeIfThisCircle(item.task.assignee),
+            verifier: shapeIfThisCircle(item.task.verifier),
+            participantProfiles: item.task.participantProfiles?.map(shapeIfThisCircle),
+        },
+    }));
+    const fundingPreviewAsksForAboutPage = fundingPreviewAsks.map((ask) =>
+        ask.circle ? { ...ask, circle: publicCircle } : ask,
+    );
     const circleForAboutPage =
         offersPanelVisibility === "visible" || !publicCircle.tourTeamOfferings?.length
             ? publicCircle
@@ -263,9 +282,9 @@ export default async function CircleHomePage(props: PageProps) {
     return (
         <AboutPage
             circle={circleForAboutPage}
-            verifiedContributions={verifiedContributions}
+            verifiedContributions={verifiedContributionsForAboutPage}
             verifiedContributionPublicCount={verifiedContributionPublicCount}
-            fundingPreviewAsks={fundingPreviewAsks}
+            fundingPreviewAsks={fundingPreviewAsksForAboutPage}
             fundingPanelVisibility={fundingPanelVisibility}
             upcomingShiftTasks={JSON.parse(JSON.stringify(upcomingShiftTasks))}
             venueUpcomingEvents={JSON.parse(JSON.stringify(venueUpcomingEvents))}
