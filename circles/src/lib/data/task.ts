@@ -2,7 +2,7 @@
 import { Tasks, Circles, Members, Reactions, RankedLists, Feeds, Posts } from "./db"; // Added Feeds, Posts
 import { ObjectId } from "mongodb";
 import { Task, TaskDisplay, TaskStage, Circle, Member, RankedList, Post, TaskPriority, TaskClaim } from "@/models/models"; // Added Post type
-import { getCircleById, SAFE_CIRCLE_PROJECTION } from "./circle";
+import { getCircleById, IDENTITY_CIRCLE_PROJECTION } from "./circle";
 import { getMemberIdsByUserGroup } from "./member";
 import { isAuthorized } from "../auth/auth";
 import { features } from "./constants"; // RANKING_STALENESS_DAYS is now in ranking.ts
@@ -77,7 +77,7 @@ const buildParticipantProfilesLookupStage = () => ({
             },
             {
                 $project: {
-                    ...SAFE_CIRCLE_PROJECTION,
+                    ...IDENTITY_CIRCLE_PROJECTION,
                     _id: { $toString: "$_id" },
                 },
             },
@@ -216,7 +216,7 @@ export const getTasksByCircleId = async (
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" }, // Convert circle _id to string
                             },
                         },
@@ -249,7 +249,7 @@ export const getTasksByCircleId = async (
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" }, // Convert circle _id to string
                             },
                         },
@@ -346,7 +346,7 @@ export const getActiveTasksByCircleId = async (circleId: string): Promise<TaskDi
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -375,7 +375,7 @@ export const getActiveTasksByCircleId = async (circleId: string): Promise<TaskDi
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -481,7 +481,7 @@ export const getTaskById = async (
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -510,7 +510,7 @@ export const getTaskById = async (
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -560,7 +560,7 @@ export const getTaskById = async (
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -708,7 +708,7 @@ export const getVerifiedTasksForUser = async (userDid: string, viewerDid?: strin
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -735,7 +735,7 @@ export const getVerifiedTasksForUser = async (userDid: string, viewerDid?: strin
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -783,7 +783,7 @@ export const getVerifiedTasksForUser = async (userDid: string, viewerDid?: strin
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -1448,7 +1448,7 @@ export const getTasksByGoalId = async (goalId: string, circleId: string): Promis
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -1477,7 +1477,7 @@ export const getTasksByGoalId = async (goalId: string, circleId: string): Promis
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -1550,7 +1550,7 @@ export const getTasksByEventId = async (eventId: string, circleId: string): Prom
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -1579,7 +1579,7 @@ export const getTasksByEventId = async (eventId: string, circleId: string): Prom
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
