@@ -405,6 +405,38 @@ export const unpinCircleAction = async (circleId: string): Promise<UserPrivate |
     }
 };
 
+// Fields updateUser/updateCircleField accept from the browser. These actions used to copy every
+// submitted FormData key into updateCircle's $set, which let any logged-in user write
+// server-controlled fields on their own profile (isAdmin, isVerified, verificationStatus,
+// isFoundingMember, accountStatus, publishStatus, ...) and any circle editor do the same on
+// their circle. Only what the real callers send is allowed: EditableField (home-content.tsx:
+// name, description, mission) and the picture uploads (EditableImage, onboarding and
+// circle-wizard profile steps). Every other key is ignored.
+const INLINE_PROFILE_TEXT_FIELDS = ["name", "description", "mission"] as const;
+const INLINE_PROFILE_FILE_FIELDS = ["picture"] as const;
+
+const buildInlineProfileUpdate = async (circleId: string, formData: FormData): Promise<Partial<Circle>> => {
+    const updateData: Partial<Circle> = { _id: circleId };
+
+    for (const field of INLINE_PROFILE_TEXT_FIELDS) {
+        const value = formData.get(field);
+        if (typeof value === "string") {
+            updateData[field] = value;
+        }
+    }
+
+    for (const field of INLINE_PROFILE_FILE_FIELDS) {
+        const value = formData.get(field);
+        if (value instanceof File) {
+            const fileInfo = await saveFile(value, field, circleId, true);
+            updateData[field] = fileInfo;
+            revalidatePath(fileInfo.url);
+        }
+    }
+
+    return updateData;
+};
+
 export const updateUser = async (userId: string, formData: FormData): Promise<UserPrivate | undefined> => {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -417,23 +449,7 @@ export const updateUser = async (userId: string, formData: FormData): Promise<Us
             return undefined;
         }
 
-        let updateData: Partial<Circle> = { _id: userId };
-
-        for (const [key, value] of formData.entries() as any) {
-            if (key === "picture" || key === "cover") {
-                let fileInfo = await saveFile(value, key, userId, true);
-                updateData[key as keyof Circle] = fileInfo;
-                revalidatePath(fileInfo.url);
-            } else if (key === "location") {
-                try {
-                    updateData[key as keyof Circle] = JSON.parse(value as string);
-                } catch (e) {
-                    console.error("Failed to parse location data", e);
-                }
-            } else {
-                updateData[key as keyof Circle] = value as string;
-            }
-        }
+        const updateData = await buildInlineProfileUpdate(userId, formData);
 
         await updateCircle(updateData, userDid);
         revalidatePath(`/circles/${currentUser.handle}`);
@@ -457,23 +473,7 @@ export const updateCircleField = async (circleId: string, formData: FormData): P
             return { success: false, message: "You are not authorized to edit circle settings" };
         }
 
-        let updateData: Partial<Circle> = { _id: circleId };
-
-        for (const [key, value] of formData.entries() as any) {
-            if (key === "picture" || key === "cover") {
-                let fileInfo = await saveFile(value, key, circleId, true);
-                updateData[key as keyof Circle] = fileInfo;
-                revalidatePath(fileInfo.url);
-            } else if (key === "location") {
-                try {
-                    updateData[key as keyof Circle] = JSON.parse(value as string);
-                } catch (e) {
-                    console.error("Failed to parse location data", e);
-                }
-            } else {
-                updateData[key as keyof Circle] = value as string;
-            }
-        }
+        const updateData = await buildInlineProfileUpdate(circleId, formData);
 
         await updateCircle(updateData, userDid);
         let circle = await getCircleById(circleId);
