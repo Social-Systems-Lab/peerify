@@ -17,7 +17,7 @@ import {
     PeerifyEventMetadata,
     PeerifyEventVenueDisclosure,
 } from "@/models/models";
-import { SAFE_CIRCLE_PROJECTION } from "./circle";
+import { IDENTITY_CIRCLE_PROJECTION } from "./circle";
 import { createPost } from "./feed";
 import { upsertVbdEvents } from "./vdb";
 import { notifyEventInvitation } from "./notifications";
@@ -324,7 +324,7 @@ function buildPublicEventDisplayPipeline(match: Record<string, unknown>) {
                     },
                     {
                         $project: {
-                            ...SAFE_CIRCLE_PROJECTION,
+                            ...IDENTITY_CIRCLE_PROJECTION,
                             _id: { $toString: "$_id" },
                         },
                     },
@@ -552,7 +552,7 @@ export const getEventsByCircleId = async (
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -778,7 +778,7 @@ export const getEventById = async (eventId: string, userDid: string): Promise<Ev
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -1401,7 +1401,7 @@ export const getOpenEventsForMap = async (
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -1640,7 +1640,7 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
