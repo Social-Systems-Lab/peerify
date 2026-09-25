@@ -46,7 +46,7 @@ const ModuleEnabledToggle = ({ circle, module }: { circle: Circle; module: Modul
     const [justSaved, setJustSaved] = useState(false);
 
     const isLocked =
-        module.readOnly || (module.handle === "funding" && (!user?.isAdmin || circle.circleType !== "circle"));
+        module.readOnly || (module.handle === "funding" && (user?.isAdmin !== true || circle.circleType !== "circle"));
 
     const onToggle = async (checked: boolean) => {
         setIsSaving(true);

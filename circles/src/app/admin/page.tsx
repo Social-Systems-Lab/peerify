@@ -19,7 +19,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         redirect("/unauthenticated");
     }
     let user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         redirect("/unauthorized");
     }
 

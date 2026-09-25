@@ -351,7 +351,7 @@ export default function UsersTab() {
                                         <TableCell>{user.email || "No email"}</TableCell>
                                         <TableCell>
                                             <div className="flex flex-wrap gap-1">
-                                                {user.isAdmin && (
+                                                {user.isAdmin === true && (
                                                     <span className="rounded-full bg-purple-100 px-2 py-1 text-xs text-purple-800">Admin</span>
                                                 )}
                                                 {(user as any).accountStatus === "pending_verification" && (
