@@ -36,7 +36,9 @@ export async function getHumanityVerificationSummary(
         .toArray()) as HumanityVerification[];
 
     const verifierDidSet = Array.from(new Set(activeVerifications.map((verification) => verification.verifierDid)));
-    const verifiers = verifierDidSet.length ? await getCirclesByDids(verifierDidSet) : [];
+    // Identity only: this summary is rendered on the subject's public profile (layout + home page,
+    // anonymous visitors included), and the card only reads the verifier's name/handle.
+    const verifiers = verifierDidSet.length ? await getCirclesByDids(verifierDidSet, { identityOnly: true }) : [];
     const verifierMap = new Map(verifiers.map((verifier) => [verifier.did, verifier]));
 
     const verifications = activeVerifications.map((verification) => ({

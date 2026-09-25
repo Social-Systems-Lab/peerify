@@ -206,8 +206,12 @@ export const getCirclesByIds = async (ids: string[], viewerDid?: string): Promis
     return circles;
 };
 
-export const getCirclesByDids = async (dids: string[]): Promise<Circle[]> => {
-    let circles = await Circles.find({ did: { $in: dids } }, { projection: SAFE_CIRCLE_PROJECTION }).toArray();
+// identityOnly: for callers that only render who someone is (name/avatar/link) to viewers other
+// than that person — see IDENTITY_CIRCLE_PROJECTION. Defaults to SAFE_CIRCLE_PROJECTION so
+// existing callers are unchanged.
+export const getCirclesByDids = async (dids: string[], options?: { identityOnly?: boolean }): Promise<Circle[]> => {
+    const projection = options?.identityOnly ? IDENTITY_CIRCLE_PROJECTION : SAFE_CIRCLE_PROJECTION;
+    let circles = await Circles.find({ did: { $in: dids } }, { projection }).toArray();
     circles.forEach((circle: Circle) => {
         if (circle._id) {
             circle._id = circle._id.toString();
@@ -764,6 +768,19 @@ export const getCircleById = async (id: string | null, criteria?: any): Promise<
     let query = id ? { _id: new ObjectId(id) } : criteria;
     let circle = (await Circles.findOne(query, { projection: SAFE_CIRCLE_PROJECTION })) as Circle;
 
+    if (circle?._id) {
+        circle._id = circle._id.toString();
+    }
+    return circle;
+};
+
+// Identity-only single fetch (see IDENTITY_CIRCLE_PROJECTION) — for another circle that is
+// only linked to, e.g. the circle layout's parent-circle breadcrumb. Never save the result back.
+export const getCircleIdentityById = async (id: string): Promise<Circle | null> => {
+    const circle = (await Circles.findOne(
+        { _id: new ObjectId(id) },
+        { projection: IDENTITY_CIRCLE_PROJECTION },
+    )) as Circle | null;
     if (circle?._id) {
         circle._id = circle._id.toString();
     }

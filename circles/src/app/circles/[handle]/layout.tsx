@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import {
     getCircleByHandle,
     getDefaultCircle,
-    getCircleById,
+    getCircleIdentityById,
     isCirclePublished,
     hasAutoProvisionedArtistCircle,
     isPilotArtistCircleReadyToPublish,
@@ -44,7 +44,9 @@ export default async function RootLayout(props: Props) {
     if (!canViewCircle) {
         redirect("/not-found");
     }
-    const parentCircle = circle.parentCircleId ? await getCircleById(circle.parentCircleId) : undefined;
+    // Identity only: HomeContent just links to the parent (circleType/handle/name), and this is
+    // sent to every visitor of a sub-circle page.
+    const parentCircle = circle.parentCircleId ? await getCircleIdentityById(circle.parentCircleId) : undefined;
     const proofOfHumanitySummary =
         circle.circleType === "user" && circle.did
             ? await getHumanityVerificationSummary(circle.did, userDid)
