@@ -116,6 +116,29 @@ export const SAFE_CIRCLE_PROJECTION = {
     donationIntent: 1,
 } as const;
 
+// Identity-only view of a circle, for OTHER people's records embedded in something else (event
+// authors, task authors/assignees/verifiers/participants, ...). Those embeds reach anonymous
+// visitors, and their consumers only render a name/avatar/link (plus CirclePreview, which needs
+// circleType, searchable/mapVisible for its "profile is private" gate, and metadata.peerify's
+// identity keys for isPeerifyArtistIdentity). Never use this for a record that is edited and
+// saved back — updateCircle $sets whatever it is given, so a partial `metadata` would overwrite
+// the real one. Records that are saved back go through SAFE_CIRCLE_PROJECTION, which must stay
+// as it is.
+export const IDENTITY_CIRCLE_PROJECTION = {
+    _id: 1,
+    did: 1,
+    handle: 1,
+    name: 1,
+    picture: 1,
+    circleType: 1,
+    isVerified: 1,
+    searchable: 1,
+    mapVisible: 1,
+    "metadata.peerify.intent": 1,
+    "metadata.peerify.managedIdentity": 1,
+    "metadata.peerify.identityType": 1,
+} as const;
+
 const DISCOVERY_CIRCLE_PROJECTION = {
     _id: 1,
     did: 1,
