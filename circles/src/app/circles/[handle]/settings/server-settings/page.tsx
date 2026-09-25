@@ -17,7 +17,7 @@ export default async function ServerSettingsPage(props: PageProps) {
     }
 
     // Check if user is admin
-    if (!circle.isAdmin) {
+    if (circle.isAdmin !== true) {
         return <div>You do not have permission to access server settings</div>;
     }
 

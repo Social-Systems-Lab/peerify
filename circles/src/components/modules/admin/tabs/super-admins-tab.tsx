@@ -118,7 +118,7 @@ export default function SuperAdminsTab() {
     );
 
     // Filter out users who are already admins for the dropdown
-    const nonAdminUsers = users.filter((user) => !user.isAdmin);
+    const nonAdminUsers = users.filter((user) => user.isAdmin !== true);
 
     return (
         <div className="space-y-6">

@@ -43,7 +43,7 @@ export async function initiatePasswordReset(userId: string): Promise<InitiateRes
             throw new Error("Unauthorized: You do not have permission to access this resource.");
         }
         let currentUser = await getUserPrivate(userDid);
-        if (!currentUser.isAdmin) {
+        if (currentUser.isAdmin !== true) {
             throw new Error("Unauthorized: You do not have permission to access this resource.");
         }
 

@@ -28,7 +28,7 @@ export async function saveServerSettings(values: {
     try {
         // Check if user is admin
         const user = await Circles.findOne({ did: userDid });
-        if (!user?.isAdmin) {
+        if (user?.isAdmin !== true) {
             return { success: false, message: "You are not authorized to edit server settings" };
         }
 

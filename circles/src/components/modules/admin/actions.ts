@@ -43,7 +43,7 @@ export async function getEntitiesByType(type: "circle" | "user" | "project") {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
     let user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
 
@@ -99,7 +99,7 @@ export async function triggerReindexAction() {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -127,7 +127,7 @@ export async function deleteEntity(id: string) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
     let user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
 
@@ -173,7 +173,7 @@ export async function getSuperAdmins() {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
     let user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
 
@@ -210,7 +210,7 @@ export async function toggleUserVerification(userId: string, isVerified: boolean
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
     let adminUser = await getUserPrivate(userDid);
-    if (!adminUser.isAdmin) {
+    if (adminUser.isAdmin !== true) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
 
@@ -255,7 +255,7 @@ export async function toggleSuperAdmin(userId: string, isAdmin: boolean) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
     let user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
 
@@ -283,7 +283,7 @@ export async function saveGlobalServerSettings(data: GlobalServerSettingsFormDat
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -356,7 +356,7 @@ export async function getWelcomeSystemMessageTemplateAction() {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -411,7 +411,7 @@ export async function saveWelcomeSystemMessageTemplateAction(input: {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -459,7 +459,7 @@ export async function getPlatformBroadcastMessageAction() {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -494,7 +494,7 @@ export async function savePlatformBroadcastMessageAction(input: {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -534,7 +534,7 @@ export async function broadcastPlatformBroadcastMessageAction(body: string) {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -612,7 +612,7 @@ export async function getWelcomeBannerAction() {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -659,7 +659,7 @@ export async function saveWelcomeBannerAction(input: {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -717,7 +717,7 @@ export async function getPlatformBroadcastMessagesAction() {
         throw new Error("Unauthorized: You must be logged in.");
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized: You do not have permission.");
     }
 
@@ -730,7 +730,7 @@ export async function createPlatformBroadcastMessageAction(body: string, active:
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -758,7 +758,7 @@ export async function previewPlatformBroadcastMessageToSelfAction(body: string) 
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -788,7 +788,7 @@ export async function updatePlatformBroadcastMessageAction(id: string, body: str
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -819,7 +819,7 @@ export async function deletePlatformBroadcastMessageAction(id: string) {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -847,7 +847,7 @@ export async function getPlatformStats() {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
     let user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
 
@@ -875,7 +875,7 @@ export async function getVerificationRequests() {
         throw new Error("Unauthorized");
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized");
     }
 
@@ -915,7 +915,7 @@ export async function approveVerificationRequest(id: string) {
         throw new Error("Unauthorized");
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized");
     }
 
@@ -945,7 +945,7 @@ export async function rejectVerificationRequest(id: string) {
         throw new Error("Unauthorized");
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized");
     }
 
@@ -975,7 +975,7 @@ export async function getCircleByIdAction(id: string) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
     let user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
 
@@ -989,7 +989,7 @@ export async function getUserByDidAction(did: string) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
     let user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized: You do not have permission to access this resource.");
     }
 
@@ -1003,7 +1003,7 @@ export async function toggleManualMembership(userId: string, manualMember: boole
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const adminUser = await getUserPrivate(userDid);
-    if (!adminUser.isAdmin) {
+    if (adminUser.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -1030,7 +1030,7 @@ export async function syncAllDonorboxSubscriptions() {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -1130,7 +1130,7 @@ export async function triggerCronEmailReminder() {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const adminUser = await getUserPrivate(userDid);
-    if (!adminUser.isAdmin) {
+    if (adminUser.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -1183,7 +1183,7 @@ export async function sendReminderEmailForHandle(handle: string) {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const adminUser = await getUserPrivate(userDid);
-    if (!adminUser.isAdmin) {
+    if (adminUser.isAdmin !== true) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -1260,7 +1260,7 @@ export async function refreshSubscriptionStatus(userId: string) {
         return { success: false, message: "Unauthorized: You must be logged in." };
     }
     const caller = await getUserPrivate(callerDid);
-    if (!caller.isAdmin && caller._id?.toString() !== userId) {
+    if (caller.isAdmin !== true && caller._id?.toString() !== userId) {
         return { success: false, message: "Unauthorized: You do not have permission." };
     }
 
@@ -1326,7 +1326,7 @@ export async function verifyAccount(userId: string) {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) return { success: false, message: "Unauthorized" };
     const adminUser = await getUserPrivate(userDid);
-    if (!adminUser.isAdmin) return { success: false, message: "Unauthorized" };
+    if (adminUser.isAdmin !== true) return { success: false, message: "Unauthorized" };
 
     try {
         const { foundingNumber } = await activateUserAccount(userId, adminUser.did!);
@@ -1357,7 +1357,7 @@ export async function rejectAccount(userId: string) {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) return { success: false, message: "Unauthorized" };
     const adminUser = await getUserPrivate(userDid);
-    if (!adminUser.isAdmin) return { success: false, message: "Unauthorized" };
+    if (adminUser.isAdmin !== true) return { success: false, message: "Unauthorized" };
 
     try {
         await Circles.updateOne(
@@ -1378,7 +1378,7 @@ export async function grantFoundingMember(userId: string) {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) return { success: false, message: "Unauthorized" };
     const adminUser = await getUserPrivate(userDid);
-    if (!adminUser.isAdmin) return { success: false, message: "Unauthorized" };
+    if (adminUser.isAdmin !== true) return { success: false, message: "Unauthorized" };
 
     try {
         const { getPlatformSettings } = await import("@/lib/data/platform-settings");
@@ -1428,7 +1428,7 @@ export async function revokeFoundingMember(userId: string) {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) return { success: false, message: "Unauthorized" };
     const adminUser = await getUserPrivate(userDid);
-    if (!adminUser.isAdmin) return { success: false, message: "Unauthorized" };
+    if (adminUser.isAdmin !== true) return { success: false, message: "Unauthorized" };
 
     try {
         // Preserve foundingMemberNumber — permanent monotonic ID, never reused.

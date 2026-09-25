@@ -397,7 +397,7 @@ export async function addAdminVerificationMessage(params: {
     }
 
     const admin = await getUserPrivate(params.adminDid);
-    if (!admin.isAdmin) {
+    if (admin.isAdmin !== true) {
         throw new Error("Unauthorized.");
     }
 
@@ -478,7 +478,7 @@ export async function approveVerificationRequest(params: {
     }
 
     const admin = await getUserPrivate(params.adminDid);
-    if (!admin.isAdmin) {
+    if (admin.isAdmin !== true) {
         throw new Error("Unauthorized.");
     }
 
@@ -561,7 +561,7 @@ export async function rejectVerificationRequest(params: {
     }
 
     const admin = await getUserPrivate(params.adminDid);
-    if (!admin.isAdmin) {
+    if (admin.isAdmin !== true) {
         throw new Error("Unauthorized.");
     }
 

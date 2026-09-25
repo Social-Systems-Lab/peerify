@@ -156,7 +156,7 @@ export async function getFundingCirclePermissions(
     ]);
 
     const isMember = Boolean(membership);
-    const isSuperAdmin = Boolean(viewerCircle?.isAdmin);
+    const isSuperAdmin = viewerCircle?.isAdmin === true;
 
     return {
         isEnabled,

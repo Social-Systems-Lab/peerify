@@ -45,7 +45,7 @@ export async function setModuleEnabledAction(
                 return { success: false, message: "Funding Needs can only be enabled on circles in this MVP." };
             }
             const user = await getUserPrivate(userDid);
-            if (!user.isAdmin) {
+            if (user.isAdmin !== true) {
                 return { success: false, message: "Only Super Admins can enable or disable Funding Needs." };
             }
         }

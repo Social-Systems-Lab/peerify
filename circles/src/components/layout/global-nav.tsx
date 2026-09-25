@@ -75,7 +75,7 @@ export default function GlobalNav() {
                 {/* Platform-superadmin only (user.isAdmin — the same gate as /admin's own
                     server-side check and every admin action in src/components/modules/admin,
                     distinct from a circle's own admins userGroups membership), desktop only. */}
-                {user?.isAdmin && (
+                {user?.isAdmin === true && (
                     <Link
                         href="/admin"
                         aria-label="Admin dashboard"

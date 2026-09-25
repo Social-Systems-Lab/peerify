@@ -24,7 +24,7 @@ const requireAdminDid = async (): Promise<string> => {
     }
 
     const user = await getUserPrivate(userDid);
-    if (!user.isAdmin) {
+    if (user.isAdmin !== true) {
         throw new Error("Unauthorized");
     }
 
