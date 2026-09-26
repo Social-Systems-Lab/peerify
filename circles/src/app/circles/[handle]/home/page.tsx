@@ -4,6 +4,7 @@ import { getCircleByHandle, resolveViewerIsAdmin } from "@/lib/data/circle";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import AboutPage from "@/components/modules/home/AboutPage";
 import type { VerifiedContributionItem } from "@/components/modules/home/VerifiedContributionsPanel";
+import { VERIFIED_CONTRIBUTIONS_PANEL_ENABLED } from "@/components/modules/home/verified-contributions-config";
 import { getTasksByCircleId, getVerifiedTasksForUser } from "@/lib/data/task";
 import { features } from "@/lib/data/constants";
 import { getShiftEndAt, getShiftStartAt, isShiftTask } from "@/components/modules/tasks/shift-task-utils";
@@ -76,7 +77,9 @@ export default async function CircleHomePage(props: PageProps) {
                   .slice(0, 6)
             : [];
 
-    if (circle.circleType === "user" && circle.did && !isPeerifyArtistProfile) {
+    // Same condition as AboutPage's shouldShowVerifiedContributions — while the panel is hidden,
+    // don't load (or send to the client) any contribution data at all.
+    if (VERIFIED_CONTRIBUTIONS_PANEL_ENABLED && circle.circleType === "user" && circle.did && !isPeerifyArtistProfile) {
         const { totalPublicCount, visibleTasks } = await getVerifiedTasksForUser(circle.did, viewerDid);
         const permissionsByCircleId = new Map<string, TaskPermissions>();
         verifiedContributionPublicCount = totalPublicCount;
