@@ -38,6 +38,7 @@ import OffersCard from "./offers-card";
 import TourTeamOfferingsCard from "./tour-team-offerings-card";
 import AudioPlayer from "@/components/modules/music/audio-player";
 import VerifiedContributionsPanel, { type VerifiedContributionItem } from "./VerifiedContributionsPanel";
+import { VERIFIED_CONTRIBUTIONS_PANEL_ENABLED } from "./verified-contributions-config";
 import { FundingPanel } from "@/components/modules/funding/funding-panel";
 import { UpcomingShiftsPanel } from "./upcoming-shifts-panel";
 import type { FundingAskDisplay, TaskDisplay } from "@/models/models";
@@ -288,8 +289,10 @@ export default function AboutPage({
         !isUserProfile && !isPeerifyVenueProfile && (visibleNeeds.length > 0 || hasMatchingOfferNeeds);
     const hasAdminDetails =
         !isUserProfile && !isPeerifyArtistProfile && !isPeerifyVenueProfile && adminLeaders.length > 0;
-    // Hidden per request: re-enable by restoring `isUserProfile && !isPeerifyArtistProfile`
-    const shouldShowVerifiedContributions = false;
+    // Hidden per request: re-enable via VERIFIED_CONTRIBUTIONS_PANEL_ENABLED (shared with home/page.tsx,
+    // which skips loading the panel's data while it's off).
+    const shouldShowVerifiedContributions =
+        VERIFIED_CONTRIBUTIONS_PANEL_ENABLED && isUserProfile && !isPeerifyArtistProfile;
     const shouldShowProofOfHumanity = isUserProfile && !!proofOfHumanitySummary && !isPeerifyArtistProfile;
     const shouldShowMembershipCredential =
         !isUserProfile && !isPeerifyArtistProfile && !isPeerifyVenueProfile && !!membershipCredential;
