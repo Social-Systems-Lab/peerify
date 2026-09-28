@@ -1,4 +1,4 @@
-import type { Circle } from "@/models/models";
+import type { Circle, Location } from "@/models/models";
 import { redactCircleLocationForViewer } from "@/lib/utils";
 
 // Shapes a circle document for viewers who don't manage it, before it's serialised to the
@@ -94,6 +94,12 @@ const pickPresent = (source: AnyRecord, keys: readonly string[]): AnyRecord => {
     }
     return result;
 };
+
+// A location reduced to the fields public pages show (city/region/country) — street and lngLat are
+// dropped whatever the owner's stored precision. Callers redact first (redactCircleLocationForViewer)
+// and skip this for the owner / platform admins.
+export const toPublicLocation = (location: Location | undefined): Location | undefined =>
+    location ? (pickPresent(location as AnyRecord, PUBLIC_LOCATION_FIELDS) as Location) : location;
 
 const toPublicMetadata = (metadata: Circle["metadata"]): Circle["metadata"] => {
     const peerify = asRecord(metadata?.peerify);

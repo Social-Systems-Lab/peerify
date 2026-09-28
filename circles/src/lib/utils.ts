@@ -178,7 +178,7 @@ function capLocationToPrecision(location: Location): Location {
 // Shared by redactLocationForViewer and redactCircleLocationForViewer below — bypass only when
 // the viewer IS the location's owner, or is a platform admin (mirrors the existing
 // mapVisible/searchable admin bypass elsewhere).
-function viewerBypassesLocationRedaction(ownerDid: string | undefined, viewer: LocationViewerContext): boolean {
+export function viewerBypassesLocationRedaction(ownerDid: string | undefined, viewer: LocationViewerContext): boolean {
     return viewer.viewerIsAdmin === true || (!!viewer.viewerDid && !!ownerDid && viewer.viewerDid === ownerDid);
 }
 

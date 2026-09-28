@@ -1,6 +1,13 @@
 // /src/app/circles/[handle]/post/[postId]/page.tsx
 import { getCircleByHandle } from "@/lib/data/circle";
-import { canUserViewPost, getFeed, getPost, getAllComments, getShareablePostPreview } from "@/lib/data/feed";
+import {
+    canUserViewPost,
+    getFeed,
+    getPost,
+    getAllComments,
+    getShareablePostPreview,
+    redactPostLocationsForViewer,
+} from "@/lib/data/feed";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { notFound, redirect } from "next/navigation";
 import { CommentDisplay, PostDisplay } from "@/models/models";
@@ -54,13 +61,19 @@ export default async function SinglePostPage(props: SinglePostPageProps) {
     const author = await getUserByDid(post.createdBy);
     const sharedPostData = post.sharedPostId ? await getShareablePostPreview(post.sharedPostId, userDid) : null;
 
-    const postWithComments: PostDisplay = {
-        ...post,
-        author: author || circle,
-        circle,
-        feed,
-        sharedPostData,
-    } as PostDisplay;
+    // Same location ceiling as every feed (see redactContentLocations): the geotag, author, circle
+    // and shared post reach logged-out visitors here too.
+    const postWithComments = await redactPostLocationsForViewer(
+        {
+            ...post,
+            author: author || circle,
+            circle,
+            feed,
+            sharedPostData,
+        } as PostDisplay,
+        userDid,
+    );
+    const displayCircle = postWithComments.circle ?? circle;
 
     return (
         <div className="flex flex-1 flex-col">
@@ -76,7 +89,7 @@ export default async function SinglePostPage(props: SinglePostPageProps) {
                     <div className="w-full">
                         <PostItem
                             post={postWithComments}
-                            circle={circle}
+                            circle={displayCircle}
                             feed={feed}
                             initialComments={comments}
                             initialShowAllComments={true}
