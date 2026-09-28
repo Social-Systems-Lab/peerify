@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getTaskById } from "@/lib/data/task";
 import { TaskForm } from "@/components/modules/tasks/task-form";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,8 @@ export default async function EditShiftPage(props: PageProps) {
         createFeatureHandle: "create",
     };
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex h-full w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -90,7 +93,7 @@ export default async function EditShiftPage(props: PageProps) {
             <TaskForm
                 user={userProfile}
                 itemDetail={itemDetailForTaskForm}
-                circle={circle}
+                circle={publicCircle}
                 task={shift}
                 taskId={shift._id}
                 forcedTaskType="shift"

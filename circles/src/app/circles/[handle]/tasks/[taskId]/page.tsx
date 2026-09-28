@@ -1,5 +1,6 @@
 // circles/[handle]/tasks/[taskId]/page.tsx
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getTaskAction, ensureShadowPostForTaskAction } from "../actions"; // Use task action, Added ensureShadowPostForTaskAction
 import TaskDetail from "@/components/modules/tasks/task-detail"; // Use TaskDetail component
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,8 @@ export default async function TaskDetailPage(props: PageProps) {
         canComment: await isAuthorized(userDid, circle._id as string, features.tasks.comment), // Updated feature
     };
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -113,7 +116,7 @@ export default async function TaskDetailPage(props: PageProps) {
 
             <div className="mx-auto w-full max-w-4xl px-4">
                 {/* Render TaskDetail component */}
-                <TaskDetail task={task} circle={circle} permissions={permissions} currentUserDid={userDid} />{" "}
+                <TaskDetail task={task} circle={publicCircle} permissions={permissions} currentUserDid={userDid} />{" "}
                 {/* Use TaskDetail, pass task */}
             </div>
         </div>

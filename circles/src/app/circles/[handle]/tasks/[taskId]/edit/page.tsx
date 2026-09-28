@@ -1,5 +1,6 @@
 // circles/[handle]/tasks/[taskId]/edit/page.tsx
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getTaskById } from "@/lib/data/task"; // Use task data function
 import { TaskForm } from "@/components/modules/tasks/task-form";
 import { Button } from "@/components/ui/button";
@@ -110,6 +111,8 @@ export default async function EditTaskPage(props: PageProps) {
         // icon: CheckSquare, // Optional: could import CheckSquare from lucide-react if needed
     };
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex h-full w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -125,7 +128,7 @@ export default async function EditTaskPage(props: PageProps) {
             <TaskForm
                 user={userProfile}
                 itemDetail={itemDetailForTaskForm}
-                circle={circle}
+                circle={publicCircle}
                 task={task}
                 taskId={task._id} // Pass string ID
                 allowCircleMove={canModerate}

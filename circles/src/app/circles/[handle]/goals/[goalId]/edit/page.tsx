@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getGoalById } from "@/lib/data/goal";
 import { GoalForm } from "@/components/modules/goals/goal-form";
 import { Button } from "@/components/ui/button";
@@ -78,6 +79,8 @@ export default async function EditGoalPage(props: PageProps) {
         // icon: Target, // Optional: could import Target from lucide-react if needed by GoalForm
     };
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex h-full w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -95,7 +98,7 @@ export default async function EditGoalPage(props: PageProps) {
                 goal={goal}
                 goalId={goalId} // Use the string goalId from params
                 initialSelectedCircleId={circle._id.toString()} // Pass circle's ID as string
-                circle={circle} // Pass the fetched circle object
+                circle={publicCircle} // Pass the fetched circle object
                 // onFormSubmitSuccess={(data) => {
                 //  if (data.id && data.circleHandle) {
                 //    router.push(`/circles/${data.circleHandle}/goals/${data.id}`);

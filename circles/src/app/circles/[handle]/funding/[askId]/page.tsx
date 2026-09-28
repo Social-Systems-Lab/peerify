@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { ArrowLeft } from "lucide-react";
 import { redirect, notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,9 @@ export default async function FundingAskDetailPage(props: PageProps) {
 
     const canManageAsk = permissions.isSuperAdmin;
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
+    const publicAsk = { ...ask, circle: publicCircle };
     return (
         <div className="formatted w-full py-6">
             <div className="mx-auto mb-4 flex w-full max-w-5xl items-center px-4">
@@ -62,8 +66,8 @@ export default async function FundingAskDetailPage(props: PageProps) {
                 </Button>
             </div>
             <FundingDetail
-                circle={circle}
-                ask={ask}
+                circle={publicCircle}
+                ask={publicAsk}
                 canManageAsk={canManageAsk}
             />
         </div>

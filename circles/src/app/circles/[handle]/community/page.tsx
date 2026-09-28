@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import CommunityModule from "@/components/modules/community/community";
 import { notFound } from "next/navigation";
 import { createCommunityFeed } from "@/lib/data/feed";
@@ -22,7 +23,8 @@ export default async function CommunityPage(props: PageProps) {
         await createCommunityFeed(circle._id);
     }
 
-    const plainCircle = JSON.parse(JSON.stringify(circle));
-
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
+    const plainCircle = JSON.parse(JSON.stringify(publicCircle));
     return <CommunityModule circle={plainCircle} />;
 }

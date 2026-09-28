@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { IssueForm } from "@/components/modules/issues/issue-form"; // Import IssueForm
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -64,6 +65,8 @@ export default async function CreateIssuePage(props: PageProps) {
         );
     }
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex h-full w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -77,7 +80,12 @@ export default async function CreateIssuePage(props: PageProps) {
             </div>
 
             {/* Render IssueForm, passing circle, user and itemDetail */}
-            <IssueForm circle={circle} user={user} itemDetail={issueItemDetail} initialSelectedCircleId={circle._id} />
+            <IssueForm
+                circle={publicCircle}
+                user={user}
+                itemDetail={issueItemDetail}
+                initialSelectedCircleId={circle._id}
+            />
         </div>
     );
 }

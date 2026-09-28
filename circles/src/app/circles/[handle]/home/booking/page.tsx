@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { getAuthenticatedUserDid } from "@/lib/auth/auth";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { ArrowLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,9 @@ export default async function VenueBookingPage(props: PageProps) {
         notFound();
     }
 
+    const viewerDid = await getAuthenticatedUserDid();
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, viewerDid);
     return (
         <div className="formatted w-full py-6">
             <div className="mx-auto mb-4 flex w-full max-w-5xl items-center px-4">
@@ -35,7 +40,7 @@ export default async function VenueBookingPage(props: PageProps) {
                 </Button>
             </div>
             <div className="mx-auto w-full max-w-5xl px-4">
-                <VenueBookingDetail circle={circle} />
+                <VenueBookingDetail circle={publicCircle} />
             </div>
         </div>
     );

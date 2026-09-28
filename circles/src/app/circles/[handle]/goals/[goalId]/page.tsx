@@ -1,5 +1,6 @@
 // circles/[handle]/goals/[goalId]/page.tsx
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getGoalAction, ensureShadowPostForGoalAction } from "../actions"; // Use goal action, Added ensureShadowPostForGoalAction
 import GoalDetail from "@/components/modules/goals/goal-detail"; // Use GoalDetail component
 import { Button } from "@/components/ui/button";
@@ -107,6 +108,8 @@ export default async function GoalDetailPage(props: PageProps) {
     }
     // --- End Fetch Linked Tasks ---
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -122,7 +125,7 @@ export default async function GoalDetailPage(props: PageProps) {
                 {/* Render GoalDetail component, passing fetched data */}
                 <GoalDetail
                     goal={goal}
-                    circle={circle}
+                    circle={publicCircle}
                     permissions={goalPermissions} // Pass goal permissions
                     currentUserDid={userDid}
                     linkedTasks={linkedTasks} // Pass linked tasks

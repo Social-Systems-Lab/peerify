@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getIssueById } from "@/lib/data/issue";
 import { IssueForm } from "@/components/modules/issues/issue-form";
 import { Button } from "@/components/ui/button";
@@ -80,6 +81,8 @@ export default async function EditIssuePage(props: PageProps) {
         // icon: AlertTriangle, // Optional: could import AlertTriangle from lucide-react
     };
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex h-full w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -96,7 +99,7 @@ export default async function EditIssuePage(props: PageProps) {
             <IssueForm
                 user={userProfile}
                 itemDetail={itemDetailForIssueForm}
-                circle={circle}
+                circle={publicCircle}
                 issue={issue}
                 issueId={issue._id}
             />

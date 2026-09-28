@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import FeedsModule from "@/components/modules/feeds/feeds";
 import { notFound } from "next/navigation";
 import { createDefaultFeed } from "@/lib/data/feed";
@@ -23,7 +24,9 @@ export default async function FeedPage(props: PageProps) {
         await createDefaultFeed(circle._id);
     }
 
-    const plainCircle = JSON.parse(JSON.stringify(circle));
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
+    const plainCircle = JSON.parse(JSON.stringify(publicCircle));
 
     // Pass circle and original props down to FeedsModule
     // FeedsModule likely fetches its own feed/posts using these props

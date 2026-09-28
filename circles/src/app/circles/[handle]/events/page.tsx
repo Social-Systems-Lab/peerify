@@ -1,5 +1,7 @@
 // circles/[handle]/events/page.tsx
 import EventsModule from "@/components/modules/events/Events";
+import { getAuthenticatedUserDid } from "@/lib/auth/auth";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getCircleByHandle } from "@/lib/data/circle";
 import { notFound } from "next/navigation";
 
@@ -16,5 +18,8 @@ export default async function EventsPage(props: PageProps) {
         notFound(); // Show 404 if circle doesn't exist
     }
 
-    return <EventsModule circle={circle} />;
+    const viewerDid = await getAuthenticatedUserDid();
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, viewerDid);
+    return <EventsModule circle={publicCircle} />;
 }
