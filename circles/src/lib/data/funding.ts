@@ -167,7 +167,7 @@ export async function getFundingCirclePermissions(
     };
 }
 
-const isFundingAskVisibleToViewer = ({
+export const isFundingAskVisibleToViewer = ({
     ask,
     viewerDid,
     isSuperAdmin,

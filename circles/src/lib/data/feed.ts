@@ -16,15 +16,24 @@ import {
     EventDisplay,
     TaskDisplay, // Added TaskDisplay
     Location,
+    Media,
+    Feature,
 } from "@/models/models";
-import { getCircleById, SAFE_CIRCLE_PROJECTION, updateCircle, getCircleByHandle, resolveViewerIsAdmin } from "./circle";
+import {
+    getCircleById,
+    SAFE_CIRCLE_PROJECTION,
+    IDENTITY_CIRCLE_PROJECTION,
+    updateCircle,
+    getCircleByHandle,
+    resolveViewerIsAdmin,
+} from "./circle";
 import { redactCircleLocationForViewer, type LocationViewerContext } from "../utils";
 import { getUserByDid } from "./user";
 import { getMetrics } from "../utils/metrics";
 import { deleteVbdPost, upsertVbdPosts } from "./vdb";
 import { getProposalById } from "./proposal";
 import { getIssueById } from "./issue";
-import { getFundingAskDocumentById } from "./funding";
+import { getFundingAskDocumentById, getFundingCirclePermissions, isFundingAskVisibleToViewer } from "./funding";
 import { sdgs } from "./sdgs";
 import { isAuthorized } from "@/lib/auth/auth";
 import { features, getPostViewFeature } from "./constants";
@@ -419,7 +428,7 @@ export const getShareablePostPreview = async (postId: string, userDid?: string):
         return null;
     }
 
-    await fetchAndAttachInternalPreviewData([postDisplay]);
+    await fetchAndAttachInternalPreviewData([postDisplay], userDid);
     return postDisplay;
 };
 
@@ -823,7 +832,7 @@ export const getFullPost = async (postId: string, userDid?: string): Promise<Pos
         return null;
     }
 
-    await fetchAndAttachInternalPreviewData(posts);
+    await fetchAndAttachInternalPreviewData(posts, userDid);
     await fetchAndAttachSharedPostData(posts, userDid);
 
     const viewerIsAdmin = await resolveViewerIsAdmin(userDid);
@@ -1310,7 +1319,7 @@ export async function getPostsFromMultipleFeeds(
         });
 
         // --- Fetch Internal Preview Data (Post-Processing for logged-in user) ---
-        await fetchAndAttachInternalPreviewData(filteredPosts);
+        await fetchAndAttachInternalPreviewData(filteredPosts, userDid);
         await fetchAndAttachSharedPostData(filteredPosts, userDid);
         // --- End Fetch Internal Preview Data ---
 
@@ -1324,7 +1333,7 @@ export async function getPostsFromMultipleFeeds(
     );
 
     // --- Fetch Internal Preview Data (Post-Processing) ---
-    await fetchAndAttachInternalPreviewData(publicPosts);
+    await fetchAndAttachInternalPreviewData(publicPosts, userDid);
     await fetchAndAttachSharedPostData(publicPosts, userDid);
     // --- End Fetch Internal Preview Data ---
 
@@ -1738,7 +1747,7 @@ export const getPosts = async (
         });
 
         // --- Fetch Internal Preview Data (Post-Processing for logged-in user) ---
-        await fetchAndAttachInternalPreviewData(filteredPosts);
+        await fetchAndAttachInternalPreviewData(filteredPosts, userDid);
         await fetchAndAttachSharedPostData(filteredPosts, userDid);
         // --- End Fetch Internal Preview Data ---
 
@@ -1752,7 +1761,7 @@ export const getPosts = async (
     );
 
     // --- Fetch Internal Preview Data (Post-Processing) ---
-    await fetchAndAttachInternalPreviewData(publicPostsForFeed); // Fetch for the correct list
+    await fetchAndAttachInternalPreviewData(publicPostsForFeed, userDid); // Fetch for the correct list
     await fetchAndAttachSharedPostData(publicPostsForFeed, userDid);
     // --- End Fetch Internal Preview Data ---
 
@@ -1760,15 +1769,73 @@ export const getPosts = async (
     return redactContentListLocations(publicPostsForFeed, { viewerDid: userDid, viewerIsAdmin: viewerIsAdminForPublic });
 };
 
-// Helper function to fetch and attach internal preview data
-async function fetchAndAttachInternalPreviewData(posts: PostDisplay[]): Promise<void> {
+// Internal previews: a post can point at another item via internalPreviewType/internalPreviewId, and
+// the resolved item is embedded in the post for every viewer of that post — anonymous visitors
+// included, and the pointer itself is author-supplied (createPostAction stores whatever the
+// composer sends). So each target is gated against the VIEWER here, using the same rules as the
+// target's own page, and only the fields InternalLinkPreview / post-grid / SharedPostPreview
+// actually render are returned — never locations, invitations, participants, votes or beneficiary
+// data. A target the viewer may not see gets null and renders as a plain link.
+
+type PreviewData = NonNullable<PostDisplay["internalPreviewData"]>;
+
+// First image only (the cards show images[0]), reduced to its URL.
+const toPreviewImages = (images: unknown): Media[] | undefined => {
+    const first = Array.isArray(images) ? images[0] : undefined;
+    const url = first?.fileInfo?.url;
+    return url ? [{ name: first.name, type: first.type, fileInfo: { url } } as Media] : undefined;
+};
+
+const createPreviewAccessChecker = (viewerDid: string | undefined) => {
+    const featureCache = new Map<string, Promise<boolean>>();
+    const memberGroupsCache = new Map<string, Promise<string[] | null>>();
+
+    const canUseFeature = (circleId: string | undefined, feature: Feature): Promise<boolean> => {
+        if (!circleId || !ObjectId.isValid(circleId)) return Promise.resolve(false);
+        const key = `${circleId}:${feature.module}:${feature.handle}`;
+        if (!featureCache.has(key)) {
+            featureCache.set(
+                key,
+                isAuthorized(viewerDid, circleId, feature).catch(() => false),
+            );
+        }
+        return featureCache.get(key)!;
+    };
+
+    // null = not a member of that circle (or logged out).
+    const getMemberGroups = (circleId: string): Promise<string[] | null> => {
+        if (!viewerDid) return Promise.resolve(null);
+        if (!memberGroupsCache.has(circleId)) {
+            memberGroupsCache.set(
+                circleId,
+                Members.findOne({ userDid: viewerDid, circleId }, { projection: { _id: 0, userGroups: 1 } }).then(
+                    (membership) => (membership ? (membership.userGroups ?? []) : null),
+                ),
+            );
+        }
+        return memberGroupsCache.get(circleId)!;
+    };
+
+    // Same rule as canUserViewPost's final check: no groups / "everyone" is open, otherwise the
+    // viewer needs a matching group in the item's own circle.
+    const matchesUserGroups = async (circleId: string, userGroups?: string[]): Promise<boolean> => {
+        if (!userGroups || userGroups.length === 0 || userGroups.includes("everyone")) return true;
+        const memberGroups = await getMemberGroups(circleId);
+        return !!memberGroups && userGroups.some((group) => memberGroups.includes(group));
+    };
+
+    return { canUseFeature, getMemberGroups, matchesUserGroups };
+};
+
+const toObjectIds = (ids: string[]): ObjectId[] =>
+    ids.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id));
+
+async function fetchAndAttachInternalPreviewData(posts: PostDisplay[], viewerDid: string | undefined): Promise<void> {
     const postsWithInternalLinks = posts.filter((p) => p.internalPreviewType && p.internalPreviewId);
     if (postsWithInternalLinks.length === 0) return;
 
-    const previewDataMap = new Map<
-        string,
-        Circle | PostDisplay | ProposalDisplay | IssueDisplay | TaskDisplay | EventDisplay | FundingAskDisplay
-    >();
+    const access = createPreviewAccessChecker(viewerDid);
+    const previewDataMap = new Map<string, PreviewData>();
 
     // Group IDs by type
     const idsByType = postsWithInternalLinks.reduce(
@@ -1782,130 +1849,207 @@ async function fetchAndAttachInternalPreviewData(posts: PostDisplay[]): Promise<
         {} as Record<string, Set<string>>,
     );
 
-    // Fetch data for each type
-    const promises = Object.entries(idsByType).map(async ([type, idsSet]) => {
-        const ids = Array.from(idsSet);
-        try {
-            switch (type) {
-                case "circle":
-                    const circles = await Circles.find(
-                        { handle: { $in: ids } },
-                        { projection: SAFE_CIRCLE_PROJECTION }, // Fetch only necessary fields
-                    ).toArray();
-                    circles.forEach((c) => {
-                        const circleWithStringId = { ...c, _id: c._id.toString() };
-                        previewDataMap.set(`circle-${c.handle}`, circleWithStringId as Circle);
-                    });
-                    break;
-                case "post":
-                    // Optimized post fetching using find and $in operator
-                    const postObjectIds = ids.map((id) => new ObjectId(id));
-                    const postsCursor = Posts.find(
-                        { _id: { $in: postObjectIds } },
-                        {
-                            projection: {
-                                // Project only necessary fields for preview
-                                _id: 1,
-                                content: 1, // Keep content for truncation
-                                createdBy: 1,
-                                // Add other minimal fields if needed by preview component
-                            },
-                        },
+    const resolvers: Record<string, (ids: string[]) => Promise<void>> = {
+        // Circle previews are keyed by handle. Identity fields only; unpublished, non-searchable
+        // (personal profiles are opt-in) or pending/rejected accounts are shown only to the
+        // circle itself and its members.
+        circle: async (handles) => {
+            const circles = await Circles.find(
+                { handle: { $in: handles } },
+                { projection: { ...IDENTITY_CIRCLE_PROJECTION, publishStatus: 1, accountStatus: 1 } },
+            ).toArray();
+            await Promise.all(
+                circles.map(async (c) => {
+                    const { publishStatus, accountStatus, ...identity } = c as any;
+                    const circleId = c._id.toString();
+                    const isPublished = publishStatus === "published" || publishStatus === undefined;
+                    const isDiscoverable = c.circleType === "user" ? c.searchable === true : c.searchable !== false;
+                    const isActiveAccount = accountStatus !== "pending_verification" && accountStatus !== "rejected";
+                    const visible =
+                        (isPublished && isDiscoverable && isActiveAccount) ||
+                        (!!viewerDid && (c.did === viewerDid || (await access.getMemberGroups(circleId)) !== null));
+                    if (!visible) return;
+                    previewDataMap.set(`circle-${c.handle}`, { ...identity, _id: circleId } as Circle);
+                }),
+            );
+        },
+        post: async (ids) => {
+            const targets = (await Posts.find(
+                { _id: { $in: toObjectIds(ids) } },
+                { projection: { _id: 1, content: 1, createdBy: 1, feedId: 1, postType: 1, userGroups: 1 } },
+            ).toArray()) as unknown as Post[];
+            const visible = (
+                await Promise.all(
+                    targets.map(async (p) => ((await canUserViewPost(p, viewerDid).catch(() => false)) ? p : null)),
+                )
+            ).filter((p): p is Post => p !== null);
+            if (visible.length === 0) return;
+
+            const authors = await Circles.find(
+                { did: { $in: visible.map((p) => p.createdBy) } },
+                { projection: IDENTITY_CIRCLE_PROJECTION },
+            ).toArray();
+            const authorMap = new Map(authors.map((a) => [a.did, { ...a, _id: a._id.toString() } as Circle]));
+            visible.forEach((p) => {
+                const postId = p._id!.toString();
+                previewDataMap.set(`post-${postId}`, {
+                    _id: postId,
+                    content: p.content,
+                    circleType: "post",
+                    author: authorMap.get(p.createdBy),
+                } as unknown as PostDisplay);
+            });
+        },
+        proposal: async (ids) => {
+            const proposals = await Proposals.find(
+                { _id: { $in: toObjectIds(ids) } },
+                { projection: { _id: 1, circleId: 1, userGroups: 1, name: 1, stage: 1, outcome: 1 } },
+            ).toArray();
+            await Promise.all(
+                proposals.map(async (p) => {
+                    if (!(await access.canUseFeature(p.circleId, features.proposals.view))) return;
+                    if (!(await access.matchesUserGroups(p.circleId, p.userGroups))) return;
+                    const proposalId = p._id.toString();
+                    previewDataMap.set(`proposal-${proposalId}`, {
+                        _id: proposalId,
+                        name: p.name,
+                        stage: p.stage,
+                        outcome: p.outcome,
+                    } as unknown as ProposalDisplay);
+                }),
+            );
+        },
+        issue: async (ids) => {
+            const issues = await Issues.find(
+                { _id: { $in: toObjectIds(ids) } },
+                { projection: { _id: 1, circleId: 1, userGroups: 1, title: 1, stage: 1 } },
+            ).toArray();
+            await Promise.all(
+                issues.map(async (i) => {
+                    if (!(await access.canUseFeature(i.circleId, features.issues.view))) return;
+                    if (!(await access.matchesUserGroups(i.circleId, i.userGroups))) return;
+                    const issueId = i._id.toString();
+                    previewDataMap.set(`issue-${issueId}`, {
+                        _id: issueId,
+                        title: i.title,
+                        stage: i.stage,
+                    } as unknown as IssueDisplay);
+                }),
+            );
+        },
+        task: async (ids) => {
+            const tasks = await Tasks.find(
+                { _id: { $in: toObjectIds(ids) } },
+                { projection: { _id: 1, circleId: 1, userGroups: 1, title: 1, stage: 1, taskType: 1, images: 1 } },
+            ).toArray();
+            await Promise.all(
+                tasks.map(async (t) => {
+                    if (!(await access.canUseFeature(t.circleId, features.tasks.view))) return;
+                    if (!(await access.matchesUserGroups(t.circleId, t.userGroups))) return;
+                    const taskId = t._id.toString();
+                    previewDataMap.set(`task-${taskId}`, {
+                        _id: taskId,
+                        title: t.title,
+                        stage: t.stage,
+                        taskType: t.taskType,
+                        images: toPreviewImages(t.images),
+                    } as unknown as TaskDisplay);
+                }),
+            );
+        },
+        // Mirrors getPublicEventByIdForCircle's gate (not private, past draft/review), plus events.view
+        // on the event's circle and the event's own userGroups. Cancelled events stay previewable so
+        // an existing announcement still shows its card.
+        event: async (ids) => {
+            const events = await Events.find(
+                { _id: { $in: toObjectIds(ids) } },
+                {
+                    projection: {
+                        _id: 1,
+                        circleId: 1,
+                        userGroups: 1,
+                        visibility: 1,
+                        stage: 1,
+                        title: 1,
+                        startAt: 1,
+                        endAt: 1,
+                        images: 1,
+                    },
+                },
+            ).toArray();
+            await Promise.all(
+                events.map(async (event) => {
+                    if (event.visibility === "private") return;
+                    if (event.stage !== "open" && event.stage !== "cancelled") return;
+                    if (!(await access.canUseFeature(event.circleId, features.events.view))) return;
+                    if (!(await access.matchesUserGroups(event.circleId, event.userGroups))) return;
+                    const eventId = event._id.toString();
+                    previewDataMap.set(`event-${eventId}`, {
+                        _id: eventId,
+                        title: event.title,
+                        startAt: event.startAt,
+                        endAt: event.endAt,
+                        images: toPreviewImages(event.images),
+                    } as unknown as EventDisplay);
+                }),
+            );
+        },
+        // Same gate as getFundingAskById: funding enabled + member/superadmin of the ask's circle,
+        // and drafts only for their creator or a superadmin.
+        funding: async (ids) => {
+            const asks = await Promise.all(ids.map((id) => getFundingAskDocumentById(id)));
+            await Promise.all(
+                asks.map(async (ask) => {
+                    if (!ask?._id || !ask.circleId || !ObjectId.isValid(ask.circleId)) return;
+                    const circle = (await Circles.findOne(
+                        { _id: new ObjectId(ask.circleId) },
+                        { projection: { _id: 1, circleType: 1, enabledModules: 1 } },
+                    )) as Circle | null;
+                    if (!circle) return;
+                    const permissions = await getFundingCirclePermissions(
+                        { ...circle, _id: circle._id!.toString() },
+                        viewerDid,
                     );
+                    if (!permissions.canView) return;
+                    if (!isFundingAskVisibleToViewer({ ask, viewerDid, isSuperAdmin: permissions.isSuperAdmin })) {
+                        return;
+                    }
+                    const askId = ask._id.toString();
+                    previewDataMap.set(`funding-${askId}`, {
+                        _id: askId,
+                        title: ask.title,
+                        shortStory: ask.shortStory,
+                        status: ask.status,
+                        trustBadgeType: ask.trustBadgeType,
+                        coverImage: ask.coverImage?.url ? { url: ask.coverImage.url } : undefined,
+                        // getFundingRequestSummaryLine only needs each item's status/currency/price.
+                        items: (ask.items ?? []).map((item) => ({
+                            status: item.status,
+                            currency: item.currency,
+                            price: item.price,
+                        })),
+                    } as unknown as FundingAskDisplay);
+                }),
+            );
+        },
+    };
 
-                    // Fetch author details separately for efficiency if needed, or adjust projection
-                    // For simplicity now, we'll fetch authors after getting posts
-                    const postPreviewsData = await postsCursor.toArray();
-                    const authorDids = postPreviewsData.map((p) => p.createdBy);
-                    const authors = await Circles.find(
-                        { did: { $in: authorDids } },
-                        { projection: SAFE_CIRCLE_PROJECTION },
-                    ).toArray();
-                    const authorMap = new Map(authors.map((a) => [a.did, a]));
-
-                    postPreviewsData.forEach((p) => {
-                        const author = authorMap.get(p.createdBy);
-                        const { sdgs: sdgIds, ...restOfP } = p as Post;
-                        const populatedSdgs = sdgIds ? sdgs.filter((s) => sdgIds.includes(s._id)) : [];
-                        const postDisplay: Partial<PostDisplay> = {
-                            ...(restOfP as Omit<Post, "sdgs">),
-                            _id: p._id.toString(),
-                            author: author ? { ...author, _id: author._id.toString() } : undefined,
-                            circleType: "post",
-                            sdgs: populatedSdgs,
-                        };
-                        previewDataMap.set(`post-${p._id.toString()}`, postDisplay as PostDisplay);
-                    });
-                    break;
-                case "proposal":
-                    // Assuming getProposalById fetches necessary display data
-                    const proposals = await Proposals.find(
-                        { _id: { $in: ids.map((id) => new ObjectId(id)) } },
-                        // Add projection if needed
-                    ).toArray();
-                    // TODO: Populate author/circle if needed, similar to getProposalById
-                    proposals.forEach((p) => {
-                        const proposalWithStringId = { ...p, _id: p._id.toString() };
-                        // TODO: Also convert author/circle _id if populated here
-                        previewDataMap.set(`proposal-${p._id.toString()}`, proposalWithStringId as ProposalDisplay);
-                    });
-                    break;
-                case "issue":
-                    // Assuming getIssueById fetches necessary display data
-                    const issues = await Issues.find(
-                        { _id: { $in: ids.map((id) => new ObjectId(id)) } },
-                        // Add projection if needed
-                    ).toArray();
-                    // TODO: Populate author/assignee/circle if needed, similar to getIssueById
-                    issues.forEach((i) => {
-                        const issueWithStringId = { ...i, _id: i._id.toString() };
-                        // TODO: Also convert author/assignee/circle _id if populated here
-                        previewDataMap.set(`issue-${i._id.toString()}`, issueWithStringId as IssueDisplay);
-                    });
-                    break;
-                case "task":
-                    // Assuming getTaskById fetches necessary display data
-                    const tasks = await Tasks.find(
-                        { _id: { $in: ids.map((id) => new ObjectId(id)) } },
-                        // Add projection if needed
-                    ).toArray();
-                    // TODO: Populate author/assignee/circle if needed, similar to getTaskById
-                    tasks.forEach((t) => {
-                        const taskWithStringId = { ...t, _id: t._id.toString() };
-                        // TODO: Also convert author/assignee/circle _id if populated here
-                        previewDataMap.set(`task-${t._id.toString()}`, taskWithStringId as TaskDisplay);
-                    });
-                    break;
-                case "event":
-                    const events = await Events.find(
-                        { _id: { $in: ids.map((id) => new ObjectId(id)) } },
-                    ).toArray();
-                    events.forEach((event) => {
-                        const eventWithStringId = { ...event, _id: event._id.toString() };
-                        previewDataMap.set(`event-${event._id.toString()}`, eventWithStringId as EventDisplay);
-                    });
-                    break;
-                case "funding":
-                    const asks = await Promise.all(ids.map(async (id) => await getFundingAskDocumentById(id)));
-                    asks.forEach((ask) => {
-                        if (!ask?._id) {
-                            return;
-                        }
-                        previewDataMap.set(`funding-${ask._id.toString()}`, ask as FundingAskDisplay);
-                    });
-                    break;
+    await Promise.all(
+        Object.entries(idsByType).map(async ([type, idsSet]) => {
+            const resolve = resolvers[type];
+            if (!resolve) return;
+            try {
+                await resolve(Array.from(idsSet));
+            } catch (error) {
+                console.error(`Error fetching internal preview data for type ${type}:`, error);
             }
-        } catch (error) {
-            console.error(`Error fetching internal preview data for type ${type}:`, error);
-        }
-    });
-
-    await Promise.all(promises);
+        }),
+    );
 
     // Attach fetched data to posts
     postsWithInternalLinks.forEach((post) => {
         const key = `${post.internalPreviewType}-${post.internalPreviewId}`;
-        post.internalPreviewData = previewDataMap.get(key) || null; // Set to null if not found
+        post.internalPreviewData = previewDataMap.get(key) || null; // Set to null if not found or not visible
     });
 }
 
