@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getIssueAction, ensureShadowPostForIssueAction } from "../actions"; // Use issue action, Added ensureShadowPostForIssueAction
 import IssueDetail from "@/components/modules/issues/issue-detail"; // Placeholder for IssueDetail component
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,8 @@ export default async function IssueDetailPage(props: PageProps) {
         canComment: await isAuthorized(userDid, circle._id as string, features.issues.comment),
     };
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -85,7 +88,7 @@ export default async function IssueDetailPage(props: PageProps) {
 
             <div className="mx-auto w-full max-w-4xl px-4">
                 {/* Render IssueDetail component (placeholder) */}
-                <IssueDetail issue={issue} circle={circle} permissions={permissions} currentUserDid={userDid} />
+                <IssueDetail issue={issue} circle={publicCircle} permissions={permissions} currentUserDid={userDid} />
             </div>
         </div>
     );

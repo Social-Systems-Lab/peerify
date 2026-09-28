@@ -1,5 +1,6 @@
 // circles/[handle]/events/[eventId]/preview/page.tsx
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { notFound, redirect } from "next/navigation";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
@@ -61,6 +62,8 @@ export default async function EventPreviewPage(props: PageProps) {
     // once you publish," not "what a fan sees of the draft right now."
     const publicEvent = { ...sanitizePeerifyPublicEventDisplay(event), stage: "open" as const };
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex h-full w-full flex-col">
             <div className="mb-4 flex items-center justify-between p-4">
@@ -79,7 +82,7 @@ export default async function EventPreviewPage(props: PageProps) {
             <div className="mx-auto w-full max-w-4xl px-4">
                 <div className="rounded-lg bg-white p-6">
                     <EventDetail
-                        circle={circle}
+                        circle={publicCircle}
                         circleHandle={circle.handle!}
                         event={publicEvent}
                         canEdit={false}

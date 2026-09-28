@@ -1,5 +1,6 @@
 // circles/[handle]/events/[eventId]/page.tsx
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { notFound, redirect } from "next/navigation";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
@@ -63,6 +64,8 @@ export default async function EventDetailPage(props: PageProps) {
     // this event, without granting them any other edit rights.
     const canRemoveSelfAsArtist = userDid ? await isCircleAdminOfAny(userDid, event.additionalArtistCircleIds) : false;
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -77,7 +80,7 @@ export default async function EventDetailPage(props: PageProps) {
             <div className="mx-auto w-full max-w-4xl px-4">
                 <div className="rounded-lg bg-white p-6">
                     <EventDetail
-                        circle={circle}
+                        circle={publicCircle}
                         circleHandle={circle.handle!}
                         event={event}
                         canEdit={!!canEdit}

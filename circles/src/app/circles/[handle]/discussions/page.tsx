@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import DiscussionsModule from "@/components/modules/discussions/discussions";
 import { notFound } from "next/navigation";
 import { createDefaultFeed } from "@/lib/data/feed";
@@ -25,5 +26,7 @@ export default async function DiscussionsPage(props: PageProps) {
 
     // Pass circle and original props down to FeedsModule
     // FeedsModule likely fetches its own feed/posts using these props
-    return <DiscussionsModule {...props} circle={circle} />;
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
+    return <DiscussionsModule {...props} circle={publicCircle} />;
 }

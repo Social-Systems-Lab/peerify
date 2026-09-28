@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getProposalAction, ensureShadowPostForProposalAction } from "../actions"; // Added ensureShadowPostForProposalAction
 import { ProposalItem } from "@/components/modules/proposals/proposal-item";
 import { Button } from "@/components/ui/button";
@@ -77,6 +78,8 @@ export default async function ProposalDetailPage(props: PageProps) {
         }
     }
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -89,7 +92,7 @@ export default async function ProposalDetailPage(props: PageProps) {
             </div>
 
             <div className="mx-auto w-full max-w-4xl px-4">
-                <ProposalItem proposal={proposal} circle={circle} />
+                <ProposalItem proposal={proposal} circle={publicCircle} />
             </div>
         </div>
     );

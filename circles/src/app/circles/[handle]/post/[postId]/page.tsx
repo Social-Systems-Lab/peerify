@@ -1,5 +1,6 @@
 // /src/app/circles/[handle]/post/[postId]/page.tsx
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import {
     canUserViewPost,
     getFeed,
@@ -61,19 +62,22 @@ export default async function SinglePostPage(props: SinglePostPageProps) {
     const author = await getUserByDid(post.createdBy);
     const sharedPostData = post.sharedPostId ? await getShareablePostPreview(post.sharedPostId, userDid) : null;
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
+
     // Same location ceiling as every feed (see redactContentLocations): the geotag, author, circle
     // and shared post reach logged-out visitors here too.
     const postWithComments = await redactPostLocationsForViewer(
         {
             ...post,
-            author: author || circle,
-            circle,
+            author: author || publicCircle,
+            circle: publicCircle,
             feed,
             sharedPostData,
         } as PostDisplay,
         userDid,
     );
-    const displayCircle = postWithComments.circle ?? circle;
+    const displayCircle = postWithComments.circle ?? publicCircle;
 
     return (
         <div className="flex flex-1 flex-col">

@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getTaskAction, ensureShadowPostForTaskAction } from "../../tasks/actions";
 import TaskDetail from "@/components/modules/tasks/task-detail";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,8 @@ export default async function ShiftDetailPage(props: PageProps) {
         canComment: await isAuthorized(userDid, circle._id as string, features.tasks.comment),
     };
 
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
     return (
         <div className="formatted flex w-full flex-col">
             <div className="mb-4 flex items-center p-4">
@@ -74,7 +77,7 @@ export default async function ShiftDetailPage(props: PageProps) {
             </div>
 
             <div className="mx-auto w-full max-w-4xl px-4">
-                <TaskDetail task={shift} circle={circle} permissions={permissions} currentUserDid={userDid} />
+                <TaskDetail task={shift} circle={publicCircle} permissions={permissions} currentUserDid={userDid} />
             </div>
         </div>
     );

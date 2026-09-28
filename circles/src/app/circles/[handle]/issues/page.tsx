@@ -1,4 +1,6 @@
 import IssuesModule from "@/components/modules/issues/Issues";
+import { getAuthenticatedUserDid } from "@/lib/auth/auth";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getCircleByHandle } from "@/lib/data/circle";
 import { notFound } from "next/navigation";
 
@@ -17,5 +19,8 @@ export default async function IssuesPage(props: PageProps) {
 
     // Render the IssuesModule, passing the fetched circle data
     // IssuesModule will handle fetching its own data (issues) and permissions
-    return <IssuesModule circle={circle} />;
+    const viewerDid = await getAuthenticatedUserDid();
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, viewerDid);
+    return <IssuesModule circle={publicCircle} />;
 }

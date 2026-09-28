@@ -1,4 +1,5 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import CrewModule from "@/components/modules/crew/crew";
 import { notFound } from "next/navigation";
 import { createCrewFeed } from "@/lib/data/feed";
@@ -25,5 +26,7 @@ export default async function CrewPage({ params }: PageProps) {
         await createCrewFeed(circle._id);
     }
 
-    return <CrewModule circle={circle} />;
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
+    return <CrewModule circle={publicCircle} />;
 }

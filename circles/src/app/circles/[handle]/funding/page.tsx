@@ -1,4 +1,5 @@
 import { redirect, notFound } from "next/navigation";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getCircleByHandle } from "@/lib/data/circle";
 import { getFundingCirclePermissions, isFundingEnabledForCircle, listFundingAsksByCircleId } from "@/lib/data/funding";
@@ -34,5 +35,8 @@ export default async function CircleFundingPage(props: PageProps) {
     }
 
     const asks = await listFundingAsksByCircleId(circle, { viewerDid: userDid });
-    return <FundingListPage circle={circle} asks={asks} canCreate={permissions.canCreate} />;
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, userDid);
+    const publicAsks = asks.map((ask) => ({ ...ask, circle: publicCircle }));
+    return <FundingListPage circle={publicCircle} asks={publicAsks} canCreate={permissions.canCreate} />;
 }

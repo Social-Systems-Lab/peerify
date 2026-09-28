@@ -57,6 +57,11 @@ const PUBLIC_CIRCLE_FIELDS = [
     "engagements",
     "socialLinks",
     "websiteUrl",
+    // Group definitions (name/handle/title/description/accessLevel), not memberships — post,
+    // discussion and event audience labels and the members table's role names read them.
+    "userGroups",
+    // The music page marks the featured track with it.
+    "featuredTrackId",
 ] as const satisfies readonly (keyof Circle)[];
 
 const PUBLIC_LOCATION_FIELDS = ["city", "region", "country", "countryCode", "precision"] as const;

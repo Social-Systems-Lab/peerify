@@ -1,4 +1,6 @@
 import { getCircleByHandle } from "@/lib/data/circle";
+import { getAuthenticatedUserDid } from "@/lib/auth/auth";
+import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import ProposalsTabs from "@/components/modules/proposals/proposals-tabs";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -29,6 +31,9 @@ export default async function ProposalsPage(props: PageProps) {
         console.error("Failed to fetch proposals for page:", proposalsResult.message);
     }
 
+    const viewerDid = await getAuthenticatedUserDid();
+    // Only what's serialised to client components is shaped; everything above reads the full circle.
+    const publicCircle = await getPublicCircleForViewer(circle, viewerDid);
     return (
         <Suspense
             fallback={
@@ -37,7 +42,7 @@ export default async function ProposalsPage(props: PageProps) {
                 </div>
             }
         >
-            <ProposalsTabs circle={circle} initialProposals={initialProposals} />
+            <ProposalsTabs circle={publicCircle} initialProposals={initialProposals} />
         </Suspense>
     );
 }
