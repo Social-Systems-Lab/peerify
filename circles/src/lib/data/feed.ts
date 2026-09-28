@@ -27,7 +27,8 @@ import {
     getCircleByHandle,
     resolveViewerIsAdmin,
 } from "./circle";
-import { redactCircleLocationForViewer, type LocationViewerContext } from "../utils";
+import { redactCircleLocationForViewer, viewerBypassesLocationRedaction, type LocationViewerContext } from "../utils";
+import { toPublicLocation } from "../utils/public-circle";
 import { getUserByDid } from "./user";
 import { getMetrics } from "../utils/metrics";
 import { deleteVbdPost, upsertVbdPosts } from "./vdb";
@@ -431,7 +432,6 @@ export const getShareablePostPreview = async (postId: string, userDid?: string):
     await fetchAndAttachInternalPreviewData([postDisplay], userDid);
     return postDisplay;
 };
-
 type LocationBearingAuthor = { did?: string; location?: Location; metadata?: Circle["metadata"] };
 type LocationBearingMention = {
     circle?: { did?: string; location?: Location; metadata?: Circle["metadata"] } | null;
@@ -444,20 +444,54 @@ type LocationBearingContent = {
     location?: Location;
     createdBy?: string;
     author?: LocationBearingAuthor;
+    circle?: LocationBearingAuthor | null;
     mentionsDisplay?: LocationBearingMention[];
     highlightedComment?: LocationBearingHighlightedComment | null;
+    sharedPostData?: LocationBearingContent | null;
 };
 
-function redactAuthorLocation<A extends LocationBearingAuthor | undefined>(
+// Profile locations embedded in posts/comments (authors, mentioned circles, reactors, the post's
+// circle) reach anonymous visitors, and nothing in a feed needs more than the city line the
+// author side panel shows — so, like the public profile pages (toPublicCircle), street and lngLat
+// are dropped whatever precision the owner has stored. Stored precision is mostly LocationPicker's
+// "Exact" default, not a disclosure choice. Owner and platform admins keep the full location.
+function toFeedProfileLocation(
+    owner: Pick<Circle, "location" | "did" | "metadata">,
+    viewer: LocationViewerContext,
+): Location | undefined {
+    if (!owner.location || viewerBypassesLocationRedaction(owner.did, viewer)) return owner.location;
+    // redactCircleLocationForViewer, not the plain redactLocationForViewer — the owner can be a
+    // venue circle (managed identities post/comment/react as themselves via their own did), which
+    // needs the extra addressVisibility-based ceiling (see that function's own comment in lib/utils.ts).
+    return toPublicLocation(redactCircleLocationForViewer(owner, viewer));
+}
+
+// A post/comment's own geotag: capped at city (no street, no lngLat) for everyone but its author
+// and platform admins, regardless of stored precision. Cards only show street + city, and the
+// composer's precision slider starts on "Exact", so a stored 3/4 isn't a reliable opt-in.
+const GEOTAG_PUBLIC_PRECISION_CEILING = 2; // "city"
+function toFeedGeotagLocation(
+    location: Location,
+    ownerDid: string | undefined,
+    ownerMetadata: Circle["metadata"] | undefined,
+    viewer: LocationViewerContext,
+): Location {
+    if (viewerBypassesLocationRedaction(ownerDid, viewer)) return location;
+    const ceilinged =
+        (location.precision ?? 4) > GEOTAG_PUBLIC_PRECISION_CEILING
+            ? { ...location, precision: GEOTAG_PUBLIC_PRECISION_CEILING }
+            : location;
+    return toPublicLocation(
+        redactCircleLocationForViewer({ location: ceilinged, did: ownerDid, metadata: ownerMetadata }, viewer),
+    )!;
+}
+
+function redactAuthorLocation<A extends LocationBearingAuthor | null | undefined>(
     author: A,
     viewer: LocationViewerContext,
 ): A {
     if (!author?.location) return author;
-    // redactCircleLocationForViewer, not the plain redactLocationForViewer — an author can be a
-    // venue circle (managed identities post/comment as themselves, via their own did — see
-    // circle-wizard/actions.ts), which needs the extra addressVisibility-based ceiling instead of
-    // just its raw stored precision (see that function's own comment in lib/utils.ts).
-    const redacted = redactCircleLocationForViewer(author, viewer);
+    const redacted = toFeedProfileLocation(author, viewer);
     if (redacted === author.location) return author;
     return { ...author, location: redacted };
 }
@@ -471,8 +505,7 @@ function redactMentionsLocations<M extends LocationBearingMention>(
     const next = mentionsDisplay.map((mention) => {
         const circle = mention?.circle;
         if (!circle?.location) return mention;
-        // Same reasoning as redactAuthorLocation above — a mentioned circle can be a venue.
-        const redacted = redactCircleLocationForViewer(circle, viewer);
+        const redacted = toFeedProfileLocation(circle, viewer);
         if (redacted === circle.location) return mention;
         changed = true;
         return { ...mention, circle: { ...circle, location: redacted } };
@@ -481,11 +514,11 @@ function redactMentionsLocations<M extends LocationBearingMention>(
 }
 
 // Redacts every location embedded in a post/comment payload — its own `location` (owned by
-// createdBy, e.g. a geotag the author attached), its `author.location` (the author's profile
-// location, pulled in automatically regardless of the author's own mapVisible/searchable
-// choice), each mentioned circle's `location`, and the same three on a nested
-// `highlightedComment` — down to that owner's chosen precision, unless the viewer IS that owner
-// or a platform admin. Applied once to the plain objects the aggregation returns, rather than
+// createdBy, e.g. a geotag the author attached; capped at city), and the profile locations of its
+// `author`, its `circle`, each mentioned circle, the same on a nested `highlightedComment`, and
+// the same again on a nested `sharedPostData` (location fields only — the rest of that object is
+// shaped by getShareablePostPreview) — unless the viewer IS that location's owner or a platform
+// admin. Applied once to the plain objects the aggregation returns, rather than
 // inside the pipeline itself (these aggregations are already deep enough that adding
 // viewer-conditional projection logic in Mongo would be far riskier to get right).
 function redactContentLocations<T extends LocationBearingContent>(item: T, viewer: LocationViewerContext): T {
@@ -497,10 +530,7 @@ function redactContentLocations<T extends LocationBearingContent>(item: T, viewe
         // `localField: "createdBy", foreignField: "did"` in every aggregation that builds this
         // shape), so item.author's metadata tells us whether this geotag's owner is a venue —
         // no separate lookup needed.
-        const redacted = redactCircleLocationForViewer(
-            { location: item.location, did: item.createdBy, metadata: item.author?.metadata },
-            viewer,
-        );
+        const redacted = toFeedGeotagLocation(item.location, item.createdBy, item.author?.metadata, viewer);
         if (redacted !== item.location) {
             next.location = redacted;
             changed = true;
@@ -510,6 +540,12 @@ function redactContentLocations<T extends LocationBearingContent>(item: T, viewe
     const author = redactAuthorLocation(item.author, viewer);
     if (author !== item.author) {
         next.author = author;
+        changed = true;
+    }
+
+    const circle = redactAuthorLocation(item.circle, viewer);
+    if (circle !== item.circle) {
+        next.circle = circle;
         changed = true;
     }
 
@@ -528,8 +564,25 @@ function redactContentLocations<T extends LocationBearingContent>(item: T, viewe
         }
     }
 
+    if (item.sharedPostData) {
+        const sharedPostData = redactContentLocations(item.sharedPostData, viewer);
+        if (sharedPostData !== item.sharedPostData) {
+            next.sharedPostData = sharedPostData;
+            changed = true;
+        }
+    }
+
     return changed ? (next as T) : item;
 }
+
+// For callers outside this file that assemble a post themselves (the single post page).
+export const redactPostLocationsForViewer = async <T extends LocationBearingContent>(
+    post: T,
+    viewerDid?: string,
+): Promise<T> => {
+    const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
+    return redactContentLocations(post, { viewerDid, viewerIsAdmin });
+};
 
 function redactContentListLocations<T extends LocationBearingContent>(items: T[], viewer: LocationViewerContext): T[] {
     return items.map((item) => redactContentLocations(item, viewer));
@@ -2382,11 +2435,9 @@ export const getReactions = async (
         did: user.did,
         name: user.name,
         picture: user.picture,
-        // redactCircleLocationForViewer, not the plain redactLocationForViewer — a reactor can be
-        // a venue circle (managed identities react as themselves via their own did), which needs
-        // the extra addressVisibility-based ceiling (see that function's own comment in
-        // lib/utils.ts). user is already a full Circle here (SAFE_CIRCLE_PROJECTION).
-        location: redactCircleLocationForViewer(user, { viewerDid, viewerIsAdmin }),
+        // City level at most, like every other profile location in a post payload (see
+        // toFeedProfileLocation). user is already a full Circle here (SAFE_CIRCLE_PROJECTION).
+        location: toFeedProfileLocation(user as Circle, { viewerDid, viewerIsAdmin }),
         description: user.description,
         images: user.images,
         handle: user.handle,
