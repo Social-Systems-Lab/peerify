@@ -2,7 +2,8 @@
 import { Content, FileInfo, Member, MemberDisplay, SortingOptions, TourTeamOffering } from "@/models/models";
 import { ChatRoomMembers, Circles, Members } from "./db";
 import { ObjectId } from "mongodb";
-import { filterLocations } from "../utils";
+import { redactLocationForViewer, viewerBypassesLocationRedaction, type LocationViewerContext } from "../utils";
+import { toPublicLocation } from "../utils/public-circle";
 import { getMetrics } from "../utils/metrics";
 import { SAFE_CIRCLE_PROJECTION } from "./circle";
 import { addChatRoomMember, getChatRoomByHandle, removeChatRoomMember } from "./chat";
@@ -25,6 +26,19 @@ export const isCircleAdminOfAny = async (userDid: string, circleIds?: string[]):
     const results = await Promise.all(circleIds.map((circleId) => isCircleAdmin(userDid, circleId)));
     return results.some(Boolean);
 };
+
+// Member rows reach anonymous visitors (followers and crew lists, and their map view). Like the
+// public profile pages (toPublicCircle), everyone but that member and platform admins gets city
+// level at most — never street or lngLat, whatever precision the member stored (mostly
+// LocationPicker's "Exact" default). The member's own row and admins keep the full location.
+const toPublicMemberLocations = (members: MemberDisplay[], viewer: LocationViewerContext): MemberDisplay[] =>
+    members.map((member) => {
+        if (!member.location || viewerBypassesLocationRedaction(member.userDid, viewer)) return member;
+        return {
+            ...member,
+            location: toPublicLocation(redactLocationForViewer(member.location, member.userDid, viewer)),
+        };
+    });
 
 export const getMembersWithMetrics = async (
     userDid: string | undefined,
@@ -85,16 +99,16 @@ export const getMembers = async (circleId?: string, viewerDid?: string): Promise
         },
     ]).toArray();
 
-    // Each member's location belongs to them, not to the circle they're a member of — bypass
-    // (exact value) only for that member viewing their own row, or a platform admin; every
-    // other viewer gets the member's own chosen precision. viewerIsAdmin is resolved from a
-    // trusted DB lookup, mirroring getSwipeCircles/searchDiscoverableCircles.
+    // Each member's location belongs to them, not to the circle they're a member of — full value
+    // only for that member viewing their own row, or a platform admin; every other viewer gets
+    // city level (see toPublicMemberLocations). viewerIsAdmin is resolved from a trusted DB
+    // lookup, mirroring getSwipeCircles/searchDiscoverableCircles.
     let viewerIsAdmin = false;
     if (viewerDid) {
         const viewer = await Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } });
         viewerIsAdmin = viewer?.isAdmin === true;
     }
-    return filterLocations(members as MemberDisplay[], (member) => member.userDid, { viewerDid, viewerIsAdmin });
+    return toPublicMemberLocations(members as MemberDisplay[], { viewerDid, viewerIsAdmin });
 };
 
 // Approved Crew members are just Members docs whose userGroups includes "crew" (assigned by
@@ -135,12 +149,12 @@ export const getCrewMembers = async (circleId?: string, viewerDid?: string): Pro
         const viewer = await Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } });
         viewerIsAdmin = viewer?.isAdmin === true;
     }
-    return filterLocations(members as MemberDisplay[], (member) => member.userDid, { viewerDid, viewerIsAdmin });
+    return toPublicMemberLocations(members as MemberDisplay[], { viewerDid, viewerIsAdmin });
 };
 
 // Admins are just Members docs whose userGroups includes "admins", same as getCrewMembers above -
 // no separate "admin membership" collection. Doesn't project location, so unlike
-// getCrewMembers/getMembers there's no filterLocations privacy pass needed here.
+// getCrewMembers/getMembers there's no toPublicMemberLocations pass needed here.
 export const getAdminMembers = async (circleId?: string): Promise<MemberDisplay[]> => {
     if (!circleId) return [];
 
