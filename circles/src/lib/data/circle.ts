@@ -21,7 +21,8 @@ import { ObjectId } from "mongodb";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
-import { redactCircleLocationForViewer } from "../utils";
+import { redactCircleLocationForViewer, viewerBypassesLocationRedaction } from "../utils";
+import { toPublicLocation } from "../utils/public-circle";
 import { deleteVbdCircle, deleteVbdPost, upsertVbdCircles } from "./vdb";
 import { createDefaultChatRooms, getChatRoomByHandle, updateChatRoom } from "./chat";
 import { createDefaultFeed } from "./feed";
@@ -614,13 +615,24 @@ export const getCirclesWithMetrics = async (
         user = (await Circles.findOne({ did: userDid }, { projection: SAFE_CIRCLE_PROJECTION })) ?? undefined;
     }
 
-    // get metrics for each circle
+    // get metrics for each circle — from the stored location, before the ceiling below
     for (const circle of circles) {
         circle.metrics = await getMetrics(user, circle, currentDate, sort);
     }
 
     // sort circles by rank
     circles.sort((a, b) => (a.metrics?.rank ?? 0) - (b.metrics?.rank ?? 0));
+
+    // These lists (child circles, projects, the /circles directory) reach anonymous visitors. Like
+    // the public profile pages (toPublicCircle), everyone but the circle itself and platform admins
+    // gets its location at city level at most — never street or lngLat, whatever precision is
+    // stored. redactCircleLocationForViewer first, for the venue addressVisibility ceiling.
+    const viewer = { viewerDid: userDid, viewerIsAdmin: await resolveViewerIsAdmin(userDid) };
+    circles = circles.map((circle) =>
+        !circle.location || viewerBypassesLocationRedaction(circle.did, viewer)
+            ? circle
+            : { ...circle, location: toPublicLocation(redactCircleLocationForViewer(circle, viewer)) },
+    );
 
     console.log("🔍 [DB] getCirclesWithMetrics result:", {
         count: circles.length,
