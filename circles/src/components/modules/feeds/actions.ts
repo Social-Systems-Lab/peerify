@@ -65,7 +65,8 @@ import {
 } from "@/models/models";
 import { revalidatePath } from "next/cache";
 import { getCircleById, getCirclePath, getCircleByHandle } from "@/lib/data/circle"; // Added getCircleByHandle
-import { getLinkPreview } from "link-preview-js"; // Removed LinkPreview import
+import { getPreviewFromContent } from "link-preview-js";
+import { safeFetchHtml } from "@/lib/net/safe-fetch";
 import { getUserByDid, getUserById, getUserPrivate, getVerificationStatus } from "@/lib/data/user";
 import { redirect } from "next/navigation";
 import {
@@ -160,79 +161,68 @@ export const validateMentionPermissions = async (userDid: string, mentions?: Arr
     }
 };
 
+// Same result for every failure (logged out, blocked target, timeout, oversized, non-HTML, no
+// metadata), so the response can't be used to learn what the server can reach.
+const NO_LINK_PREVIEW = { success: false, error: "No preview available." } as const;
+
 export async function getLinkPreviewAction(url: string): Promise<{
     success: boolean;
     preview?: ExpectedPreview; // Use the refined type
     error?: string;
 }> {
     try {
-        // Basic URL validation before fetching
-        new URL(url); // Throws if invalid
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid || typeof url !== "string") return NO_LINK_PREVIEW;
 
-        const previewDataResponse = await getLinkPreview(url, {
-            timeout: 5000, // Set a timeout (e.g., 5 seconds)
+        // Our own SSRF-checked fetch (see safe-fetch.ts); link-preview-js only parses the HTML.
+        const page = await safeFetchHtml(url, {
             headers: {
                 "User-Agent": "KamooniBot/1.0 (+https://kamooni.org/bot)", // Identify the bot
                 "Accept-Language": "en-US,en;q=0.9", // Prefer English content
             },
-            followRedirects: `follow`, // Follow redirects
-            handleRedirects: (baseURL: string, forwardedURL: string): boolean => {
-                // Optional: Add logic to control which redirects to follow
-                // console.log(`Redirecting from ${baseURL} to ${forwardedURL}`);
-                return true; // Follow all redirects by default
-            },
         });
+        if (!page) return NO_LINK_PREVIEW;
 
         // Cast to 'any' to bypass strict type checking for this library
-        const previewData: any = previewDataResponse;
+        const previewData: any = await getPreviewFromContent({
+            url: page.url,
+            status: page.status,
+            headers: page.headers,
+            data: page.body,
+        });
 
         // Check if previewData is valid and has a URL
-        if (previewData?.url) {
-            let image = previewData.images?.[0]; // Take the first image
+        if (!previewData?.url) return NO_LINK_PREVIEW;
 
-            // Ensure image URL is absolute
-            if (image && !image.startsWith("http")) {
-                try {
-                    const baseUrl = new URL(previewData.url);
-                    image = new URL(image, baseUrl.origin).toString();
-                } catch (e) {
-                    console.warn("Could not resolve relative image URL:", image);
-                    image = undefined; // Remove invalid relative image
-                }
+        let image = previewData.images?.[0]; // Take the first image
+
+        // Ensure image URL is absolute
+        if (image && !image.startsWith("http")) {
+            try {
+                image = new URL(image, previewData.url).toString();
+            } catch {
+                image = undefined; // Remove invalid relative image
             }
+        }
 
-            // Construct the result object safely checking each property
-            const resultPreview: ExpectedPreview = {
-                url: previewData.url,
-                title: typeof previewData.title === "string" ? previewData.title : undefined,
-                description: typeof previewData.description === "string" ? previewData.description : undefined,
-                image: image, // Use the potentially resolved absolute image URL
-                mediaType: typeof previewData.mediaType === "string" ? previewData.mediaType : undefined,
-                contentType: typeof previewData.contentType === "string" ? previewData.contentType : undefined,
-                favicons: Array.isArray(previewData.favicons) ? previewData.favicons : undefined,
-            };
+        // Construct the result object safely checking each property
+        const resultPreview: ExpectedPreview = {
+            url: previewData.url,
+            title: typeof previewData.title === "string" ? previewData.title : undefined,
+            description: typeof previewData.description === "string" ? previewData.description : undefined,
+            image: image, // Use the potentially resolved absolute image URL
+            mediaType: typeof previewData.mediaType === "string" ? previewData.mediaType : undefined,
+            contentType: typeof previewData.contentType === "string" ? previewData.contentType : undefined,
+            favicons: Array.isArray(previewData.favicons) ? previewData.favicons : undefined,
+        };
 
-            // Ensure at least one core piece of metadata exists besides the URL
-            if (resultPreview.title || resultPreview.description || resultPreview.image) {
-                return { success: true, preview: resultPreview };
-            } else {
-                console.warn("Link preview incomplete (missing title, description, and image):", url, previewData);
-                return { success: false, error: "Could not fetch a valid link preview (missing metadata)." };
-            }
-        } else {
-            console.warn("Link preview incomplete or failed (missing URL):", url, previewData);
-            return { success: false, error: "Could not fetch a valid link preview (missing URL)." };
+        // Ensure at least one core piece of metadata exists besides the URL
+        if (resultPreview.title || resultPreview.description || resultPreview.image) {
+            return { success: true, preview: resultPreview };
         }
-    } catch (error: any) {
-        console.error("Error fetching link preview for:", url, error);
-        // Check for specific error types if needed
-        if (error.message?.includes("Invalid URL")) {
-            return { success: false, error: "Invalid URL provided." };
-        }
-        if (error.message?.includes("timeout")) {
-            return { success: false, error: "Fetching preview timed out." };
-        }
-        return { success: false, error: "Failed to fetch link preview." };
+        return NO_LINK_PREVIEW;
+    } catch {
+        return NO_LINK_PREVIEW;
     }
 }
 // --- End Link Preview Action ---
