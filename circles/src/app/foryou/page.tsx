@@ -31,10 +31,10 @@ export default async function ForYou(props: ForYouProps) {
 
     if (activeTab === "following" || !activeTab) {
         console.log("Getting aggregate posts for user", userDid);
-        posts = await getAggregatePostsAction(userDid, 20, 0, searchParams?.sort as SortingOptions);
+        posts = await getAggregatePostsAction(20, 0, searchParams?.sort as SortingOptions);
     } else {
         // For the "For You" tab, use a new function that fetches global posts
-        posts = await getGlobalPostsAction(userDid, 20, 0, searchParams?.sort as SortingOptions);
+        posts = await getGlobalPostsAction(20, 0, searchParams?.sort as SortingOptions);
     }
 
     return (

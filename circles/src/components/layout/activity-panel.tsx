@@ -53,9 +53,9 @@ export default function ActivityPanel({ mode = "panel" }: ActivityPanelProps) {
             try {
                 let newPosts: PostDisplay[] = [];
                 if (activeTab === "following" || !activeTab) {
-                    newPosts = await getAggregatePostsAction(userDid, 20, 0, sorting);
+                    newPosts = await getAggregatePostsAction(20, 0, sorting);
                 } else {
-                    newPosts = await getGlobalPostsAction(userDid, 20, 0, sorting);
+                    newPosts = await getGlobalPostsAction(20, 0, sorting);
                 }
                 setPosts(newPosts);
             } finally {

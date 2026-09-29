@@ -81,14 +81,32 @@ import { ensureModuleIsEnabledOnCircle } from "@/lib/data/circle"; // Added
 import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
 import { getMentionableUserIdsForUserDid, searchMentionableUsersForUserDid } from "@/lib/data/chat";
 
-// Global posts: posts from all public feeds
+// Page size for the feed actions below. Clamped because limit/skip come straight from the client:
+// one request must not pull a whole feed, and a tab loaded before these actions dropped their
+// userDid parameter still sends a DID in the first slot (shifting every argument) — it gets a
+// bounded, possibly odd page instead of an error until it reloads.
+const MAX_FEED_PAGE_SIZE = 50;
+const DEFAULT_FEED_PAGE_SIZE = 20;
+const toFeedPage = (limit: unknown, skip: unknown): { limit: number; skip: number } => ({
+    limit:
+        typeof limit === "number" && Number.isFinite(limit)
+            ? Math.min(Math.max(Math.floor(limit), 1), MAX_FEED_PAGE_SIZE)
+            : DEFAULT_FEED_PAGE_SIZE,
+    skip: typeof skip === "number" && Number.isFinite(skip) ? Math.max(Math.floor(skip), 0) : 0,
+});
+
+// Global posts: posts from all public feeds. The viewer is always the session user (logged out =
+// public-only view); it used to be a client-supplied userDid, so anyone could read another
+// user's view — their members-only posts, and every exact location when that DID was an admin's.
 export async function getGlobalPostsAction(
-    userDid: string | undefined,
     limit: number,
     skip: number,
     sortingOptions?: SortingOptions,
     sdgHandles?: string[],
 ): Promise<PostDisplay[]> {
+    const userDid = await getAuthenticatedUserDid();
+    const page = toFeedPage(limit, skip);
+
     // Get all public feeds
     const publicFeeds = await getPublicFeeds();
     if (publicFeeds.length === 0) return [];
@@ -98,13 +116,20 @@ export async function getGlobalPostsAction(
 
     // Use your existing function to get posts across multiple feeds with metrics
     if (userDid) {
-        return getPostsFromMultipleFeedsWithMetrics(publicFeedIds, userDid, limit, skip, sortingOptions, sdgHandles);
+        return getPostsFromMultipleFeedsWithMetrics(
+            publicFeedIds,
+            userDid,
+            page.limit,
+            page.skip,
+            sortingOptions,
+            sdgHandles,
+        );
     }
-    return getPostsFromMultipleFeeds(publicFeedIds, undefined, limit, skip, sortingOptions, sdgHandles);
+    return getPostsFromMultipleFeeds(publicFeedIds, undefined, page.limit, page.skip, sortingOptions, sdgHandles);
 }
 
+// The session user's "following" feed; see getGlobalPostsAction for why the viewer isn't a parameter.
 export async function getAggregatePostsAction(
-    userDid: string | undefined,
     limit: number,
     skip: number,
     sortingOptions?: SortingOptions,
@@ -112,9 +137,11 @@ export async function getAggregatePostsAction(
     circleHandle?: string,
     postType?: string,
 ): Promise<PostDisplay[]> {
+    const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
-        return getGlobalPostsAction(userDid, limit, skip, sortingOptions, sdgHandles);
+        return getGlobalPostsAction(limit, skip, sortingOptions, sdgHandles);
     }
+    const page = toFeedPage(limit, skip);
 
     const accessibleFeeds = await getAccessibleFeedIdsForUser(userDid, circleHandle);
 
@@ -126,8 +153,8 @@ export async function getAggregatePostsAction(
     const posts = await getPostsFromMultipleFeedsWithMetrics(
         accessibleFeeds,
         userDid,
-        limit,
-        skip,
+        page.limit,
+        page.skip,
         sortingOptions,
         sdgHandles,
         postType,
