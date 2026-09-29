@@ -67,7 +67,8 @@ import {
 } from "@/lib/data/eventHostChangeRequests";
 import { inviteUsersToEvent } from "@/lib/data/event";
 import { getMembers, isCircleAdmin, isCircleAdminOfAny } from "@/lib/data/member";
-import { addCommentToDiscussion, getDiscussionWithComments } from "@/lib/data/discussion";
+import { addCommentToDiscussion } from "@/lib/data/discussion";
+import { getAllCommentsAction } from "@/components/modules/feeds/actions";
 import { Comment } from "@/models/models";
 import { getTasksByEventId } from "@/lib/data/task";
 import { listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
@@ -1869,8 +1870,11 @@ export async function getEventWithCommentsAction(eventId: string) {
     if (!event) throw new Error("Event not found");
     if (!event.commentPostId) return { ...event, comments: [] };
 
-    const discussion = await getDiscussionWithComments(event.commentPostId);
-    return { ...event, comments: discussion?.comments || [] };
+    // Same read, gate and author shaping as the event page's CommentSection (login + view access,
+    // identity-only authors). Never the raw comment documents: their stored author snapshot holds
+    // older authors' email and other private fields.
+    const result = await getAllCommentsAction(event.commentPostId);
+    return { ...event, comments: result.success ? (result.comments ?? []) : [] };
 }
 
 /**
