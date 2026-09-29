@@ -319,8 +319,8 @@ export const deletePost = async (postId: string): Promise<void> => {
     await Comments.deleteMany({ postId });
 };
 
-// Same one-line update as discussion.ts's pinDiscussion — pinned is a generic Post field, not
-// discussion-specific, so this is usable by any postType's moderate action.
+// pinned is a generic Post field, not discussion-specific, so this is usable by any postType's
+// moderate action.
 export const pinPost = async (postId: string, pinned: boolean): Promise<void> => {
     await Posts.updateOne({ _id: new ObjectId(postId) }, { $set: { pinned } });
 };

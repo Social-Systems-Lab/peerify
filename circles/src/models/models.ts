@@ -341,7 +341,7 @@ export const postSchema = z.object({
     internalPreviewId: z.string().optional(), // Handle for circle, ID for others
     internalPreviewUrl: z.string().url().optional(),
     sdgs: z.array(z.string()).optional(),
-    // pinned started as Discussion-only (see discussion.ts's pinDiscussion) but is a generic
+    // pinned started as Discussion-only but is a generic
     // per-post flag usable by any postType's moderate action — Crew's pinPostAction reuses it
     // directly, no schema change needed. closed remains Discussion-specific.
     pinned: z.boolean().default(false).optional(),

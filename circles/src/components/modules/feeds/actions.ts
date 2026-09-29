@@ -782,8 +782,8 @@ export async function deletePostAction(postId: string): Promise<{ success: boole
 
 // Moderator-only, unlike deletePostAction which also allows the post's own author — pinning is
 // a feed-curation action, not something an author does to their own post. No enforced
-// single-pin-per-feed: mirrors discussion.ts's pinDiscussion, which allows multiple pinned
-// posts and leaves ordering among them to createdAt.
+// single-pin-per-feed: multiple pinned posts are allowed, and ordering among them is left to
+// createdAt.
 export async function pinPostAction(postId: string, pinned: boolean): Promise<{ success: boolean; message?: string }> {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
