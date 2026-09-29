@@ -11,7 +11,6 @@ import {
     fetchMessagesSince,
     fetchRecentMessages,
     fetchTopicStarters,
-    findConversationById,
     findThreadStarter,
     findOrCreateDmConversation,
     getUnreadCountsForUser,
@@ -20,6 +19,8 @@ import {
     markConversationRead,
     toggleReaction,
     updateMessage,
+    isActiveGroupMembership,
+    resolveMongoConversationAccess,
 } from "@/lib/data/mongo-chat";
 import { ChatConversations, ChatMessageDocs, ChatRoomMembers, ChatRooms, Circles, Members } from "@/lib/data/db";
 import { getCircleByDid, getCircleByHandle, getCircleById, getCirclesByDids } from "@/lib/data/circle";
@@ -121,17 +122,6 @@ const buildPeerifyBookingConversationName = (booking: PeerifyBookingEnquiryInput
         return `Booking enquiry: ${eventType}`;
     }
     return `Booking enquiry from ${requesterName}`;
-};
-
-const isActiveGroupMembership = (membership: any): boolean => {
-    if (!membership) return false;
-
-    const membershipStatus = typeof membership.status === "string" ? membership.status.toLowerCase() : undefined;
-    if (membershipStatus === "removed" || membershipStatus === "left" || membershipStatus === "inactive") return false;
-    if (membershipStatus && membershipStatus !== "active") return false;
-    if ((membership as any).active === false || (membership as any).isActive === false) return false;
-
-    return true;
 };
 
 const buildChatRoomMembershipFilter = (userDid: string, conversationId: string): any => {
@@ -296,47 +286,6 @@ const sendConversationMessageNotifications = async ({
     if (!isDirectMessage || !messageId) {
         return;
     }
-};
-
-export const resolveMongoConversationAccess = async (conversationId: string, userDid: string) => {
-    let conversation = await findConversationById(conversationId);
-
-    // If conversationId is actually a handle (e.g. "dm-..."), try resolving by handle.
-    if (!conversation) {
-        const { ChatConversations } = await import("@/lib/data/db");
-        conversation = await ChatConversations.findOne({ handle: conversationId });
-    }
-
-    if (!conversation) {
-        return { ok: false, message: "Chat not found" };
-    }
-
-    const unauthorized = { ok: false as const, message: "You are not authorized to access this chat" };
-
-    // DM + announcement: authorize strictly by participants list
-    if (conversation.type === "dm" || conversation.type === "announcement") {
-        if (!conversation.participants?.includes(userDid)) return unauthorized;
-        return { ok: true, conversation };
-    }
-
-    // Non-DM: enforce strict membership in ChatRoomMembers
-    const chatRoomId = String((conversation as any)._id);
-    const membershipQuery: any = { userDid, chatRoomId };
-    // Handle both string and ObjectId-stored chatRoomId values
-    if (ObjectId.isValid(chatRoomId)) {
-        membershipQuery.$or = [
-            { userDid, chatRoomId },
-            { userDid, chatRoomId: new ObjectId(chatRoomId) },
-        ];
-        delete membershipQuery.chatRoomId;
-    }
-
-    const membership: any = await ChatRoomMembers.findOne(membershipQuery);
-    if (!membership) return unauthorized;
-
-    if (!isActiveGroupMembership(membership)) return unauthorized;
-
-    return { ok: true, conversation };
 };
 
 const validateReplyTargetForConversation = async (

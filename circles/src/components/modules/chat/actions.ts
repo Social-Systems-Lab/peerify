@@ -15,7 +15,11 @@ import {
 import { ChatConversations, ChatRoomMembers, Circles, Members } from "@/lib/data/db";
 import { features } from "@/lib/data/constants";
 import { getCirclesByDids } from "@/lib/data/circle";
-import { ensureConversationForCircle, listConversationMedia } from "@/lib/data/mongo-chat";
+import {
+    ensureConversationForCircle,
+    listConversationMedia,
+    resolveMongoConversationAccess as resolveMongoConversationAccessInternal,
+} from "@/lib/data/mongo-chat";
 import { emitGroupChatMembershipSystemEvent, sendSystemMessage } from "@/lib/data/system-message-events";
 import { listDmEligibleContactsForUserDid } from "@/lib/data/relationships";
 import {
@@ -31,7 +35,6 @@ import {
     createMongoGroupChatAction as createMongoGroupChatActionInternal,
     getUnreadCountsAction as getUnreadCountsActionInternal,
     markConversationReadAction as markConversationReadActionInternal,
-    resolveMongoConversationAccess as resolveMongoConversationAccessInternal,
 } from "./mongo-actions";
 
 const isActiveChatRoomMembership = (membership: any): boolean => {

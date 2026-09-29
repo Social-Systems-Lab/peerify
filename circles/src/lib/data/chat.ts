@@ -419,3 +419,20 @@ export const createGroupChatRoom = async (
 
     return newRoom;
 };
+
+// Throws unless userDid may mention every one of `mentions`. It takes the user as a parameter, so it
+// must not live in a "use server" module: exported from feeds/actions.ts it answered "can this DID
+// message that user?" for any DID.
+const mentionPermissionErrorMessage = "You can only mention people you can message.";
+
+export const validateMentionPermissions = async (userDid: string, mentions?: Array<{ id: string }>): Promise<void> => {
+    if (!mentions?.length) {
+        return;
+    }
+
+    const mentionableUserIds = await getMentionableUserIdsForUserDid(userDid);
+    const hasBlockedMention = mentions.some((mention) => !mentionableUserIds.has(mention.id));
+    if (hasBlockedMention) {
+        throw new Error(mentionPermissionErrorMessage);
+    }
+};
