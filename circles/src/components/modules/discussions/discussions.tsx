@@ -28,7 +28,6 @@ export default function DiscussionsModule(props: PageProps) {
 
         startTransition(async () => {
             const newPosts = await getAggregatePostsAction(
-                user?.did,
                 20,
                 0,
                 sorting,
