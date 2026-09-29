@@ -17,7 +17,6 @@ import { features, getDefaultModules } from "@/lib/data/constants";
 import { isFile, saveFile, deleteFile } from "@/lib/data/storage";
 import { addMember } from "@/lib/data/member";
 import { revalidatePath } from "next/cache";
-import { CircleData } from "./circle-wizard";
 import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
 import { hasContributorPerks } from "@/lib/auth/perks";
 import {
@@ -179,54 +178,6 @@ export async function saveBasicInfoAction(
         } else {
             return { success: false, message: "Failed to save basic info. " + JSON.stringify(error) };
         }
-    }
-}
-
-export async function createCircleAction(circleData: CircleData, userDid: string) {
-    try {
-        const currentUser = await getUserPrivate(userDid);
-        if (!canPerformRestrictedAction(currentUser)) {
-            return { success: false, message: getRestrictedActionMessage("create circles") };
-        }
-        const resolvedCircleType = circleData.circleType || "circle";
-        const resolvedCircleLevel = getCircleLevelForCreate(circleData.circleLevel, circleData.parentCircleId);
-        const authorized = await authorizeCircleCreation(
-            currentUser,
-            userDid,
-            resolvedCircleType,
-            resolvedCircleLevel,
-            resolvedCircleLevel === "profile_child" ? circleData.parentCircleId : undefined,
-        );
-        if (!authorized) {
-            return { success: false, message: "You are not authorized to create new circles" };
-        }
-
-        const newCircle = await createCircle(
-            {
-                ...circleData,
-                circleType: resolvedCircleType,
-                circleLevel: resolvedCircleLevel,
-                publishStatus: "draft",
-                parentCircleId: resolvedCircleLevel === "profile_child" ? circleData.parentCircleId : undefined,
-                picture: { url: circleData.picture },
-            },
-            userDid,
-        );
-        await addMember(userDid, newCircle._id!, ["admins", "moderators", "members"]);
-
-        if (resolvedCircleLevel === "profile_child" && circleData.parentCircleId) {
-            const moduleToEnable = resolvedCircleType === "project" ? "projects" : "communities";
-            await ensureModuleIsEnabledOnCircle(circleData.parentCircleId, moduleToEnable, userDid);
-        }
-
-        return {
-            success: true,
-            message: "Circle created successfully",
-            data: { circleId: newCircle._id, handle: newCircle.handle },
-        };
-    } catch (error) {
-        const message = error instanceof Error ? error.message : "Failed to create circle.";
-        return { success: false, message: message + " " + JSON.stringify(error) };
     }
 }
 
