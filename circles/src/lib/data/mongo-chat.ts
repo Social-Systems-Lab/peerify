@@ -32,7 +32,7 @@ const normalizeConversation = (conversation: ChatConversation) => {
     return conversation;
 };
 
-const isActiveGroupMembership = (membership: any): boolean => {
+export const isActiveGroupMembership = (membership: any): boolean => {
     if (!membership) return false;
 
     const membershipStatus = typeof membership.status === "string" ? membership.status.toLowerCase() : undefined;
@@ -950,4 +950,48 @@ export const listThreadsForConversation = async (conversationId: string): Promis
         .sort({ "thread.updatedAt": -1 })
         .toArray();
     return docs.map((doc) => ({ ...doc, _id: doc._id?.toString() }));
+};
+
+// Whether userDid may access a conversation (DM/announcement participants, or an active member of
+// a group room), and the conversation if so. It takes the user as a parameter, so it must not live
+// in a "use server" module: exported from mongo-actions.ts it was a server action that returned any
+// conversation to anyone who passed a participant's DID.
+export const resolveMongoConversationAccess = async (conversationId: string, userDid: string) => {
+    let conversation = await findConversationById(conversationId);
+
+    // If conversationId is actually a handle (e.g. "dm-..."), try resolving by handle.
+    if (!conversation) {
+        conversation = await ChatConversations.findOne({ handle: conversationId });
+    }
+
+    if (!conversation) {
+        return { ok: false, message: "Chat not found" };
+    }
+
+    const unauthorized = { ok: false as const, message: "You are not authorized to access this chat" };
+
+    // DM + announcement: authorize strictly by participants list
+    if (conversation.type === "dm" || conversation.type === "announcement") {
+        if (!conversation.participants?.includes(userDid)) return unauthorized;
+        return { ok: true, conversation };
+    }
+
+    // Non-DM: enforce strict membership in ChatRoomMembers
+    const chatRoomId = String((conversation as any)._id);
+    const membershipQuery: any = { userDid, chatRoomId };
+    // Handle both string and ObjectId-stored chatRoomId values
+    if (ObjectId.isValid(chatRoomId)) {
+        membershipQuery.$or = [
+            { userDid, chatRoomId },
+            { userDid, chatRoomId: new ObjectId(chatRoomId) },
+        ];
+        delete membershipQuery.chatRoomId;
+    }
+
+    const membership: any = await ChatRoomMembers.findOne(membershipQuery);
+    if (!membership) return unauthorized;
+
+    if (!isActiveGroupMembership(membership)) return unauthorized;
+
+    return { ok: true, conversation };
 };

@@ -8,7 +8,7 @@ import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { getTrackById, createTrackComment, getTrackComments, deleteTrackComment } from "@/lib/data/track";
 import { getComment, updateComment, extractMentions } from "@/lib/data/feed";
-import { validateMentionPermissions } from "@/components/modules/feeds/actions";
+import { validateMentionPermissions } from "@/lib/data/chat";
 import { getCircleById } from "@/lib/data/circle";
 import { getUserByDid } from "@/lib/data/user";
 import { resolveActingAuthor } from "@/lib/data/acting-identity";

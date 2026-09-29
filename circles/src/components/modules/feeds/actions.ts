@@ -79,7 +79,7 @@ import {
 } from "@/lib/data/notifications";
 import { ensureModuleIsEnabledOnCircle } from "@/lib/data/circle"; // Added
 import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
-import { getMentionableUserIdsForUserDid, searchMentionableUsersForUserDid } from "@/lib/data/chat";
+import { searchMentionableUsersForUserDid, validateMentionPermissions } from "@/lib/data/chat";
 
 // Page size for the feed actions below. Clamped because limit/skip come straight from the client:
 // one request must not pull a whole feed, and a tab loaded before these actions dropped their
@@ -172,20 +172,6 @@ type ExpectedPreview = {
     mediaType?: string;
     contentType?: string;
     favicons?: string[];
-};
-
-const mentionPermissionErrorMessage = "You can only mention people you can message.";
-
-export const validateMentionPermissions = async (userDid: string, mentions?: Array<{ id: string }>): Promise<void> => {
-    if (!mentions?.length) {
-        return;
-    }
-
-    const mentionableUserIds = await getMentionableUserIdsForUserDid(userDid);
-    const hasBlockedMention = mentions.some((mention) => !mentionableUserIds.has(mention.id));
-    if (hasBlockedMention) {
-        throw new Error(mentionPermissionErrorMessage);
-    }
 };
 
 // Same result for every failure (logged out, blocked target, timeout, oversized, non-HTML, no

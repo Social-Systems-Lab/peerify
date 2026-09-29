@@ -17,8 +17,7 @@ export default async function ChatRoomPage(props: ChatRoomPageProps) {
     }
 
     const privateUser = await getUserPrivate(userDid);
-    const { resolveMongoConversationAccess } = await import("@/components/modules/chat/mongo-actions");
-    const { listConversationsForUser } = await import("@/lib/data/mongo-chat");
+    const { listConversationsForUser, resolveMongoConversationAccess } = await import("@/lib/data/mongo-chat");
 
     const slug = params.handle;
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(slug);

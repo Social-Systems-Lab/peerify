@@ -54,7 +54,7 @@ const ultimateFallbackDefaults: Record<
 };
 
 // Checks if a user has the 'requiredPermission' for a given entity and notification type
-export const checkUserPermissionForNotification = async (
+const checkUserPermissionForNotification = async (
     userId: string, // User's DID
     entityType: EntityType,
     entityId: string, // ID of the entity instance (e.g. circleId, postId)
