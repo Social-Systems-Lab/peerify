@@ -5564,3 +5564,34 @@ follow-ups outstanding on this feature.
 - C2 composer preview lookup; remaining SAFE embeds (single post author, funding creator/activeSupporter); verification attachments to private bucket; /storage nosniff + no SVG; C3, C5, D; systematic sweep (logged-out crawl + server-action auth review); Kamooni check.
 - IMY follow-up due 2026-10-09 (log review, subscription count, scope figures, fix dates, user notification).
 - Delete log archive, comment backups and bucket backups when the case is closed.
+
+## 2026-09-30 — Events visible to logged-out visitors (queue item 1)
+
+Root cause: not caused by the Sept privacy fixes. Logged-out visitors only got
+events on managed-identity circles (gate dates from Aug 2025, widened Jun 2026),
+while map / events panel / foryou surfaced events from any published non-personal
+circle, so discovery cards led to "Not found" (e.g. the-backstage-lounge on prod).
+
+Fix (Option B): canAnonymousViewCircleEvents(circle) in src/lib/data/event.ts:
+managed identity OR (published-or-missing, circleType != "user", events.view
+includes everyone). Used at all four gates (Events.tsx, [eventId]/page.tsx,
+getEventsAction, getEventAction). Public queries and sanitizer unchanged.
+Personal profiles keep the "sign in" wall.
+- staging 4318f7b4, main 2ba3ea6b, deployed to prod and verified logged out.
+- Helper mirrors the Mongo host-circle filter in getOpenEventsForMap /
+  getOpenEventsForList via cross-referencing comments; they can drift.
+
+Gotchas:
+- Orphaned jest-worker from a 14 Sept build held ~1.6 GB RAM; staging build
+  died silently at "Generating static pages". Killed it, rebuild passed.
+  Check `ps aux | grep -E "next|bun"` when a build dies.
+- Event detail pages: curl+grep is unreliable (not-found text is in every page's
+  payload). Verify logged-out behaviour in Incognito.
+
+Open follow-ups:
+- Personal-profile event cards/pins (mapVisible) and cancelled-event cards still
+  lead to Not found via map and /foryou. Decision pending prod count query.
+- Logged-out noticeboards stuck on "Feed loading…" (getFeedByHandleAction returns
+  null with no session, since Mar 2025). Pair with the Noticeboard "Everyone" bug.
+- Explore map opens with only Artists selected; logged-out visitors may think
+  there are no events.
