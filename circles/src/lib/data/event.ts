@@ -26,6 +26,7 @@ import { isAuthorized } from "../auth/auth";
 import { features } from "./constants";
 import { getCircleById } from "./circle";
 import { isAcceptedConnectionForUserDid } from "./relationships";
+import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 
 // Safe projection for event queries
 export const SAFE_EVENT_PROJECTION = {
@@ -1329,6 +1330,29 @@ export const changeEventStage = async (eventId: string, newStage: EventStage): P
 };
 
 /**
+ * Whether a logged-out visitor may use the public events path (getPublicEventsByCircleId /
+ * getPublicEventByIdForCircle) for this circle: its events tab and event pages. Peerify managed
+ * identities always may; any other circle may when it is published and not a personal profile
+ * and its events.view rule includes "everyone".
+ *
+ * The published / non-personal part mirrors the host-circle $match in getOpenEventsForMap and
+ * getOpenEventsForList below (publishStatus "published" or missing, circleType not "user"), so an
+ * event those queries surface links to a page that can open. Keep the two in sync by hand: they
+ * are separate expressions of the same rule. The one deliberate difference is the queries'
+ * mapVisible branch — personal profiles can opt into the map, but their events stay behind the
+ * sign-in wall here.
+ */
+export const canAnonymousViewCircleEvents = async (circle: Circle): Promise<boolean> => {
+    if (isPeerifyManagedIdentity(circle)) return true;
+    if (!circle._id) return false;
+
+    const isPublished = circle.publishStatus === "published" || circle.publishStatus === undefined;
+    if (!isPublished || circle.circleType === "user") return false;
+
+    return isAuthorized(undefined, circle._id.toString(), features.events.view);
+};
+
+/**
  * Get open events across all circles for map display.
  * Filters by optional date range overlap or, if no range provided, to upcoming (endAt >= now).
  * Ensures events have either an exact location or a Peerify public-safe map location with lngLat.
@@ -1440,6 +1464,7 @@ export const getOpenEventsForMap = async (
             // event can't surface on the map for a circle that couldn't surface there itself: the
             // host circle must be published, and if it's a personal ("user") profile, must also have
             // explicitly opted in via mapVisible. A missing host circle (e.g. deleted) fails closed.
+            // canAnonymousViewCircleEvents (above) mirrors this rule for logged-out event pages — keep in sync.
             {
                 $match: {
                     $and: [
@@ -1679,6 +1704,7 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
             // as the identical fix already applied to getOpenEventsForMap: the host circle must be
             // published, and if it's a personal ("user") profile, must also have explicitly opted in
             // via mapVisible. A missing host circle (e.g. deleted) fails closed.
+            // canAnonymousViewCircleEvents mirrors this rule for logged-out event pages — keep in sync.
             {
                 $match: {
                     $and: [

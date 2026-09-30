@@ -9,7 +9,7 @@ import EventDetail from "@/components/modules/events/event-detail";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
+import { canAnonymousViewCircleEvents } from "@/lib/data/event";
 import { isCircleAdminOfAny } from "@/lib/data/member";
 
 type PageProps = {
@@ -28,8 +28,8 @@ export default async function EventDetailPage(props: PageProps) {
     }
 
     const userDid = await getAuthenticatedUserDid();
-    const isPublicPeerifyManagedEvents = !userDid && isPeerifyManagedIdentity(circle);
-    if (!isPublicPeerifyManagedEvents) {
+    const isPublicEvents = !userDid && (await canAnonymousViewCircleEvents(circle));
+    if (!isPublicEvents) {
         if (!userDid) {
             notFound();
         }

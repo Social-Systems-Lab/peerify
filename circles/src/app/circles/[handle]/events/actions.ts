@@ -46,6 +46,7 @@ import {
     deleteEvent as deleteEventDb,
     changeEventStage as changeEventStageDb,
     applyEventHostChange,
+    canAnonymousViewCircleEvents,
 } from "@/lib/data/event";
 import { getCirclesByDids } from "@/lib/data/circle";
 import { upsertRsvp, cancelRsvp, listAttendees } from "@/lib/data/eventRsvp";
@@ -72,7 +73,7 @@ import { getAllCommentsAction } from "@/components/modules/feeds/actions";
 import { Comment } from "@/models/models";
 import { getTasksByEventId } from "@/lib/data/task";
 import { listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
-import { isPeerifyManagedIdentity, isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 
 // ----- Types -----
 
@@ -445,8 +446,8 @@ export async function getEventsAction(
                   }
                 : undefined;
 
-        const isPublicPeerifyManagedEvents = !userDid && isPeerifyManagedIdentity(circle);
-        if (isPublicPeerifyManagedEvents) {
+        const isPublicEvents = !userDid && (await canAnonymousViewCircleEvents(circle));
+        if (isPublicEvents) {
             const events = await getPublicEventsByCircleId(circle._id!.toString(), range);
             return { events };
         }
@@ -480,8 +481,8 @@ export async function getEventAction(circleHandle: string, eventId: string): Pro
         const circle = await getCircleByHandle(circleHandle);
         if (!circle) return null;
 
-        const isPublicPeerifyManagedEvents = !userDid && isPeerifyManagedIdentity(circle);
-        if (isPublicPeerifyManagedEvents) {
+        const isPublicEvents = !userDid && (await canAnonymousViewCircleEvents(circle));
+        if (isPublicEvents) {
             return getPublicEventByIdForCircle(circle._id!.toString(), eventId);
         }
 
