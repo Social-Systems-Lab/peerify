@@ -3,6 +3,7 @@
 import fs from "fs-extra";
 import path from "path";
 import { Client as MinioClient } from "minio";
+import { sanitizeUpload } from "@/lib/media/sanitize-image";
 
 const resolveMinioHost = () => {
     const configuredHost = process.env.MINIO_HOST || "127.0.0.1";
@@ -106,7 +107,10 @@ export const saveFile = async (
         }
 
         const originalName = typeof file?.name === "string" ? file.name : fileName;
-        const extension = resolveFileExtension(originalName, file?.type);
+        // Strips image metadata (see sanitize-image.ts); throws for undecodable "images".
+        const sanitized = await sanitizeUpload(buffer, file?.type, originalName);
+        buffer = sanitized.buffer;
+        const extension = sanitized.extension || resolveFileExtension(originalName, file?.type);
         const finalName = `${Date.now()}-${fileName}${extension}`;
         const filePath = path.join(uploadDir, finalName);
         
@@ -174,7 +178,12 @@ export const saveFile = async (
 
         console.log("saveFile: buffer length", buffer.length);
 
-        const extension = resolveFileExtension(originalName, contentType);
+        // Strips image metadata (see sanitize-image.ts); throws for undecodable "images". The
+        // stored extension and Content-Type follow the detected format, not the client's claim.
+        const sanitized = await sanitizeUpload(buffer, contentType, originalName);
+        buffer = sanitized.buffer;
+        contentType = sanitized.contentType;
+        const extension = sanitized.extension || resolveFileExtension(originalName, contentType);
         const objectName = `${circleId}/${objectBaseName}${extension}`;
         await minioClient.putObject(bucketName, objectName, buffer, buffer.length, {
             "Content-Type": contentType,
