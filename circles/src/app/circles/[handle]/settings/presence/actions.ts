@@ -7,7 +7,6 @@ import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 import { isFile, saveFile } from "@/lib/data/storage";
 import { Circle, FileInfo, FormSubmitResponse, TourTeamOffering, tourTeamOfferingSchema } from "@/models/models";
 import { revalidatePath } from "next/cache";
-import sharp from "sharp";
 import { z } from "zod";
 
 // An offering's `photos` arrives from CreateOfferModal as MultiImageUploader's draft ImageItem
@@ -25,26 +24,6 @@ import { z } from "zod";
 // than silently writing a dead URL into Mongo.
 function isPersistableUrl(url: string): boolean {
     return !url.startsWith("blob:");
-}
-
-// Strips EXIF/ICC/XMP metadata (GPS location chief among them) before a new offer photo ever
-// reaches saveFile/MinIO. Scoped here rather than inside saveFile() itself — saveFile is shared
-// by ~15 other upload paths (chat, feeds, events, about-settings, etc.) with no privacy need for
-// this, so stripping there would be a much bigger blast radius than this feature needs.
-// .rotate() with no args must run before the strip: sharp drops metadata by default when no
-// output format's own metadata-preserving option is requested, but EXIF orientation is itself
-// metadata — dropping it without first baking the rotation into the pixel data would leave
-// photos taken on their side rendering sideways everywhere. Falls back to the original file on
-// any processing error (e.g. an exotic format sharp can't decode) rather than blocking the save.
-async function stripPhotoMetadata(file: File): Promise<File> {
-    try {
-        const inputBuffer = Buffer.from(await file.arrayBuffer());
-        const strippedBuffer = await sharp(inputBuffer).rotate().toBuffer();
-        return new File([strippedBuffer], file.name, { type: file.type });
-    } catch (error) {
-        console.error("Error stripping EXIF metadata from offer photo, saving original:", error);
-        return file;
-    }
 }
 
 // Turns a tourTeamOfferingSchema validation failure into a message naming the actual offering and
@@ -77,8 +56,8 @@ async function resolveOfferingPhotos(offering: TourTeamOffering, circleId: strin
     const resolvedPhotos: FileInfo[] = [];
     for (const photo of draftPhotos) {
         if (isFile(photo.file)) {
-            const strippedFile = await stripPhotoMetadata(photo.file as File);
-            resolvedPhotos.push(await saveFile(strippedFile, "offer-photo", circleId, true));
+            // saveFile strips the metadata (GPS included) of every image upload; see sanitize-image.ts.
+            resolvedPhotos.push(await saveFile(photo.file, "offer-photo", circleId, true));
         } else if (typeof photo.existingMediaUrl === "string" && isPersistableUrl(photo.existingMediaUrl)) {
             resolvedPhotos.push({ url: photo.existingMediaUrl });
         } else if (typeof photo.url === "string" && isPersistableUrl(photo.url)) {
