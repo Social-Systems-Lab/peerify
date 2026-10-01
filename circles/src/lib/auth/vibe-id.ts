@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ObjectId } from "mongodb";
 import { addMember } from "@/lib/data/member";
 import { Circles, db } from "@/lib/data/db";
-import { generateSecureToken, hashToken, sendEmail } from "@/lib/data/email";
+import { generateSecureToken, hashToken, trySendEmail } from "@/lib/data/email";
 import { ensureWelcomeMessageForNewUser } from "@/lib/data/mongo-chat";
 import { getResolvedWelcomeTemplate } from "@/lib/data/system-message-templates";
 import { createNewUser, getUserPrivate } from "@/lib/data/user";
@@ -209,17 +209,18 @@ async function createVibeIdUser(params: {
     await addMember(did, user._id, ["admins", "moderators", "members"], undefined);
 
     const verificationLink = `${process.env.CIRCLES_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/verify-email?token=${verificationToken}`;
-    try {
-        await sendEmail({
-            to: email,
-            templateAlias: "email-verification",
-            templateModel: {
-                name,
-                actionUrl: verificationLink,
-            },
-        });
-    } catch (error) {
-        console.error(`Failed to send VibeID signup verification email to ${email}:`, error);
+    const sendResult = await trySendEmail({
+        to: email,
+        templateAlias: "email-verification",
+        templateModel: {
+            name,
+            actionUrl: verificationLink,
+        },
+    });
+    if (sendResult.ok) {
+        console.log(`VibeID signup verification email sent for user ${did} (MessageID ${sendResult.messageId})`);
+    } else {
+        console.error(`VibeID signup verification email NOT sent for user ${did}: ${sendResult.reason}`);
     }
 
     try {

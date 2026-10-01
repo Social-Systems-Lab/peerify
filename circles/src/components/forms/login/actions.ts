@@ -5,7 +5,7 @@ import { FormSubmitResponse, emailSchema } from "../../../models/models";
 import { AuthenticationError, authenticateUser, createUserSession, USERS_DIR } from "@/lib/auth/auth";
 import { Circles } from "@/lib/data/db";
 import { getUserPrivate } from "@/lib/data/user";
-import { sendEmail, generateSecureToken, hashToken } from "@/lib/data/email";
+import { trySendEmail, generateSecureToken, hashToken } from "@/lib/data/email";
 import { resolveResetBaseUrl } from "@/app/(auth)/forgot-password/actions";
 import fs from "fs";
 import path from "path";
@@ -151,23 +151,24 @@ export const requestLoginLinkAction = async (email: string): Promise<RequestLogi
                 console.log(`[DEV_LOGIN_LINK] email=${user.email} url=${loginLink} token=${unhashedToken}`);
             }
 
-            try {
-                await sendEmail({
-                    to: user.email!,
-                    // Reuses the existing signup-verification template rather than a
-                    // brand new Postmark template; needs an actionText/introText merge
-                    // field added there (or a dedicated "login-link" template created)
-                    // before this copy reaches recipients as intended.
-                    templateAlias: "email-verification",
-                    templateModel: {
-                        name: user.name || "User",
-                        actionUrl: loginLink,
-                        actionText: "Log in",
-                        introText: "Click the button below to log in to Peerify. No password needed.",
-                    },
-                });
-            } catch (emailError) {
-                console.error(`Failed to send login link email to ${user.email}:`, emailError);
+            const sendResult = await trySendEmail({
+                to: user.email!,
+                // Reuses the existing signup-verification template rather than a
+                // brand new Postmark template; needs an actionText/introText merge
+                // field added there (or a dedicated "login-link" template created)
+                // before this copy reaches recipients as intended.
+                templateAlias: "email-verification",
+                templateModel: {
+                    name: user.name || "User",
+                    actionUrl: loginLink,
+                    actionText: "Log in",
+                    introText: "Click the button below to log in to Peerify. No password needed.",
+                },
+            });
+            if (sendResult.ok) {
+                console.log(`Login link email sent for user ${user.did} (MessageID ${sendResult.messageId})`);
+            } else {
+                console.error(`Login link email NOT sent for user ${user.did}: ${sendResult.reason}`);
             }
         } else {
             console.log(`Login link requested for non-existent email: ${validation.data.email}`);

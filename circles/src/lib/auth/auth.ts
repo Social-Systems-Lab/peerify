@@ -13,7 +13,7 @@ import { readAuthToken } from "./cookie";
 import { createNewUser, getUserById, getUserPrivate } from "../data/user";
 import { addMember, getMembers } from "../data/member";
 import { getCircleById, getCirclesByDids, getCirclesByIds, getDefaultCircle } from "../data/circle";
-import { generateSecureToken, hashToken, sendEmail } from "../data/email"; // Added sendEmail for now, will be sendVerificationEmail
+import { generateSecureToken, hashToken, trySendEmail } from "../data/email";
 import { isVerifiedUser } from "./verification";
 
 export const SALT_FILENAME = "salt.bin";
@@ -144,20 +144,19 @@ export const createUserAccount = async (
         devUser.devVerificationToken = unhashedVerificationToken;
         devUser.devVerificationUrl = verificationLink;
     }
-    try {
-        await sendEmail({
-            to: email,
-            templateAlias: "email-verification", // As per spec
-            templateModel: {
-                name: name,
-                actionUrl: verificationLink,
-            },
-        });
-        console.log(`Verification email sent to ${email}`);
-    } catch (error) {
-        console.error(`Failed to send verification email to ${email}:`, error);
-        // Decide if account creation should fail if email sending fails.
-        // For now, we'll log the error and continue. User can request resend later.
+    // A failed send never fails account creation; the result is only logged.
+    const sendResult = await trySendEmail({
+        to: email,
+        templateAlias: "email-verification",
+        templateModel: {
+            name: name,
+            actionUrl: verificationLink,
+        },
+    });
+    if (sendResult.ok) {
+        console.log(`Verification email sent for user ${did} (MessageID ${sendResult.messageId})`);
+    } else {
+        console.error(`Verification email NOT sent for user ${did}: ${sendResult.reason}`);
     }
 
     // add user as member of their own circle
