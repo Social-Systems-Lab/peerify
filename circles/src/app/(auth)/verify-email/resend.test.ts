@@ -24,7 +24,12 @@ mock.module("@/lib/data/db", () => ({
         updateOne: (...args: Parameters<FakeCollection["updateOne"]>) => circles.updateOne(...args),
     },
 }));
+// bun's module mocks are process-wide, so this exposes everything any test file's subject
+// imports from auth.ts (login-link.test.ts mocks the same module).
 mock.module("@/lib/auth/auth", () => ({
+    AuthenticationError: class AuthenticationError extends Error {},
+    authenticateUser: () => undefined,
+    USERS_DIR: "/nonexistent",
     getAuthenticatedUserDid: async () => {
         if (sessionThrows) {
             throw new Error("invalid token");

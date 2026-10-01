@@ -5,8 +5,16 @@ import { mock } from "bun:test";
 
 export type SentTemplateEmail = { from: string; templateAlias: string; templateModel: Record<string, any>; to: string };
 
+// One shared state per process: bun's module mocks are process-wide and email.ts is only
+// evaluated once, so every test file in a run must see the same fake client.
+const state = { sent: [] as SentTemplateEmail[], failNext: null as Error | null };
+let installed = false;
+
 export const installPostmarkMock = () => {
-    const state = { sent: [] as SentTemplateEmail[], failNext: null as Error | null };
+    if (installed) {
+        return state;
+    }
+    installed = true;
 
     process.env.POSTMARK_API_TOKEN = "test-token-not-real";
     process.env.POSTMARK_SENDER_EMAIL = "no-reply@example.test";
