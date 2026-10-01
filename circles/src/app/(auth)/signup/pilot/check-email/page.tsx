@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResendVerificationEmail } from "@/components/auth/resend-verification-email";
+import PeerifyContactDialog from "@/components/pages/contact/peerify-contact-dialog";
 
 type PageProps = {
     searchParams: Promise<{
@@ -33,6 +34,16 @@ export default async function PilotCheckEmailPage(props: PageProps) {
                         Didn&apos;t get the email? Check your spam folder, and that the address above is spelled right.
                     </p>
                     <ResendVerificationEmail />
+                    <p className="text-xs text-[#6b5f52]">
+                        Still nothing?{" "}
+                        <PeerifyContactDialog
+                            trigger={
+                                <button type="button" className="text-[#e8720c] underline hover:text-[#ff8c2a]">
+                                    Contact us
+                                </button>
+                            }
+                        />
+                    </p>
                 </CardContent>
             </Card>
         </div>
