@@ -5522,3 +5522,76 @@ follow-ups outstanding on this feature.
 **Handoff:** a brief was written for checking Kamooni (same code base) for the same class of issue.
 
 **Status:** stopgap and A1 are live on both staging and prod. A2–E not started.
+
+## 2026-09-24 — IMY incident remediation: unauthenticated server actions (A3/A3b)
+- Production: e65d5f0f, 4a623bee — auth added to admin circle/user preview, circle deletion stats, manual membership toggle, Donorbox subscription refresh.
+- Checks: 0 records with VibeID metadata; 0 circles lacking a settings access rule.
+
+## 2026-09-25 — A2 shaping, privilege escalation fix, IMY report filed
+- Production: 17e52687, 70bf282f (A2: toPublicCircle on circle layout + home page); abc9ee7d, 3cc308e7 (0a/0b: field allow-list in updateUser/updateCircleField; strict isAdmin === true). All admins confirmed team accounts; no evidence of exploitation.
+- IMY report filed (diarienummer IMY-2026-19477). Follow-ups promised by 2026-10-09.
+
+## 2026-09-26/27 — A2c embeds; log archive
+- Production (main): 2ede9b5b, b19951ee, 9085633f, cafa5a4a — identity-only projections for event author embeds, task embeds, proof-of-humanity verifier, parent circle; Verified Contributions data no longer loaded while panel is hidden (shared VERIFIED_CONTRIBUTIONS_PANEL_ENABLED constant).
+- nginx + PM2 logs archived to ~/incident-IMY-2026-19477/logs/ with SHA256SUMS (earliest access log 2026-09-13; 14-day retention).
+
+## 2026-09-28/29 — Link previews (C1), location ceiling, A2b
+- Production (main top b47f5ed5): C1 viewer-gated allow-listed preview hydration; public location ceiling for feed payloads (authors, geotags, shared posts, single post page); A2b getPublicCircleForViewer on all /circles/[handle] routes; city-level ceiling for member/crew lists; child circle location redaction.
+- Verified logged out with ~/loc-trace.cjs (0 leaking location objects on feed, profile, artist and sub-pages).
+- Production counts: 6 posts with internal previews (all demo events); 10 circles with discussions enabled.
+
+## 2026-09-29 — Discussions (B), comment scrub, SSRF (C4), feed DID trust (A)
+- Production (main 94705d7a): discussion detail page gated by canUserViewPost; unmounted discussion actions removed (incl. unsanitised upload path); raw comment reader removed. Scope: 1 discussion, 6 restricted posts.
+- Data: stored comment author snapshots scrubbed of email/officialEmail (prod 2/2, staging 22/22), backups first. Script: scripts/scrub-comment-author-snapshots.mongosh.js.
+- Production (main fecb9e26): getLinkPreviewAction SSRF-hardened (auth, own fetch, DNS/IP validation per redirect hop, pinned IP, 5 s deadline, 1 MB cap). New module src/lib/net/safe-fetch.ts.
+- Production (main 12892bcb): aggregate/global feed actions take the viewer from the session (previously trusted a client DID — admin DID bypassed the location ceiling); internal DID-taking helpers no longer exported as actions; unused createCircleAction removed. Sweep of 379 actions: no other reachable instance.
+- Staging CIRCLES_JWT_SECRET rotated after a token was exposed in chat (production uses a separate secret, unaffected).
+
+## 2026-09-30 — Image metadata (E)
+- Production (main 1c16783a): metadata stripped on every upload (src/lib/media/sanitize-image.ts inside saveFile; format from bytes; rotation applied; SVG/undecodable rejected). One-off script scripts/strip-image-metadata.ts.
+- Buckets backed up (/home/tim/backups/), then rewritten: prod 140 images (GPS 7 → 0), staging 97 (GPS 15 → 0). Independent scan: 0 EXIF, 0 GPS.
+- Verification attachments: 0 on production (never requested); move to private bucket still planned.
+
+## Learnings (24–30 Sept)
+- Production MongoDB database is `circles`; staging is `peerify_staging` (`peerify` is a near-empty leftover).
+- Staging .env.local lives at /home/tim/apps/peerify-staging/circles/.env.local (one level above the app folder).
+- Next.js notFound() after streaming returns HTTP 200 with the not-found body — check page content, not status.
+- Deploy script Step 8 can hang without a timeout; add `curl -m 20`. If it hangs, check localhost:3001/3000 in a second tab before Ctrl+C.
+- Scripts that load sharp must run from an app folder; use `set +H` before shell helpers containing `!!`.
+- mc alias `peerify-local` was out of date after a MinIO password rotation; it's now set from the app's env file.
+
+## Open (security) — continue in the incident chat
+- C2 composer preview lookup; remaining SAFE embeds (single post author, funding creator/activeSupporter); verification attachments to private bucket; /storage nosniff + no SVG; C3, C5, D; systematic sweep (logged-out crawl + server-action auth review); Kamooni check.
+- IMY follow-up due 2026-10-09 (log review, subscription count, scope figures, fix dates, user notification).
+- Delete log archive, comment backups and bucket backups when the case is closed.
+
+## 2026-09-30 — Events visible to logged-out visitors (queue item 1)
+
+Root cause: not caused by the Sept privacy fixes. Logged-out visitors only got
+events on managed-identity circles (gate dates from Aug 2025, widened Jun 2026),
+while map / events panel / foryou surfaced events from any published non-personal
+circle, so discovery cards led to "Not found" (e.g. the-backstage-lounge on prod).
+
+Fix (Option B): canAnonymousViewCircleEvents(circle) in src/lib/data/event.ts:
+managed identity OR (published-or-missing, circleType != "user", events.view
+includes everyone). Used at all four gates (Events.tsx, [eventId]/page.tsx,
+getEventsAction, getEventAction). Public queries and sanitizer unchanged.
+Personal profiles keep the "sign in" wall.
+- staging 4318f7b4, main 2ba3ea6b, deployed to prod and verified logged out.
+- Helper mirrors the Mongo host-circle filter in getOpenEventsForMap /
+  getOpenEventsForList via cross-referencing comments; they can drift.
+
+Gotchas:
+- Orphaned jest-worker from a 14 Sept build held ~1.6 GB RAM; staging build
+  died silently at "Generating static pages". Killed it, rebuild passed.
+  Check `ps aux | grep -E "next|bun"` when a build dies.
+- Event detail pages: curl+grep is unreliable (not-found text is in every page's
+  payload). Verify logged-out behaviour in Incognito.
+
+Open follow-ups:
+- Personal-profile event cards/pins (mapVisible) and cancelled-event cards still
+  lead to Not found via map and /foryou. Decision pending prod count query.
+- Logged-out noticeboards stuck on "Feed loading…" (getFeedByHandleAction returns
+  null with no session, since Mar 2025). Pair with the Noticeboard "Everyone" bug.
+- Explore map opens with only Artists selected; logged-out visitors may think
+  there are no events.
