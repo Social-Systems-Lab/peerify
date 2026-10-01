@@ -89,9 +89,8 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
         }
 
         if (user.emailVerificationTokenExpiry && new Date() > user.emailVerificationTokenExpiry) {
-            // Optionally, you could offer to resend the verification email here
-            // For now, just inform the user the token is expired.
-            // Clear the expired token
+            // Clear the expired token. The page offers a resend (resendVerificationEmailAction),
+            // which the session created below authorizes.
             await Circles.updateOne(
                 { _id: user._id },
                 {
@@ -105,7 +104,11 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
                 const privateUser = await getUserPrivate(user.did);
                 await createUserSession(privateUser, user.did);
             }
-            return { success: false, message: "This email verification link has expired. Please request a new one." };
+            return {
+                success: false,
+                message:
+                    "This email verification link has expired. Use the Resend email button below to get a new one.",
+            };
         }
         if (!user.did) {
             return { success: false, message: "Could not verify this account. Please contact support." };
