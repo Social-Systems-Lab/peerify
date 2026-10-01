@@ -73,39 +73,74 @@ export const applyEmailTemplateDefaults = (templateModel: Record<string, any>): 
     return defaults;
 };
 
-/**
- * Sends an email using Postmark.
- * @param options - Email sending options.
- * @returns Promise<void>
- * @throws Error if Postmark client is not configured or if email sending fails.
- */
-export const sendEmail = async (options: EmailOptions): Promise<void> => {
-    if (!client) {
-        console.error("Postmark client is not initialized. POSTMARK_API_TOKEN might be missing.");
-        // In a real app, you might want to throw an error or handle this more gracefully
-        // For now, we'll log and prevent sending if in a non-production environment or if critical.
-        // If this is a critical email, you might throw new Error("Email service not configured.");
-        return; // Or throw error depending on desired behavior
-    }
-    if (!POSTMARK_SENDER_EMAIL) {
-        console.error("POSTMARK_SENDER_EMAIL is not configured. Cannot send email.");
-        return; // Or throw
-    }
+// What a send actually did. Postmark API errors still throw from sendEmail (existing callers
+// rely on that); trySendEmail folds them into { ok: false, reason: "send_failed" } instead.
+export type SendEmailResult =
+    | { ok: true; messageId: string }
+    | { ok: false; reason: "not_configured" | "send_failed"; message: string; code?: number };
 
-    const { to, templateAlias, templateModel } = options;
+type TemplateEmailClient = Pick<ServerClient, "sendEmailWithTemplate">;
 
-    const message = new TemplatedMessage(POSTMARK_SENDER_EMAIL, templateAlias, applyEmailTemplateDefaults(templateModel), to);
+const EMAIL_ADDRESS_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
-    try {
-        console.log(`Attempting to send email to ${to} using template ${templateAlias}`);
-        const response = await client.sendEmailWithTemplate(message);
-        console.log(`Email sent successfully to ${to}:`, response);
-    } catch (error) {
-        console.error(`Failed to send email to ${to} using template ${templateAlias}:`, error);
-        // Rethrow or handle as appropriate for your application's error strategy
-        throw new Error(`Failed to send email: ${error instanceof Error ? error.message : String(error)}`);
-    }
+// Postmark error messages can name the recipient (e.g. InactiveRecipientsError), so strip
+// addresses before anything reaches a log line.
+export const redactEmailAddresses = (text: string): string => text.replace(EMAIL_ADDRESS_PATTERN, "<redacted>");
+
+// Exported for tests, which pass a fake client; the app uses sendEmail/trySendEmail below.
+export const createEmailSender = (emailClient: TemplateEmailClient | null, senderEmail: string | undefined) => {
+    const trySendEmail = async (options: EmailOptions): Promise<SendEmailResult> => {
+        const { to, templateAlias, templateModel } = options;
+        if (!emailClient) {
+            console.error(`Email not sent (template ${templateAlias}): POSTMARK_API_TOKEN is not configured.`);
+            return { ok: false, reason: "not_configured", message: "POSTMARK_API_TOKEN is not configured." };
+        }
+        if (!senderEmail) {
+            console.error(`Email not sent (template ${templateAlias}): POSTMARK_SENDER_EMAIL is not configured.`);
+            return { ok: false, reason: "not_configured", message: "POSTMARK_SENDER_EMAIL is not configured." };
+        }
+
+        const message = new TemplatedMessage(senderEmail, templateAlias, applyEmailTemplateDefaults(templateModel), to);
+
+        try {
+            const response = await emailClient.sendEmailWithTemplate(message);
+            console.log(`Email sent using template ${templateAlias}: MessageID ${response.MessageID}`);
+            return { ok: true, messageId: response.MessageID };
+        } catch (error) {
+            const rawMessage = error instanceof Error ? error.message : String(error);
+            const code =
+                error && typeof error === "object" && typeof (error as { code?: unknown }).code === "number"
+                    ? (error as { code: number }).code
+                    : undefined;
+            console.error(
+                `Failed to send email using template ${templateAlias} (Postmark code ${code ?? "n/a"}): ${redactEmailAddresses(rawMessage)}`,
+            );
+            return { ok: false, reason: "send_failed", message: rawMessage, code };
+        }
+    };
+
+    /**
+     * Sends an email using Postmark.
+     * @returns the send result; { ok: false, reason: "not_configured" } when Postmark isn't set up.
+     * @throws Error if Postmark rejects the send.
+     */
+    const sendEmail = async (options: EmailOptions): Promise<SendEmailResult> => {
+        const result = await trySendEmail(options);
+        if (!result.ok && result.reason === "send_failed") {
+            throw new Error(`Failed to send email: ${result.message}`);
+        }
+        return result;
+    };
+
+    return { sendEmail, trySendEmail };
 };
+
+const defaultSender = createEmailSender(client, POSTMARK_SENDER_EMAIL);
+
+export const sendEmail = defaultSender.sendEmail;
+
+// Never throws: Postmark errors come back as { ok: false, reason: "send_failed" }.
+export const trySendEmail = defaultSender.trySendEmail;
 
 // Specific email sending functions will be added below in subsequent steps.
 
