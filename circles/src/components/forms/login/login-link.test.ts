@@ -14,10 +14,13 @@ mock.module("@/lib/data/db", () => ({
         updateOne: (...args: Parameters<FakeCollection["updateOne"]>) => circles.updateOne(...args),
     },
 }));
+// bun's module mocks are process-wide, so this exposes everything any test file's subject
+// imports from auth.ts (resend.test.ts mocks the same module).
 mock.module("@/lib/auth/auth", () => ({
     AuthenticationError: class AuthenticationError extends Error {},
     authenticateUser: () => undefined,
     createUserSession: async () => "session",
+    getAuthenticatedUserDid: async () => undefined,
     USERS_DIR: "/nonexistent",
 }));
 mock.module("@/lib/data/user", () => ({ getUserPrivate: async () => ({}) }));
