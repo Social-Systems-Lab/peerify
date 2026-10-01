@@ -77,6 +77,12 @@ type StepName =
     | (typeof ARTIST_PHASE_STEPS)[number]
     | "artist-ready";
 
+// Checkpoint/completion screens with no Back control, whose buttons navigate away. Explainer
+// only reads `role` (fixed at page load); fan-done reads nothing; artist-ready reads
+// artistCircle._id/handle (never changed by this flow) and re-fetches its own readiness on
+// mount (ArtistReadyStep).
+const END_SCREEN_STEPS: ReadonlySet<StepName> = new Set<StepName>(["explainer", "fan-done", "artist-ready"]);
+
 type PilotOnboardingFlowProps = {
     personalCircle: UserPrivate;
     artistCircle: Circle | null;
@@ -159,8 +165,15 @@ export function PilotOnboardingFlow({
     // Also refreshes userAtom (see refreshUser above) for the same reason, on every phase-scoped
     // step transition — centralized here rather than threaded through each frame's own onSaved,
     // since every real save already funnels through this one function.
+    //
+    // Skipped when moving onto an end screen (see END_SCREEN_STEPS): none of them read
+    // server props a refresh would update, and their buttons immediately router.push()
+    // elsewhere. A refresh still in flight when that push fires is what crashed Next's
+    // AppRouter with React #310 ("Rendered more hooks than during the previous render").
     const advanceStep = (next: StepName) => {
-        router.refresh();
+        if (!END_SCREEN_STEPS.has(next)) {
+            router.refresh();
+        }
         void refreshUser();
         setStep(next);
     };
