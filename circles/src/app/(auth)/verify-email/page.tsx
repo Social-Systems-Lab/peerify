@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { verifyEmailAction } from "./actions";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ResendVerificationEmail } from "@/components/auth/resend-verification-email";
 
 function VerifyEmailContent() {
     const searchParams = useSearchParams();
@@ -94,6 +95,7 @@ function VerifyEmailContent() {
                             If your email verification link has expired, you can request a new verification email from
                             your profile settings or by attempting to log in.
                         </p>
+                        <ResendVerificationEmail showAddress className="mt-4" />
                     </div>
                 )}
             </div>
