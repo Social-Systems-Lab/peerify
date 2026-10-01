@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ResendVerificationEmail } from "@/components/auth/resend-verification-email";
 
 type PageProps = {
     searchParams: Promise<{
@@ -28,7 +29,10 @@ export default async function PilotCheckEmailPage(props: PageProps) {
                         Click the link in your email to finish creating your account and log in. No password
                         needed — we&apos;ll always log you in this way.
                     </p>
-                    <p className="text-xs text-[#6b5f52]">Didn&apos;t get the email? Check your spam folder.</p>
+                    <p className="text-xs text-[#6b5f52]">
+                        Didn&apos;t get the email? Check your spam folder, and that the address above is spelled right.
+                    </p>
+                    <ResendVerificationEmail />
                 </CardContent>
             </Card>
         </div>
