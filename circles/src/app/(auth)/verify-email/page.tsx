@@ -61,7 +61,7 @@ function VerifyEmailContent() {
                 });
         } else {
             setTitle("Email verification");
-            setMessage("No email verification token was found. Please check the link or request a new one.");
+            setMessage("No email verification token was found. Please open the link from your email again.");
             setDetail(
                 "If you cannot use the verification link right now, you can continue to your profile for now and come back to email verification later.",
             );
@@ -92,8 +92,8 @@ function VerifyEmailContent() {
                 {error && message.includes("expired") && (
                     <div className="mt-4 text-center">
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                            If your email verification link has expired, you can request a new verification email from
-                            your profile settings or by attempting to log in.
+                            Need a new link? Resend the email below. The new link replaces the old one and is valid for
+                            24 hours.
                         </p>
                         <ResendVerificationEmail showAddress className="mt-4" />
                     </div>
