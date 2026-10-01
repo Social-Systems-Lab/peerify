@@ -123,13 +123,18 @@ interface RequestLoginLinkResponse {
 // consumed by consumeLoginLink (src/lib/auth/actions.ts), which only establishes a
 // session rather than rotating password credentials.
 export const requestLoginLinkAction = async (email: string): Promise<RequestLoginLinkResponse> => {
-    const validation = requestLoginLinkSchema.safeParse({ email });
+    const trimmedEmail = typeof email === "string" ? email.trim() : "";
+    const validation = requestLoginLinkSchema.safeParse({ email: trimmedEmail });
     if (!validation.success) {
         return { success: false, message: "Invalid email address provided." };
     }
 
     try {
-        const user = await Circles.findOne({ email: validation.data.email });
+        // Signup stores addresses lowercased; also match the input as typed so any legacy
+        // mixed-case record still resolves. Exact matches only, no regex.
+        const user = await Circles.findOne({
+            email: { $in: Array.from(new Set([trimmedEmail, trimmedEmail.toLowerCase()])) },
+        });
 
         if (user) {
             const unhashedToken = generateSecureToken();
