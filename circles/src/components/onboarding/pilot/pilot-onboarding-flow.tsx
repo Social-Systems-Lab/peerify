@@ -13,6 +13,7 @@ import {
     PeerifyArtistIdentityType,
 } from "@/lib/peerify/artist-profile";
 import { DEFAULT_HERO_IMAGE_URLS } from "@/lib/default-heroes";
+import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
 import { OnboardingCardShell } from "./onboarding-card-shell";
 import { PhotoStep } from "./frames/photo-step";
 import { AboutStep } from "./frames/about-step";
@@ -527,7 +528,9 @@ export function PilotOnboardingFlow({
     if (step === "artist-ready" && artistCircle && initialArtistReadiness) {
         const goToArtistProfile = () => {
             markPilotOnboardingComplete();
-            router.push(`/circles/${artistCircle.handle}`);
+            // Straight to the module path, not the bare /circles/<handle> whose page.tsx
+            // just server-redirects here — one less hop during this navigation.
+            router.push(getCircleDefaultPath(artistCircle));
         };
 
         return (
