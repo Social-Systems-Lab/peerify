@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { submitContactFormAction } from "./actions";
-import { CONTACT_REASON_VALUES, CONTACT_REASONS } from "./constants";
+import { CONTACT_REASON_VALUES, CONTACT_REASONS, type ContactReason } from "./constants";
 
 const contactFormSchema = z.object({
     name: z.string().trim().min(1, "Please enter your name"),
@@ -31,9 +31,11 @@ const headingFont = { fontFamily: "'Playfair Display', serif" };
 
 interface PeerifyContactDialogProps {
     trigger: ReactNode;
+    // Pre-selects the Reason dropdown; without it the field starts on "Choose one".
+    defaultReason?: ContactReason;
 }
 
-export default function PeerifyContactDialog({ trigger }: PeerifyContactDialogProps) {
+export default function PeerifyContactDialog({ trigger, defaultReason }: PeerifyContactDialogProps) {
     const [open, setOpen] = useState(false);
     const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
     const [errorMessage, setErrorMessage] = useState("");
@@ -41,7 +43,7 @@ export default function PeerifyContactDialog({ trigger }: PeerifyContactDialogPr
 
     const form = useForm<ContactFormData>({
         resolver: zodResolver(contactFormSchema),
-        defaultValues: { name: "", email: "", reason: undefined, message: "", company: "" },
+        defaultValues: { name: "", email: "", reason: defaultReason, message: "", company: "" },
     });
 
     const onSubmit = async (data: ContactFormData) => {
