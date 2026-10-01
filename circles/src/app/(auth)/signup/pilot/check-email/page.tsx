@@ -37,6 +37,7 @@ export default async function PilotCheckEmailPage(props: PageProps) {
                     <p className="text-xs text-[#6b5f52]">
                         Still nothing?{" "}
                         <PeerifyContactDialog
+                            defaultReason="account_access"
                             trigger={
                                 <button type="button" className="text-[#e8720c] underline hover:text-[#ff8c2a]">
                                     Contact us
