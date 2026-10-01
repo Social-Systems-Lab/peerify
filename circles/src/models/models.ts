@@ -848,6 +848,11 @@ export const circleSchema = z.object({
     isEmailVerified: z.boolean().optional(),
     emailVerificationToken: z.string().nullable().optional(),
     emailVerificationTokenExpiry: z.date().nullable().optional(),
+    // Resend rate limit (see evaluateVerificationResend in src/lib/auth/verification-email.ts).
+    // LastSentAt covers the signup send too; the 24h count covers resends only.
+    emailVerificationLastSentAt: z.date().nullable().optional(),
+    emailVerificationSendWindowStart: z.date().nullable().optional(),
+    emailVerificationSendCount24h: z.number().optional(),
     // Login Link Fields (passwordless magic-link login, e.g. for pilot-signup accounts
     // whose password is a random value nobody knows)
     loginLinkToken: z.string().nullable().optional(),

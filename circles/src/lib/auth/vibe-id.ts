@@ -177,6 +177,7 @@ async function createVibeIdUser(params: {
     );
     user.verificationStatus = "unverified";
     user.accountStatus = "pending_verification";
+    user.emailVerificationLastSentAt = new Date();
     if (skills?.length) {
         user.skills = skills;
         user.offers = {

@@ -15,6 +15,7 @@ import { addMember, getMembers } from "../data/member";
 import { getCircleById, getCirclesByDids, getCirclesByIds, getDefaultCircle } from "../data/circle";
 import { generateSecureToken, hashToken, trySendEmail } from "../data/email";
 import { isVerifiedUser } from "./verification";
+import { buildEmailVerificationLink, EMAIL_VERIFICATION_TOKEN_TTL_MS } from "./verification-email";
 
 export const SALT_FILENAME = "salt.bin";
 export const IV_FILENAME = "iv.bin";
@@ -108,7 +109,7 @@ export const createUserAccount = async (
     // add user to the database
     const unhashedVerificationToken = generateSecureToken();
     const hashedVerificationToken = hashToken(unhashedVerificationToken);
-    const verificationTokenExpiry = new Date(Date.now() + 24 * 3600 * 1000); // 24 hours expiry
+    const verificationTokenExpiry = new Date(Date.now() + EMAIL_VERIFICATION_TOKEN_TTL_MS);
 
     let user: Circle = createNewUser(
         did,
@@ -123,6 +124,8 @@ export const createUserAccount = async (
     );
     user.verificationStatus = "unverified";
     user.accountStatus = "pending_verification";
+    // Starts the resend cooldown, so a resend right after signup waits like any other.
+    user.emailVerificationLastSentAt = new Date();
     let res = await Circles.insertOne(user);
     user._id = res.insertedId.toString();
 
@@ -136,7 +139,7 @@ export const createUserAccount = async (
     }
 
     // Send verification email
-    const verificationLink = `${process.env.CIRCLES_URL || "http://localhost:3000"}/verify-email?token=${unhashedVerificationToken}`;
+    const verificationLink = buildEmailVerificationLink(unhashedVerificationToken);
     if (process.env.NODE_ENV !== "production") {
         console.log(`[DEV_EMAIL_VERIFICATION_TOKEN] ${email}: ${unhashedVerificationToken}`);
         console.log(`[DEV_EMAIL_VERIFICATION_URL] ${email}: ${verificationLink}`);

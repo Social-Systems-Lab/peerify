@@ -1,11 +1,17 @@
 "use server";
 
 import { Circles } from "@/lib/data/db";
-import { hashToken } from "@/lib/data/email";
+import { generateSecureToken, hashToken, trySendEmail } from "@/lib/data/email";
 import { revalidatePath } from "next/cache";
-import { createUserSession } from "@/lib/auth/auth";
+import { createUserSession, getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getUserPrivate } from "@/lib/data/user";
 import { getAutoProvisionedArtistCircle, getCirclePublishStatus } from "@/lib/data/circle";
+import {
+    buildEmailVerificationLink,
+    EMAIL_VERIFICATION_TOKEN_TTL_MS,
+    evaluateVerificationResend,
+    VERIFICATION_RESEND_COOLDOWN_SECONDS,
+} from "@/lib/auth/verification-email";
 
 interface VerifyEmailResponse {
     success: boolean;
@@ -157,5 +163,154 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
     } catch (error) {
         console.error("Error during email verification:", error);
         return { success: false, message: "An unexpected error occurred during email verification." };
+    }
+}
+
+// --- Resend verification email ---
+//
+// For the signed-in account owner only: the recipient is always the address stored on the
+// session user's own record, never something the caller supplies, so this can't be used to
+// send mail to arbitrary addresses or to probe whether an address has an account.
+
+export type VerificationResendStatus =
+    | { status: "unauthenticated" }
+    | { status: "already_verified" }
+    | { status: "ready"; email: string }
+    | { status: "rate_limited"; email: string; reason: "cooldown" | "daily_cap"; retryAfterSeconds: number };
+
+export type ResendVerificationEmailResult =
+    | { status: "unauthenticated" }
+    | { status: "already_verified" }
+    | { status: "sent"; email: string; retryAfterSeconds: number }
+    | { status: "rate_limited"; email: string; reason: "cooldown" | "daily_cap"; retryAfterSeconds: number }
+    | { status: "failed"; message: string };
+
+const RESEND_STATE_PROJECTION = {
+    did: 1,
+    name: 1,
+    email: 1,
+    isEmailVerified: 1,
+    emailVerificationLastSentAt: 1,
+    emailVerificationSendWindowStart: 1,
+    emailVerificationSendCount24h: 1,
+} as const;
+
+const RESEND_FAILED_MESSAGE = "We couldn't send the email just now. Please try again in a minute.";
+
+const readSessionDid = async (): Promise<string | undefined> => {
+    try {
+        return await getAuthenticatedUserDid();
+    } catch {
+        // An expired or malformed session cookie is just "not signed in" here.
+        return undefined;
+    }
+};
+
+const readResendSubject = async (did: string) => Circles.findOne({ did }, { projection: RESEND_STATE_PROJECTION });
+
+export async function getVerificationResendStatusAction(): Promise<VerificationResendStatus> {
+    const did = await readSessionDid();
+    if (!did) {
+        return { status: "unauthenticated" };
+    }
+    const user = await readResendSubject(did);
+    if (!user) {
+        return { status: "unauthenticated" };
+    }
+    if (user.isEmailVerified) {
+        return { status: "already_verified" };
+    }
+    const decision = evaluateVerificationResend(user, new Date());
+    if (!decision.allowed) {
+        return {
+            status: "rate_limited",
+            email: user.email ?? "",
+            reason: decision.reason,
+            retryAfterSeconds: decision.retryAfterSeconds,
+        };
+    }
+    return { status: "ready", email: user.email ?? "" };
+}
+
+export async function resendVerificationEmailAction(): Promise<ResendVerificationEmailResult> {
+    const did = await readSessionDid();
+    if (!did) {
+        return { status: "unauthenticated" };
+    }
+
+    try {
+        const user = await readResendSubject(did);
+        if (!user) {
+            return { status: "unauthenticated" };
+        }
+        if (user.isEmailVerified) {
+            return { status: "already_verified" };
+        }
+        if (!user.email) {
+            console.error(`Verification email resend skipped for user ${did}: no email address on record`);
+            return { status: "failed", message: RESEND_FAILED_MESSAGE };
+        }
+
+        const now = new Date();
+        const decision = evaluateVerificationResend(user, now);
+        if (!decision.allowed) {
+            return {
+                status: "rate_limited",
+                email: user.email,
+                reason: decision.reason,
+                retryAfterSeconds: decision.retryAfterSeconds,
+            };
+        }
+
+        // Overwriting the stored hash invalidates any earlier link. Matching on the
+        // emailVerificationLastSentAt value just read (null also matches a missing field) makes
+        // this a compare-and-set, so two concurrent requests can't both pass the limit.
+        const unhashedToken = generateSecureToken();
+        const claim = await Circles.updateOne(
+            {
+                _id: user._id,
+                isEmailVerified: { $ne: true },
+                emailVerificationLastSentAt: user.emailVerificationLastSentAt ?? null,
+            },
+            {
+                $set: {
+                    emailVerificationToken: hashToken(unhashedToken),
+                    emailVerificationTokenExpiry: new Date(now.getTime() + EMAIL_VERIFICATION_TOKEN_TTL_MS),
+                    emailVerificationLastSentAt: now,
+                    emailVerificationSendWindowStart: decision.windowStart,
+                    emailVerificationSendCount24h: decision.sendCount,
+                },
+            },
+        );
+        if (claim.matchedCount === 0) {
+            return {
+                status: "rate_limited",
+                email: user.email,
+                reason: "cooldown",
+                retryAfterSeconds: VERIFICATION_RESEND_COOLDOWN_SECONDS,
+            };
+        }
+
+        const sendResult = await trySendEmail({
+            to: user.email,
+            templateAlias: "email-verification",
+            templateModel: {
+                name: user.name || "User",
+                actionUrl: buildEmailVerificationLink(unhashedToken),
+            },
+        });
+        if (!sendResult.ok) {
+            console.error(`Verification email resend NOT sent for user ${did}: ${sendResult.reason}`);
+            return { status: "failed", message: RESEND_FAILED_MESSAGE };
+        }
+
+        console.log(`Verification email resent for user ${did} (MessageID ${sendResult.messageId})`);
+        return { status: "sent", email: user.email, retryAfterSeconds: VERIFICATION_RESEND_COOLDOWN_SECONDS };
+    } catch (error) {
+        console.error(
+            `Verification email resend failed for user ${did}:`,
+            error instanceof Error ? error.name : "unknown error",
+        );
+        return { status: "failed", message: RESEND_FAILED_MESSAGE };
     }
 }
