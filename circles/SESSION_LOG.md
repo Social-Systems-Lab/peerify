@@ -5595,3 +5595,64 @@ Open follow-ups:
   null with no session, since Mar 2025). Pair with the Noticeboard "Everyone" bug.
 - Explore map opens with only Artists selected; logged-out visitors may think
   there are no events.
+
+## 2026-10-01 — Verification email recovery (queue item 2) + onboarding React #310
+
+Investigation: the app sends fine. Every logged verification send on prod
+(25 Jun–30 Sep) was accepted by Postmark (ErrorCode 0), including sends after
+the privacy fixes, so losses are recipient-side (spam, bounces, typos,
+suppression). The real gap was recovery: no resend existed, check-email was a
+dead end, and verify-email promised a resend that didn't exist. Privacy fixes
+(A1/A2b/A2c/A3) ruled out: the recipient comes from form input and no
+privacy commit touches the send path.
+
+Shipped (staging 4318f7b4..b0e76613; prod release cf507614, main merge 8dbf9772):
+- sendEmail returns a real result (no more silent no-op when Postmark is
+  unconfigured); trySendEmail never throws; send logs keyed by user DID, no
+  addresses, Postmark error text redacted.
+- Login-link lookup case-insensitive ($in of trimmed + lowercased input).
+- resendVerificationEmailAction: session-only, no email input, recipient from
+  the user's own record; new token invalidates the old link; 60 s cooldown
+  (emailVerificationLastSentAt, also set at signup) + 5 resends per 24 h
+  window (emailVerificationSendCount24h / emailVerificationSendWindowStart).
+- "Resend email" button with countdown on check-email and the expired-link
+  screen.
+- Copy: removed every promise of a non-existent resend; deleted the dead
+  commented-out "email not verified" login gate.
+- "Still nothing? Contact us" on check-email opens the contact dialog, with a
+  new "Trouble signing up or logging in" reason preselected.
+- Tests: bun mocks for the DB and Postmark client (src/lib/testing/); run
+  `bun src/lib/data/email.test.ts` and
+  `bun test src/components/forms/login/login-link.test.ts "src/app/(auth)/verify-email/resend.test.ts"`.
+
+Config (env files, not commits):
+- Staging now uses its own "Peerify Staging" Postmark server (templates
+  copied), so staging no longer shares prod's suppression list or reputation.
+- Sender display names: "Peerify" on prod, "Peerify Staging" on staging,
+  quoted in the env files.
+
+Onboarding React #310 (staging 8e5897ea, 69ec5da6, 95949fff; main 0e88ad61,
+22d07416, f642ce38):
+- Root cause: a router.refresh() still in flight when an end screen
+  (explainer, fan-done, artist-ready) called router.push() crashed Next's
+  AppRouter. Fix: skip the refresh when advancing onto an end screen.
+- Artist end-screen buttons push straight to the circle's default module path
+  instead of bare /circles/<handle> (which only server-redirects).
+- New app/onboarding/error.tsx ("Try again" / "Continue to your profile").
+  Note: error.tsx doesn't catch router-level crashes like this one, so it's a
+  backstop, not the fix.
+
+Open follow-ups:
+- Log hygiene: pm2 logs have no timestamps or rotation; the login-link
+  "non-existent email" log line prints the address; check-email carries the
+  address in ?email= in the URL.
+- No rate limit on login-link requests.
+- The login-link email reuses the email-verification template (needs its own
+  template, or merge fields for actionText/introText).
+- Message reminders record "sent" when Postmark is unconfigured (they ignore
+  sendEmail's not_configured result).
+- DKIM for socialsystems.io unconfirmed (Return-Path CNAME and DMARC p=none
+  exist). Possible move of the sender to peerify.one, which has a null MX and
+  no SPF/DMARC; fix that first.
+- 22 router.push and 15 <Link> calls go to bare /circles/<handle> (redirect
+  hop, same pattern as the #310 path).
