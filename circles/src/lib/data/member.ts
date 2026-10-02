@@ -1,5 +1,14 @@
 // member.ts - membership management
-import { Content, FileInfo, Member, MemberDisplay, SortingOptions, TourTeamOffering } from "@/models/models";
+import {
+    Circle,
+    Content,
+    FileInfo,
+    Member,
+    MemberDisplay,
+    SortingOptions,
+    TourTeamOffering,
+    USER_CIRCLE_OWNER_ONLY_USER_GROUPS,
+} from "@/models/models";
 import { ChatRoomMembers, Circles, Members } from "./db";
 import { ObjectId } from "mongodb";
 import { redactLocationForViewer, viewerBypassesLocationRedaction, type LocationViewerContext } from "../utils";
@@ -11,6 +20,25 @@ import { upsertFollowState } from "./relationships";
 
 export const getMember = async (userDid: string, circleId: string): Promise<Member | null> => {
     return await Members.findOne({ userDid: userDid, circleId: circleId });
+};
+
+export const OWNER_ONLY_ROLE_MESSAGE = "This role can't be given to this member.";
+
+// True if moving userDid from existingGroups to newGroups would give a non-owner a group only the
+// owner may hold on a personal profile (USER_CIRCLE_OWNER_ONLY_USER_GROUPS). Only groups being
+// ADDED count, so a non-owner who already holds one (granted before this rule) can still have
+// other groups edited, or drop it, without being blocked.
+export const grantsOwnerOnlyGroup = (
+    circle: Pick<Circle, "circleType" | "did">,
+    userDid: string,
+    newGroups: string[],
+    existingGroups: string[] = [],
+): boolean => {
+    if (circle.circleType !== "user" || circle.did === userDid) return false;
+    return newGroups.some(
+        (group) =>
+            (USER_CIRCLE_OWNER_ONLY_USER_GROUPS as readonly string[]).includes(group) && !existingGroups.includes(group),
+    );
 };
 
 export const isCircleAdmin = async (userDid: string, circleId: string): Promise<boolean> => {
@@ -277,10 +305,15 @@ export const addMember = async (
         throw new Error("User is already a member of this circle");
     }
 
-    // if circle has no members, add user as admin
+    // if circle has no members, add user as admin - except a non-owner on a personal profile
+    // (e.g. a follower arriving before the owner's own membership exists), who joins as given
     let memberCount = await Members.countDocuments({ circleId: circleId });
-    if (memberCount === 0) {
+    if (memberCount === 0 && (circle.circleType !== "user" || circle.did === userDid)) {
         userGroups = ["admins", "moderators", "members"];
+    }
+
+    if (grantsOwnerOnlyGroup(circle, userDid, userGroups)) {
+        throw new Error(OWNER_ONLY_ROLE_MESSAGE);
     }
 
     let member: Member = {
@@ -344,6 +377,11 @@ export const updateMemberUserGroups = async (
     let existingMember = await Members.findOne({ userDid: userDid, circleId: circleId });
     if (!existingMember) {
         throw new Error("Member not found");
+    }
+
+    const circle = await Circles.findOne({ _id: new ObjectId(circleId) }, { projection: { did: 1, circleType: 1 } });
+    if (circle && grantsOwnerOnlyGroup(circle, userDid, newGroups, existingMember.userGroups ?? [])) {
+        throw new Error(OWNER_ONLY_ROLE_MESSAGE);
     }
 
     let updatedMember: Member = {
