@@ -23,6 +23,7 @@ import {
 import { sendNotifications } from "@/lib/data/notifications";
 import { getUserPrivate } from "@/lib/data/user";
 import { safeModifyMemberUserGroups } from "@/lib/utils";
+import { getAdminInvitationPath } from "@/lib/utils/circle-routes";
 import { ADMIN_INVITATION_ALLOWED_USER_GROUPS, Circle, MemberDisplay } from "@/models/models";
 import { revalidatePath } from "next/cache";
 import { isAcceptedConnectionForUserDid, listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
@@ -422,7 +423,13 @@ export const inviteUserToAdminAction = async (
             try {
                 const [inviter, invitedUser] = await Promise.all([getUserPrivate(userDid), getUserPrivate(invitedUserDid)]);
                 if (inviter && invitedUser) {
-                    notified = await notifyAdminInvitationReceived(existingCircle, inviter, invitedUser, invitation.userGroups);
+                    notified = await notifyAdminInvitationReceived(
+                        existingCircle,
+                        inviter,
+                        invitedUser,
+                        invitation.userGroups,
+                        invitation._id?.toString(),
+                    );
                 }
             } catch (error) {
                 console.error("Error loading users for admin invitation notification:", error);
@@ -472,6 +479,7 @@ export const acceptAdminInvitationAction = async (requestId: string): Promise<Ad
             let circlePath = await getCirclePath(invitationCircle);
             revalidatePath(`${circlePath}followers`);
         }
+        revalidatePath(getAdminInvitationPath(requestId));
 
         return { success: true, message: "You're now a member of this circle." };
     } catch (error) {
@@ -500,6 +508,7 @@ export const declineAdminInvitationAction = async (requestId: string): Promise<A
             let circlePath = await getCirclePath(invitationCircle);
             revalidatePath(`${circlePath}followers`);
         }
+        revalidatePath(getAdminInvitationPath(requestId));
 
         return { success: true, message: "Invitation declined." };
     } catch (error) {

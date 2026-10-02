@@ -202,9 +202,10 @@ export const adminInvitationSchema = z.object({
     invitedUserDid: didSchema,
     invitedByUserDid: didSchema,
     userGroups: z.array(z.string()),
-    status: z.enum(["pending", "accepted", "declined"]),
+    status: z.enum(["pending", "accepted", "declined", "cancelled"]),
     createdAt: z.date(),
     respondedAt: z.date().optional(),
+    cancelledAt: z.date().optional(),
 });
 export type AdminInvitation = z.infer<typeof adminInvitationSchema>;
 

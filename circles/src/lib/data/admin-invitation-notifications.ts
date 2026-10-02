@@ -14,6 +14,7 @@ export async function notifyAdminInvitationReceived(
     inviter: Circle,
     invitedUser: UserPrivate,
     userGroups: string[],
+    invitationId?: string,
 ): Promise<boolean> {
     try {
         await sendNotifications(
@@ -23,6 +24,7 @@ export async function notifyAdminInvitationReceived(
                 circle,
                 user: inviter,
                 roleNames: resolveRoleNames(circle, userGroups),
+                ...(invitationId ? { invitationId } : {}),
             }),
         );
         return true;

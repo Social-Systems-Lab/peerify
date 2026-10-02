@@ -1,7 +1,8 @@
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { AdminInvitations, Circles } from "./db";
 import { addMember, getMember, grantsOwnerOnlyGroup, isCircleAdmin, OWNER_ONLY_ROLE_MESSAGE } from "./member";
-import { ADMIN_INVITATION_ALLOWED_USER_GROUPS, AdminInvitation } from "@/models/models";
+import { ADMIN_INVITATION_ALLOWED_USER_GROUPS, AdminInvitation, Circle, FileInfo } from "@/models/models";
+import { resolveRoleNames } from "./admin-invitation-notifications";
 import { ObjectId } from "mongodb";
 
 export const getPendingAdminInvitationForUserAndCircle = async (
@@ -157,9 +158,10 @@ export const declineAdminInvitation = async (params: {
     return { ...invitation, status: "declined", respondedAt };
 };
 
-// Lets the inviting admin retract an invitation before the invitee responds. Implemented as a
-// hard delete of the pending doc rather than a 4th status value, since nothing needs to query
-// "cancelled" invitations afterward - unlike accepted/declined, there's no history to preserve.
+// Lets the inviting admin retract an invitation before the invitee responds. Kept as a "cancelled"
+// status rather than deleted so the invitee's invitation page can say it was cancelled instead of
+// 404ing. Every pending lookup filters on status "pending", so a re-invite after a cancel creates a
+// fresh invitation.
 export const cancelAdminInvitation = async (params: {
     requestId: string;
     cancellingUserDid: string;
@@ -169,5 +171,72 @@ export const cancelAdminInvitation = async (params: {
         throw new Error("Only the admin who sent this invitation can cancel it");
     }
 
-    await AdminInvitations.deleteOne({ _id: invitation._id });
+    await AdminInvitations.updateOne(
+        { _id: invitation._id, status: "pending" },
+        { $set: { status: "cancelled", cancelledAt: new Date() } },
+    );
+};
+
+// What the invitee's invitation page may show - identity-level fields only, never full circle or
+// user documents.
+export type AdminInvitationForInvitee = {
+    invitationId: string;
+    status: AdminInvitation["status"];
+    roleNames: string;
+    circle: { name: string; handle: string; picture?: FileInfo };
+    inviterName: string;
+    // Set when a pending invitation can no longer be accepted.
+    invalidReason?: string;
+};
+
+// Returns null unless viewerDid is the invitee, so callers can 404 everyone else without
+// revealing whether the invitation (or the circle) exists.
+export const getAdminInvitationForInvitee = async (
+    invitationId: string,
+    viewerDid: string,
+): Promise<AdminInvitationForInvitee | null> => {
+    if (!/^[0-9a-f]{24}$/i.test(invitationId)) {
+        return null;
+    }
+
+    const invitation = await AdminInvitations.findOne({ _id: new ObjectId(invitationId) });
+    if (!invitation || invitation.invitedUserDid !== viewerDid) {
+        return null;
+    }
+
+    const circle = await Circles.findOne(
+        { _id: new ObjectId(invitation.circleId) },
+        { projection: { name: 1, handle: 1, picture: 1, userGroups: 1, did: 1, circleType: 1 } },
+    );
+    if (!circle) {
+        return null;
+    }
+
+    const inviter = await Circles.findOne(
+        { did: invitation.invitedByUserDid, circleType: "user" },
+        { projection: { name: 1 } },
+    );
+
+    // Same checks acceptAdminInvitation makes, so the page doesn't offer an Accept that can only fail.
+    let invalidReason: string | undefined;
+    if (invitation.status === "pending") {
+        if (grantsOwnerOnlyGroup(circle, invitation.invitedUserDid, invitation.userGroups)) {
+            invalidReason = "This invitation is no longer valid.";
+        } else if (!(await isCircleAdmin(invitation.invitedByUserDid, invitation.circleId))) {
+            invalidReason = "This invitation is no longer valid because the inviting admin no longer has admin access.";
+        }
+    }
+
+    return {
+        invitationId,
+        status: invitation.status,
+        roleNames: resolveRoleNames(circle as Circle, invitation.userGroups),
+        circle: {
+            name: circle.name || "this circle",
+            handle: circle.handle || "",
+            ...(circle.picture?.url ? { picture: { url: circle.picture.url } } : {}),
+        },
+        inviterName: inviter?.name || "An admin",
+        ...(invalidReason ? { invalidReason } : {}),
+    };
 };

@@ -2,7 +2,7 @@
 import webpush from "web-push";
 import { PushSubscriptions, Circles } from "./db";
 import { NotificationType, PushSubscriptionDoc } from "@/models/models";
-import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
+import { getAdminInvitationPath, getCircleDefaultPath } from "@/lib/utils/circle-routes";
 
 export type PushCategory = "messages" | "events" | "verification" | "community";
 
@@ -141,6 +141,10 @@ export const resolvePushUrl = (type: string, payload: any): string | undefined =
         case "event_host_change_requested":
             return circleHandle ? `/circles/${circleHandle}/settings/event-host-requests` : undefined;
         case "admin_invitation_received":
+            if (typeof payload?.invitationId === "string" && payload.invitationId) {
+                return getAdminInvitationPath(payload.invitationId);
+            }
+            return circleHandle ? `/circles/${circleHandle}/followers` : undefined;
         case "admin_invitation_decided":
             return circleHandle ? `/circles/${circleHandle}/followers` : undefined;
         default:
