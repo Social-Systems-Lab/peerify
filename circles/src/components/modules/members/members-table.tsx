@@ -16,7 +16,13 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Circle, Content, ContentPreviewData, MemberDisplay } from "@/models/models";
+import {
+    Circle,
+    Content,
+    ContentPreviewData,
+    MemberDisplay,
+    USER_CIRCLE_OWNER_ONLY_USER_GROUPS,
+} from "@/models/models";
 import { Button } from "@/components/ui/button";
 import { ArrowDown, ArrowUp, Loader2, MoreHorizontal } from "lucide-react";
 import {
@@ -127,6 +133,19 @@ const MemberTable: React.FC<MemberTableProps> = ({ circle, members }) => {
     const canEditSameLevelUserGroups = isAuthorized(user, circle, features.general.edit_same_level_user_groups);
     const canRemoveSameLevelUser = isAuthorized(user, circle, features.general.remove_same_level_members);
     const canEdit = canEditUserGroups || canRemoveUser;
+
+    // On a personal profile only the owner may hold admins/moderators (the server refuses new
+    // grants), and the owner's own row isn't listed here. Hide those columns, except one the
+    // selected member already holds, so it can still be removed.
+    const editableGroupHandles = isUser
+        ? (circle.userGroups ?? [])
+              .map((group) => group.handle)
+              .filter(
+                  (handle) =>
+                      !(USER_CIRCLE_OWNER_ONLY_USER_GROUPS as readonly string[]).includes(handle) ||
+                      !!selectedMember?.userGroups?.includes(handle),
+              )
+        : undefined;
 
     useEffect(() => {
         if (logLevel >= LOG_LEVEL_TRACE) {
@@ -333,7 +352,7 @@ const MemberTable: React.FC<MemberTableProps> = ({ circle, members }) => {
                         />
                     </div>
                     <InviteButton circle={circle} />
-                    {isOwnerOrCircleAdmin(user, circle) && <InviteAdminDialog circle={circle} />}
+                    {!isUser && isOwnerOrCircleAdmin(user, circle) && <InviteAdminDialog circle={circle} />}
                     <Select
                         value={(table.getColumn("userGroups")?.getFilterValue() as string) ?? ""}
                         onValueChange={(value) => {
@@ -504,6 +523,7 @@ const MemberTable: React.FC<MemberTableProps> = ({ circle, members }) => {
                                     members={selectedMember ? [selectedMember] : []}
                                     control={methods.control}
                                     circle={circle}
+                                    allowedGroupHandles={editableGroupHandles}
                                 />
                                 <DialogFooter className="pt-4">
                                     <DialogClose asChild>
