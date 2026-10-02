@@ -39,6 +39,14 @@ export async function getCircleDeletionStatsAction(circleId: string) {
             throw new Error("Circle not found");
         }
 
+        // Same owner-only rule deleteCircleAction applies to personal profiles
+        if (circle.circleType === "user" && circle.did !== userDid) {
+            return {
+                success: false,
+                message: "You don't have permission to view deletion statistics for this circle.",
+            };
+        }
+
         // Count members
         const membersCount = await Members.countDocuments({ circleId });
 
@@ -111,6 +119,15 @@ export async function deleteCircleAction(circleId: string, confirmationName: str
             return {
                 success: false,
                 message: "Cannot delete the default circle",
+            };
+        }
+
+        // A personal profile is its owner's account: only the owner can delete it, whatever
+        // groups anyone else holds on it.
+        if (circle.circleType === "user" && circle.did !== userDid) {
+            return {
+                success: false,
+                message: "Only the owner can delete this account.",
             };
         }
 
