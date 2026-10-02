@@ -432,10 +432,9 @@ export const inviteUserToAdminAction = async (
     }
 };
 
-export const acceptAdminInvitationAction = async (
-    requestId: string,
-    circle: Circle,
-): Promise<AdminInvitationResponse> => {
+// The circle is taken from the invitation itself, never from the client - a caller could otherwise
+// pass any circle and have the decision notification and revalidation point at it.
+export const acceptAdminInvitationAction = async (requestId: string): Promise<AdminInvitationResponse> => {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
         return { success: false, message: "You need to be logged in to accept this invitation" };
@@ -444,13 +443,15 @@ export const acceptAdminInvitationAction = async (
     try {
         const invitation = await acceptAdminInvitation({ requestId, acceptingUserDid: userDid });
 
-        const [inviterCircle, accepter] = await Promise.all([getCircleById(circle._id ?? ""), getUserPrivate(userDid)]);
-        if (inviterCircle && accepter) {
-            await notifyAdminInvitationDecided(inviterCircle, accepter, invitation.invitedByUserDid, invitation.userGroups, true);
+        const [invitationCircle, accepter] = await Promise.all([getCircleById(invitation.circleId), getUserPrivate(userDid)]);
+        if (invitationCircle && accepter) {
+            await notifyAdminInvitationDecided(invitationCircle, accepter, invitation.invitedByUserDid, invitation.userGroups, true);
         }
 
-        let circlePath = await getCirclePath(circle);
-        revalidatePath(`${circlePath}followers`);
+        if (invitationCircle) {
+            let circlePath = await getCirclePath(invitationCircle);
+            revalidatePath(`${circlePath}followers`);
+        }
 
         return { success: true, message: "You're now a member of this circle." };
     } catch (error) {
@@ -461,10 +462,7 @@ export const acceptAdminInvitationAction = async (
     }
 };
 
-export const declineAdminInvitationAction = async (
-    requestId: string,
-    circle: Circle,
-): Promise<AdminInvitationResponse> => {
+export const declineAdminInvitationAction = async (requestId: string): Promise<AdminInvitationResponse> => {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
         return { success: false, message: "You need to be logged in to decline this invitation" };
@@ -473,13 +471,15 @@ export const declineAdminInvitationAction = async (
     try {
         const invitation = await declineAdminInvitation({ requestId, decliningUserDid: userDid });
 
-        const [inviterCircle, decliner] = await Promise.all([getCircleById(circle._id ?? ""), getUserPrivate(userDid)]);
-        if (inviterCircle && decliner) {
-            await notifyAdminInvitationDecided(inviterCircle, decliner, invitation.invitedByUserDid, invitation.userGroups, false);
+        const [invitationCircle, decliner] = await Promise.all([getCircleById(invitation.circleId), getUserPrivate(userDid)]);
+        if (invitationCircle && decliner) {
+            await notifyAdminInvitationDecided(invitationCircle, decliner, invitation.invitedByUserDid, invitation.userGroups, false);
         }
 
-        let circlePath = await getCirclePath(circle);
-        revalidatePath(`${circlePath}followers`);
+        if (invitationCircle) {
+            let circlePath = await getCirclePath(invitationCircle);
+            revalidatePath(`${circlePath}followers`);
+        }
 
         return { success: true, message: "Invitation declined." };
     } catch (error) {
