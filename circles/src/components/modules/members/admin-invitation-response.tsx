@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useRefreshUser } from "@/components/auth/use-refresh-user";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
@@ -19,6 +20,7 @@ type Props = {
 export default function AdminInvitationResponse({ invitation }: Props): React.ReactElement {
     const router = useRouter();
     const { toast } = useToast();
+    const refreshUser = useRefreshUser();
     const [isPending, startTransition] = useTransition();
     const [decision, setDecision] = useState<"accept" | "decline" | null>(null);
     const [status, setStatus] = useState(invitation.status);
@@ -34,6 +36,9 @@ export default function AdminInvitationResponse({ invitation }: Props): React.Re
 
             if (result.success) {
                 setStatus(nextDecision === "accept" ? "accepted" : "declined");
+                if (nextDecision === "accept") {
+                    await refreshUser();
+                }
                 router.refresh();
             } else {
                 toast({

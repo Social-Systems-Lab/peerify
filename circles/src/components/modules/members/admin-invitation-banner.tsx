@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useRefreshUser } from "@/components/auth/use-refresh-user";
 import { Circle } from "@/models/models";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
@@ -22,6 +23,7 @@ export default function AdminInvitationBanner({
 }: AdminInvitationBannerProps): React.ReactElement {
     const router = useRouter();
     const { toast } = useToast();
+    const refreshUser = useRefreshUser();
     const [isPending, startTransition] = useTransition();
     const [decision, setDecision] = useState<"accept" | "decline" | null>(null);
 
@@ -40,6 +42,9 @@ export default function AdminInvitationBanner({
             });
 
             if (result.success) {
+                if (nextDecision === "accept") {
+                    await refreshUser();
+                }
                 router.refresh();
             }
 
