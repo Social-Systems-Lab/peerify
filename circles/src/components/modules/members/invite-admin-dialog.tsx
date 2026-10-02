@@ -79,7 +79,8 @@ export default function InviteAdminDialog({ circle }: Props) {
                 }),
             );
 
-            const succeeded = results.filter((r) => r.result.success);
+            const succeeded = results.filter((r) => r.result.success && !r.result.notificationFailed);
+            const notNotified = results.filter((r) => r.result.success && r.result.notificationFailed);
             const failed = results.filter((r) => !r.result.success);
 
             if (succeeded.length > 0) {
@@ -90,6 +91,13 @@ export default function InviteAdminDialog({ circle }: Props) {
                         succeeded.length === 1
                             ? `${succeeded[0].candidate.name}: ${succeeded[0].result.message}`
                             : `Sent to ${succeeded.length} people.`,
+                });
+            }
+            for (const { candidate, result } of notNotified) {
+                toast({
+                    icon: "warning",
+                    title: `Invited ${candidate.name}, but not notified`,
+                    description: result.message,
                 });
             }
             for (const { candidate, result } of failed) {

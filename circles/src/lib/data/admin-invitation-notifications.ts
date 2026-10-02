@@ -14,7 +14,7 @@ export async function notifyAdminInvitationReceived(
     inviter: Circle,
     invitedUser: UserPrivate,
     userGroups: string[],
-): Promise<void> {
+): Promise<boolean> {
     try {
         await sendNotifications(
             "admin_invitation_received",
@@ -25,8 +25,10 @@ export async function notifyAdminInvitationReceived(
                 roleNames: resolveRoleNames(circle, userGroups),
             }),
         );
+        return true;
     } catch (err) {
         console.error("Error in notifyAdminInvitationReceived:", err);
+        return false;
     }
 }
 
