@@ -30,8 +30,8 @@ export default function AdminInvitationBanner({
         startTransition(async () => {
             const result =
                 nextDecision === "accept"
-                    ? await acceptAdminInvitationAction(requestId, circle)
-                    : await declineAdminInvitationAction(requestId, circle);
+                    ? await acceptAdminInvitationAction(requestId)
+                    : await declineAdminInvitationAction(requestId);
 
             toast({
                 title: result.success ? "Updated" : "Error",
