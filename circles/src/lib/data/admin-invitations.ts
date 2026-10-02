@@ -1,6 +1,6 @@
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
-import { AdminInvitations } from "./db";
-import { addMember, getMember, isCircleAdmin } from "./member";
+import { AdminInvitations, Circles } from "./db";
+import { addMember, getMember, grantsOwnerOnlyGroup, isCircleAdmin, OWNER_ONLY_ROLE_MESSAGE } from "./member";
 import { ADMIN_INVITATION_ALLOWED_USER_GROUPS, AdminInvitation } from "@/models/models";
 import { ObjectId } from "mongodb";
 
@@ -22,6 +22,14 @@ export const getPendingAdminInvitationsSentByUser = async (
     return await AdminInvitations.find({ circleId, invitedByUserDid, status: "pending" })
         .sort({ createdAt: -1 })
         .toArray();
+};
+
+const getCircleOwnership = async (circleId: string) => {
+    const circle = await Circles.findOne({ _id: new ObjectId(circleId) }, { projection: { did: 1, circleType: 1 } });
+    if (!circle) {
+        throw new Error("Circle not found");
+    }
+    return circle;
 };
 
 const getRequiredPendingInvitation = async (requestId: string): Promise<AdminInvitation> => {
@@ -59,6 +67,10 @@ export const createPendingAdminInvitation = async (params: {
         throw new Error("Admin invitations can only offer the Admin or Moderator role");
     }
 
+    if (grantsOwnerOnlyGroup(await getCircleOwnership(params.circleId), params.invitedUserDid, requestedUserGroups)) {
+        throw new Error(OWNER_ONLY_ROLE_MESSAGE);
+    }
+
     if (requestedUserGroups.includes("admins")) {
         const pendingDetachRequest = await getPendingDetachCircleRequest(params.circleId);
         if (pendingDetachRequest) {
@@ -94,6 +106,12 @@ export const acceptAdminInvitation = async (params: {
     const invitation = await getRequiredPendingInvitation(params.requestId);
     if (invitation.invitedUserDid !== params.acceptingUserDid) {
         throw new Error("Only the invited user can accept this invitation");
+    }
+
+    // Checked at accept time, not just at send time, so an invitation sent before personal
+    // profiles stopped allowing these roles can't still be honoured.
+    if (grantsOwnerOnlyGroup(await getCircleOwnership(invitation.circleId), invitation.invitedUserDid, invitation.userGroups)) {
+        throw new Error(OWNER_ONLY_ROLE_MESSAGE);
     }
 
     // Re-validate the inviter is still an admin - a stale invitation from someone who has since

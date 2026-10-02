@@ -10,7 +10,16 @@ import {
 import { getCircleById, getCirclePath } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
-import { addMember, countAdmins, getMember, isCircleAdmin, removeMember, updateMemberUserGroups } from "@/lib/data/member";
+import {
+    addMember,
+    countAdmins,
+    getMember,
+    grantsOwnerOnlyGroup,
+    isCircleAdmin,
+    OWNER_ONLY_ROLE_MESSAGE,
+    removeMember,
+    updateMemberUserGroups,
+} from "@/lib/data/member";
 import { sendNotifications } from "@/lib/data/notifications";
 import { getUserPrivate } from "@/lib/data/user";
 import { safeModifyMemberUserGroups } from "@/lib/utils";
@@ -228,6 +237,12 @@ export const updateUserGroupsAction = async (
             canEditSameLevel,
         );
 
+        // Non-owners can't be given admins/moderators on a personal profile; groups they already
+        // hold are left alone (see grantsOwnerOnlyGroup).
+        if (grantsOwnerOnlyGroup(existingCircle, member.userDid, newUserGroups, existingMember.userGroups ?? [])) {
+            return { success: false, message: OWNER_ONLY_ROLE_MESSAGE };
+        }
+
         // update member user groups in the circle
         await updateMemberUserGroups(member.userDid, circle._id ?? "", newUserGroups);
 
@@ -378,6 +393,10 @@ export const inviteUserToAdminAction = async (
         const existingCircle = await getCircleById(circle._id ?? "");
         if (!existingCircle) {
             return { success: false, message: "Circle not found" };
+        }
+
+        if (grantsOwnerOnlyGroup(existingCircle, invitedUserDid, requestedUserGroups)) {
+            return { success: false, message: OWNER_ONLY_ROLE_MESSAGE };
         }
 
         // Clamp the offered roles to what this admin is actually permitted to grant - same

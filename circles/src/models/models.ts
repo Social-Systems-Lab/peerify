@@ -213,6 +213,11 @@ export type AdminInvitation = z.infer<typeof adminInvitationSchema>;
 // without pulling in that server-only data module's own imports (auth/cookies/etc).
 export const ADMIN_INVITATION_ALLOWED_USER_GROUPS = ["admins", "moderators"] as const;
 
+// Groups only the owner may hold on a personal profile (circleType "user"). Anyone in them gets
+// the owner's settings, full unredacted profile and delete rights, so nobody else is granted them.
+// Kept here (not in member.ts) so client components can hide these options too.
+export const USER_CIRCLE_OWNER_ONLY_USER_GROUPS = ["admins", "moderators"] as const;
+
 export const userGroupSchema = z.object({
     name: z.string(),
     handle: handleSchema,
