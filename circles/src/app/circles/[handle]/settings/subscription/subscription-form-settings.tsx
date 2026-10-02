@@ -61,7 +61,7 @@ const pushPreferenceOptions: { key: PushPreferenceKey; label: string; descriptio
     {
         key: "pushVerification",
         label: "Verification",
-        description: "Updates on your account or profile verification.",
+        description: "Account and profile verification, and admin invitations.",
     },
     {
         key: "pushCommunity",
