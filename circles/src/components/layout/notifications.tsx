@@ -27,7 +27,7 @@ import { MdOutlineArticle } from "react-icons/md";
 import { Hammer, AlertCircle } from "lucide-react"; // Gavel icon for proposals, AlertCircle for issues
 import { AiFillHeart } from "react-icons/ai";
 import { Button } from "../ui/button";
-import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
+import { getAdminInvitationPath, getCircleDefaultPath } from "@/lib/utils/circle-routes";
 import { ProfileRelationshipHeaderAction } from "../modules/home/message-button";
 
 type Notification = {
@@ -76,6 +76,8 @@ type Notification = {
     // Track (song) fields
     trackId?: string;
     trackTitle?: string;
+    // Admin invitation fields
+    invitationId?: string;
     // For grouping purposes
     key?: string;
 };
@@ -266,6 +268,7 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                     eventName: content.eventName,
                     trackId: content.trackId,
                     trackTitle: content.trackTitle,
+                    invitationId: typeof content.invitationId === "string" ? content.invitationId : undefined,
                     key: groupKey,
                 };
 
@@ -544,10 +547,16 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                 case "event_host_change_requested":
                     return `/circles/${circleHandle}/settings/event-host-requests`;
                 case "admin_invitation_received":
+                    // The invitee answers on the invitation page, which works for unpublished
+                    // circles. Notifications sent before invitationId was added fall back to
+                    // Followers, where the banner still offers accept/decline.
+                    if (notification.invitationId) {
+                        return getAdminInvitationPath(notification.invitationId);
+                    }
+                    return notification.circle?.handle ? `/circles/${notification.circle.handle}/followers` : null;
                 case "admin_invitation_decided":
-                    // Accept/decline lives in a banner on the Followers page (like the admin-role-
-                    // removal request banner), not a dedicated page - there's no per-invitation id
-                    // to route to here.
+                    // Goes to the inviter, an admin of the circle, so Followers is reachable even
+                    // when the circle is unpublished.
                     return notification.circle?.handle ? `/circles/${notification.circle.handle}/followers` : null;
                 default:
                     return null;
