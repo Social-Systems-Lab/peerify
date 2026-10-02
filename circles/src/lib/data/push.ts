@@ -37,6 +37,10 @@ export const PUSH_NOTIFICATION_CATEGORIES: Record<
             "user_verification_reply_received",
             "user_verification_rejected",
             "proof_of_humanity_verified",
+            // Admin invitations need a response from the invitee, so they ride the default-on
+            // category rather than "community" (default off).
+            "admin_invitation_received",
+            "admin_invitation_decided",
         ],
     },
     community: {
@@ -49,8 +53,6 @@ export const PUSH_NOTIFICATION_CATEGORIES: Record<
             "crew_application",
             "crew_application_approved",
             "crew_broadcast",
-            "admin_invitation_received",
-            "admin_invitation_decided",
         ],
     },
 };
