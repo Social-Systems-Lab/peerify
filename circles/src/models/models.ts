@@ -206,6 +206,9 @@ export const adminInvitationSchema = z.object({
     createdAt: z.date(),
     respondedAt: z.date().optional(),
     cancelledAt: z.date().optional(),
+    // When the invitee was last successfully notified; gates re-notifying on a duplicate invite.
+    // Only ever $set to a real Date, but nullable so docs with a stray null still parse.
+    lastNotifiedAt: z.date().nullable().optional(),
 });
 export type AdminInvitation = z.infer<typeof adminInvitationSchema>;
 

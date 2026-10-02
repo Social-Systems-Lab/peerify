@@ -30,10 +30,16 @@ import { isAcceptedConnectionForUserDid, listAcceptedConnectionsForUserDid, sear
 import {
     acceptAdminInvitation,
     cancelAdminInvitation,
+    claimAdminInvitationNotification,
     createPendingAdminInvitation,
     declineAdminInvitation,
+    releaseAdminInvitationNotification,
 } from "@/lib/data/admin-invitations";
-import { notifyAdminInvitationDecided, notifyAdminInvitationReceived } from "@/lib/data/admin-invitation-notifications";
+import {
+    notifyAdminInvitationDecided,
+    notifyAdminInvitationReceived,
+    resolveRoleNames,
+} from "@/lib/data/admin-invitation-notifications";
 
 type RemoveMemberResponse = {
     success: boolean;
@@ -418,22 +424,38 @@ export const inviteUserToAdminAction = async (
 
         // The invitation exists from here on, so nothing below may turn this into a "Failed"
         // result - a failed notification is reported as such, not as a failed invitation.
-        let notified = false;
-        if (created) {
-            try {
-                const [inviter, invitedUser] = await Promise.all([getUserPrivate(userDid), getUserPrivate(invitedUserDid)]);
-                if (inviter && invitedUser) {
-                    notified = await notifyAdminInvitationReceived(
-                        existingCircle,
-                        inviter,
-                        invitedUser,
-                        invitation.userGroups,
-                        invitation._id?.toString(),
-                    );
+        // A duplicate invite while one is pending re-notifies the invitee, subject to the cooldown
+        // in claimAdminInvitationNotification.
+        const invitationId = invitation._id?.toString() ?? "";
+        let notification: "sent" | "failed" | "cooldown" = "failed";
+        try {
+            const claim = invitationId ? await claimAdminInvitationNotification(invitationId) : null;
+            if (invitationId && !claim) {
+                notification = "cooldown";
+            } else if (claim) {
+                let notified = false;
+                try {
+                    const [inviter, invitedUser] = await Promise.all([getUserPrivate(userDid), getUserPrivate(invitedUserDid)]);
+                    if (inviter && invitedUser) {
+                        notified = await notifyAdminInvitationReceived(
+                            existingCircle,
+                            inviter,
+                            invitedUser,
+                            invitation.userGroups,
+                            invitationId,
+                        );
+                    }
+                } catch (error) {
+                    console.error("Error loading users for admin invitation notification:", error);
                 }
-            } catch (error) {
-                console.error("Error loading users for admin invitation notification:", error);
+                if (notified) {
+                    notification = "sent";
+                } else {
+                    await releaseAdminInvitationNotification(invitationId, claim);
+                }
             }
+        } catch (error) {
+            console.error("Error notifying about admin invitation:", error);
         }
 
         try {
@@ -444,13 +466,29 @@ export const inviteUserToAdminAction = async (
         }
 
         if (!created) {
-            return { success: true, message: "An invitation is already pending for this user." };
-        }
-        if (!notified) {
+            const pending = `An invitation is already pending for this user, offering ${resolveRoleNames(existingCircle, invitation.userGroups)}.`;
+            const changeRoles =
+                "To offer different roles, cancel it under Settings › About › Pending invitations and send a new one.";
+            if (notification === "sent") {
+                return { success: true, message: `${pending} We've sent them a reminder. ${changeRoles}` };
+            }
+            if (notification === "cooldown") {
+                return {
+                    success: true,
+                    message: `${pending} They were notified in the last 24 hours, so no reminder was sent. ${changeRoles}`,
+                };
+            }
             return {
                 success: true,
                 notificationFailed: true,
-                message: "The invitation was created, but we couldn't notify them about it.",
+                message: `${pending} We couldn't send them a reminder. Try again later. ${changeRoles}`,
+            };
+        }
+        if (notification !== "sent") {
+            return {
+                success: true,
+                notificationFailed: true,
+                message: "The invitation was created, but we couldn't notify them about it. Invite them again to retry.",
             };
         }
         return { success: true, message: "Invitation sent." };

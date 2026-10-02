@@ -100,6 +100,50 @@ export const createPendingAdminInvitation = async (params: {
     return { invitation, created: true };
 };
 
+// A duplicate invite re-notifies the invitee at most once per this window. Admin invitations push by
+// default (verification category), so without it an inviter clicking Invite repeatedly could push
+// the invitee every time.
+export const ADMIN_INVITATION_RENOTIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
+// Atomically reserves the right to notify the invitee about a pending invitation: succeeds only if
+// they haven't been notified within the cooldown, and stamps lastNotifiedAt so a concurrent call
+// (e.g. a double-click) can't also send. Returns null when the cooldown hasn't passed. If the send
+// then fails, call releaseAdminInvitationNotification so the inviter can retry straight away.
+export const claimAdminInvitationNotification = async (
+    invitationId: string,
+): Promise<{ claimedAt: Date; previousNotifiedAt: Date | null } | null> => {
+    const claimedAt = new Date();
+    const cutoff = new Date(claimedAt.getTime() - ADMIN_INVITATION_RENOTIFY_COOLDOWN_MS);
+    const before = await AdminInvitations.findOneAndUpdate(
+        {
+            _id: new ObjectId(invitationId),
+            status: "pending",
+            $or: [{ lastNotifiedAt: { $exists: false } }, { lastNotifiedAt: null }, { lastNotifiedAt: { $lt: cutoff } }],
+        },
+        { $set: { lastNotifiedAt: claimedAt } },
+        { returnDocument: "before" },
+    );
+    if (!before) {
+        return null;
+    }
+    return { claimedAt, previousNotifiedAt: before.lastNotifiedAt ?? null };
+};
+
+// Undoes a claim whose notification failed. Matches on the claim's own timestamp so it never
+// clobbers a later successful claim. Restores the previous Date, or removes the field ($unset, not
+// undefined - this client has no ignoreUndefined, so undefined would be stored as null).
+export const releaseAdminInvitationNotification = async (
+    invitationId: string,
+    claim: { claimedAt: Date; previousNotifiedAt: Date | null },
+): Promise<void> => {
+    const filter = { _id: new ObjectId(invitationId), lastNotifiedAt: claim.claimedAt };
+    if (claim.previousNotifiedAt) {
+        await AdminInvitations.updateOne(filter, { $set: { lastNotifiedAt: claim.previousNotifiedAt } });
+    } else {
+        await AdminInvitations.updateOne(filter, { $unset: { lastNotifiedAt: "" } });
+    }
+};
+
 export const acceptAdminInvitation = async (params: {
     requestId: string;
     acceptingUserDid: string;
