@@ -30,8 +30,12 @@ export default async function MembersModule(props: PageProps) {
         pendingAdminRoleRemovalRequest?.requestedByDid
             ? await getUserPrivate(pendingAdminRoleRemovalRequest.requestedByDid)
             : null;
+    // Personal profiles no longer take admin invitations (acceptance is refused server-side), so
+    // an invitation sent before that rule gets no banner.
     const pendingAdminInvitation =
-        userDid && circle?._id ? await getPendingAdminInvitationForUserAndCircle(circle._id, userDid) : null;
+        userDid && circle?._id && circle.circleType !== "user"
+            ? await getPendingAdminInvitationForUserAndCircle(circle._id, userDid)
+            : null;
     const inviter = pendingAdminInvitation ? await getUserPrivate(pendingAdminInvitation.invitedByUserDid) : null;
     if (circle?.circleType === "user") {
         members = members.filter((m) => m.userDid !== circle.did);

@@ -62,15 +62,18 @@ export default async function AboutSettingsPage(props: PageProps) {
         circle._id && circle.circleType !== "user"
             ? (await getMembers(String(circle._id))).filter((member) => member.userGroups?.includes("admins"))
             : [];
-    // Unlike adminMembers above (scoped to non-user circles, for the parent/child CircleStructureCard),
-    // the Admins list card applies to every circle type, including personal profiles - that's exactly
-    // where inviting a second admin is most useful, since there'd otherwise be only the owner.
-    const circleAdmins = circle._id ? await getAdminMembers(String(circle._id)) : [];
+    // The Admins list card (and its Invite Admin button) is for non-user circles only. Personal
+    // profiles used to show it too (de05f7bd), but only the owner may hold admins/moderators there
+    // now - granting them is refused server-side (grantsOwnerOnlyGroup in lib/data/member.ts).
+    const showAdminsCard = circle.circleType !== "user";
+    const circleAdmins = showAdminsCard && circle._id ? await getAdminMembers(String(circle._id)) : [];
     // Sent-invitation list for the Admins card's "Pending invitations" section. Scoped to this
     // viewer's own invitations, matching cancelAdminInvitation's sender-only guard - see the
     // comment on getPendingAdminInvitationsSentByUser.
     const pendingAdminInvitationDocs =
-        circle._id && userDid ? await getPendingAdminInvitationsSentByUser(String(circle._id), userDid) : [];
+        showAdminsCard && circle._id && userDid
+            ? await getPendingAdminInvitationsSentByUser(String(circle._id), userDid)
+            : [];
     // An invitation only stores the invitee's did (no Member doc exists until they accept), so
     // their name/handle/picture has to come from their own circle.
     const invitedCircles = pendingAdminInvitationDocs.length
@@ -174,7 +177,9 @@ export default async function AboutSettingsPage(props: PageProps) {
                     ? "Manage your profile information, including name, description, location, and images."
                     : "Manage your circle's profile information, including name, description, mission, and images."}
             </p>
-            <AdminsListCard circle={circle} admins={circleAdmins} pendingInvitations={pendingAdminInvitations} />
+            {showAdminsCard ? (
+                <AdminsListCard circle={circle} admins={circleAdmins} pendingInvitations={pendingAdminInvitations} />
+            ) : null}
             {showWorkflowCard ? (
                 <div className="mb-6 rounded-lg border bg-white p-4 shadow-sm">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
