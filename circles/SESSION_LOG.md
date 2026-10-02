@@ -40,6 +40,78 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-02 — Queue item 3, Batch 1: admin roles removed from personal profiles — promoted to production
+
+**Shipped.** Staging commits df688c96 (c1), 85f11adf (c4) and 2a5a4104 (c2), promoted to
+`main` as a67e28cb, 041d8f46 and 8210ed3a. Prod release 8210ed3a.
+- **c1, server guard (df688c96):** `grantsOwnerOnlyGroup` (src/lib/data/member.ts) refuses to
+  ADD admins/moderators for a non-owner on a circleType "user" circle. Groups a member
+  already holds are left alone. It is enforced in both membership writers (`addMember`,
+  `updateMemberUserGroups`) and again in the action layer: `createPendingAdminInvitation`,
+  `acceptAdminInvitation` (checked at accept time, so older invitations are refused too),
+  `inviteUserToAdminAction` and `updateUserGroupsAction`. Every refusal returns the same
+  generic message. `addMember`'s empty-circle auto-admin no longer promotes a non-owner on a
+  personal profile. The owner's own auto-created membership is unchanged.
+- **c4, delete guard (85f11adf):** on a user circle, `deleteCircleAction` and
+  `getCircleDeletionStatsAction` require `userDid === circle.did`, whatever groups the caller
+  holds.
+- **c2, UI (2a5a4104):** on user circles:
+  - Invite Admin is hidden on the Followers toolbar.
+  - Settings › About doesn't show (or query) the Admins card.
+  - Edit User Groups offers admins/moderators only when the selected member already holds
+    them, so a role can be removed but not granted.
+  - `AdminInvitationBanner` doesn't render.
+
+**Decision:** non-owners can no longer be admins or moderators of personal profiles. This
+reverses de05f7bd (2026-09-19). A profile co-admin could delete the owner's account, rewrite
+their identity (name, handle, picture, location via `saveAbout`) and see their exact location
+(`toPublicCircle` returns the unredacted circle to anyone with `edit_about`). Sharing login
+details covers the rare legitimate case.
+
+**Prod before and after:** before the deploy there was 1 non-owner admin on a user circle. It
+was granted by mistake through Edit User Groups (`updateUserGroupsAction`), not through an
+invitation; prod has had 0 adminInvitations. The admin removed themselves after the deploy. A
+re-run of `scripts/count-admin-and-notification-exposure.mongosh.js` (3c44543e) confirms 0.
+
+**Verification:** c2 was checked in the UI on staging, and non-user circles regressed OK. The
+c1 direct-call checks and the c4 check rest on code review: with the UI path closed, only
+profile owners and existing non-owner admins could still reach them, and there are now no
+existing non-owner admins.
+
+**Not fixed here: notification payload exposure.** All 186 prod notifications, across 21
+types, embed private keys (the other party's full `getUserPrivate` doc in `content.user`,
+etc.). Handed to the IMY chat with the staging and prod counts.
+
+**Item 3 decision for Batch 3:** admin invites go in the default-on "verification" push
+category.
+
+**Remaining item 3 work (Batch 3):**
+- a1: a dedicated invitation page that works for unpublished circles. Today the
+  `/followers` CTA gives a non-admin Not found on a draft circle (`/api/access`).
+- a3: move admin invites to the "verification" push category.
+- a5: re-notify on a duplicate invite while one is pending.
+- Fix the `getUserPrivate` failure path after the invitation insert. The inviter sees
+  "Failed" although the invitation exists, and the invitee is never notified.
+- `acceptAdminInvitationAction` should use `invitation.circleId`, not the client-supplied
+  circle.
+- b1: after accepting, call `checkAuth` + `setUser` so the client `userAtom.memberships`
+  picks up the new role without a reload.
+
+**Deferred:**
+- a4: invite email (needs a template alias on both Postmark servers).
+- b3: app-wide auth refresh.
+- Consent for direct "Edit User Groups → Admin" on non-user circles.
+
+**New follow-ups:**
+- The mobile layout navigates profile previews to `/circle/<handle>` (singular), which is Not
+  found. Reproduced on staging at 460px from Followers (`handleRowClick` in members-table.tsx
+  when `isCompact`). Possibly the same root cause as the item 1 follow-up about
+  personal-profile cards from map/For You.
+- The `fileInfoSchema` comment in models.ts differs between `main` and `staging` (comment
+  only, no code difference).
+
+---
+
 ## 2026-09-17 — Venue booking-info page split (Phase 1 + 1b)
 
 Split booking/technical/policy content off the venue About page onto its own
