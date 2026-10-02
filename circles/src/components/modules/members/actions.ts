@@ -318,6 +318,8 @@ type AdminInvitationResponse = {
     success: boolean;
     message?: string;
     alreadyMember?: boolean;
+    // The invitation was created but the invitee couldn't be notified about it.
+    notificationFailed?: boolean;
 };
 
 // Candidate pool for the invite picker: the CALLER's own accepted connections, independent of
@@ -413,20 +415,38 @@ export const inviteUserToAdminAction = async (
             userGroups: offeredUserGroups,
         });
 
+        // The invitation exists from here on, so nothing below may turn this into a "Failed"
+        // result - a failed notification is reported as such, not as a failed invitation.
+        let notified = false;
         if (created) {
-            const [inviter, invitedUser] = await Promise.all([getUserPrivate(userDid), getUserPrivate(invitedUserDid)]);
-            if (inviter && invitedUser) {
-                await notifyAdminInvitationReceived(existingCircle, inviter, invitedUser, invitation.userGroups);
+            try {
+                const [inviter, invitedUser] = await Promise.all([getUserPrivate(userDid), getUserPrivate(invitedUserDid)]);
+                if (inviter && invitedUser) {
+                    notified = await notifyAdminInvitationReceived(existingCircle, inviter, invitedUser, invitation.userGroups);
+                }
+            } catch (error) {
+                console.error("Error loading users for admin invitation notification:", error);
             }
         }
 
-        let circlePath = await getCirclePath(circle);
-        revalidatePath(`${circlePath}followers`);
+        try {
+            let circlePath = await getCirclePath(existingCircle);
+            revalidatePath(`${circlePath}followers`);
+        } catch (error) {
+            console.error("Error revalidating after admin invitation:", error);
+        }
 
-        return {
-            success: true,
-            message: created ? "Invitation sent." : "An invitation is already pending for this user.",
-        };
+        if (!created) {
+            return { success: true, message: "An invitation is already pending for this user." };
+        }
+        if (!notified) {
+            return {
+                success: true,
+                notificationFailed: true,
+                message: "The invitation was created, but we couldn't notify them about it.",
+            };
+        }
+        return { success: true, message: "Invitation sent." };
     } catch (error) {
         return { success: false, message: "Failed to send invitation. " + error?.toString() };
     }
