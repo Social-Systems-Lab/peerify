@@ -23,7 +23,10 @@ export async function POST(req: Request) {
 
         if (!isCirclePublished(circle)) {
             const membership = userDid ? await getMember(userDid, circle._id) : null;
-            const canViewUnpublished = circle.createdBy === userDid || membership?.userGroups?.includes("admins");
+            // userDid is checked first: a circle with no createdBy would otherwise match a logged-out
+            // visitor (undefined === undefined).
+            const canViewUnpublished =
+                !!userDid && (circle.createdBy === userDid || membership?.userGroups?.includes("admins"));
             if (!canViewUnpublished) {
                 return NextResponse.json({ notFound: true, notFoundType: "circle" }, { status: 404 });
             }

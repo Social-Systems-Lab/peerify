@@ -40,7 +40,8 @@ export default async function RootLayout(props: Props) {
     let authorizedToEdit = false;
     let userDid = await getAuthenticatedUserDid();
     authorizedToEdit = await isAuthorized(userDid, circle._id ?? "", features.settings.edit_about);
-    const canViewCircle = isCirclePublished(circle) || authorizedToEdit || circle.createdBy === userDid;
+    // !!userDid: a circle with no createdBy must not count a logged-out visitor as its creator.
+    const canViewCircle = isCirclePublished(circle) || authorizedToEdit || (!!userDid && circle.createdBy === userDid);
     if (!canViewCircle) {
         redirect("/not-found");
     }
