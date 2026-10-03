@@ -1,5 +1,5 @@
 import { getCircleByHandle, isCirclePublished } from "@/lib/data/circle";
-import { getMember } from "@/lib/data/member";
+import { canViewUnpublishedCircle, getMember } from "@/lib/data/member";
 import { Circle } from "@/models/models";
 import { NextResponse } from "next/server";
 import { isModuleEnabled } from "@/lib/auth/client-auth";
@@ -22,11 +22,7 @@ export async function POST(req: Request) {
         }
 
         if (!isCirclePublished(circle)) {
-            const membership = userDid ? await getMember(userDid, circle._id) : null;
-            // userDid is checked first: a circle with no createdBy would otherwise match a logged-out
-            // visitor (undefined === undefined).
-            const canViewUnpublished =
-                !!userDid && (circle.createdBy === userDid || membership?.userGroups?.includes("admins"));
+            const canViewUnpublished = await canViewUnpublishedCircle(circle, userDid);
             if (!canViewUnpublished) {
                 return NextResponse.json({ notFound: true, notFoundType: "circle" }, { status: 404 });
             }

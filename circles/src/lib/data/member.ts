@@ -22,6 +22,24 @@ export const getMember = async (userDid: string, circleId: string): Promise<Memb
     return await Members.findOne({ userDid: userDid, circleId: circleId });
 };
 
+// Who besides the creator may see an unpublished (draft/pending) circle. Shared by /api/access and
+// the circle layout so the two gates can't drift. This only decides whether the page loads: what
+// it shows is still shaped by the edit_about check (toPublicCircle's viewerCanManage), so a
+// moderator gets the same redacted circle as on a published one.
+export const DRAFT_CIRCLE_VIEWER_USER_GROUPS = ["admins", "moderators"] as const;
+
+export const canViewUnpublishedCircle = async (
+    circle: Pick<Circle, "_id" | "createdBy">,
+    userDid: string | undefined,
+): Promise<boolean> => {
+    // Checked first: a circle with no createdBy must never match a logged-out visitor.
+    if (!userDid) return false;
+    if (circle.createdBy === userDid) return true;
+    if (!circle._id) return false;
+    const membership = await getMember(userDid, circle._id.toString());
+    return DRAFT_CIRCLE_VIEWER_USER_GROUPS.some((group) => membership?.userGroups?.includes(group));
+};
+
 export const OWNER_ONLY_ROLE_MESSAGE = "This role can't be given to this member.";
 
 // True if moving userDid from existingGroups to newGroups would give a non-owner a group only the
