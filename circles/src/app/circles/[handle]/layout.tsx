@@ -19,6 +19,7 @@ import { appConfig } from "@/config/app";
 import { getPeerifyMetadata } from "@/lib/peerify/artist-profile";
 import { PilotChromeScope } from "@/components/layout/pilot-chrome-scope";
 import { toPublicCircle } from "@/lib/utils/public-circle";
+import { canViewUnpublishedCircle } from "@/lib/data/member";
 
 type Props = { params: Promise<{ handle: string }>; children: React.ReactNode };
 
@@ -40,8 +41,9 @@ export default async function RootLayout(props: Props) {
     let authorizedToEdit = false;
     let userDid = await getAuthenticatedUserDid();
     authorizedToEdit = await isAuthorized(userDid, circle._id ?? "", features.settings.edit_about);
-    // !!userDid: a circle with no createdBy must not count a logged-out visitor as its creator.
-    const canViewCircle = isCirclePublished(circle) || authorizedToEdit || (!!userDid && circle.createdBy === userDid);
+    // Same rule as /api/access (creator, admins, moderators). authorizedToEdit is deliberately not part
+    // of it: it only decides what the page shows (viewerCanManage below), not whether it loads.
+    const canViewCircle = isCirclePublished(circle) || (await canViewUnpublishedCircle(circle, userDid));
     if (!canViewCircle) {
         redirect("/not-found");
     }

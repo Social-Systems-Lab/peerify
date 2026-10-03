@@ -349,8 +349,8 @@ export default function HomeContent({
                     {showManagedDraftBanner && (
                         <div className="mb-4 flex flex-col gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
                             <p>
-                                <span className="font-semibold">Draft profile</span> — only you and profile managers can
-                                see this.{" "}
+                                <span className="font-semibold">Draft profile</span> — only admins and moderators can see
+                                this.{" "}
                                 {pilotArtistCirclePublishReady
                                     ? "Publish when you're ready to share it."
                                     : "Add a picture, About text, and a map location here, and sign the Community Guidelines on your personal profile, before you can publish it."}
