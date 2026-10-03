@@ -3,6 +3,7 @@ import { AdminInvitations, Circles } from "./db";
 import { addMember, getMember, grantsOwnerOnlyGroup, isCircleAdmin, OWNER_ONLY_ROLE_MESSAGE } from "./member";
 import { ADMIN_INVITATION_ALLOWED_USER_GROUPS, AdminInvitation, Circle, FileInfo } from "@/models/models";
 import { resolveRoleNames } from "./admin-invitation-notifications";
+import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
 import { ObjectId } from "mongodb";
 
 export const getPendingAdminInvitationForUserAndCircle = async (
@@ -228,6 +229,9 @@ export type AdminInvitationForInvitee = {
     status: AdminInvitation["status"];
     roleNames: string;
     circle: { name: string; handle: string; picture?: FileInfo };
+    // The circle's default module page (getCircleDefaultPath). The bare /circles/<handle> resolves
+    // to the feed module in middleware and 404s on circles without it.
+    circlePath?: string;
     inviterName: string;
     // Set when a pending invitation can no longer be accepted.
     invalidReason?: string;
@@ -250,7 +254,7 @@ export const getAdminInvitationForInvitee = async (
 
     const circle = await Circles.findOne(
         { _id: new ObjectId(invitation.circleId) },
-        { projection: { name: 1, handle: 1, picture: 1, userGroups: 1, did: 1, circleType: 1 } },
+        { projection: { name: 1, handle: 1, picture: 1, userGroups: 1, did: 1, circleType: 1, enabledModules: 1 } },
     );
     if (!circle) {
         return null;
@@ -280,6 +284,7 @@ export const getAdminInvitationForInvitee = async (
             handle: circle.handle || "",
             ...(circle.picture?.url ? { picture: { url: circle.picture.url } } : {}),
         },
+        ...(circle.handle ? { circlePath: getCircleDefaultPath(circle) } : {}),
         inviterName: inviter?.name || "An admin",
         ...(invalidReason ? { invalidReason } : {}),
     };

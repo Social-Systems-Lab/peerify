@@ -24,7 +24,7 @@ export default function AdminInvitationResponse({ invitation }: Props): React.Re
     const [isPending, startTransition] = useTransition();
     const [decision, setDecision] = useState<"accept" | "decline" | null>(null);
     const [status, setStatus] = useState(invitation.status);
-    const { circle, roleNames, inviterName, invalidReason } = invitation;
+    const { circle, circlePath, roleNames, inviterName, invalidReason } = invitation;
 
     const runAction = (nextDecision: "accept" | "decline") => {
         setDecision(nextDecision);
@@ -61,9 +61,9 @@ export default function AdminInvitationResponse({ invitation }: Props): React.Re
                             You&apos;re now <span className="font-medium">{roleNames}</span> of{" "}
                             <span className="font-medium">{circle.name}</span>.
                         </p>
-                        {circle.handle ? (
+                        {circlePath ? (
                             <Button asChild className="mt-6">
-                                <Link href={`/circles/${circle.handle}`}>Go to {circle.name}</Link>
+                                <Link href={circlePath}>Go to {circle.name}</Link>
                             </Button>
                         ) : null}
                     </>
