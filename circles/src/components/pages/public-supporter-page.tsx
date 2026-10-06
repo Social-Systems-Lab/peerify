@@ -1,16 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Montserrat, Noto_Serif } from "next/font/google";
-
-const montserrat = Montserrat({
-    subsets: ["latin"],
-    variable: "--font-montserrat",
-});
-
-const notoSerif = Noto_Serif({
-    subsets: ["latin"],
-    variable: "--font-noto-serif",
-});
+// Montserrat and Noto Serif are self-hosted; see kam-fonts.css.
+import "./kam-fonts.css";
 
 function GlobeIcon() {
     return (
@@ -40,7 +31,7 @@ const principles = [
 
 export default function PublicSupporterPage() {
     return (
-        <div className={`${montserrat.variable} ${notoSerif.variable} kam-supporter`}>
+        <div className="kam-supporter">
             <main>
                 <nav className="top">
                     <div className="row">

@@ -1,0 +1,161 @@
+/* kam-fonts.css - self-hosted Montserrat and Noto Serif for the supporter and donations pages
+ *
+ * Imported only by public-supporter-page.tsx and public-donations-page.tsx, so these fonts load on
+ * those two pages and nowhere else, as before. That matters: Tailwind's font-sans/font-serif name
+ * "Montserrat" and "Noto Serif" literally, so declaring them globally would change other pages.
+ *
+ * Same approach and source as src/app/fonts.css (see there): the exact @font-face rules and woff2
+ * subset files next/font/google produced for the known-good prod build 20261006-035331, under the
+ * versioned /fonts/v1/ path. Both are variable fonts (100-900). Licences: OFL.txt next to the files.
+ */
+
+/* Montserrat */
+/* cyrillic-ext */
+@font-face {
+    font-family:"Montserrat";
+    font-style:normal;
+    font-weight:100 900;
+    font-display:swap;
+    src:url("/fonts/v1/montserrat/cyrillic-ext.woff2") format("woff2");
+    unicode-range:u+0460-052f,u+1c80-1c8a,u+20b4,u+2de0-2dff,u+a640-a69f,u+fe2e-fe2f;
+}
+/* cyrillic */
+@font-face {
+    font-family:"Montserrat";
+    font-style:normal;
+    font-weight:100 900;
+    font-display:swap;
+    src:url("/fonts/v1/montserrat/cyrillic.woff2") format("woff2");
+    unicode-range:u+0301,u+0400-045f,u+0490-0491,u+04b0-04b1,u+2116;
+}
+/* vietnamese */
+@font-face {
+    font-family:"Montserrat";
+    font-style:normal;
+    font-weight:100 900;
+    font-display:swap;
+    src:url("/fonts/v1/montserrat/vietnamese.woff2") format("woff2");
+    unicode-range:u+0102-0103,u+0110-0111,u+0128-0129,u+0168-0169,u+01a0-01a1,u+01af-01b0,u+0300-0301,u+0303-0304,u+0308-0309,u+0323,u+0329,u+1ea0-1ef9,u+20ab;
+}
+/* latin-ext */
+@font-face {
+    font-family:"Montserrat";
+    font-style:normal;
+    font-weight:100 900;
+    font-display:swap;
+    src:url("/fonts/v1/montserrat/latin-ext.woff2") format("woff2");
+    unicode-range:u+0100-02ba,u+02bd-02c5,u+02c7-02cc,u+02ce-02d7,u+02dd-02ff,u+0304,u+0308,u+0329,u+1d00-1dbf,u+1e00-1e9f,u+1ef2-1eff,u+2020,u+20a0-20ab,u+20ad-20c4,u+2113,u+2c60-2c7f,u+a720-a7ff;
+}
+/* latin */
+@font-face {
+    font-family:"Montserrat";
+    font-style:normal;
+    font-weight:100 900;
+    font-display:swap;
+    src:url("/fonts/v1/montserrat/latin.woff2") format("woff2");
+    unicode-range:u+00??,u+0131,u+0152-0153,u+02bb-02bc,u+02c6,u+02da,u+02dc,u+0304,u+0308,u+0329,u+2000-206f,u+20ac,u+2122,u+2191,u+2193,u+2212,u+2215,u+feff,u+fffd;
+}
+@font-face {
+    font-family:"Montserrat Fallback";
+    src:local("Arial");
+    ascent-override:85.79%;
+    descent-override:22.25%;
+    line-gap-override:0.00%;
+    size-adjust:112.83%;
+}
+/* Noto Serif */
+/* cyrillic-ext */
+@font-face {
+    font-family:"Noto Serif";
+    font-style:normal;
+    font-weight:100 900;
+    font-stretch:100%;
+    font-display:swap;
+    src:url("/fonts/v1/noto-serif/cyrillic-ext.woff2") format("woff2");
+    unicode-range:u+0460-052f,u+1c80-1c8a,u+20b4,u+2de0-2dff,u+a640-a69f,u+fe2e-fe2f;
+}
+/* cyrillic */
+@font-face {
+    font-family:"Noto Serif";
+    font-style:normal;
+    font-weight:100 900;
+    font-stretch:100%;
+    font-display:swap;
+    src:url("/fonts/v1/noto-serif/cyrillic.woff2") format("woff2");
+    unicode-range:u+0301,u+0400-045f,u+0490-0491,u+04b0-04b1,u+2116;
+}
+/* greek-ext */
+@font-face {
+    font-family:"Noto Serif";
+    font-style:normal;
+    font-weight:100 900;
+    font-stretch:100%;
+    font-display:swap;
+    src:url("/fonts/v1/noto-serif/greek-ext.woff2") format("woff2");
+    unicode-range:u+1f??;
+}
+/* greek */
+@font-face {
+    font-family:"Noto Serif";
+    font-style:normal;
+    font-weight:100 900;
+    font-stretch:100%;
+    font-display:swap;
+    src:url("/fonts/v1/noto-serif/greek.woff2") format("woff2");
+    unicode-range:u+0370-0377,u+037a-037f,u+0384-038a,u+038c,u+038e-03a1,u+03a3-03ff;
+}
+/* math */
+@font-face {
+    font-family:"Noto Serif";
+    font-style:normal;
+    font-weight:100 900;
+    font-stretch:100%;
+    font-display:swap;
+    src:url("/fonts/v1/noto-serif/math.woff2") format("woff2");
+    unicode-range:u+0302-0303,u+0305,u+0307-0308,u+0310,u+0312,u+0315,u+031a,u+0326-0327,u+032c,u+032f-0330,u+0332-0333,u+0338,u+033a,u+0346,u+034d,u+0391-03a1,u+03a3-03a9,u+03b1-03c9,u+03d1,u+03d5-03d6,u+03f0-03f1,u+03f4-03f5,u+2016-2017,u+2034-2038,u+203c,u+2040,u+2043,u+2047,u+2050,u+2057,u+205f,u+2070-2071,u+2074-209f,u+20d0-20dc,u+20e1,u+20e5-20ef,u+2100-2112,u+2114-2115,u+2117-2121,u+2123-214f,u+2190,u+2192,u+2194-21ae,u+21b0-21e5,u+21f1-21f2,u+21f4-2211,u+2213-2214,u+2216-22ff,u+2308-230b,u+2310,u+2319,u+231c-2321,u+2336-237a,u+237c,u+2395,u+239b-23b7,u+23d0,u+23dc-23e1,u+2474-2475,u+25af,u+25b3,u+25b7,u+25bd,u+25c1,u+25ca,u+25cc,u+25fb,u+266d-266f,u+27c0-27ff,u+2900-2aff,u+2b0e-2b11,u+2b30-2b4c,u+2bfe,u+3030,u+ff5b,u+ff5d,u+1d400-1d7ff,u+1ee??;
+}
+/* vietnamese */
+@font-face {
+    font-family:"Noto Serif";
+    font-style:normal;
+    font-weight:100 900;
+    font-stretch:100%;
+    font-display:swap;
+    src:url("/fonts/v1/noto-serif/vietnamese.woff2") format("woff2");
+    unicode-range:u+0102-0103,u+0110-0111,u+0128-0129,u+0168-0169,u+01a0-01a1,u+01af-01b0,u+0300-0301,u+0303-0304,u+0308-0309,u+0323,u+0329,u+1ea0-1ef9,u+20ab;
+}
+/* latin-ext */
+@font-face {
+    font-family:"Noto Serif";
+    font-style:normal;
+    font-weight:100 900;
+    font-stretch:100%;
+    font-display:swap;
+    src:url("/fonts/v1/noto-serif/latin-ext.woff2") format("woff2");
+    unicode-range:u+0100-02ba,u+02bd-02c5,u+02c7-02cc,u+02ce-02d7,u+02dd-02ff,u+0304,u+0308,u+0329,u+1d00-1dbf,u+1e00-1e9f,u+1ef2-1eff,u+2020,u+20a0-20ab,u+20ad-20c4,u+2113,u+2c60-2c7f,u+a720-a7ff;
+}
+/* latin */
+@font-face {
+    font-family:"Noto Serif";
+    font-style:normal;
+    font-weight:100 900;
+    font-stretch:100%;
+    font-display:swap;
+    src:url("/fonts/v1/noto-serif/latin.woff2") format("woff2");
+    unicode-range:u+00??,u+0131,u+0152-0153,u+02bb-02bc,u+02c6,u+02da,u+02dc,u+0304,u+0308,u+0329,u+2000-206f,u+20ac,u+2122,u+2191,u+2193,u+2212,u+2215,u+feff,u+fffd;
+}
+@font-face {
+    font-family:"Noto Serif Fallback";
+    src:local("Times New Roman");
+    ascent-override:90.29%;
+    descent-override:24.75%;
+    line-gap-override:0.00%;
+    size-adjust:118.40%;
+}
+
+/* The variables next/font used to set on each page's wrapper div. */
+.kam-supporter,
+.kam-donations {
+    --font-montserrat: "Montserrat", "Montserrat Fallback";
+    --font-noto-serif: "Noto Serif", "Noto Serif Fallback";
+}
