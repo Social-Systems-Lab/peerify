@@ -1,6 +1,6 @@
 // layout.tsx - global app layout with the main navigation bar
 import { ReactScan } from "../components/utils/react-scan";
-import { Wix_Madefor_Display, Libre_Franklin, Bebas_Neue, Yeseva_One } from "next/font/google";
+import { Wix_Madefor_Display, Libre_Franklin, Yeseva_One } from "next/font/google";
 import "@app/globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Provider } from "jotai";
@@ -29,11 +29,6 @@ const enableReactScan = false;
 const wix = Wix_Madefor_Display({ subsets: ["latin"], variable: "--font-wix-display" });
 const libre = Libre_Franklin({ subsets: ["latin"], variable: "--font-libre-franklin" });
 
-const bebasNeue = Bebas_Neue({
-    weight: "400",
-    subsets: ["latin"],
-    variable: "--font-bebas-neue",
-});
 const yesevaOne = Yeseva_One({
     weight: "400",
     subsets: ["latin"],
@@ -48,7 +43,7 @@ const RootLayout = async ({ children }: RootLayoutProps) => {
     let serverConfig = await getServerSettings();
 
     return (
-        <html lang="en" className={`${wix.variable} ${libre.variable} ${bebasNeue.variable} ${yesevaOne.variable}`}>
+        <html lang="en" className={`${wix.variable} ${libre.variable} ${yesevaOne.variable}`}>
             <head>
                 <meta name="app-version" content={process.env.version} />
             </head>

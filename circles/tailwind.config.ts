@@ -18,7 +18,6 @@ const config = {
             fontFamily: {
                 sans: ["Montserrat", "sans-serif"],
                 serif: ["Noto Serif", "serif"],
-                bebas: ["var(--font-bebas-neue)"],
             },
             colors: {
                 border: "hsl(var(--border))",
