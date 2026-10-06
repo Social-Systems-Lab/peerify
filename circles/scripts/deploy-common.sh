@@ -282,7 +282,16 @@ step_verify_release() {
         fail "Could not find server.js at ${RELEASE_DIR}/server.js"
     fi
 
-    step_ok "Release verified: static+public present, BUILD_ID ($nested_build_id) matches, server.js present"
+    # Fonts: every next/font class the server output uses must be defined in the static CSS, and
+    # every font url() in that CSS must resolve to a file in this release. Catches the 2026-10-05
+    # prod failure (<html> font classes with no CSS -> fallback serif) before it goes live.
+    local font_check
+    if ! font_check="$(python3 "$PROJECT_DIR/scripts/check-release-fonts.py" "$RELEASE_DIR" 2>&1)"; then
+        fail "Font check failed for ${RELEASE_DIR}:
+${font_check}"
+    fi
+
+    step_ok "Release verified: static+public present, BUILD_ID ($nested_build_id) matches, server.js present; fonts: ${font_check}"
 }
 
 step_swap_current() {
