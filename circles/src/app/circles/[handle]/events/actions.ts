@@ -1656,7 +1656,16 @@ export async function inviteUsersToEventAction(
         if (!circle) return { success: false, message: "Circle not found" };
 
         const event = await getEventById(eventId, userDid);
-        if (!event) return { success: false, message: "Event not found" };
+        if (!event || event.circleId !== String(circle._id)) return { success: false, message: "Event not found" };
+
+        // Same rule as editing the event (updateEventAction): its creator, anyone with events.moderate
+        // on the hosting circle, or an admin of one of the event's artist circles.
+        const isAuthor = userDid === event.createdBy;
+        const canModerate = await isAuthorized(userDid, circle._id as string, features.events.moderate);
+        const isArtistAdmin = await isCircleAdminOfAny(userDid, event.artistAdminCircleIds);
+        if (!isAuthor && !canModerate && !isArtistAdmin) {
+            return { success: false, message: "Only people who can edit this event can invite others to it." };
+        }
 
         const invitation = await inviteUsersToEvent(eventId, circle._id!.toString(), userDids, user);
 
