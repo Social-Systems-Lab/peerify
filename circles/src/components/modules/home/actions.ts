@@ -14,7 +14,12 @@ import { features } from "@/lib/data/constants";
 import { saveFile } from "@/lib/data/storage";
 import { revalidatePath } from "next/cache";
 import { getUser, getUserById, getUserPrivate, addBookmark, removeBookmark, pinCircle, unpinCircle } from "@/lib/data/user";
-import { notifyNewMember, resolveConnectionRequestNotifications, sendNotifications } from "@/lib/data/notifications";
+import {
+    notifyNewMember,
+    reopenRecentConnectionRequestNotification,
+    resolveConnectionRequestNotifications,
+    sendNotifications,
+} from "@/lib/data/notifications";
 import { findOrCreateDMRoom as findOrCreateDMRoomData } from "@/lib/data/chat";
 import {
     getDmEligibility,
@@ -722,7 +727,8 @@ export const sendConnectRequestAction = async (
         );
 
         try {
-            if (viewer?.circleType === "user") {
+            const reopened = await reopenRecentConnectionRequestNotification(targetDid, viewerDid);
+            if (!reopened && viewer?.circleType === "user") {
                 await sendNotifications(
                     "contact_request_received",
                     [targetUser],
