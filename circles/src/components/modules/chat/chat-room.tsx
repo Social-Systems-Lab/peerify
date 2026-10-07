@@ -356,7 +356,7 @@ const DmConnectBanner: React.FC<{ chatRoom: ChatRoomDisplay; user?: Circle | nul
             console.error("Failed to update DM contact state:", error);
             toast({
                 title,
-                description: error instanceof Error ? error.message : "Failed to update contact request",
+                description: error instanceof Error ? error.message : "Failed to update connection request",
                 variant: "destructive",
             });
         } finally {
@@ -371,10 +371,10 @@ const DmConnectBanner: React.FC<{ chatRoom: ChatRoomDisplay; user?: Circle | nul
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <span>
                     {state.connectStatus === "pending_sent"
-                        ? `Contact request sent to ${contactName}.`
+                        ? `Connection request sent to ${contactName}.`
                         : state.connectStatus === "pending_received"
-                          ? `${contactName} sent you a contact request.`
-                          : `You can message ${contactName}. Connect to add them as a contact.`}
+                          ? `${contactName} sent you a connection request.`
+                          : `You can message ${contactName}. Connect to add them as a connection.`}
                 </span>
                 {state.connectStatus === "pending_received" ? (
                     <div className="flex items-center gap-2">
@@ -385,7 +385,7 @@ const DmConnectBanner: React.FC<{ chatRoom: ChatRoomDisplay; user?: Circle | nul
                             onClick={() =>
                                 void runContactAction(
                                     () => acceptConnectRequestAction(otherParticipant.did!),
-                                    "Accept contact request",
+                                    "Accept connection request",
                                 )
                             }
                         >
@@ -399,7 +399,7 @@ const DmConnectBanner: React.FC<{ chatRoom: ChatRoomDisplay; user?: Circle | nul
                             onClick={() =>
                                 void runContactAction(
                                     () => declineConnectRequestAction(otherParticipant.did!),
-                                    "Decline contact request",
+                                    "Decline connection request",
                                 )
                             }
                         >

@@ -51,7 +51,7 @@ const pushPreferenceOptions: { key: PushPreferenceKey; label: string; descriptio
     {
         key: "pushMessages",
         label: "Messages",
-        description: "Direct messages and contact requests.",
+        description: "Direct messages and connection requests.",
     },
     {
         key: "pushEvents",

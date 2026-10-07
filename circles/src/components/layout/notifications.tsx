@@ -29,6 +29,7 @@ import { AiFillHeart } from "react-icons/ai";
 import { Button } from "../ui/button";
 import { getAdminInvitationPath, getCircleDefaultPath } from "@/lib/utils/circle-routes";
 import { ProfileRelationshipHeaderAction } from "../modules/home/message-button";
+import { getConnectionNotificationBody } from "@/lib/connection-copy";
 
 type Notification = {
     id: string;
@@ -231,7 +232,10 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                 const notification: Notification = {
                     id: record._id,
                     type: record.type,
-                    message: content.body || "New notification",
+                    message:
+                        notificationType === "contact_request_received" || notificationType === "contact_request_accepted"
+                            ? getConnectionNotificationBody(notificationType, content.user?.name)
+                            : content.body || "New notification",
                     url: typeof content.url === "string" ? content.url : undefined,
                     time: timeSince(createdAt, false),
                     createdAt,
