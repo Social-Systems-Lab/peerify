@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { userAtom } from "@/lib/data/atoms";
-import { Circle } from "@/models/models";
+import { Circle, ConnectionRequestResolution } from "@/models/models";
 import { useAtom } from "jotai";
 import {
     acceptConnectRequestAction,
@@ -180,11 +180,38 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
     );
 };
 
+const CONNECTION_OUTCOME_LABELS: Record<ConnectionRequestResolution, string> = {
+    accepted: "Accepted",
+    declined: "Declined",
+    withdrawn: "No longer pending",
+};
+
+// Static outcome for a connection request notification that's no longer actionable.
+export const ConnectionOutcomeLabel = ({ resolution }: { resolution: ConnectionRequestResolution }) => (
+    <span
+        className={
+            resolution === "accepted"
+                ? "inline-flex h-7 items-center rounded-full border border-[#c7d8cb] bg-[#f3f7f4] px-3 text-xs font-medium text-[#45604d]"
+                : "inline-flex h-7 items-center rounded-full bg-slate-100 px-3 text-xs font-medium text-slate-600"
+        }
+    >
+        {CONNECTION_OUTCOME_LABELS[resolution]}
+    </span>
+);
+
 export const ProfileRelationshipHeaderAction = ({
     circle,
     pendingOnly,
+    showOutcome,
+    onResolved,
 }: {
     circle: Circle;
+    // Notification rows with no stored resolution (sent before it existed): when the request is no
+    // longer pending, show a static outcome from the live state instead of nothing. Live state
+    // can't tell a decline from a withdrawal, so anything but accepted reads "No longer pending".
+    showOutcome?: boolean;
+    // Called after a successful accept or decline, so the caller can refresh.
+    onResolved?: () => void;
     // When true, only render the Accept / Decline controls (pending_received).
     // Skips the "Connected" badge so this can sit alongside MessageButton, which already
     // renders its own "Connected" badge for the accepted state.
@@ -221,6 +248,7 @@ export const ProfileRelationshipHeaderAction = ({
 
             await reloadRelationshipState();
             router.refresh();
+            onResolved?.();
 
             toast({
                 title: "Connection accepted",
@@ -255,6 +283,7 @@ export const ProfileRelationshipHeaderAction = ({
 
             await reloadRelationshipState();
             router.refresh();
+            onResolved?.();
 
             toast({
                 title: "Connection request declined",
@@ -295,6 +324,12 @@ export const ProfileRelationshipHeaderAction = ({
                     Decline
                 </Button>
             </div>
+        );
+    }
+
+    if (showOutcome) {
+        return (
+            <ConnectionOutcomeLabel resolution={relationshipState.connectStatus === "accepted" ? "accepted" : "withdrawn"} />
         );
     }
 

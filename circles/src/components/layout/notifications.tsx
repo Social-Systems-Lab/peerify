@@ -21,6 +21,7 @@ import {
     GoalDisplay,
     GoalStage, // Added TaskStage
     Event,
+    ConnectionRequestResolution,
 } from "@/models/models";
 import { CirclePicture } from "../modules/circles/circle-picture";
 import { MdOutlineArticle } from "react-icons/md";
@@ -28,7 +29,7 @@ import { Hammer, AlertCircle } from "lucide-react"; // Gavel icon for proposals,
 import { AiFillHeart } from "react-icons/ai";
 import { Button } from "../ui/button";
 import { getAdminInvitationPath, getCircleDefaultPath } from "@/lib/utils/circle-routes";
-import { ProfileRelationshipHeaderAction } from "../modules/home/message-button";
+import { ConnectionOutcomeLabel, ProfileRelationshipHeaderAction } from "../modules/home/message-button";
 import { getConnectionNotificationBody } from "@/lib/connection-copy";
 
 type Notification = {
@@ -79,6 +80,9 @@ type Notification = {
     trackTitle?: string;
     // Admin invitation fields
     invitationId?: string;
+    // Connection request fields (top level on the stored record, not in content)
+    actorDid?: string;
+    resolution?: ConnectionRequestResolution;
     // For grouping purposes
     key?: string;
 };
@@ -123,6 +127,8 @@ type StoredNotificationRecord = {
     content: Record<string, any>;
     isRead: boolean;
     createdAt: string | Date;
+    actorDid?: string;
+    resolution?: ConnectionRequestResolution;
 };
 
 export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
@@ -273,6 +279,8 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                     trackId: content.trackId,
                     trackTitle: content.trackTitle,
                     invitationId: typeof content.invitationId === "string" ? content.invitationId : undefined,
+                    actorDid: record.actorDid ?? content.user?.did,
+                    resolution: record.resolution,
                     key: groupKey,
                 };
 
@@ -948,9 +956,17 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                                         void markNotificationGroupAsRead(groupedNotification);
                                     }}
                                 >
-                                    <ProfileRelationshipHeaderAction
-                                        circle={groupedNotification.latestNotification.user}
-                                    />
+                                    {groupedNotification.latestNotification.resolution ? (
+                                        <ConnectionOutcomeLabel
+                                            resolution={groupedNotification.latestNotification.resolution}
+                                        />
+                                    ) : (
+                                        <ProfileRelationshipHeaderAction
+                                            circle={groupedNotification.latestNotification.user}
+                                            showOutcome
+                                            onResolved={() => void fetchNotifications()}
+                                        />
+                                    )}
                                 </div>
                             ) : (
                                 getNotificationActionLabel(groupedNotification) && (
