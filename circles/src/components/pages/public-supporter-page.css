@@ -31,12 +31,6 @@
   nav.top .menu { display: flex; gap: 16px; align-items: center; font-size: 0.92rem; font-family: var(--sans); font-weight: 600; }
   nav.top .menu a { color: var(--yellow); }
   nav.top .menu a:hover { color: var(--ink); }
-  nav.top .menu .login {
-    border: 1.5px solid var(--yellow);
-    padding: 8px 22px; border-radius: 999px;
-    transition: background 0.2s, color 0.2s, border-color 0.2s;
-  }
-  nav.top .menu .login:hover { background: var(--yellow); color: var(--ink); border-color: var(--yellow); }
   nav.top .menu .explore {
     border: none; padding: 4px 6px; background: transparent;
     display: inline-flex; align-items: center; gap: 12px;
