@@ -43,11 +43,38 @@ export default function InviteModal({ circleHandle, eventId, open, onOpenChange 
         startTransition(async () => {
             const userDids = selectedUsers.map((u) => u.did!);
             const result = await inviteUsersToEventAction(circleHandle, eventId, userDids);
-            if (result.success) {
+            if (!result.success) {
+                toast({ title: "Error", description: result.message, variant: "destructive" });
+                return;
+            }
+
+            const invitation = result.invitation;
+            const skippedDids = invitation?.skippedDids ?? [];
+            if (!invitation || skippedDids.length === 0) {
                 toast({ title: "Invitations sent" });
                 onOpenChange(false);
-            } else {
-                toast({ title: "Error", description: result.message, variant: "destructive" });
+                return;
+            }
+
+            // Some people weren't invited: say who and why. Keep the modal open if nobody was.
+            const invitedCount = invitation.invitedDids.length;
+            const skippedNames = formatNames(
+                selectedUsers.filter((u) => u.did && skippedDids.includes(u.did)).map((u) => u.name || "Someone"),
+            );
+            const reason =
+                invitation.skippedReason === "not_connected"
+                    ? "You can only invite your connections to events on your profile."
+                    : "They can't see this circle's events.";
+            toast({
+                title:
+                    invitedCount > 0
+                        ? `${invitedCount} ${invitedCount === 1 ? "invitation" : "invitations"} sent`
+                        : "No invitations sent",
+                description: `Not invited: ${skippedNames}. ${reason}`,
+                variant: invitedCount > 0 ? "default" : "destructive",
+            });
+            if (invitedCount > 0) {
+                onOpenChange(false);
             }
         });
     };
@@ -92,3 +119,9 @@ export default function InviteModal({ circleHandle, eventId, open, onOpenChange 
         </Dialog>
     );
 }
+
+const formatNames = (names: string[]): string => {
+    const shown = names.slice(0, 3).join(", ");
+    const remaining = names.length - 3;
+    return remaining > 0 ? `${shown} and ${remaining} more` : shown;
+};
