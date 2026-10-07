@@ -231,6 +231,10 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                     case "pm_received":
                         groupKey = `pm_received_${content.roomId || record._id}`;
                         break;
+                    case "contact_request_received":
+                        // One row per requester: repeat requests collapse into the latest.
+                        groupKey = `contact_request_received_${record.actorDid ?? content.user?.did ?? record._id}`;
+                        break;
                     default:
                         groupKey = record._id;
                 }
@@ -934,11 +938,12 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
                                 )}
 
                                 {/* Show count badge for grouped notifications */}
-                                {groupedNotification.count > 1 && (
-                                    <div className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-white">
-                                        {groupedNotification.count}
-                                    </div>
-                                )}
+                                {groupedNotification.count > 1 &&
+                                    groupedNotification.notificationType !== "contact_request_received" && (
+                                        <div className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs text-white">
+                                            {groupedNotification.count}
+                                        </div>
+                                    )}
                             </div>
                             <div className="flex-1">
                                 <p className="text-sm">{createGroupedMessage(groupedNotification)}</p>
