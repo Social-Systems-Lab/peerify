@@ -44,7 +44,7 @@ export const getUserPrivateAction = async (): Promise<UserPrivate | undefined> =
 
 // Bypasses the suppressed-profile-preview placeholder for viewers who already follow the
 // profile owner's circle or have them as an accepted contact — reuses the same relationship
-// signals as FollowButton (Members collection) and MessageButton's "Add Contact" flow
+// signals as FollowButton (Members collection) and MessageButton's "Connect" flow
 // (UserRelationships accepted edges) rather than introducing a new relationship concept.
 // The viewer's identity is derived from the auth cookie, not a client-supplied value, so a
 // caller can't fake "I'm a follower" to unlock a private profile.
@@ -550,16 +550,16 @@ export const sendConnectRequestAction = async (
 ): Promise<{ success: boolean; message: string }> => {
     const viewerDid = await getAuthenticatedUserDid();
     if (!viewerDid) {
-        return { success: false, message: "You need to be logged in to add a contact" };
+        return { success: false, message: "You need to be logged in to connect" };
     }
 
     if (!targetDid || viewerDid === targetDid) {
-        return { success: false, message: "Invalid contact request" };
+        return { success: false, message: "Invalid connection request" };
     }
 
     const viewer = await getCircleByDid(viewerDid);
     if (!canPerformRestrictedAction(viewer)) {
-        return { success: false, message: getRestrictedActionMessage("add contacts") };
+        return { success: false, message: getRestrictedActionMessage("connect with people") };
     }
 
     try {
@@ -570,11 +570,11 @@ export const sendConnectRequestAction = async (
 
         const relationshipState = await getProfileRelationshipState(viewerDid, targetDid);
         if (relationshipState.connectStatus === "accepted") {
-            return { success: false, message: "Contact is already established" };
+            return { success: false, message: "You're already connected" };
         }
 
         if (relationshipState.connectStatus === "pending_sent") {
-            return { success: true, message: "Contact request already sent" };
+            return { success: true, message: "Connection request already sent" };
         }
 
         if (relationshipState.connectStatus === "pending_received") {
@@ -629,13 +629,13 @@ export const sendConnectRequestAction = async (
                 });
             }
         } catch (notificationError) {
-            console.error("Failed to create contact request notification", notificationError);
+            console.error("Failed to create connection request notification", notificationError);
         }
 
-        return { success: true, message: "Contact request sent" };
+        return { success: true, message: "Connection request sent" };
     } catch (error) {
         console.error("Failed to send connect request", error);
-        return { success: false, message: "Failed to send contact request" };
+        return { success: false, message: "Failed to send connection request" };
     }
 };
 
@@ -644,11 +644,11 @@ export const acceptConnectRequestAction = async (
 ): Promise<{ success: boolean; message: string }> => {
     const viewerDid = await getAuthenticatedUserDid();
     if (!viewerDid) {
-        return { success: false, message: "You need to be logged in to accept a contact request" };
+        return { success: false, message: "You need to be logged in to accept a connection request" };
     }
 
     if (!targetDid || viewerDid === targetDid) {
-        return { success: false, message: "Invalid contact request" };
+        return { success: false, message: "Invalid connection request" };
     }
 
     try {
@@ -659,7 +659,7 @@ export const acceptConnectRequestAction = async (
 
         const relationshipState = await getProfileRelationshipState(viewerDid, targetDid);
         if (relationshipState.connectStatus !== "pending_received") {
-            return { success: false, message: "No incoming contact request to accept" };
+            return { success: false, message: "No incoming connection request to accept" };
         }
 
         const now = new Date();
@@ -720,13 +720,13 @@ export const acceptConnectRequestAction = async (
                 });
             }
         } catch (notificationError) {
-            console.error("Failed to create contact request accepted notification", notificationError);
+            console.error("Failed to create connection accepted notification", notificationError);
         }
 
-        return { success: true, message: "Contact request accepted" };
+        return { success: true, message: "Connection request accepted" };
     } catch (error) {
         console.error("Failed to accept connect request", error);
-        return { success: false, message: "Failed to accept contact request" };
+        return { success: false, message: "Failed to accept connection request" };
     }
 };
 
@@ -735,11 +735,11 @@ export const declineConnectRequestAction = async (
 ): Promise<{ success: boolean; message: string }> => {
     const viewerDid = await getAuthenticatedUserDid();
     if (!viewerDid) {
-        return { success: false, message: "You need to be logged in to decline a contact request" };
+        return { success: false, message: "You need to be logged in to decline a connection request" };
     }
 
     if (!targetDid || viewerDid === targetDid) {
-        return { success: false, message: "Invalid contact request" };
+        return { success: false, message: "Invalid connection request" };
     }
 
     try {
@@ -750,7 +750,7 @@ export const declineConnectRequestAction = async (
 
         const relationshipState = await getProfileRelationshipState(viewerDid, targetDid);
         if (relationshipState.connectStatus !== "pending_received") {
-            return { success: false, message: "No incoming contact request to decline" };
+            return { success: false, message: "No incoming connection request to decline" };
         }
 
         const now = new Date();
@@ -776,9 +776,9 @@ export const declineConnectRequestAction = async (
             ),
         ]);
 
-        return { success: true, message: "Contact request declined" };
+        return { success: true, message: "Connection request declined" };
     } catch (error) {
         console.error("Failed to decline connect request", error);
-        return { success: false, message: "Failed to decline contact request" };
+        return { success: false, message: "Failed to decline connection request" };
     }
 };

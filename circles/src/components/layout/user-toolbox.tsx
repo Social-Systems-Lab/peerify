@@ -1,4 +1,4 @@
-//user-toolbox.tsx - Displays the user toolbox that contains the user's chat rooms, notifications, circles, contacts, and account settings
+//user-toolbox.tsx - Displays the user toolbox that contains the user's chat rooms, notifications, circles, connections, and account settings
 "use client";
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -459,13 +459,13 @@ export const UserToolbox = () => {
                     };
                 });
             } catch (error) {
-                console.error(`Failed to ${response} contact request`, error);
+                console.error(`Failed to ${response} connection request`, error);
                 toast({
                     title: "Unable to respond",
                     description:
                         response === "accept"
-                            ? "Failed to accept contact request"
-                            : "Failed to decline contact request",
+                            ? "Failed to accept connection request"
+                            : "Failed to decline connection request",
                     variant: "destructive",
                 });
             } finally {

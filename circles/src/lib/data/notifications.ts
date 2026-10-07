@@ -34,6 +34,7 @@ import { getEventById } from "./event";
 import { features } from "./constants";
 import { getAuthorizedMembers } from "../auth/auth"; // Import the function to get authorized members
 import { getPushCategoryForType, isPushEnabledForRecipient, resolvePushUrl, sendPushToUser } from "./push";
+import { getConnectionNotificationBody } from "../connection-copy";
 
 Notifications?.createIndex({ userId: 1, isRead: 1, createdAt: -1 });
 Notifications?.createIndex({ userId: 1, type: 1, "content.roomId": 1, isRead: 1, createdAt: -1 });
@@ -223,9 +224,8 @@ export const buildNotificationBody = (type: string, payload: any): string => {
             }
             return `${actorName} sent you a direct message`;
         case "contact_request_received":
-            return `${actorName} sent you a contact request`;
         case "contact_request_accepted":
-            return `${actorName} accepted your contact request`;
+            return getConnectionNotificationBody(type, actorName);
         default:
             return payload?.messageBody || "New notification";
     }

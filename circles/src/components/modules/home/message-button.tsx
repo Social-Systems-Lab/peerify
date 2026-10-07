@@ -35,7 +35,7 @@ export type RelationshipState = {
     connectStatus: "none" | "pending_sent" | "pending_received" | "accepted";
     dmAllowed: boolean;
     showConnect: boolean;
-    connectLabel: "Connect" | "Add Contact" | "Requested" | "Requested You" | null;
+    connectLabel: "Connect" | "Requested" | "Requested You" | null;
     messageVisibilityReason:
         | "self"
         | "existing_dm_history"
@@ -93,7 +93,7 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
 
             if (!result.success) {
                 toast({
-                    title: resolvedRelationshipState.connectLabel || "Add Contact",
+                    title: resolvedRelationshipState.connectLabel || "Connect",
                     description: result.message,
                 });
                 return;
@@ -103,14 +103,14 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
             router.refresh();
 
             toast({
-                title: "Contact request sent",
+                title: "Connection request sent",
                 description: "This profile now shows as Requested.",
             });
         } catch (error) {
             console.error("Failed to send connect request:", error);
             toast({
-                title: resolvedRelationshipState.connectLabel || "Add Contact",
-                description: "Failed to send contact request",
+                title: resolvedRelationshipState.connectLabel || "Connect",
+                description: "Failed to send connection request",
             });
         } finally {
             setIsSendingConnect(false);
@@ -170,7 +170,7 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
                         disabled={isSendingConnect || isRespondingToConnect || isConnectPresentationOnly}
                         onClick={handleConnectRequest}
                     >
-                        {isSendingConnect ? "Sending..." : resolvedRelationshipState.connectLabel || "Add Contact"}
+                        {isSendingConnect ? "Sending..." : resolvedRelationshipState.connectLabel || "Connect"}
                     </Button>
                 ) : null
             )}
@@ -236,7 +236,7 @@ export const ProfileRelationshipHeaderAction = ({
             console.error("Failed to accept connect request:", error);
             toast({
                 title: "Accept connection",
-                description: "Failed to accept contact request",
+                description: "Failed to accept connection request",
             });
         } finally {
             setIsAcceptingConnect(false);
@@ -270,7 +270,7 @@ export const ProfileRelationshipHeaderAction = ({
             console.error("Failed to decline connect request:", error);
             toast({
                 title: "Decline request",
-                description: "Failed to decline contact request",
+                description: "Failed to decline connection request",
             });
         } finally {
             setIsDecliningConnect(false);

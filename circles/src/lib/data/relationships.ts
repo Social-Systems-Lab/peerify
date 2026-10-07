@@ -47,7 +47,7 @@ export type ProfileRelationshipState = {
     hasExistingDm: boolean;
     showMessage: boolean;
     showConnect: boolean;
-    connectLabel: "Connect" | "Add Contact" | "Requested" | "Requested You" | null;
+    connectLabel: "Connect" | "Requested" | "Requested You" | null;
     messageVisibilityReason:
         | "self"
         | "existing_dm_history"
@@ -129,7 +129,7 @@ const isStrongerDmPermissionSource = (source: RelationshipDmPermissionSource): b
 
 const getConnectLabel = (
     connectStatus: RelationshipConnectStatus,
-): "Connect" | "Add Contact" | "Requested" | "Requested You" | null => {
+): "Connect" | "Requested" | "Requested You" | null => {
     if (connectStatus === "pending_sent") {
         return "Requested";
     }
@@ -139,7 +139,7 @@ const getConnectLabel = (
     if (connectStatus === "accepted") {
         return null;
     }
-    return "Add Contact";
+    return "Connect";
 };
 
 const findExistingDmConversationId = async (
