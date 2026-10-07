@@ -19,6 +19,7 @@ import {
     GoalStage,
     Event,
     Track,
+    ConnectionRequestResolution,
 } from "@/models/models";
 import { DefaultNotificationSettings, Notifications, UserNotificationSettings } from "./db";
 import { sanitizeObjectForJSON } from "../utils/sanitize";
@@ -38,6 +39,7 @@ import { getConnectionNotificationBody } from "../connection-copy";
 
 Notifications?.createIndex({ userId: 1, isRead: 1, createdAt: -1 });
 Notifications?.createIndex({ userId: 1, type: 1, "content.roomId": 1, isRead: 1, createdAt: -1 });
+Notifications?.createIndex({ userId: 1, type: 1, actorDid: 1, createdAt: -1 });
 
 const getSummaryNotificationType = (type: string): SummaryNotificationType | null => {
     const directMatch = Object.keys(summaryNotificationTypeDetails).find((summaryType) => summaryType === type);
@@ -255,7 +257,12 @@ const isNotificationEnabledForRecipient = async (type: string, recipientDid: str
     return typeof defaultSetting?.defaultIsEnabled === "boolean" ? defaultSetting.defaultIsEnabled : true;
 };
 
-export async function sendNotifications(type: string, recipients: any[], payload: any) {
+export async function sendNotifications(
+    type: string,
+    recipients: any[],
+    payload: any,
+    options?: { actorDid?: string },
+) {
     const uniqueRecipients = Array.from(
         new Map(
             (recipients || [])
@@ -286,6 +293,7 @@ export async function sendNotifications(type: string, recipients: any[], payload
             content: notificationContent,
             isRead: false,
             createdAt,
+            ...(options?.actorDid ? { actorDid: options.actorDid } : {}),
         });
     }
 
@@ -322,6 +330,25 @@ const buildNotificationQuery = (userDid: string, options?: NotificationQueryOpti
     }
     return query;
 };
+
+// Marks a recipient's open connection request notifications from one requester read and records
+// how the request ended, whichever surface it was acted on from (bell, profile, toolbox, DM).
+// Rows from before actorDid existed are matched on content.user.did (read only, never rewritten).
+export async function resolveConnectionRequestNotifications(
+    recipientDid: string,
+    requesterDid: string,
+    resolution: ConnectionRequestResolution,
+): Promise<void> {
+    await Notifications.updateMany(
+        {
+            userId: recipientDid,
+            type: "contact_request_received",
+            resolution: { $exists: false },
+            $or: [{ actorDid: requesterDid }, { actorDid: { $exists: false }, "content.user.did": requesterDid }],
+        },
+        { $set: { isRead: true, resolution } },
+    );
+}
 
 export async function listNotificationsForUser(
     userDid: string,

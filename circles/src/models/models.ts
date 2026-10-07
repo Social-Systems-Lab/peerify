@@ -2339,7 +2339,13 @@ export const notificationSchema = z.object({
     isRead: z.boolean().default(false),
     createdAt: z.date(),
     lastEmailedAt: z.date().optional(),
+    // Top level, outside content, so it doesn't depend on what content embeds. Set on connection
+    // request notifications: who sent the request, and how it ended once it's acted on.
+    actorDid: didSchema.optional(),
+    resolution: z.enum(["accepted", "declined", "withdrawn"]).optional(),
 });
+
+export type ConnectionRequestResolution = NonNullable<Notification["resolution"]>;
 
 export type Notification = z.infer<typeof notificationSchema>;
 
