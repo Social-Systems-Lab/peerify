@@ -629,7 +629,7 @@ const acceptConnectionBetween = async (accepterDid: string, requester: Circle): 
 
 export const sendConnectRequestAction = async (
     targetDid: string,
-): Promise<{ success: boolean; message: string }> => {
+): Promise<{ success: boolean; message: string; connected?: boolean }> => {
     const viewerDid = await getAuthenticatedUserDid();
     if (!viewerDid) {
         return { success: false, message: "You need to be logged in to connect" };
@@ -683,7 +683,7 @@ export const sendConnectRequestAction = async (
         // still shows as "Requested" on their side: treat it as accepting it.
         if (targetEdge?.connectStatus === "pending_sent" && isWithinConnectionCooldown(targetEdge, now)) {
             await acceptConnectionBetween(viewerDid, targetUser);
-            return { success: true, message: "You're now connected" };
+            return { success: true, message: "You're now connected", connected: true };
         }
 
         await UserRelationships.updateOne(
