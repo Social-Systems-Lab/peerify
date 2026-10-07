@@ -301,11 +301,12 @@ const renderChatMessage = (message: ChatMessage, preview?: boolean) => {
     }
 };
 
-const DmConnectBanner: React.FC<{ chatRoom: ChatRoomDisplay; user?: Circle | null }> = ({ chatRoom, user }) => {
-    const { toast } = useToast();
+// Connection state with the other person in a two-person DM. ChatRoom shares it between the
+// banner (Connect / Withdraw / Accept / Decline) and the composer, which is swapped for a notice
+// when the pair can't message (see getDmSendBlock on the server).
+const useDmConnectState = (chatRoom: ChatRoomDisplay, user?: Circle | null) => {
     const [state, setState] = useState<DmConnectBannerState>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [isActing, setIsActing] = useState(false);
 
     const otherParticipant = useMemo(() => {
         if (!(chatRoom as any)?.isDirect || !user?.did) {
@@ -328,7 +329,7 @@ const DmConnectBanner: React.FC<{ chatRoom: ChatRoomDisplay; user?: Circle | nul
         try {
             setState(await getProfileRelationshipStateAction(otherParticipant.did));
         } catch (error) {
-            console.error("Failed to load DM contact state:", error);
+            console.error("Failed to load DM connection state:", error);
             setState(null);
         } finally {
             setIsLoading(false);
@@ -338,6 +339,14 @@ const DmConnectBanner: React.FC<{ chatRoom: ChatRoomDisplay; user?: Circle | nul
     useEffect(() => {
         void loadState();
     }, [loadState]);
+
+    return { otherParticipant, state, isLoading, loadState };
+};
+
+const DmConnectBanner: React.FC<{ dmConnect: ReturnType<typeof useDmConnectState> }> = ({ dmConnect }) => {
+    const { toast } = useToast();
+    const [isActing, setIsActing] = useState(false);
+    const { otherParticipant, state, isLoading, loadState } = dmConnect;
 
     if (!otherParticipant?.did || !state || state.connectStatus === "accepted") {
         return null;
@@ -354,7 +363,7 @@ const DmConnectBanner: React.FC<{ chatRoom: ChatRoomDisplay; user?: Circle | nul
             await loadState();
             toast({ title, description: result.message });
         } catch (error) {
-            console.error("Failed to update DM contact state:", error);
+            console.error("Failed to update DM connection state:", error);
             toast({
                 title,
                 description: error instanceof Error ? error.message : "Failed to update connection request",
@@ -372,10 +381,14 @@ const DmConnectBanner: React.FC<{ chatRoom: ChatRoomDisplay; user?: Circle | nul
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <span>
                     {state.connectStatus === "pending_sent"
-                        ? `Connection request sent to ${contactName}.`
+                        ? state.dmAllowed
+                            ? `Connection request sent to ${contactName}.`
+                            : `Connection request sent to ${contactName}. You can message them once they accept.`
                         : state.connectStatus === "pending_received"
                           ? `${contactName} sent you a connection request.`
-                          : `You can message ${contactName}. Connect to add them as a connection.`}
+                          : state.dmAllowed
+                            ? `You can message ${contactName}. Connect to add them as a connection.`
+                            : `Connect with ${contactName} to send messages.`}
                 </span>
                 {state.connectStatus === "pending_received" ? (
                     <div className="flex items-center gap-2">
@@ -2448,6 +2461,8 @@ export const ChatRoomComponent: React.FC<{
     const repliesDisabled =
         (chatRoom as any)?.repliesDisabled === true || (chatRoom as any)?.metadata?.repliesDisabled === true;
     const isAnnouncementConversation = conversationType === "announcement" || repliesDisabled;
+    const dmConnect = useDmConnectState(chatRoom, user);
+    const isDmSendBlocked = !!dmConnect.otherParticipant && !!dmConnect.state && !dmConnect.state.dmAllowed;
 
     useEffect(() => {
         if (!replyToMessage) return;
@@ -2907,7 +2922,7 @@ export const ChatRoomComponent: React.FC<{
                                 paddingBottom: inputBarHeight + (isMobile ? 72 : 16),
                             }}
                         >
-                            <DmConnectBanner chatRoom={chatRoom} user={user} />
+                            <DmConnectBanner dmConnect={dmConnect} />
                             {!isLoadingMongo && hasOlderMessages && (
                                 <div className="flex justify-center py-2">
                                     <button
@@ -2947,7 +2962,7 @@ export const ChatRoomComponent: React.FC<{
                             className="flex-grow overflow-y-auto p-4"
                             style={{ overflowAnchor: "auto", paddingBottom: inputBarHeight + 16 }}
                         >
-                            <DmConnectBanner chatRoom={chatRoom} user={user} />
+                            <DmConnectBanner dmConnect={dmConnect} />
                             {!isLoadingMongo && hasOlderMessages && (
                                 <div className="flex justify-center py-2">
                                     <button
@@ -3016,6 +3031,11 @@ export const ChatRoomComponent: React.FC<{
                             {isAnnouncementConversation ? (
                                 <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
                                     Replies are disabled for this system conversation.
+                                </div>
+                            ) : isDmSendBlocked ? (
+                                <div className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                                    You can send messages here once you and{" "}
+                                    {dmConnect.otherParticipant?.name || "this person"} are connected.
                                 </div>
                             ) : (
                                 <div className="flex w-full items-end gap-1">
