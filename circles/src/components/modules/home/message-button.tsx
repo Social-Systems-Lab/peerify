@@ -259,6 +259,7 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
 };
 
 // Confirms and removes a connection. The other person isn't told; the copy says what changes.
+// Pledge, crew and enquiry grants survive a removal (by decision), so those DMs stay open.
 export const RemoveConnectionDialog = ({
     circle,
     open,
@@ -305,7 +306,7 @@ export const RemoveConnectionDialog = ({
                     <AlertDialogTitle>Remove {name} from your connections?</AlertDialogTitle>
                     <AlertDialogDescription>
                         {name} won&apos;t be notified. Your direct messages with them become read-only until you connect
-                        again.
+                        again, except conversations about pledges, crew or enquiries.
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
