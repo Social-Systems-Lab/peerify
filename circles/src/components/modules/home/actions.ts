@@ -22,6 +22,7 @@ import {
 } from "@/lib/data/notifications";
 import { findOrCreateDMRoom as findOrCreateDMRoomData } from "@/lib/data/chat";
 import {
+    getConnectStatusesForDids,
     getDmEligibility,
     getEffectiveConnectStatus,
     getProfileRelationshipState,
@@ -29,6 +30,7 @@ import {
     isWithinConnectionCooldown,
     isAcceptedConnectionForUserDid,
     listToolboxConnectionsForUserDid,
+    RelationshipConnectStatus,
     ToolboxConnectionsSummary,
 } from "@/lib/data/relationships";
 import { Circles, UserRelationships } from "@/lib/data/db";
@@ -538,6 +540,18 @@ export const getProfileRelationshipStateAction = async (targetDid: string) => {
     }
 
     return await getProfileRelationshipState(viewerDid, targetDid);
+};
+
+// The bell's connection request rows, in one call. Capped to the bell's page size.
+export const getConnectStatusesAction = async (
+    targetDids: string[],
+): Promise<Record<string, RelationshipConnectStatus>> => {
+    const viewerDid = await getAuthenticatedUserDid();
+    if (!viewerDid || !Array.isArray(targetDids)) {
+        return {};
+    }
+
+    return await getConnectStatusesForDids(viewerDid, targetDids.filter((did) => typeof did === "string").slice(0, 50));
 };
 
 export const listToolboxConnectionsAction = async (): Promise<ToolboxConnectionsSummary> => {
