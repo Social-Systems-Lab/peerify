@@ -19,6 +19,7 @@ import { TbMessage } from "react-icons/tb";
 import { useRouter } from "next/navigation";
 import { findOrCreateDMConversationAction } from "../chat/actions";
 import { canPerformRestrictedAction } from "@/lib/auth/verification";
+import type { DmEligibilityReason } from "@/lib/data/relationships";
 
 type MessageButtonProps = {
     circle: Circle;
@@ -30,13 +31,7 @@ export type RelationshipState = {
     dmAllowed: boolean;
     showConnect: boolean;
     connectLabel: "Connect" | "Requested" | "Requested You" | null;
-    messageVisibilityReason:
-        | "self"
-        | "existing_dm_history"
-        | "dm_permission_contact"
-        | "dm_permission_legacy_dm"
-        | "dm_permission_recipient_setting"
-        | "dm_not_allowed";
+    messageVisibilityReason: DmEligibilityReason;
     connectLabelReason:
         | "message_available"
         | "pending_sent"
