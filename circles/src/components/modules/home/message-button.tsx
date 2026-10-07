@@ -114,7 +114,7 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
 
         setIsOpeningMessage(true);
         try {
-            const result = await findOrCreateDMConversationAction(circle, { source: "profile" });
+            const result = await findOrCreateDMConversationAction(circle);
             const conversationId = result.chatRoom?._id || result.chatRoom?.handle;
             if (!result.success || !conversationId) {
                 toast({
