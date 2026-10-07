@@ -35,6 +35,7 @@ import {
     declineConnectRequestAction,
     getBookmarkedCirclesAction,
     listToolboxConnectionsAction,
+    withdrawConnectRequestAction,
     pinCircleAction,
     unpinCircleAction,
 } from "@/components/modules/home/actions";
@@ -415,7 +416,7 @@ export const UserToolbox = () => {
     );
 
     const handleConnectionResponse = useCallback(
-        async (connection: ToolboxConnectionItem, response: "accept" | "decline") => {
+        async (connection: ToolboxConnectionItem, response: "accept" | "decline" | "withdraw") => {
             const targetDid = connection.circle.did;
             if (!targetDid || respondingConnectionDid === targetDid) {
                 return;
@@ -427,7 +428,9 @@ export const UserToolbox = () => {
                 const result =
                     response === "accept"
                         ? await acceptConnectRequestAction(targetDid)
-                        : await declineConnectRequestAction(targetDid);
+                        : response === "withdraw"
+                          ? await withdrawConnectRequestAction(targetDid)
+                          : await declineConnectRequestAction(targetDid);
 
                 if (!result.success) {
                     toast({
@@ -439,6 +442,13 @@ export const UserToolbox = () => {
                 }
 
                 setConnections((prev) => {
+                    if (response === "withdraw") {
+                        return {
+                            ...prev,
+                            pendingOutgoing: prev.pendingOutgoing.filter((item) => item.circle.did !== targetDid),
+                        };
+                    }
+
                     const pendingIncoming = prev.pendingIncoming.filter((item) => item.circle.did !== targetDid);
 
                     if (response === "decline") {
@@ -467,10 +477,7 @@ export const UserToolbox = () => {
                 console.error(`Failed to ${response} connection request`, error);
                 toast({
                     title: "Unable to respond",
-                    description:
-                        response === "accept"
-                            ? "Failed to accept connection request"
-                            : "Failed to decline connection request",
+                    description: `Failed to ${response} connection request`,
                     variant: "destructive",
                 });
             } finally {
@@ -581,6 +588,20 @@ export const UserToolbox = () => {
                                 Decline
                             </Button>
                         </div>
+                    ) : connection.connectStatus === "pending_sent" ? (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-8 shrink-0 rounded-full px-2 text-xs"
+                            disabled={isResponding}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                void handleConnectionResponse(connection, "withdraw");
+                            }}
+                        >
+                            {isResponding ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                            Withdraw
+                        </Button>
                     ) : null}
                 </div>
             );
