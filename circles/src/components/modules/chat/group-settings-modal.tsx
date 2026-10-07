@@ -483,11 +483,11 @@ function MembersTab({ chatRoom, isAdmin }: { chatRoom: ChatRoomDisplay; isAdmin:
 
     const handleAddMembersClick = async () => {
         setIsAddingMembers(true);
-        // Fetch all users if not already fetched
+        // Only people the admin can DM can be added (the server enforces the same rule)
         if (allUsers.length === 0) {
             try {
-                const { getAllUsersAction } = await import("./actions");
-                const users = await getAllUsersAction();
+                const { getChatContactsAction } = await import("./actions");
+                const users = await getChatContactsAction();
                 setAllUsers(users || []);
             } catch (err) {
                 console.error("Error fetching users:", err);

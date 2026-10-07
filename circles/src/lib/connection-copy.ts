@@ -11,5 +11,8 @@ export const getConnectionNotificationBody = (
         : `${name} accepted your connection request`;
 };
 
+// Shown when a group chat would include someone the creator (or the admin adding them) can't DM.
+export const GROUP_REQUIRES_CONNECTIONS_MESSAGE = "You can only add your connections to a group chat.";
+
 // Shown wherever a new DM, or a message into a DM, is refused for lack of a connection.
 export const DM_REQUIRES_CONNECTION_MESSAGE = "You can only message your connections. Send a connection request first.";
