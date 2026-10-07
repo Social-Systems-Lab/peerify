@@ -1030,32 +1030,51 @@ export const getPublicEventByIdForCircle = async (circleId: string, eventId: str
 /**
  * Invite users to an event, create invitation records, and send notifications.
  */
+// What happened to each DID passed to inviteUsersToEvent. skippedReason says why skippedDids
+// weren't invited: on a personal profile's event only the inviter's connections can be invited;
+// elsewhere only people who can see the circle's events.
+export type InviteUsersToEventResult = {
+    invitedDids: string[];
+    alreadyInvitedDids: string[];
+    skippedDids: string[];
+    skippedReason: "not_connected" | "no_event_access";
+};
+
 export const inviteUsersToEvent = async (
     eventId: string,
     circleId: string,
     userDids: string[],
     inviter: Circle,
-): Promise<void> => {
+): Promise<InviteUsersToEventResult> => {
+    const result: InviteUsersToEventResult = {
+        invitedDids: [],
+        alreadyInvitedDids: [],
+        skippedDids: [],
+        skippedReason: "no_event_access",
+    };
     if (!userDids || userDids.length === 0) {
-        return;
+        return result;
     }
 
     const circle = await getCircleById(circleId);
     if (!circle) {
-        return;
+        result.skippedDids = [...userDids];
+        return result;
     }
 
     const existingInvitations = await EventInvitations.find({ eventId, userDid: { $in: userDids } }).toArray();
     const existingUserDids = new Set(existingInvitations.map((inv) => inv.userDid));
     const newUserDids = userDids.filter((did) => !existingUserDids.has(did));
+    result.alreadyInvitedDids = userDids.filter((did) => existingUserDids.has(did));
 
     if (newUserDids.length === 0) {
-        return;
+        return result;
     }
 
     let targetUserDids = newUserDids;
 
     if (circle.circleType === "user" && inviter.did) {
+        result.skippedReason = "not_connected";
         const acceptedChecks = await Promise.all(
             newUserDids.map((did) => isAcceptedConnectionForUserDid(inviter.did!, did)),
         );
@@ -1068,8 +1087,11 @@ export const inviteUsersToEvent = async (
         targetUserDids = newUserDids.filter((_, idx) => permissionChecks[idx]);
     }
 
+    const targetUserDidSet = new Set(targetUserDids);
+    result.skippedDids = newUserDids.filter((did) => !targetUserDidSet.has(did));
+
     if (targetUserDids.length === 0) {
-        return;
+        return result;
     }
 
     const now = new Date();
@@ -1083,11 +1105,12 @@ export const inviteUsersToEvent = async (
     }));
 
     await EventInvitations.insertMany(invitations);
+    result.invitedDids = targetUserDids;
 
     const event = await getEventById(eventId, inviter.did!);
     if (!event) {
         console.error(`Event not found for invitation: ${eventId}`);
-        return;
+        return result;
     }
 
     // Send notifications
@@ -1097,6 +1120,8 @@ export const inviteUsersToEvent = async (
             await notifyEventInvitation(event, inviter, user);
         }
     }
+
+    return result;
 };
 
 export const createEvent = async (data: Omit<Event, "_id" | "commentPostId">, inviter: Circle): Promise<Event> => {

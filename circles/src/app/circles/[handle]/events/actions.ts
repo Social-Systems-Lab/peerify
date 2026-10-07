@@ -66,7 +66,7 @@ import {
     createPendingEventHostChangeRequest,
     updateEventHostChangeRequestStatus,
 } from "@/lib/data/eventHostChangeRequests";
-import { inviteUsersToEvent } from "@/lib/data/event";
+import { inviteUsersToEvent, InviteUsersToEventResult } from "@/lib/data/event";
 import { getMembers, isCircleAdmin, isCircleAdminOfAny } from "@/lib/data/member";
 import { addCommentToDiscussion } from "@/lib/data/discussion";
 import { getAllCommentsAction } from "@/components/modules/feeds/actions";
@@ -1644,7 +1644,7 @@ export async function inviteUsersToEventAction(
     circleHandle: string,
     eventId: string,
     userDids: string[],
-): Promise<{ success: boolean; message?: string }> {
+): Promise<{ success: boolean; message?: string; invitation?: InviteUsersToEventResult }> {
     try {
         const userDid = await getAuthenticatedUserDid();
         if (!userDid) return { success: false, message: "User not authenticated" };
@@ -1658,10 +1658,10 @@ export async function inviteUsersToEventAction(
         const event = await getEventById(eventId, userDid);
         if (!event) return { success: false, message: "Event not found" };
 
-        await inviteUsersToEvent(eventId, circle._id!.toString(), userDids, user);
+        const invitation = await inviteUsersToEvent(eventId, circle._id!.toString(), userDids, user);
 
         revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
-        return { success: true, message: "Invitations sent" };
+        return { success: true, message: "Invitations sent", invitation };
     } catch (error) {
         console.error("Error inviting users to event:", error);
         return { success: false, message: "Failed to send invitations" };
