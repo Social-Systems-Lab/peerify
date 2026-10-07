@@ -48,15 +48,18 @@ export type DmEligibility = {
     hasExistingConversation: boolean;
     dmPermission: RelationshipDmPermission;
     dmPermissionSource: RelationshipDmPermissionSource;
-    reason:
-        | "self"
-        | "existing_dm_history"
-        | "dm_permission_contact"
-        | "dm_permission_legacy_dm"
-        | "dm_permission_recipient_setting"
-        | "dm_not_allowed";
+    reason: DmEligibilityReason;
     relationshipEdge: RelationshipEdge | null;
 };
+
+// Why a DM is (not) allowed. existing_dm_history is the legacy exception: a two-person DM that
+// already had a message before LEGACY_DM_CUTOFF.
+export type DmEligibilityReason =
+    | "self"
+    | "existing_dm_history"
+    | "dm_permission_contact"
+    | "dm_permission_recipient_setting"
+    | "dm_not_allowed";
 
 export type ProfileRelationshipState = {
     viewerDid: string;
@@ -69,13 +72,7 @@ export type ProfileRelationshipState = {
     showMessage: boolean;
     showConnect: boolean;
     connectLabel: "Connect" | "Requested" | "Requested You" | null;
-    messageVisibilityReason:
-        | "self"
-        | "existing_dm_history"
-        | "dm_permission_contact"
-        | "dm_permission_legacy_dm"
-        | "dm_permission_recipient_setting"
-        | "dm_not_allowed";
+    messageVisibilityReason: DmEligibilityReason;
     connectLabelReason:
         | "message_available"
         | "pending_sent"
@@ -313,6 +310,40 @@ export const upsertLegacyDmPermissionPair = async (didA: string, didB: string): 
     return touchedEdges;
 };
 
+// New DMs need an accepted connection (or the recipient's own setting). The one exception is
+// legacy: a two-person DM whose first message is before LEGACY_DM_CUTOFF (the prod deploy time
+// of this rule) keeps working. Conversations created empty by the old profile "Message" button
+// don't count. Read only: this never writes, unlike the old version, which upserted legacy_dm
+// permission on every call. The stored legacy_dm fields are no longer consulted.
+let warnedMissingLegacyDmCutoff = false;
+export const getLegacyDmCutoff = (): Date | null => {
+    const raw = process.env.LEGACY_DM_CUTOFF;
+    const cutoff = raw ? new Date(raw) : null;
+    if (cutoff && !Number.isNaN(cutoff.getTime())) {
+        return cutoff;
+    }
+    if (!warnedMissingLegacyDmCutoff) {
+        warnedMissingLegacyDmCutoff = true;
+        console.warn("LEGACY_DM_CUTOFF is unset or invalid: any two-person DM with a message counts as legacy");
+    }
+    return null;
+};
+
+// conversationId -> createdAt of its first message, for the given conversations.
+const getFirstMessageTimes = async (conversationIds: string[]): Promise<Map<string, Date>> => {
+    if (conversationIds.length === 0) {
+        return new Map();
+    }
+    const rows = await ChatMessageDocs.aggregate([
+        { $match: { conversationId: { $in: conversationIds } } },
+        { $group: { _id: "$conversationId", first: { $min: "$createdAt" } } },
+    ]).toArray();
+    return new Map(rows.map((row: any) => [String(row._id), new Date(row.first)]));
+};
+
+const isLegacyFirstMessage = (first: Date | undefined, cutoff: Date | null): boolean =>
+    !!first && (!cutoff || first.getTime() < cutoff.getTime());
+
 export const getDmEligibility = async (viewerDid: string, targetDid: string): Promise<DmEligibility> => {
     if (!viewerDid || !targetDid || viewerDid === targetDid) {
         return {
@@ -325,53 +356,34 @@ export const getDmEligibility = async (viewerDid: string, targetDid: string): Pr
         };
     }
 
-    const existingConversationId = await findExistingDmConversationId(viewerDid, targetDid, false);
-    if (existingConversationId) {
-        await upsertLegacyDmPermissionPair(viewerDid, targetDid);
-    }
-
-    const relationshipEdge = await getRelationshipEdge(viewerDid, targetDid);
-    if (existingConversationId) {
-        return {
-            isAllowed: true,
-            existingConversationId,
-            hasExistingConversation: true,
-            dmPermission: "allowed",
-            dmPermissionSource:
-                relationshipEdge?.dmPermissionSource && relationshipEdge.dmPermissionSource !== "none"
-                    ? relationshipEdge.dmPermissionSource
-                    : "legacy_dm",
-            reason: "existing_dm_history",
-            relationshipEdge,
-        };
-    }
-
-    if (relationshipEdge?.dmPermission === "allowed") {
-        const reasonBySource: Record<RelationshipDmPermissionSource, DmEligibility["reason"]> = {
-            none: "dm_not_allowed",
-            contact: "dm_permission_contact",
-            legacy_dm: "dm_permission_legacy_dm",
-            recipient_setting: "dm_permission_recipient_setting",
-        };
-
-        return {
-            isAllowed: true,
-            hasExistingConversation: false,
-            dmPermission: relationshipEdge.dmPermission,
-            dmPermissionSource: relationshipEdge.dmPermissionSource,
-            reason: reasonBySource[relationshipEdge.dmPermissionSource] || "dm_not_allowed",
-            relationshipEdge,
-        };
-    }
-
-    return {
-        isAllowed: false,
-        hasExistingConversation: false,
-        dmPermission: relationshipEdge?.dmPermission || "none",
-        dmPermissionSource: relationshipEdge?.dmPermissionSource || "none",
-        reason: "dm_not_allowed",
+    const [relationshipEdge, existingConversationId] = await Promise.all([
+        getRelationshipEdge(viewerDid, targetDid),
+        findExistingDmConversationId(viewerDid, targetDid, false),
+    ]);
+    const base = {
+        existingConversationId,
+        hasExistingConversation: !!existingConversationId,
+        dmPermission: relationshipEdge?.dmPermission || ("none" as const),
+        dmPermissionSource: relationshipEdge?.dmPermissionSource || ("none" as const),
         relationshipEdge,
     };
+
+    if (relationshipEdge?.connectStatus === "accepted") {
+        return { ...base, isAllowed: true, reason: "dm_permission_contact" };
+    }
+
+    if (relationshipEdge?.dmPermission === "allowed" && relationshipEdge.dmPermissionSource === "recipient_setting") {
+        return { ...base, isAllowed: true, reason: "dm_permission_recipient_setting" };
+    }
+
+    if (existingConversationId) {
+        const firstMessageAt = (await getFirstMessageTimes([existingConversationId])).get(existingConversationId);
+        if (isLegacyFirstMessage(firstMessageAt, getLegacyDmCutoff())) {
+            return { ...base, isAllowed: true, reason: "existing_dm_history" };
+        }
+    }
+
+    return { ...base, isAllowed: false, reason: "dm_not_allowed" };
 };
 
 export const getProfileRelationshipState = async (
@@ -412,6 +424,8 @@ export const getProfileRelationshipState = async (
     };
 };
 
+// People the user can start or continue a DM with today: accepted connections, recipient-setting
+// permissions, and partners in a legacy DM (see getDmEligibility).
 export const listDmEligibleContactsForUserDid = async (userDid: string): Promise<Circle[]> => {
     if (!userDid) {
         return [];
@@ -422,7 +436,7 @@ export const listDmEligibleContactsForUserDid = async (userDid: string): Promise
     const relationshipEdges = await UserRelationships.find(
         {
             fromDid: userDid,
-            dmPermission: "allowed",
+            $or: [{ connectStatus: "accepted" }, { dmPermission: "allowed", dmPermissionSource: "recipient_setting" }],
         },
         {
             projection: { toDid: 1 },
@@ -446,13 +460,28 @@ export const listDmEligibleContactsForUserDid = async (userDid: string): Promise
         },
     ).toArray();
 
+    const otherDidByConversationId = new Map<string, string>();
     for (const conversation of dmConversations) {
-        for (const participantDid of (conversation as any)?.participants || []) {
-            if (typeof participantDid === "string" && participantDid !== userDid) {
-                contactDids.add(participantDid);
-            }
+        const participants: string[] = Array.from(
+            new Set(
+                ((conversation as any)?.participants || []).filter(
+                    (did: unknown): did is string => typeof did === "string" && did.length > 0,
+                ),
+            ),
+        );
+        const otherDid = participants.find((did) => did !== userDid);
+        if (participants.length === 2 && otherDid && !contactDids.has(otherDid)) {
+            otherDidByConversationId.set(String(conversation._id), otherDid);
         }
     }
+
+    const firstMessageTimes = await getFirstMessageTimes(Array.from(otherDidByConversationId.keys()));
+    const cutoff = getLegacyDmCutoff();
+    otherDidByConversationId.forEach((otherDid, conversationId) => {
+        if (isLegacyFirstMessage(firstMessageTimes.get(conversationId), cutoff)) {
+            contactDids.add(otherDid);
+        }
+    });
 
     if (contactDids.size === 0) {
         return [];
