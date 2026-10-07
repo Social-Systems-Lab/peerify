@@ -14,7 +14,7 @@ import { features } from "@/lib/data/constants";
 import { saveFile } from "@/lib/data/storage";
 import { revalidatePath } from "next/cache";
 import { getUser, getUserById, getUserPrivate, addBookmark, removeBookmark, pinCircle, unpinCircle } from "@/lib/data/user";
-import { notifyNewMember, sendNotifications } from "@/lib/data/notifications";
+import { notifyNewMember, resolveConnectionRequestNotifications, sendNotifications } from "@/lib/data/notifications";
 import { findOrCreateDMRoom as findOrCreateDMRoomData } from "@/lib/data/chat";
 import {
     getDmEligibility,
@@ -600,11 +600,22 @@ const acceptConnectionBetween = async (accepterDid: string, requester: Circle): 
     );
 
     try {
+        await resolveConnectionRequestNotifications(accepterDid, requesterDid, "accepted");
+    } catch (notificationError) {
+        console.error("Failed to resolve connection request notifications", notificationError);
+    }
+
+    try {
         const accepter = await getCircleByDid(accepterDid);
         if (accepter?.circleType === "user") {
-            await sendNotifications("contact_request_accepted", [requester], {
-                user: accepter,
-            });
+            await sendNotifications(
+                "contact_request_accepted",
+                [requester],
+                {
+                    user: accepter,
+                },
+                { actorDid: accepterDid },
+            );
         }
     } catch (notificationError) {
         console.error("Failed to create connection accepted notification", notificationError);
@@ -712,9 +723,14 @@ export const sendConnectRequestAction = async (
 
         try {
             if (viewer?.circleType === "user") {
-                await sendNotifications("contact_request_received", [targetUser], {
-                    user: viewer,
-                });
+                await sendNotifications(
+                    "contact_request_received",
+                    [targetUser],
+                    {
+                        user: viewer,
+                    },
+                    { actorDid: viewerDid },
+                );
             }
         } catch (notificationError) {
             console.error("Failed to create connection request notification", notificationError);
@@ -807,6 +823,12 @@ export const declineConnectRequestAction = async (
                 },
             ),
         ]);
+
+        try {
+            await resolveConnectionRequestNotifications(viewerDid, targetDid, "declined");
+        } catch (notificationError) {
+            console.error("Failed to resolve connection request notifications", notificationError);
+        }
 
         return { success: true, message: "Connection request declined" };
     } catch (error) {
