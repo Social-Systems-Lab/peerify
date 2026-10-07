@@ -10,6 +10,7 @@ import {
     acceptConnectRequestAction,
     declineConnectRequestAction,
     getProfileRelationshipStateAction,
+    removeConnectionAction,
     sendConnectRequestAction,
     withdrawConnectRequestAction,
 } from "./actions";
@@ -19,6 +20,16 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { useIsCompact } from "@/components/utils/use-is-compact";
@@ -44,7 +55,7 @@ export type RelationshipState = {
 };
 
 // Personal-profile header actions, by relationship:
-// - connected: Message
+// - connected: Message, and "Connected", whose menu offers Remove connection
 // - not connected: Connect (plus Message if a legacy DM or grant still allows messaging)
 // - request sent: "Requested", whose menu offers Withdraw request
 // - request received: nothing here; ProfileRelationshipHeaderAction shows Accept / Decline
@@ -59,6 +70,7 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
     const [isOpeningMessage, setIsOpeningMessage] = useState(false);
     const [isSendingConnect, setIsSendingConnect] = useState(false);
     const [isWithdrawing, setIsWithdrawing] = useState(false);
+    const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false);
 
     if (!circle || !user?.did || circle.did === user.did || circle.circleType !== "user" || !relationshipState) {
         return null;
@@ -191,6 +203,37 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
                     {isSendingConnect ? "Sending..." : "Connect"}
                 </Button>
             )}
+            {relationshipState.connectStatus === "accepted" && (
+                <>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size={compact ? "sm" : "default"}
+                                className={cn(connectButtonClassName, "text-muted-foreground")}
+                                data-connect-reason={relationshipState.connectLabelReason}
+                            >
+                                Connected
+                                <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                            <DropdownMenuItem onSelect={() => setIsRemoveDialogOpen(true)}>
+                                Remove connection
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                    <RemoveConnectionDialog
+                        circle={circle}
+                        open={isRemoveDialogOpen}
+                        onOpenChange={setIsRemoveDialogOpen}
+                        onRemoved={async () => {
+                            await reloadRelationshipState();
+                            router.refresh();
+                        }}
+                    />
+                </>
+            )}
             {relationshipState.connectStatus === "pending_sent" && (
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -212,6 +255,75 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
                 </DropdownMenu>
             )}
         </div>
+    );
+};
+
+// Confirms and removes a connection. The other person isn't told; the copy says what changes.
+export const RemoveConnectionDialog = ({
+    circle,
+    open,
+    onOpenChange,
+    onRemoved,
+}: {
+    circle: Circle;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onRemoved?: () => void | Promise<void>;
+}) => {
+    const { toast } = useToast();
+    const [isRemoving, setIsRemoving] = useState(false);
+    const name = circle.name || "this person";
+
+    const handleRemove = async () => {
+        if (!circle.did || isRemoving) {
+            return;
+        }
+
+        setIsRemoving(true);
+        try {
+            const result = await removeConnectionAction(circle.did);
+            if (!result.success) {
+                toast({ title: "Remove connection", description: result.message, variant: "destructive" });
+                return;
+            }
+
+            onOpenChange(false);
+            await onRemoved?.();
+            toast({ title: "Connection removed" });
+        } catch (error) {
+            console.error("Failed to remove connection:", error);
+            toast({ title: "Remove connection", description: "Failed to remove connection", variant: "destructive" });
+        } finally {
+            setIsRemoving(false);
+        }
+    };
+
+    return (
+        <AlertDialog open={open} onOpenChange={(next) => !isRemoving && onOpenChange(next)}>
+            <AlertDialogContent onClick={(event) => event.stopPropagation()}>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Remove {name} from your connections?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        {name} won&apos;t be notified. Your direct messages with them become read-only until you connect
+                        again.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isRemoving}>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                        className="bg-red-600 text-white hover:bg-red-700"
+                        disabled={isRemoving}
+                        onClick={(event) => {
+                            event.preventDefault();
+                            void handleRemove();
+                        }}
+                    >
+                        {isRemoving ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                        Remove connection
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
     );
 };
 
@@ -249,7 +361,7 @@ export const ProfileRelationshipHeaderAction = ({
     onResolved?: () => void;
     // When true, only render the Accept / Decline controls (pending_received).
     // Skips the "Connected" badge so this can sit alongside MessageButton, which already
-    // renders its own "Connected" badge for the accepted state.
+    // renders its own "Connected" menu for the accepted state.
     pendingOnly?: boolean;
 }) => {
     const [user] = useAtom(userAtom);

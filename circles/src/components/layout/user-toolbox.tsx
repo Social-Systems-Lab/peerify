@@ -6,7 +6,18 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, BookUser, Circle as CircleIcon, Loader2, Pin, PinOff, Star, UsersRound, X } from "lucide-react";
+import {
+    Bell,
+    BookUser,
+    Circle as CircleIcon,
+    Loader2,
+    MoreHorizontal,
+    Pin,
+    PinOff,
+    Star,
+    UsersRound,
+    X,
+} from "lucide-react";
 import { LuClipboardCheck, LuMail } from "react-icons/lu";
 import {
     authInfoAtom,
@@ -20,6 +31,13 @@ import { CirclePicture } from "../modules/circles/circle-picture";
 import { logOut } from "../auth/actions";
 import { VerifyAccountButton } from "../modules/auth/verify-account-button";
 import { Notifications } from "./notifications";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { RemoveConnectionDialog } from "../modules/home/message-button";
 import Link from "next/link";
 import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { useIsMobile } from "../utils/use-is-mobile";
@@ -144,6 +162,7 @@ export const UserToolbox = () => {
     // mounted shows up (e.g. when a bell row switches straight to this tab).
     const [connectionsReloadKey, setConnectionsReloadKey] = useState(0);
     const [respondingConnectionDid, setRespondingConnectionDid] = useState<string | null>(null);
+    const [connectionToRemove, setConnectionToRemove] = useState<ToolboxConnectionItem | null>(null);
     const handleToolboxEventHidden = useCallback(
         (eventId: string) => {
             if (!eventId) return;
@@ -602,6 +621,26 @@ export const UserToolbox = () => {
                             {isResponding ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
                             Withdraw
                         </Button>
+                    ) : connection.connectStatus === "accepted" ? (
+                        <div onClick={(event) => event.stopPropagation()}>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0 rounded-full text-muted-foreground"
+                                        aria-label={`Options for ${connection.circle.name}`}
+                                    >
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onSelect={() => setConnectionToRemove(connection)}>
+                                        Remove connection
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
                     ) : null}
                 </div>
             );
@@ -922,6 +961,20 @@ export const UserToolbox = () => {
                         )}
                     </TabsContent>
                     <TabsContent value="connections" className="m-0 flex-grow overflow-auto pt-1">
+                        {connectionToRemove && (
+                            <RemoveConnectionDialog
+                                circle={connectionToRemove.circle}
+                                open
+                                onOpenChange={(open) => !open && setConnectionToRemove(null)}
+                                onRemoved={() => {
+                                    const removedDid = connectionToRemove.circle.did;
+                                    setConnections((prev) => ({
+                                        ...prev,
+                                        accepted: prev.accepted.filter((item) => item.circle.did !== removedDid),
+                                    }));
+                                }}
+                            />
+                        )}
                         {isLoadingConnections ? (
                             <div className="flex flex-1 items-center justify-center">
                                 <LoadingSpinner />
