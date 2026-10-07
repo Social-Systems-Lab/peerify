@@ -18,7 +18,10 @@ import { notifyNewMember, sendNotifications } from "@/lib/data/notifications";
 import { findOrCreateDMRoom as findOrCreateDMRoomData } from "@/lib/data/chat";
 import {
     getDmEligibility,
+    getEffectiveConnectStatus,
     getProfileRelationshipState,
+    getRelationshipEdge,
+    isWithinConnectionCooldown,
     isAcceptedConnectionForUserDid,
     listToolboxConnectionsForUserDid,
     ToolboxConnectionsSummary,
@@ -545,6 +548,69 @@ export const listToolboxConnectionsAction = async (): Promise<ToolboxConnections
     return await listToolboxConnectionsForUserDid(userDid);
 };
 
+// Flips both edges to accepted and tells the requester. Shared by acceptConnectRequestAction and
+// by sendConnectRequestAction's auto-accept (the person you declined asking you back within the
+// cooldown), so both paths leave the same state behind.
+const acceptConnectionBetween = async (accepterDid: string, requester: Circle): Promise<void> => {
+    const requesterDid = requester.did!;
+    const now = new Date();
+    const [accepterEdge, requesterEdge] = await Promise.all([
+        UserRelationships.findOne({ fromDid: accepterDid, toDid: requesterDid }, { projection: { dmPermissionSource: 1 } }),
+        UserRelationships.findOne({ fromDid: requesterDid, toDid: accepterDid }, { projection: { dmPermissionSource: 1 } }),
+    ]);
+
+    await UserRelationships.updateOne(
+        { fromDid: accepterDid, toDid: requesterDid },
+        {
+            $set: {
+                connectStatus: "accepted",
+                dmPermission: "allowed",
+                dmPermissionSource: accepterEdge?.dmPermissionSource === "recipient_setting" ? "recipient_setting" : "contact",
+                updatedAt: now,
+            },
+            $unset: { declinedAt: "" },
+            $setOnInsert: {
+                fromDid: accepterDid,
+                toDid: requesterDid,
+                isFollowing: false,
+                createdAt: now,
+            },
+        },
+        { upsert: true },
+    );
+
+    await UserRelationships.updateOne(
+        { fromDid: requesterDid, toDid: accepterDid },
+        {
+            $set: {
+                connectStatus: "accepted",
+                dmPermission: "allowed",
+                dmPermissionSource: requesterEdge?.dmPermissionSource === "recipient_setting" ? "recipient_setting" : "contact",
+                updatedAt: now,
+            },
+            $unset: { declinedAt: "" },
+            $setOnInsert: {
+                fromDid: requesterDid,
+                toDid: accepterDid,
+                isFollowing: false,
+                createdAt: now,
+            },
+        },
+        { upsert: true },
+    );
+
+    try {
+        const accepter = await getCircleByDid(accepterDid);
+        if (accepter?.circleType === "user") {
+            await sendNotifications("contact_request_accepted", [requester], {
+                user: accepter,
+            });
+        }
+    } catch (notificationError) {
+        console.error("Failed to create connection accepted notification", notificationError);
+    }
+};
+
 export const sendConnectRequestAction = async (
     targetDid: string,
 ): Promise<{ success: boolean; message: string }> => {
@@ -568,20 +634,41 @@ export const sendConnectRequestAction = async (
             return { success: false, message: "Recipient not found" };
         }
 
-        const relationshipState = await getProfileRelationshipState(viewerDid, targetDid);
-        if (relationshipState.connectStatus === "accepted") {
+        const [viewerEdge, targetEdge] = await Promise.all([
+            getRelationshipEdge(viewerDid, targetDid),
+            getRelationshipEdge(targetDid, viewerDid),
+        ]);
+        const connectStatus = getEffectiveConnectStatus(viewerEdge);
+        if (connectStatus === "accepted") {
             return { success: false, message: "You're already connected" };
         }
 
-        if (relationshipState.connectStatus === "pending_sent") {
+        if (connectStatus === "pending_sent") {
             return { success: true, message: "Connection request already sent" };
         }
 
-        if (relationshipState.connectStatus === "pending_received") {
+        if (connectStatus === "pending_received") {
             return { success: false, message: "This user already requested to connect" };
         }
 
         const now = new Date();
+
+        // Declined within the cooldown: report success and keep showing "Requested", but write no
+        // mirror edge and send no notification, so the requester isn't told about the decline.
+        if (isWithinConnectionCooldown(viewerEdge, now)) {
+            await UserRelationships.updateOne(
+                { fromDid: viewerDid, toDid: targetDid },
+                { $set: { connectStatus: "pending_sent", updatedAt: now } },
+            );
+            return { success: true, message: "Connection request sent" };
+        }
+
+        // The viewer declined the target's request and is now asking them back while that request
+        // still shows as "Requested" on their side: treat it as accepting it.
+        if (targetEdge?.connectStatus === "pending_sent" && isWithinConnectionCooldown(targetEdge, now)) {
+            await acceptConnectionBetween(viewerDid, targetUser);
+            return { success: true, message: "You're now connected" };
+        }
 
         await UserRelationships.updateOne(
             { fromDid: viewerDid, toDid: targetDid },
@@ -590,6 +677,7 @@ export const sendConnectRequestAction = async (
                     connectStatus: "pending_sent",
                     updatedAt: now,
                 },
+                $unset: { declinedAt: "" },
                 $setOnInsert: {
                     fromDid: viewerDid,
                     toDid: targetDid,
@@ -609,6 +697,7 @@ export const sendConnectRequestAction = async (
                     connectStatus: "pending_received",
                     updatedAt: now,
                 },
+                $unset: { declinedAt: "" },
                 $setOnInsert: {
                     fromDid: targetDid,
                     toDid: viewerDid,
@@ -622,10 +711,9 @@ export const sendConnectRequestAction = async (
         );
 
         try {
-            const requester = await getCircleByDid(viewerDid);
-            if (requester?.circleType === "user") {
+            if (viewer?.circleType === "user") {
                 await sendNotifications("contact_request_received", [targetUser], {
-                    user: requester,
+                    user: viewer,
                 });
             }
         } catch (notificationError) {
@@ -662,66 +750,7 @@ export const acceptConnectRequestAction = async (
             return { success: false, message: "No incoming connection request to accept" };
         }
 
-        const now = new Date();
-        const [viewerEdge, targetEdge] = await Promise.all([
-            UserRelationships.findOne(
-                { fromDid: viewerDid, toDid: targetDid },
-                { projection: { dmPermissionSource: 1 } },
-            ),
-            UserRelationships.findOne(
-                { fromDid: targetDid, toDid: viewerDid },
-                { projection: { dmPermissionSource: 1 } },
-            ),
-        ]);
-
-        await UserRelationships.updateOne(
-            { fromDid: viewerDid, toDid: targetDid },
-            {
-                $set: {
-                    connectStatus: "accepted",
-                    dmPermission: "allowed",
-                    dmPermissionSource: viewerEdge?.dmPermissionSource === "recipient_setting" ? "recipient_setting" : "contact",
-                    updatedAt: now,
-                },
-                $setOnInsert: {
-                    fromDid: viewerDid,
-                    toDid: targetDid,
-                    isFollowing: false,
-                    createdAt: now,
-                },
-            },
-            { upsert: true },
-        );
-
-        await UserRelationships.updateOne(
-            { fromDid: targetDid, toDid: viewerDid },
-            {
-                $set: {
-                    connectStatus: "accepted",
-                    dmPermission: "allowed",
-                    dmPermissionSource: targetEdge?.dmPermissionSource === "recipient_setting" ? "recipient_setting" : "contact",
-                    updatedAt: now,
-                },
-                $setOnInsert: {
-                    fromDid: targetDid,
-                    toDid: viewerDid,
-                    isFollowing: false,
-                    createdAt: now,
-                },
-            },
-            { upsert: true },
-        );
-
-        try {
-            const accepter = await getCircleByDid(viewerDid);
-            if (accepter?.circleType === "user") {
-                await sendNotifications("contact_request_accepted", [targetUser], {
-                    user: accepter,
-                });
-            }
-        } catch (notificationError) {
-            console.error("Failed to create connection accepted notification", notificationError);
-        }
+        await acceptConnectionBetween(viewerDid, targetUser);
 
         return { success: true, message: "Connection request accepted" };
     } catch (error) {
@@ -755,6 +784,8 @@ export const declineConnectRequestAction = async (
 
         const now = new Date();
 
+        // The decliner's edge resets; the requester's edge stays pending_sent and records the
+        // decline, which starts the cooldown (see getEffectiveConnectStatus).
         await Promise.all([
             UserRelationships.updateOne(
                 { fromDid: viewerDid, toDid: targetDid },
@@ -769,7 +800,8 @@ export const declineConnectRequestAction = async (
                 { fromDid: targetDid, toDid: viewerDid },
                 {
                     $set: {
-                        connectStatus: "none",
+                        connectStatus: "pending_sent",
+                        declinedAt: now,
                         updatedAt: now,
                     },
                 },

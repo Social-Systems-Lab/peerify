@@ -17,8 +17,29 @@ export type RelationshipEdge = {
     connectStatus: RelationshipConnectStatus;
     dmPermission: RelationshipDmPermission;
     dmPermissionSource: RelationshipDmPermissionSource;
+    // Set on the requester's edge when the other person declines. The edge stays pending_sent, so
+    // the requester keeps seeing "Requested" until the cooldown ends. Never sent to the client.
+    declinedAt?: Date;
     createdAt: Date;
     updatedAt: Date;
+};
+
+// After a decline the requester can't send that person a new request for this long.
+export const CONNECTION_REQUEST_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+
+export const isWithinConnectionCooldown = (edge?: Pick<RelationshipEdge, "declinedAt"> | null, now = new Date()) =>
+    !!edge?.declinedAt && now.getTime() - edge.declinedAt.getTime() < CONNECTION_REQUEST_COOLDOWN_MS;
+
+// The status the requester sees: a declined request reads as pending until the cooldown ends,
+// then as none, so they get Connect back without being told they were declined.
+export const getEffectiveConnectStatus = (edge?: RelationshipEdge | null, now = new Date()): RelationshipConnectStatus => {
+    if (!edge) {
+        return "none";
+    }
+    if (edge.connectStatus === "pending_sent" && edge.declinedAt && !isWithinConnectionCooldown(edge, now)) {
+        return "none";
+    }
+    return edge.connectStatus;
 };
 
 export type DmEligibility = {
@@ -100,6 +121,7 @@ const normalizeRelationshipEdge = (edge: any): RelationshipEdge => ({
     connectStatus: normalizeConnectStatus(edge?.connectStatus),
     dmPermission: normalizeDmPermission(edge?.dmPermission),
     dmPermissionSource: normalizeDmPermissionSource(edge?.dmPermissionSource),
+    ...(edge?.declinedAt ? { declinedAt: new Date(edge.declinedAt) } : {}),
     createdAt: edge?.createdAt instanceof Date ? edge.createdAt : new Date(edge?.createdAt || Date.now()),
     updatedAt: edge?.updatedAt instanceof Date ? edge.updatedAt : new Date(edge?.updatedAt || Date.now()),
 });
@@ -363,7 +385,7 @@ export const getProfileRelationshipState = async (
     ]);
 
     const isFollowing = following || relationshipEdge?.isFollowing === true;
-    const connectStatus = relationshipEdge?.connectStatus || "none";
+    const connectStatus = getEffectiveConnectStatus(relationshipEdge);
     const dmAllowed = dmEligibility.isAllowed;
 
     return {
@@ -524,7 +546,7 @@ export const listToolboxConnectionsForUserDid = async (userDid: string): Promise
         };
     }
 
-    const relationshipEdges = await UserRelationships.find(
+    const rawRelationshipEdges = await UserRelationships.find(
         {
             fromDid: userDid,
             connectStatus: { $in: ["accepted", "pending_sent", "pending_received"] },
@@ -533,10 +555,15 @@ export const listToolboxConnectionsForUserDid = async (userDid: string): Promise
             projection: {
                 toDid: 1,
                 connectStatus: 1,
+                declinedAt: 1,
                 updatedAt: 1,
             },
         },
     ).toArray();
+    const now = new Date();
+    const relationshipEdges = rawRelationshipEdges.filter(
+        (edge) => getEffectiveConnectStatus(normalizeRelationshipEdge(edge), now) !== "none",
+    );
 
     if (relationshipEdges.length === 0) {
         return {
