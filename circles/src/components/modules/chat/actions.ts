@@ -271,7 +271,7 @@ export const toggleMongoReactionAction = async (messageId: string, emoji: string
 
 export const findOrCreateDMConversationAction = async (
     inRecipient: Circle,
-    options?: { source?: "composer" | "profile"; grantContext?: DmGrantContext },
+    options?: { grantContext?: DmGrantContext },
 ) => {
     return await findOrCreateDMConversationActionInternal(inRecipient, options);
 };

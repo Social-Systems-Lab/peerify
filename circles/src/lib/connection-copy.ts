@@ -10,3 +10,6 @@ export const getConnectionNotificationBody = (
         ? `${name} sent you a connection request`
         : `${name} accepted your connection request`;
 };
+
+// Shown wherever a new DM, or a message into a DM, is refused for lack of a connection.
+export const DM_REQUIRES_CONNECTION_MESSAGE = "You can only message your connections. Send a connection request first.";

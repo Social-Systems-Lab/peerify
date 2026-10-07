@@ -38,6 +38,7 @@ import {
     UNVERIFIED_PROFILE_EXPLAINER,
 } from "@/lib/auth/verification";
 import { getDmEligibility } from "@/lib/data/relationships";
+import { DM_REQUIRES_CONNECTION_MESSAGE } from "@/lib/connection-copy";
 import { isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { hasPeerifyPledgeFrom } from "@/lib/data/peerify-pledges";
@@ -959,9 +960,11 @@ const checkDmGrantContext = async (
     return !!(await Members.findOne({ circleId, userDid: recipientDid, userGroups: "crew" }, { projection: { _id: 1 } }));
 };
 
+// Every new DM goes through here (profile Message, the new-chat picker, the dashboards), and
+// all of them need a connection, a legacy DM or a verified grant: there's no profile bypass.
 export const findOrCreateDMConversationAction = async (
     inRecipient: Circle,
-    options?: { source?: "composer" | "profile"; grantContext?: DmGrantContext },
+    options?: { grantContext?: DmGrantContext },
 ): Promise<{ success: boolean; message?: string; chatRoom?: ChatRoomDisplay }> => {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -982,16 +985,12 @@ export const findOrCreateDMConversationAction = async (
         return { success: false, message: "You cannot send a message to yourself" };
     }
 
-    const source = options?.source || "composer";
     const dmEligibility = await getDmEligibility(userDid, recipient.did!);
     const grantContext = options?.grantContext;
     const grantVerified =
         !dmEligibility.isAllowed && grantContext ? await checkDmGrantContext(userDid, recipient.did!, grantContext) : false;
-    if (source !== "profile" && !dmEligibility.isAllowed && !grantVerified) {
-        return {
-            success: false,
-            message: "Messaging is only available for existing conversations and contacts right now.",
-        };
+    if (!dmEligibility.isAllowed && !grantVerified) {
+        return { success: false, message: DM_REQUIRES_CONNECTION_MESSAGE };
     }
 
     const createdConversation = await findOrCreateDmConversation(currentUser, recipient);
