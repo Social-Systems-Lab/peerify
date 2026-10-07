@@ -18,14 +18,19 @@ export type RelationshipEdge = {
     connectStatus: RelationshipConnectStatus;
     dmPermission: RelationshipDmPermission;
     dmPermissionSource: RelationshipDmPermissionSource;
-    // Set on the requester's edge when the other person declines. The edge stays pending_sent, so
-    // the requester keeps seeing "Requested" until the cooldown ends. Never sent to the client.
+    // Starts the 30-day cooldown on this edge's owner sending the other person a request. Set on
+    // the requester's edge when the other person declines (the edge stays pending_sent, so the
+    // requester keeps seeing "Requested" until the cooldown ends), and on the removed person's
+    // edge when the other person removes the connection. Never sent to the client.
     declinedAt?: Date;
+    // Set on both edges when either person removes the connection; cleared if they connect again.
+    // While set, an old DM between the pair no longer counts as legacy (see getDmEligibility).
+    connectionRemovedAt?: Date;
     createdAt: Date;
     updatedAt: Date;
 };
 
-// After a decline the requester can't send that person a new request for this long.
+// After a decline (or a removal) the other person can't send a new request for this long.
 export const CONNECTION_REQUEST_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 
 export const isWithinConnectionCooldown = (edge?: Pick<RelationshipEdge, "declinedAt"> | null, now = new Date()) =>
@@ -120,6 +125,7 @@ const normalizeRelationshipEdge = (edge: any): RelationshipEdge => ({
     dmPermission: normalizeDmPermission(edge?.dmPermission),
     dmPermissionSource: normalizeDmPermissionSource(edge?.dmPermissionSource),
     ...(edge?.declinedAt ? { declinedAt: new Date(edge.declinedAt) } : {}),
+    ...(edge?.connectionRemovedAt ? { connectionRemovedAt: new Date(edge.connectionRemovedAt) } : {}),
     createdAt: edge?.createdAt instanceof Date ? edge.createdAt : new Date(edge?.createdAt || Date.now()),
     updatedAt: edge?.updatedAt instanceof Date ? edge.updatedAt : new Date(edge?.updatedAt || Date.now()),
 });
@@ -397,7 +403,8 @@ export const getDmEligibility = async (viewerDid: string, targetDid: string): Pr
         return { ...base, isAllowed: true, reason: "dm_permission_conversation_grant" };
     }
 
-    if (existingConversationId) {
+    // A removed connection ends the legacy exception for good: only reconnecting reopens the DM.
+    if (existingConversationId && !relationshipEdge?.connectionRemovedAt) {
         const firstMessageAt = (await getFirstMessageTimes([existingConversationId])).get(existingConversationId);
         if (isLegacyFirstMessage(firstMessageAt, getLegacyDmCutoff())) {
             return { ...base, isAllowed: true, reason: "existing_dm_history" };
@@ -466,16 +473,30 @@ export const listDmEligibleContactsForUserDid = async (userDid: string): Promise
     const relationshipEdges = await UserRelationships.find(
         {
             fromDid: userDid,
-            $or: [{ connectStatus: "accepted" }, { dmPermission: "allowed", dmPermissionSource: "recipient_setting" }],
+            $or: [
+                { connectStatus: "accepted" },
+                { dmPermission: "allowed", dmPermissionSource: "recipient_setting" },
+                { connectionRemovedAt: { $exists: true } },
+            ],
         },
         {
-            projection: { toDid: 1 },
+            projection: { toDid: 1, connectStatus: 1, dmPermission: 1, dmPermissionSource: 1, connectionRemovedAt: 1 },
         },
     ).toArray();
 
+    // Pairs whose connection was removed don't get the legacy exception (see getDmEligibility).
+    const removedDids = new Set<string>();
     for (const edge of relationshipEdges) {
-        if (typeof edge?.toDid === "string" && edge.toDid !== userDid) {
+        if (typeof edge?.toDid !== "string" || edge.toDid === userDid) {
+            continue;
+        }
+        if (
+            edge.connectStatus === "accepted" ||
+            (edge.dmPermission === "allowed" && edge.dmPermissionSource === "recipient_setting")
+        ) {
             contactDids.add(edge.toDid);
+        } else if (edge.connectionRemovedAt) {
+            removedDids.add(edge.toDid);
         }
     }
 
@@ -505,7 +526,7 @@ export const listDmEligibleContactsForUserDid = async (userDid: string): Promise
         }
         if (Array.isArray((conversation as any)?.dmGrants) && (conversation as any).dmGrants.length > 0) {
             contactDids.add(otherDid);
-        } else {
+        } else if (!removedDids.has(otherDid)) {
             otherDidByConversationId.set(String(conversation._id), otherDid);
         }
     }

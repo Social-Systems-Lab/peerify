@@ -573,7 +573,7 @@ const acceptConnectionBetween = async (accepterDid: string, requester: Circle): 
                 dmPermissionSource: accepterEdge?.dmPermissionSource === "recipient_setting" ? "recipient_setting" : "contact",
                 updatedAt: now,
             },
-            $unset: { declinedAt: "" },
+            $unset: { declinedAt: "", connectionRemovedAt: "" },
             $setOnInsert: {
                 fromDid: accepterDid,
                 toDid: requesterDid,
@@ -593,7 +593,7 @@ const acceptConnectionBetween = async (accepterDid: string, requester: Circle): 
                 dmPermissionSource: requesterEdge?.dmPermissionSource === "recipient_setting" ? "recipient_setting" : "contact",
                 updatedAt: now,
             },
-            $unset: { declinedAt: "" },
+            $unset: { declinedAt: "", connectionRemovedAt: "" },
             $setOnInsert: {
                 fromDid: requesterDid,
                 toDid: accepterDid,
@@ -888,5 +888,78 @@ export const withdrawConnectRequestAction = async (
     } catch (error) {
         console.error("Failed to withdraw connect request", error);
         return { success: false, message: "Failed to withdraw connection request" };
+    }
+};
+
+// Ends an accepted connection, silently: the other person isn't notified. Both edges go to none
+// and record the removal, which ends any legacy DM exception for the pair, so their DM goes
+// read-only for both until they reconnect. The removed person's edge also gets declinedAt, so for
+// 30 days a request from them behaves like one after a decline: it reports success, shows
+// "Requested" to them, reaches no one, and turns into a connection if the remover asks them back.
+export const removeConnectionAction = async (targetDid: string): Promise<{ success: boolean; message: string }> => {
+    const viewerDid = await getAuthenticatedUserDid();
+    if (!viewerDid) {
+        return { success: false, message: "You need to be logged in to remove a connection" };
+    }
+
+    if (!targetDid || viewerDid === targetDid) {
+        return { success: false, message: "Invalid connection" };
+    }
+
+    try {
+        const [viewerEdge, targetEdge] = await Promise.all([
+            getRelationshipEdge(viewerDid, targetDid),
+            getRelationshipEdge(targetDid, viewerDid),
+        ]);
+        if (viewerEdge?.connectStatus !== "accepted") {
+            return { success: false, message: "You're not connected" };
+        }
+
+        const now = new Date();
+        // A recipient_setting permission comes from the other person's own settings, not from the
+        // connection, so removing the connection leaves it alone.
+        const connectionPermissionReset = (edge: Awaited<ReturnType<typeof getRelationshipEdge>>) =>
+            edge?.dmPermissionSource === "recipient_setting"
+                ? {}
+                : { dmPermission: "none" as const, dmPermissionSource: "none" as const };
+
+        await Promise.all([
+            UserRelationships.updateOne(
+                { fromDid: viewerDid, toDid: targetDid },
+                {
+                    $set: {
+                        connectStatus: "none",
+                        ...connectionPermissionReset(viewerEdge),
+                        connectionRemovedAt: now,
+                        updatedAt: now,
+                    },
+                    $unset: { declinedAt: "" },
+                },
+            ),
+            UserRelationships.updateOne(
+                { fromDid: targetDid, toDid: viewerDid },
+                {
+                    $set: {
+                        connectStatus: "none",
+                        ...connectionPermissionReset(targetEdge),
+                        connectionRemovedAt: now,
+                        declinedAt: now,
+                        updatedAt: now,
+                    },
+                    $setOnInsert: {
+                        fromDid: targetDid,
+                        toDid: viewerDid,
+                        isFollowing: false,
+                        createdAt: now,
+                    },
+                },
+                { upsert: true },
+            ),
+        ]);
+
+        return { success: true, message: "Connection removed" };
+    } catch (error) {
+        console.error("Failed to remove connection", error);
+        return { success: false, message: "Failed to remove connection" };
     }
 };
