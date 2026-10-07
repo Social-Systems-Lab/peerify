@@ -131,7 +131,15 @@ type StoredNotificationRecord = {
     resolution?: ConnectionRequestResolution;
 };
 
-export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
+export const Notifications = ({
+    onNavigate,
+    onOpenConnections,
+}: {
+    onNavigate?: () => void;
+    // Connection request rows open the toolbox's Connections tab, where the request can be
+    // answered alongside the others, rather than navigating to the requester's profile.
+    onOpenConnections?: () => void;
+}) => {
     const [user] = useAtom(userAtom);
     const [, setNotificationUnreadCount] = useAtom(notificationUnreadCountAtom);
     const [records, setRecords] = useState<StoredNotificationRecord[]>([]);
@@ -659,6 +667,10 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
 
     const handleNotificationClick = useCallback(async (groupedNotification: GroupedNotification) => {
         await markNotificationGroupAsRead(groupedNotification);
+        if (groupedNotification.notificationType === "contact_request_received" && onOpenConnections) {
+            onOpenConnections();
+            return;
+        }
         if (onNavigate) {
             onNavigate();
         }
@@ -670,7 +682,7 @@ export const Notifications = ({ onNavigate }: { onNavigate?: () => void }) => {
         }
 
         console.log("Unknown notification type:", groupedNotification.latestNotification.notificationType);
-    }, [getNotificationHref, markNotificationGroupAsRead, onNavigate, router]);
+    }, [getNotificationHref, markNotificationGroupAsRead, onNavigate, onOpenConnections, router]);
 
     // Helper function to create a grouped notification message
     const createGroupedMessage = (groupedNotification: GroupedNotification) => {
