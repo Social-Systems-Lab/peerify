@@ -295,7 +295,9 @@ export function CreateChatModal({ isOpen, onClose }: CreateChatModalProps) {
                                         </div>
                                     ) : filteredUsers.length === 0 ? (
                                         <div className="p-4 text-center text-sm text-muted-foreground">
-                                            No contacts yet
+                                            {allUsers.length === 0
+                                                ? "No connections yet. Use Connect on someone's profile, and you can message them once they accept."
+                                                : "No connections match your search."}
                                         </div>
                                     ) : (
                                         filteredUsers.map((u) => {
