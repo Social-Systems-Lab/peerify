@@ -33,6 +33,8 @@ import { ConnectionOutcomeLabel, ProfileRelationshipHeaderAction } from "../modu
 import { getConnectionNotificationBody } from "@/lib/connection-copy";
 import { useToast } from "@/components/ui/use-toast";
 import { findOrCreateDMConversationAction } from "../modules/chat/actions";
+import { getConnectStatusesAction } from "../modules/home/actions";
+import type { RelationshipConnectStatus } from "@/lib/data/relationships";
 
 type Notification = {
     id: string;
@@ -375,6 +377,50 @@ export const Notifications = ({
             (a, b) => b.latestNotification.createdAt.getTime() - a.latestNotification.createdAt.getTime(),
         );
     }, [notifications]);
+
+    // Unresolved connection request rows need the live status: Accept / Decline while pending, or
+    // an outcome for rows stored before resolutions existed. Load it for all of them in one call,
+    // and again only when that set of people changes or a row is answered, not on every poll.
+    const pendingRequestDidsKey = useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    groupedNotifications
+                        .filter(
+                            (group) =>
+                                group.latestNotification.notificationType === "contact_request_received" &&
+                                !group.latestNotification.resolution,
+                        )
+                        .map((group) => group.latestNotification.user?.did)
+                        .filter((did): did is string => !!did),
+                ),
+            )
+                .sort()
+                .join(","),
+        [groupedNotifications],
+    );
+    const [requestStatusByDid, setRequestStatusByDid] = useState<Record<string, RelationshipConnectStatus>>({});
+    const [requestStatusReloadKey, setRequestStatusReloadKey] = useState(0);
+
+    useEffect(() => {
+        if (!pendingRequestDidsKey) {
+            setRequestStatusByDid({});
+            return;
+        }
+
+        let cancelled = false;
+        getConnectStatusesAction(pendingRequestDidsKey.split(","))
+            .then((statuses) => {
+                if (!cancelled) {
+                    setRequestStatusByDid(statuses);
+                }
+            })
+            .catch((error) => console.error("Failed to load connection request statuses:", error));
+
+        return () => {
+            cancelled = true;
+        };
+    }, [pendingRequestDidsKey, requestStatusReloadKey]);
 
     const hasUnreadNotifications = useMemo(
         () => groupedNotifications.some((groupedNotification) => groupedNotification.unreadNotificationIds.length > 0),
@@ -1000,13 +1046,20 @@ export const Notifications = ({
                                         <ConnectionOutcomeLabel
                                             resolution={groupedNotification.latestNotification.resolution}
                                         />
-                                    ) : (
+                                    ) : groupedNotification.latestNotification.user.did &&
+                                      requestStatusByDid[groupedNotification.latestNotification.user.did] ? (
                                         <ProfileRelationshipHeaderAction
                                             circle={groupedNotification.latestNotification.user}
+                                            connectStatus={
+                                                requestStatusByDid[groupedNotification.latestNotification.user.did]
+                                            }
                                             showOutcome
-                                            onResolved={() => void fetchNotifications()}
+                                            onResolved={() => {
+                                                void fetchNotifications();
+                                                setRequestStatusReloadKey((key) => key + 1);
+                                            }}
                                         />
-                                    )}
+                                    ) : null}
                                 </div>
                             ) : (
                                 getNotificationActionLabel(groupedNotification) && (

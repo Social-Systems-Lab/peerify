@@ -414,6 +414,29 @@ export const getDmEligibility = async (viewerDid: string, targetDid: string): Pr
     return { ...base, isAllowed: false, reason: "dm_not_allowed" };
 };
 
+// The viewer's effective connect status with each of targetDids, in one query. The bell uses it for
+// its connection request rows instead of loading the full profile state once per row.
+export const getConnectStatusesForDids = async (
+    viewerDid: string,
+    targetDids: string[],
+): Promise<Record<string, RelationshipConnectStatus>> => {
+    const uniqueTargets = Array.from(new Set(targetDids.filter((did) => did && did !== viewerDid)));
+    if (!viewerDid || uniqueTargets.length === 0) {
+        return {};
+    }
+
+    const edges = await UserRelationships.find({ fromDid: viewerDid, toDid: { $in: uniqueTargets } }).toArray();
+    const now = new Date();
+    const statuses: Record<string, RelationshipConnectStatus> = Object.fromEntries(
+        uniqueTargets.map((did) => [did, "none" as RelationshipConnectStatus]),
+    );
+    for (const edge of edges) {
+        const normalized = normalizeRelationshipEdge(edge);
+        statuses[normalized.toDid] = getEffectiveConnectStatus(normalized, now);
+    }
+    return statuses;
+};
+
 // The DIDs in targetDids that userDid could not start a DM with. Group chats use it: a creator
 // (or an admin adding people later) must pass the DM rule with every participant they add.
 export const listDidsFailingDmRule = async (userDid: string, targetDids: string[]): Promise<string[]> => {

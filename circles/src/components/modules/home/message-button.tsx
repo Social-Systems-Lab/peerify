@@ -38,7 +38,7 @@ import { TbMessage } from "react-icons/tb";
 import { useRouter } from "next/navigation";
 import { findOrCreateDMConversationAction } from "../chat/actions";
 import { canPerformRestrictedAction, UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
-import type { DmEligibilityReason } from "@/lib/data/relationships";
+import type { DmEligibilityReason, RelationshipConnectStatus } from "@/lib/data/relationships";
 
 type MessageButtonProps = {
     circle: Circle;
@@ -348,11 +348,15 @@ export const ConnectionOutcomeLabel = ({ resolution }: { resolution: ConnectionR
 
 export const ProfileRelationshipHeaderAction = ({
     circle,
+    connectStatus: preloadedConnectStatus,
     pendingOnly,
     showOutcome,
     onResolved,
 }: {
     circle: Circle;
+    // When given, the caller has already loaded the status (the bell loads it for all its rows in
+    // one call), so this doesn't fetch its own; the caller refreshes it from onResolved.
+    connectStatus?: RelationshipConnectStatus;
     // Notification rows with no stored resolution (sent before it existed): when the request is no
     // longer pending, show a static outcome from the live state instead of nothing. Live state
     // can't tell a decline from a withdrawal, so anything but accepted reads "No longer pending".
@@ -367,13 +371,21 @@ export const ProfileRelationshipHeaderAction = ({
     const [user] = useAtom(userAtom);
     const router = useRouter();
     const { toast } = useToast();
-    const [relationshipState, reloadRelationshipState] = useProfileRelationshipState(circle, user?.did);
+    const isPreloaded = preloadedConnectStatus !== undefined;
+    const [relationshipState, reloadRelationshipState] = useProfileRelationshipState(circle, user?.did, !isPreloaded);
     const [isAcceptingConnect, setIsAcceptingConnect] = useState(false);
     const [isDecliningConnect, setIsDecliningConnect] = useState(false);
+    const connectStatus = isPreloaded ? preloadedConnectStatus : relationshipState?.connectStatus;
 
-    if (!circle?.did || !user?.did || circle.did === user.did || circle.circleType !== "user" || !relationshipState) {
+    if (!circle?.did || !user?.did || circle.did === user.did || circle.circleType !== "user" || !connectStatus) {
         return null;
     }
+
+    const reloadOwnState = async () => {
+        if (!isPreloaded) {
+            await reloadRelationshipState();
+        }
+    };
 
     const isResponding = isAcceptingConnect || isDecliningConnect;
 
@@ -393,7 +405,7 @@ export const ProfileRelationshipHeaderAction = ({
                 return;
             }
 
-            await reloadRelationshipState();
+            await reloadOwnState();
             router.refresh();
             onResolved?.();
 
@@ -428,7 +440,7 @@ export const ProfileRelationshipHeaderAction = ({
                 return;
             }
 
-            await reloadRelationshipState();
+            await reloadOwnState();
             router.refresh();
             onResolved?.();
 
@@ -447,7 +459,7 @@ export const ProfileRelationshipHeaderAction = ({
         }
     };
 
-    if (relationshipState.connectLabelReason === "pending_received") {
+    if (connectStatus === "pending_received") {
         return (
             <div className="flex items-center gap-1">
                 <Button
@@ -476,11 +488,11 @@ export const ProfileRelationshipHeaderAction = ({
 
     if (showOutcome) {
         return (
-            <ConnectionOutcomeLabel resolution={relationshipState.connectStatus === "accepted" ? "accepted" : "withdrawn"} />
+            <ConnectionOutcomeLabel resolution={connectStatus === "accepted" ? "accepted" : "withdrawn"} />
         );
     }
 
-    if (!pendingOnly && relationshipState.connectStatus === "accepted") {
+    if (!pendingOnly && connectStatus === "accepted") {
         return (
             <Badge className="inline-flex h-8 items-center rounded-full border border-[#c7d8cb] bg-[#f3f7f4] px-3 py-1 text-[#45604d] hover:bg-[#f3f7f4]">
                 Connected
@@ -491,7 +503,7 @@ export const ProfileRelationshipHeaderAction = ({
     return null;
 };
 
-export const useProfileRelationshipState = (circle: Circle, viewerDid?: string) => {
+export const useProfileRelationshipState = (circle: Circle, viewerDid?: string, enabled = true) => {
     const [relationshipState, setRelationshipState] = useState<RelationshipState | null>(null);
     const relationshipRequestRef = useRef(0);
 
@@ -529,7 +541,7 @@ export const useProfileRelationshipState = (circle: Circle, viewerDid?: string) 
     }, [mapRelationshipState]);
 
     const reloadRelationshipState = useCallback(async () => {
-        if (!viewerDid || !circle?.did || circle.did === viewerDid || circle.circleType !== "user") {
+        if (!enabled || !viewerDid || !circle?.did || circle.did === viewerDid || circle.circleType !== "user") {
             relationshipRequestRef.current += 1;
             setRelationshipState(null);
             return;
@@ -537,13 +549,13 @@ export const useProfileRelationshipState = (circle: Circle, viewerDid?: string) 
 
         const requestId = ++relationshipRequestRef.current;
         await loadRelationshipState(requestId, circle.did);
-    }, [circle?.circleType, circle?.did, loadRelationshipState, viewerDid]);
+    }, [circle?.circleType, circle?.did, enabled, loadRelationshipState, viewerDid]);
 
     useEffect(() => {
         relationshipRequestRef.current += 1;
         setRelationshipState(null);
 
-        if (!viewerDid || !circle?.did || circle.did === viewerDid || circle.circleType !== "user") {
+        if (!enabled || !viewerDid || !circle?.did || circle.did === viewerDid || circle.circleType !== "user") {
             return;
         }
 
@@ -553,7 +565,7 @@ export const useProfileRelationshipState = (circle: Circle, viewerDid?: string) 
         return () => {
             relationshipRequestRef.current += 1;
         };
-    }, [circle?.did, circle?.circleType, loadRelationshipState, viewerDid]);
+    }, [circle?.did, circle?.circleType, enabled, loadRelationshipState, viewerDid]);
 
     useEffect(() => {
         const handleVisibilityRefresh = () => {
