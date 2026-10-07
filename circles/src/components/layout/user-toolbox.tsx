@@ -5,14 +5,8 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, BookUser, ChevronDown, Circle as CircleIcon, Loader2, Pin, PinOff, Star, UsersRound, X } from "lucide-react";
+import { Bell, BookUser, Circle as CircleIcon, Loader2, Pin, PinOff, Star, UsersRound, X } from "lucide-react";
 import { LuClipboardCheck, LuMail } from "react-icons/lu";
 import {
     authInfoAtom,
@@ -555,32 +549,27 @@ export const UserToolbox = () => {
                         </p>
                     </div>
                     {showRespondControl ? (
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button
-                                    variant="default"
-                                    size="sm"
-                                    className={respondButtonClassName}
-                                    disabled={isResponding}
-                                    onClick={(event) => event.stopPropagation()}
-                                >
-                                    {isResponding ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                                    Respond
-                                    <ChevronDown className="ml-1 h-3.5 w-3.5" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" onClick={(event) => event.stopPropagation()}>
-                                <DropdownMenuItem onSelect={() => void handleConnectionResponse(connection, "accept")}>
-                                    Accept connection
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                    className="text-amber-900 focus:bg-amber-50 focus:text-amber-950"
-                                    onSelect={() => void handleConnectionResponse(connection, "decline")}
-                                >
-                                    Decline request
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <div className="flex shrink-0 items-center gap-1" onClick={(event) => event.stopPropagation()}>
+                            <Button
+                                variant="default"
+                                size="sm"
+                                className={respondButtonClassName}
+                                disabled={isResponding}
+                                onClick={() => void handleConnectionResponse(connection, "accept")}
+                            >
+                                {isResponding ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                                Accept
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 shrink-0 rounded-full px-2 text-xs"
+                                disabled={isResponding}
+                                onClick={() => void handleConnectionResponse(connection, "decline")}
+                            >
+                                Decline
+                            </Button>
+                        </div>
                     ) : null}
                 </div>
             );
