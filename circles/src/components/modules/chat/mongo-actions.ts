@@ -720,6 +720,24 @@ export const fetchMongoMessagesAction = async (
     }
 };
 
+// A two-person DM stays readable but goes read-only when the pair no longer passes the DM rule
+// (no connection, legacy history or grant), e.g. an empty conversation the old profile Message
+// button created. Returns the refusal message, or null when sending is allowed.
+const getDmSendBlock = async (
+    conversation: { type?: string; participants?: string[] } | null | undefined,
+    userDid: string,
+): Promise<string | null> => {
+    if (conversation?.type !== "dm") {
+        return null;
+    }
+    const otherDids = Array.from(new Set((conversation.participants || []).filter((did) => did && did !== userDid)));
+    if (otherDids.length !== 1) {
+        return null;
+    }
+    const eligibility = await getDmEligibility(userDid, otherDids[0]);
+    return eligibility.isAllowed ? null : DM_REQUIRES_CONNECTION_MESSAGE;
+};
+
 export const sendMongoMessageAction = async (
     conversationId: string,
     content: string,
@@ -741,6 +759,10 @@ export const sendMongoMessageAction = async (
     }
     if (access.conversation?.type === "announcement") {
         return { success: false, message: "Replies are disabled for this conversation." };
+    }
+    const dmSendBlock = await getDmSendBlock(access.conversation, userDid);
+    if (dmSendBlock) {
+        return { success: false, message: dmSendBlock };
     }
 
     const replyValidation = await validateReplyTargetForConversation(conversationId, replyToMessageId);
@@ -805,6 +827,10 @@ export const sendMongoAttachmentAction = async (
     }
     if (access.conversation?.type === "announcement") {
         return { success: false, message: "Replies are disabled for this conversation." };
+    }
+    const dmSendBlock = await getDmSendBlock(access.conversation, userDid);
+    if (dmSendBlock) {
+        return { success: false, message: dmSendBlock };
     }
 
     const replyValidation = await validateReplyTargetForConversation(conversationId, replyToMessageId);
@@ -1588,6 +1614,10 @@ export const createThreadAction = async (
     if (access.conversation?.type === "announcement") {
         return { success: false, message: "Replies are disabled for this conversation." };
     }
+    const dmSendBlock = await getDmSendBlock(access.conversation, userDid);
+    if (dmSendBlock) {
+        return { success: false, message: dmSendBlock };
+    }
     try {
         const { createThread } = await import("@/lib/data/mongo-chat");
         const doc = await createThread(conversationId, userDid, title.trim(), body.trim(), hashtags);
@@ -1612,6 +1642,10 @@ export const sendThreadReplyAction = async (
     if (!access.ok) return { success: false, message: access.message };
     if (access.conversation?.type === "announcement") {
         return { success: false, message: "Replies are disabled for this conversation." };
+    }
+    const dmSendBlock = await getDmSendBlock(access.conversation, userDid);
+    if (dmSendBlock) {
+        return { success: false, message: dmSendBlock };
     }
     const replyValidation = await validateReplyTargetForConversation(conversationId, replyToMessageId);
     if (!replyValidation.ok) {
