@@ -125,8 +125,9 @@ export default function InviteAdminDialog({ circle }: Props) {
                     <DialogHeader>
                         <DialogTitle>Invite an Admin</DialogTitle>
                         <DialogDescription>
-                            Invite one of your connections to a role in {circle.name}. They&apos;ll need to accept
-                            before they get access - this doesn&apos;t grant it right away.
+                            Invite one of your connections to a role in {circle.name}. Only accepted connections
+                            appear here. They&apos;ll need to accept before they get access - this doesn&apos;t
+                            grant it right away.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -135,6 +136,7 @@ export default function InviteAdminDialog({ circle }: Props) {
                         onSelectionChange={setSelected}
                         fetchInitial={async () => (await getMyAcceptedConnectionsAction()).circles}
                         fetchSearch={async (query, limit) => (await searchMyAcceptedConnectionsAction(query, limit)).circles}
+                        emptyMessage="Only your connections can be invited, and you don't have any yet. Open the person's profile and choose Connect. Once they accept, they'll appear here."
                     />
 
                     {selected.length > 0 && (
