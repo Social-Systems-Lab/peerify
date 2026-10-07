@@ -350,6 +350,29 @@ export async function resolveConnectionRequestNotifications(
     );
 }
 
+export const CONNECTION_REQUEST_NOTIFICATION_THROTTLE_MS = 24 * 60 * 60 * 1000;
+
+// At most one connection request notification (and push) per pair per 24h. If the requester's
+// last request notification to this recipient is that recent, reopen it instead (unread, no
+// resolution) so the recipient can still act on it. Returns true when it reopened one.
+export async function reopenRecentConnectionRequestNotification(
+    recipientDid: string,
+    requesterDid: string,
+): Promise<boolean> {
+    const since = new Date(Date.now() - CONNECTION_REQUEST_NOTIFICATION_THROTTLE_MS);
+    const result = await Notifications.findOneAndUpdate(
+        {
+            userId: recipientDid,
+            type: "contact_request_received",
+            createdAt: { $gte: since },
+            $or: [{ actorDid: requesterDid }, { actorDid: { $exists: false }, "content.user.did": requesterDid }],
+        },
+        { $set: { isRead: false }, $unset: { resolution: "" } },
+        { sort: { createdAt: -1 } },
+    );
+    return !!result;
+}
+
 export async function listNotificationsForUser(
     userDid: string,
     limit: number = 50,
