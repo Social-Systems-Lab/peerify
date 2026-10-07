@@ -39,6 +39,218 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-07 — Prod font regression fixed: self-hosted fonts and a deploy font guard; /supporter retired — promoted to production
+
+### Incident: prod rendered in a fallback serif (2026-10-05)
+- **Symptom:** after the Batch 3 deploy (release `20261005-185015-0def27bb`), prod's `<html>`
+  carried font classes `__variable_8c55a7`, `__variable_a244fa` and `__variable_0c9bbd` that no
+  CSS file in the release defined. Only `__variable_e75d01` was defined. The site fell back to a
+  serif.
+- **Cause:** `next/font/google` downloads each font's CSS from Google during the build and derives
+  the class names from that CSS. The server and client compiles each fetch it. Google was serving
+  mixed versions: Bebas Neue's `unicode-range` had changed (`…20ad-20c0` → `…20ad-20c4`), and
+  repeated fetches of Bebas Neue and Yeseva One returned different responses. In that build, the
+  server compile got the new data for all four fonts and the client compile got it for only one.
+  So the server HTML and the static CSS used different class names.
+- **Not the cause:** the release was internally consistent (one BUILD_ID, one set of CSS files,
+  manifests matching), so this wasn't build artefacts from two builds mixed together. The
+  pre-deploy check build in the prod checkout had finished before the deploy started, and the
+  deploy wipes `.next` before building.
+- **Which releases were affected:** the previous prod release (`20261002-102641-8210ed3a`) and
+  staging (`9ad45475`, built 10-03) were consistent. The regression started with the 10-05
+  build.
+- **Fix, step 1:** a plain prod redeploy of the same code (release
+  `20261006-035331-0def27bb`). All four `<html>` classes were defined in the served CSS on `/`
+  and `/welcome`.
+
+### Rule: never run builds in the prod checkout around a deploy
+Don't run `bun run build` (or any build) in `/home/tim/apps/peerify-app/circles` while, or just
+before, `deploy-peerify.sh` runs there. If you want a pre-deploy check build, let it finish
+completely first, or build in the staging worktree. After a cherry-pick promotion its files are
+byte-identical, and the deploy's own build plus the step 5 font check covers prod. Run deploys in
+the foreground and don't start anything else in that folder until they finish.
+
+### Self-hosted fonts and the deploy guard
+Staging commits `59e03a13`, `5688d146`, `ec84b3cb` and `c600954d` were promoted to `main` as
+`a23bdd80`, `5c77f4c2`, `221c01bb` and `f9776b4b`. Prod release: `20261007-090438-f9776b4b`.
+- **Bebas Neue removed (`59e03a13`):** it was only defined (the layout font, the `.font-bebas`
+  utility and the Tailwind `bebas` family) and never used.
+- **Self-hosted fonts (`5688d146`, `ec84b3cb`):** builds no longer download anything from Google.
+  - Wix Madefor Display, Libre Franklin and Yeseva One are plain `@font-face` rules in
+    `src/app/fonts.css`, with the woff2 files in `public/fonts/v1/<font>/<subset>.woff2`. Each
+    font's `OFL.txt` sits next to its files.
+  - The rules and files are exactly what `next/font` produced for the good release
+    `20261006-035331`: one file per Google subset, with the same `unicode-range`,
+    `font-display: swap` and size-adjusted fallbacks.
+  - The CSS variable names are unchanged (`--font-wix-display`, `--font-libre-franklin`,
+    `--font-yeseva`, now on `:root`). The real family names are kept, because the landing page
+    names `"Yeseva One"` directly. The Latin files are preloaded.
+  - Montserrat and Noto Serif are in `src/components/pages/kam-fonts.css`, imported only by
+    `/donations`. Tailwind's `font-sans`/`font-serif` name these fonts literally, so they must
+    not be declared globally.
+  - Wix, Libre, Montserrat and Noto Serif are variable fonts (checked: each file has an `fvar`
+    table), covering every weight the app uses (300–800). Yeseva One is a fixed 400 weight and is
+    only used at 400.
+  - `/fonts/v1/` is a versioned path: if a file ever changes, add it under `/fonts/v2/` instead
+    of overwriting it.
+- **Deploy font guard (`c600954d`):** `scripts/check-release-fonts.py` runs in step 5 of
+  `deploy-common.sh`, before `current` is switched, for both staging and prod deploys. It fails
+  the deploy if:
+  - a `next/font` `__variable_`/`__className_` class in the server output isn't defined in the
+    static CSS, or
+  - a font `url()` in the built CSS doesn't resolve to a file in the release, or points to
+    another site.
+
+  Tested read-only before shipping: it fails `20261005-185015-0def27bb` (naming the six
+  undefined classes) and passes `20261006-035331`, `20261002-102641` and staging. A fake release
+  confirmed it catches missing and external font files. It now reports "0 next/font class(es)
+  all defined; 28 font url()(s) all present in the release".
+
+### /supporter retired, /donations header fixed
+Staging commits `3e51e178` and `62505af5` were promoted to `main` as `7ae991c9` and `0bd97efa`.
+Prod release: `20261007-102750-0bd97efa`.
+- **`3e51e178`:** `/donations` and `/supporter` rendered their own "Log in" link at the top right
+  for everyone. Logged in, it sat on top of the app's mail, tasks and notification icons; logged
+  out, it duplicated the account menu's own Log in / Sign up. The link and its styles are
+  removed.
+- **`62505af5`:** `/supporter` (Kamooni-era ecosystem supporter page) is deleted: route,
+  component and CSS. `next.config.mjs` has a permanent 308 redirect from `/supporter` to
+  `/donations`. On `/donations`, "Read about ecosystem support" is now "Get in touch"
+  (`mailto:hello@peerify.net`).
+
+### Verified
+- **Fonts:** on staging and prod, `/`, `/welcome` and `/donations` serve a plain
+  `<html lang="en">`, preload `/fonts/v1/`, and reference nothing from Google. All five fonts'
+  Latin files return 200 as `font/woff2`.
+- **Redirect:** `/supporter` → 308 → `/donations` (200) on staging and prod. `/donations` has no
+  header "Log in" and no link to `/supporter`, and "Get in touch" is the mailto link.
+- **Not checked by me:** whether the icons are now uncovered, logged in on `/donations`, needs a
+  look in the browser.
+
+### Rollback note
+Prod keeps the last 5 releases, including `20261005-185015-0def27bb`, the one with broken fonts.
+Never roll back to it. Safe rollback targets: `20261007-090438-f9776b4b` (fonts, before the
+`/supporter` change) and `20261006-035331-0def27bb` (the old fonts, rebuilt and verified).
+
+### Follow-ups
+- The `/donations` page CSS leaks into the rest of the app after client-side navigation: its
+  background colour and Montserrat persist until a full reload. `public-donations-page.css` styles
+  `:root`, `html` and `body` directly. Scope its rules to a page wrapper (e.g. `.kam-donations`)
+  instead.
+- Three files that aren't built still import `next/font/google`: `public-home-page.tsx`,
+  `kamooni-landing-page.tsx` and `onboarding-signup-flow.tsx`. Nothing imports them today. Delete
+  them if they're truly dead, or convert them to the self-hosted fonts, so no future build
+  depends on Google.
+- Write a short Peerify-specific partner/perks section for the €500/month option on
+  `/donations`.
+
+---
+
+## 2026-10-05 — Queue item 3, Batch 3: admin invitation delivery and refresh, plus draft visibility — promoted to production
+
+**Promoted 2026-10-05.** All nine commits below were cherry-picked onto `main` as
+`e60f6259..0def27bb` and deployed. The first prod release of them (`20261005-185015-0def27bb`)
+had broken fonts; see the 2026-10-07 entry.
+
+### Batch 3: admin invitations
+- **c45754e9 (fix):** `acceptAdminInvitationAction` and `declineAdminInvitationAction` take only
+  the request id and load the circle from `invitation.circleId`. The client-supplied circle is
+  no longer used for the decision notification or `revalidatePath`.
+- **d1288c50 (fix):** once the invitation is saved, the inviter never sees "Failed". If the user
+  lookups or the notification fail, `inviteUserToAdminAction` returns success with
+  `notificationFailed`, and the invite dialog shows a warning toast. What gets embedded in the
+  notification is unchanged.
+- **132aadb6 (a3):** `admin_invitation_received` and `admin_invitation_decided` moved from the
+  push "community" category (off by default) to "verification" (on by default). The settings
+  description now reads "Account and profile verification, and admin invitations."
+- **3bcf917a (a1):** new `/invitations/admin/[invitationId]` page where the invitee accepts or
+  declines.
+  - It sits outside `/circles/`, so the middleware never calls `/api/access` and unpublished
+    circles work.
+  - Invitee only. Anyone else gets notFound, whatever the status.
+  - Logged out → `/login?redirectTo=<page>`. Only relative paths are passed.
+  - `getAdminInvitationForInvitee` returns projected identity fields only: circle name, handle
+    and picture, inviter name, role names and status.
+  - Handles pending, accepted, declined, cancelled and no-longer-valid (the inviter lost admin,
+    or it's a personal profile).
+  - Cancelling now sets status `"cancelled"` (with `cancelledAt`) instead of deleting the
+    invitation.
+  - `admin_invitation_received` carries `invitationId` (a string), and both the bell link and
+    the push URL point at the page. Older notifications without it fall back to `/followers`.
+    `admin_invitation_decided` stays on `/followers`.
+- **e341f42a (a5):** a duplicate invite while one is pending re-notifies the invitee, at most
+  once per 24h per invitation.
+  - It uses `lastNotifiedAt`, stamped atomically with `findOneAndUpdate` before sending, so a
+    double-click can't send twice. If the send fails, the stamp is undone, so the inviter can
+    retry straight away.
+  - `lastNotifiedAt` is never written as undefined; the field is cleared with `$unset`. The
+    schema field is `.nullable().optional()`.
+  - The original roles are kept. The inviter is told what's pending, whether a reminder went
+    out, and that they can cancel and resend to change the roles.
+- **483a654b (b1):** new `useRefreshUser` hook (`checkAuth()` + `setUser`). It runs after a
+  successful accept, in both `AdminInvitationBanner` and the new page, so admin UI appears
+  without a reload.
+
+### Draft visibility (found during Batch 3 testing)
+- **57350261 (fix):** `/api/access` and `layout.tsx` require a logged-in viewer before matching
+  the creator. Before, `circle.createdBy === userDid` was true when both were undefined, so a
+  logged-out visitor could open a draft with no `createdBy`. Prod check before the fix: 21
+  unpublished circles, 0 without `createdBy`, so this was never exploitable on prod.
+- **c856b3fb (feat):** `canViewUnpublishedCircle` in `member.ts` allows the creator, admins and
+  moderators (`DRAFT_CIRCLE_VIEWER_USER_GROUPS`). Both gates use it.
+  - The layout no longer uses `authorizedToEdit` (`edit_about`) for access.
+  - Moderators get the redacted view (`viewerCanManage` false).
+  - The draft banner now reads "Draft profile — only admins and moderators can see this."
+  - Side effect: unverified non-creator admins can now view their drafts, but still can't
+    edit them.
+- **9ad45475 (fix):** the invitation page's "Go to X" button uses `getCircleDefaultPath(circle)`,
+  worked out on the server. The bare `/circles/<handle>` resolves to the feed module, which
+  404s on circles without it.
+
+### Decisions
+- Admin invites use the push "verification" category.
+- Cancelling an invitation sets status "cancelled". A re-invite after a cancellation creates a
+  fresh invitation.
+- A re-invite while one is pending keeps the original roles.
+- Drafts are visible to the creator, admins and moderators. Moderators get the redacted circle
+  data.
+
+### Verified on staging (2026-10-03 and 2026-10-05)
+- The invitation link on an unpublished circle opens the new page, and accepting works. A
+  non-invitee gets Not found.
+- A fresh invitation to a second account (Duke Prod) works end to end.
+- Draft gates:
+  - logged out → Not found
+  - a user with no role → Not found
+  - a moderator sees the redacted view, with no banner and no settings
+  - an admin sees the banner and the Publish controls
+- "Go to X" opens the circle. Published circles still open for logged-out users and for users
+  with no role.
+- Logged-out redirect-back passed.
+- **Not checked:** the banner refresh (b1 through the `/followers` banner) was skipped. The a5
+  "created but not notified" path rests on code review.
+
+### Follow-ups
+- Open redirect through `redirectTo`: it isn't validated anywhere.
+- The emailed login link doesn't carry `redirectTo`.
+- Feed link previews (`feed.ts`) and the personal-profile "my circles" list (`circle.ts`,
+  `includeMember`) show a draft's name and picture to any member, not just admins and
+  moderators.
+- The draft card on Settings › About ("Draft — not visible to others yet.") is now inaccurate.
+- No Connect option is visible on profiles. Look at this with queue item 4 (contact requests).
+- Consent and notification for direct Edit User Groups role changes on non-user circles.
+  Granting or removing Admin/Moderator takes effect instantly, with no invitation, no consent
+  step and no notification to the person. Confirmed on staging 2026-10-05: removing and
+  re-adding Cryp Tim as Moderator sent nothing, while the earlier invitation-flow notification
+  arrived correctly.
+- Invite email (a4): needs a template alias on both Postmark servers.
+- App-wide auth refresh (b3).
+- Other bare `/circles/<handle>` links, such as the `follow_accepted` push, 404 on circles
+  without the feed module (existing follow-up).
+- Font and `/donations` follow-ups moved to the 2026-10-07 entry.
+
+---
+
 ## 2026-09-06 — Venue participation in Offers shipped, plus two follow-on map fixes
 
 Headline: closed the venue-Offers gap flagged at the end of last night's entry (carry-forward item 33) — venues can now create and show Offers — then found and fixed two real bugs that only surfaced once real venue offer pins existed for the first time: a silent location-precision clamp, and a same-coordinate jitter that read as visually broken now that offer pins carry identity. Three separate promotions to `main` tonight, all via the file-diff/checkout method from item 32 below (reconfirmed again tonight, not just last time).
