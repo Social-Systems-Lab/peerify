@@ -317,16 +317,20 @@ export const upsertLegacyDmPermissionPair = async (didA: string, didB: string): 
 // of this rule) keeps working. Conversations created empty by the old profile "Message" button
 // don't count. Read only: this never writes, unlike the old version, which upserted legacy_dm
 // permission on every call. The stored legacy_dm fields are no longer consulted.
-let warnedMissingLegacyDmCutoff = false;
+//
+// Fails closed: a missing or invalid cutoff means no DM counts as legacy. The prod deploy
+// (scripts/deploy-common.sh) refuses to run without a valid one, using the same format check.
+const LEGACY_DM_CUTOFF_FORMAT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
+let loggedMissingLegacyDmCutoff = false;
 export const getLegacyDmCutoff = (): Date | null => {
-    const raw = process.env.LEGACY_DM_CUTOFF;
-    const cutoff = raw ? new Date(raw) : null;
+    const raw = process.env.LEGACY_DM_CUTOFF?.trim();
+    const cutoff = raw && LEGACY_DM_CUTOFF_FORMAT.test(raw) ? new Date(raw) : null;
     if (cutoff && !Number.isNaN(cutoff.getTime())) {
         return cutoff;
     }
-    if (!warnedMissingLegacyDmCutoff) {
-        warnedMissingLegacyDmCutoff = true;
-        console.warn("LEGACY_DM_CUTOFF is unset or invalid: any two-person DM with a message counts as legacy");
+    if (!loggedMissingLegacyDmCutoff) {
+        loggedMissingLegacyDmCutoff = true;
+        console.error("LEGACY_DM_CUTOFF is unset or invalid: no DM counts as legacy");
     }
     return null;
 };
@@ -355,7 +359,7 @@ const hasDmGrant = async (conversationId: string): Promise<boolean> => {
 };
 
 const isLegacyFirstMessage = (first: Date | undefined, cutoff: Date | null): boolean =>
-    !!first && (!cutoff || first.getTime() < cutoff.getTime());
+    !!first && !!cutoff && first.getTime() < cutoff.getTime();
 
 export const getDmEligibility = async (viewerDid: string, targetDid: string): Promise<DmEligibility> => {
     if (!viewerDid || !targetDid || viewerDid === targetDid) {

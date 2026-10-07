@@ -135,7 +135,48 @@ step_verify_environment() {
         fail "Env file not found at $ENV_FILE."
     fi
 
-    step_ok "dir=$PROJECT_DIR host=$actual_host branch=$actual_branch"
+    local env_note=""
+    if [ "$PM2_NAME" = "peerify" ]; then
+        check_prod_legacy_dm_cutoff
+        env_note=" LEGACY_DM_CUTOFF=$LEGACY_DM_CUTOFF_CHECKED"
+    fi
+
+    step_ok "dir=$PROJECT_DIR host=$actual_host branch=$actual_branch$env_note"
+}
+
+# Prod only. The DM rule (src/lib/data/relationships.ts getLegacyDmCutoff) grandfathers two-person
+# DMs whose first message is before LEGACY_DM_CUTOFF. Without a valid value the app grants no legacy
+# DMs, so existing conversations would go read-only. Refuse to deploy rather than ship that by
+# accident. The format check matches the app's: YYYY-MM-DDTHH:MM:SS[.fff](Z|+HH:MM|-HH:MM). A
+# cutoff more than an hour ahead is refused too: it would grandfather DMs started after the deploy.
+check_prod_legacy_dm_cutoff() {
+    local raw
+    raw="$(set -a; # shellcheck disable=SC1090
+        source "$ENV_FILE" >/dev/null 2>&1; printf '%s' "${LEGACY_DM_CUTOFF:-}")"
+    if [ -z "$raw" ]; then
+        fail "LEGACY_DM_CUTOFF is missing from $ENV_FILE. Set it to the prod deploy time of the DM rule (e.g. 2026-10-08T09:00:00Z) before deploying."
+    fi
+    local status=0
+    python3 - "$raw" <<'PYEOF' || status=$?
+import re, sys
+from datetime import datetime, timezone
+raw = sys.argv[1].strip()
+if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})", raw):
+    sys.exit(1)
+try:
+    cutoff = datetime.fromisoformat(re.sub(r"\.\d+", "", raw).replace("Z", "+00:00"))
+except ValueError:
+    sys.exit(1)
+if (cutoff - datetime.now(timezone.utc)).total_seconds() > 3600:
+    sys.exit(2)
+PYEOF
+    if [ "$status" -ne 0 ]; then
+        case $status in
+            2) fail "LEGACY_DM_CUTOFF in $ENV_FILE is more than one hour in the future: '$raw' (now $(date -u +%Y-%m-%dT%H:%M:%SZ)). It should be the time of this deploy." ;;
+            *) fail "LEGACY_DM_CUTOFF in $ENV_FILE is not a valid ISO date-time with a timezone: '$raw' (expected e.g. 2026-10-08T09:00:00Z)." ;;
+        esac
+    fi
+    LEGACY_DM_CUTOFF_CHECKED="$raw"
 }
 
 step_build() {
