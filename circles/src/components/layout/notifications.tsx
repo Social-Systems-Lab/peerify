@@ -31,6 +31,8 @@ import { Button } from "../ui/button";
 import { getAdminInvitationPath, getCircleDefaultPath } from "@/lib/utils/circle-routes";
 import { ConnectionOutcomeLabel, ProfileRelationshipHeaderAction } from "../modules/home/message-button";
 import { getConnectionNotificationBody } from "@/lib/connection-copy";
+import { useToast } from "@/components/ui/use-toast";
+import { findOrCreateDMConversationAction } from "../modules/chat/actions";
 
 type Notification = {
     id: string;
@@ -147,6 +149,7 @@ export const Notifications = ({
     const [isMarkingAllAsRead, setIsMarkingAllAsRead] = useState(false);
     const [isClearingRead, setIsClearingRead] = useState(false);
     const router = useRouter();
+    const { toast } = useToast();
 
     useEffect(() => {
         if (logLevel >= LOG_LEVEL_TRACE) {
@@ -600,6 +603,8 @@ export const Notifications = ({
         switch (notification.notificationType) {
             case "contact_request_received":
                 return "Respond";
+            case "contact_request_accepted":
+                return "Message";
             case "pm_received":
                 return "Reply";
             case "task_assigned":
@@ -650,7 +655,6 @@ export const Notifications = ({
             case "proposal_moved_to_voting":
             case "proposal_approved_for_voting":
             case "proposal_resolved":
-            case "contact_request_accepted":
                 return "View";
             default:
                 return null;
@@ -671,6 +675,25 @@ export const Notifications = ({
             onOpenConnections();
             return;
         }
+        // The new connection's DM, found or created here because the notification has no room id.
+        const acceptedBy = groupedNotification.latestNotification.user;
+        if (groupedNotification.notificationType === "contact_request_accepted" && acceptedBy?.did) {
+            const result = await findOrCreateDMConversationAction(acceptedBy);
+            const conversationId = result.chatRoom?._id || result.chatRoom?.handle;
+            if (!result.success || !conversationId) {
+                toast({
+                    title: "Message",
+                    description: result.message || "Could not open the direct message",
+                    variant: "destructive",
+                });
+                return;
+            }
+            if (onNavigate) {
+                onNavigate();
+            }
+            router.push(`/chat/${conversationId}`);
+            return;
+        }
         if (onNavigate) {
             onNavigate();
         }
@@ -682,7 +705,7 @@ export const Notifications = ({
         }
 
         console.log("Unknown notification type:", groupedNotification.latestNotification.notificationType);
-    }, [getNotificationHref, markNotificationGroupAsRead, onNavigate, onOpenConnections, router]);
+    }, [getNotificationHref, markNotificationGroupAsRead, onNavigate, onOpenConnections, router, toast]);
 
     // Helper function to create a grouped notification message
     const createGroupedMessage = (groupedNotification: GroupedNotification) => {
