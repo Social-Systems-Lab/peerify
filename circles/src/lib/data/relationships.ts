@@ -76,7 +76,6 @@ export type ProfileRelationshipState = {
     connectLabel: "Connect" | "Requested" | "Requested You" | null;
     messageVisibilityReason: DmEligibilityReason;
     connectLabelReason:
-        | "message_available"
         | "pending_sent"
         | "pending_received"
         | "contact_not_established"
@@ -435,18 +434,19 @@ export const getProfileRelationshipState = async (
         dmPermissionSource: dmEligibility.dmPermissionSource,
         hasExistingDm: dmEligibility.hasExistingConversation,
         showMessage: dmAllowed,
-        showConnect: !dmAllowed && connectStatus !== "accepted",
-        connectLabel: dmAllowed ? null : getConnectLabel(connectStatus),
+        // Connect shows whatever the DM state: a grandfathered pair who can still message gets
+        // Message and Connect side by side.
+        showConnect: connectStatus !== "accepted",
+        connectLabel: getConnectLabel(connectStatus),
         messageVisibilityReason: dmEligibility.reason,
-        connectLabelReason: dmAllowed
-            ? "message_available"
-            : connectStatus === "pending_sent"
-              ? "pending_sent"
-              : connectStatus === "pending_received"
-                ? "pending_received"
-              : connectStatus === "accepted"
-                ? "contact_established"
-                : "contact_not_established",
+        connectLabelReason:
+            connectStatus === "pending_sent"
+                ? "pending_sent"
+                : connectStatus === "pending_received"
+                  ? "pending_received"
+                  : connectStatus === "accepted"
+                    ? "contact_established"
+                    : "contact_not_established",
     };
 };
 

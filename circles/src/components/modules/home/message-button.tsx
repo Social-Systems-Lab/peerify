@@ -11,14 +11,22 @@ import {
     declineConnectRequestAction,
     getProfileRelationshipStateAction,
     sendConnectRequestAction,
+    withdrawConnectRequestAction,
 } from "./actions";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { useIsCompact } from "@/components/utils/use-is-compact";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { TbMessage } from "react-icons/tb";
 import { useRouter } from "next/navigation";
 import { findOrCreateDMConversationAction } from "../chat/actions";
-import { canPerformRestrictedAction } from "@/lib/auth/verification";
+import { canPerformRestrictedAction, UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import type { DmEligibilityReason } from "@/lib/data/relationships";
 
 type MessageButtonProps = {
@@ -32,14 +40,15 @@ export type RelationshipState = {
     showConnect: boolean;
     connectLabel: "Connect" | "Requested" | "Requested You" | null;
     messageVisibilityReason: DmEligibilityReason;
-    connectLabelReason:
-        | "message_available"
-        | "pending_sent"
-        | "pending_received"
-        | "contact_not_established"
-        | "contact_established";
+    connectLabelReason: "pending_sent" | "pending_received" | "contact_not_established" | "contact_established";
 };
 
+// Personal-profile header actions, by relationship:
+// - connected: Message
+// - not connected: Connect (plus Message if a legacy DM or grant still allows messaging)
+// - request sent: "Requested", whose menu offers Withdraw request
+// - request received: nothing here; ProfileRelationshipHeaderAction shows Accept / Decline
+// Viewers who aren't verified see Connect greyed out; pressing it explains why.
 export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => {
     const [user] = useAtom(userAtom);
     const router = useRouter();
@@ -49,30 +58,22 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
     const [relationshipState, reloadRelationshipState] = useProfileRelationshipState(circle, user?.did);
     const [isOpeningMessage, setIsOpeningMessage] = useState(false);
     const [isSendingConnect, setIsSendingConnect] = useState(false);
-    const [isAcceptingConnect, setIsAcceptingConnect] = useState(false);
-    const [isDecliningConnect, setIsDecliningConnect] = useState(false);
+    const [isWithdrawing, setIsWithdrawing] = useState(false);
 
-    if (!circle || !user?.did || circle.did === user.did || circle.circleType !== "user") {
+    if (!circle || !user?.did || circle.did === user.did || circle.circleType !== "user" || !relationshipState) {
         return null;
     }
 
-    const resolvedRelationshipState: RelationshipState = relationshipState || {
-        connectStatus: "none",
-        dmAllowed: false,
-        showConnect: false,
-        connectLabel: null,
-        messageVisibilityReason: "dm_not_allowed",
-        connectLabelReason: "contact_not_established",
-    };
-
-    const isConnectPresentationOnly =
-        resolvedRelationshipState.connectLabelReason === "pending_sent" ||
-        resolvedRelationshipState.connectLabelReason === "pending_received";
-    const isRespondingToConnect = isAcceptingConnect || isDecliningConnect;
     const canSendConnectRequest = canPerformRestrictedAction(user);
+    const connectButtonClassName = compact ? "rounded-full px-3" : "rounded-full";
 
     const handleConnectRequest = async () => {
-        if (!circle?.did || isSendingConnect || isRespondingToConnect || isConnectPresentationOnly) {
+        if (!circle?.did || isSendingConnect) {
+            return;
+        }
+
+        if (!canSendConnectRequest) {
+            toast({ title: "Connect", description: UNVERIFIED_PROFILE_EXPLAINER });
             return;
         }
 
@@ -82,7 +83,7 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
 
             if (!result.success) {
                 toast({
-                    title: resolvedRelationshipState.connectLabel || "Connect",
+                    title: "Connect",
                     description: result.message,
                 });
                 return;
@@ -99,11 +100,35 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
         } catch (error) {
             console.error("Failed to send connect request:", error);
             toast({
-                title: resolvedRelationshipState.connectLabel || "Connect",
+                title: "Connect",
                 description: "Failed to send connection request",
             });
         } finally {
             setIsSendingConnect(false);
+        }
+    };
+
+    const handleWithdrawRequest = async () => {
+        if (!circle?.did || isWithdrawing) {
+            return;
+        }
+
+        setIsWithdrawing(true);
+        try {
+            const result = await withdrawConnectRequestAction(circle.did);
+            if (!result.success) {
+                toast({ title: "Withdraw request", description: result.message });
+                return;
+            }
+
+            await reloadRelationshipState();
+            router.refresh();
+            toast({ title: "Connection request withdrawn" });
+        } catch (error) {
+            console.error("Failed to withdraw connect request:", error);
+            toast({ title: "Withdraw request", description: "Failed to withdraw connection request" });
+        } finally {
+            setIsWithdrawing(false);
         }
     };
 
@@ -140,37 +165,51 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
 
     return (
         <div className="flex flex-wrap items-center gap-2">
-            <Button
-                variant="outline"
-                className="gap-2 rounded-full"
-                data-message-reason={resolvedRelationshipState.messageVisibilityReason}
-                disabled={isOpeningMessage}
-                onClick={() => void handleMessageClick()}
-            >
-                {isOpeningMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <TbMessage className="h-4 w-4" />}
-                {isOpeningMessage ? "Opening..." : "Message"}
-            </Button>
-            {!resolvedRelationshipState.dmAllowed && resolvedRelationshipState.showConnect && (
-                resolvedRelationshipState.connectLabelReason !== "pending_received" && canSendConnectRequest ? (
-                    <Button
-                        variant="ghost"
-                        size={compact ? "sm" : "default"}
-                        className={compact ? "rounded-full px-3" : "rounded-full text-muted-foreground"}
-                        data-connect-reason={resolvedRelationshipState.connectLabelReason}
-                        disabled={isSendingConnect || isRespondingToConnect || isConnectPresentationOnly}
-                        onClick={handleConnectRequest}
-                    >
-                        {isSendingConnect ? "Sending..." : resolvedRelationshipState.connectLabel || "Connect"}
-                    </Button>
-                ) : null
-            )}
-            {resolvedRelationshipState.connectStatus === "accepted" && (
-                <Badge
-                    data-connect-reason={resolvedRelationshipState.connectLabelReason}
-                    className="inline-flex h-8 items-center rounded-full border border-[#c7d8cb] bg-[#f3f7f4] px-3 py-1 text-[#45604d] hover:bg-[#f3f7f4]"
+            {relationshipState.dmAllowed && (
+                <Button
+                    variant="outline"
+                    className="gap-2 rounded-full"
+                    data-message-reason={relationshipState.messageVisibilityReason}
+                    disabled={isOpeningMessage}
+                    onClick={() => void handleMessageClick()}
                 >
-                    Connected
-                </Badge>
+                    {isOpeningMessage ? <Loader2 className="h-4 w-4 animate-spin" /> : <TbMessage className="h-4 w-4" />}
+                    {isOpeningMessage ? "Opening..." : "Message"}
+                </Button>
+            )}
+            {relationshipState.connectStatus === "none" && (
+                <Button
+                    variant={relationshipState.dmAllowed ? "ghost" : "outline"}
+                    size={compact ? "sm" : "default"}
+                    className={cn(connectButtonClassName, !canSendConnectRequest && "opacity-50")}
+                    data-connect-reason={relationshipState.connectLabelReason}
+                    aria-disabled={!canSendConnectRequest}
+                    title={canSendConnectRequest ? undefined : UNVERIFIED_PROFILE_EXPLAINER}
+                    disabled={isSendingConnect}
+                    onClick={() => void handleConnectRequest()}
+                >
+                    {isSendingConnect ? "Sending..." : "Connect"}
+                </Button>
+            )}
+            {relationshipState.connectStatus === "pending_sent" && (
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button
+                            variant="outline"
+                            size={compact ? "sm" : "default"}
+                            className={cn(connectButtonClassName, "text-muted-foreground")}
+                            data-connect-reason={relationshipState.connectLabelReason}
+                            disabled={isWithdrawing}
+                        >
+                            {isWithdrawing ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                            Requested
+                            <ChevronDown className="ml-1 h-3.5 w-3.5" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                        <DropdownMenuItem onSelect={() => void handleWithdrawRequest()}>Withdraw request</DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             )}
         </div>
     );
