@@ -96,10 +96,11 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
             await reloadRelationshipState();
             router.refresh();
 
-            toast({
-                title: "Connection request sent",
-                description: "This profile now shows as Requested.",
-            });
+            toast(
+                result.connected
+                    ? { title: "You're now connected", description: "Messaging is now available for this connection." }
+                    : { title: "Connection request sent", description: "This profile now shows as Requested." },
+            );
         } catch (error) {
             console.error("Failed to send connect request:", error);
             toast({
