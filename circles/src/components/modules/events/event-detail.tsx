@@ -718,7 +718,9 @@ export default function EventDetail({
                             Edit
                         </Button>
                     )}
-                    {event.stage === "open" && <Button onClick={() => setInviteModalOpen(true)}>Invite</Button>}
+                    {canEdit && event.stage === "open" && (
+                        <Button onClick={() => setInviteModalOpen(true)}>Invite</Button>
+                    )}
                 </div>
             </div>
 
