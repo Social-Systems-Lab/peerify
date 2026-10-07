@@ -22,7 +22,7 @@ export default function GlobalNav() {
         }
     }, []);
 
-    const hideNavForRoutes = ["/", "/welcome", "/holding", "/donations", "/supporter", "/donate"];
+    const hideNavForRoutes = ["/", "/welcome", "/holding", "/donations", "/donate"];
 
     if (pathname && hideNavForRoutes.includes(pathname)) {
         return null;

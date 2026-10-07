@@ -32,6 +32,13 @@ const nextConfig = {
     env: {
         version,
     },
+    async redirects() {
+        return [
+            // /supporter (Kamooni-era ecosystem supporter page) was removed; /donations covers the same
+            // option. Permanent so old shared links and search results follow it.
+            { source: "/supporter", destination: "/donations", permanent: true },
+        ];
+    },
     experimental: {
         serverActions: {
             bodySizeLimit: "50mb",

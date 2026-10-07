@@ -86,10 +86,10 @@ export default function PublicDonationsPage() {
                                 <p className="pledge">€500 per month.</p>
                                 <p>Being an ecosystem supporter comes with a few meaningful perks, including a dedicated Circle on the platform.</p>
                                 <div className="link">
-                                    <Link href="/supporter">
-                                        Read about ecosystem support
+                                    <a href="mailto:hello@peerify.net">
+                                        Get in touch
                                         <ArrowIcon />
-                                    </Link>
+                                    </a>
                                 </div>
                             </div>
                         </div>

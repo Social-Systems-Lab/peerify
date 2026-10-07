@@ -1,8 +1,8 @@
-/* kam-fonts.css - self-hosted Montserrat and Noto Serif for the supporter and donations pages
+/* kam-fonts.css - self-hosted Montserrat and Noto Serif for the donations page
  *
- * Imported only by public-supporter-page.tsx and public-donations-page.tsx, so these fonts load on
- * those two pages and nowhere else, as before. That matters: Tailwind's font-sans/font-serif name
- * "Montserrat" and "Noto Serif" literally, so declaring them globally would change other pages.
+ * Imported only by public-donations-page.tsx, so these fonts load on that page and nowhere else, as
+ * before. That matters: Tailwind's font-sans/font-serif name "Montserrat" and "Noto Serif"
+ * literally, so declaring them globally would change other pages.
  *
  * Same approach and source as src/app/fonts.css (see there): the exact @font-face rules and woff2
  * subset files next/font/google produced for the known-good prod build 20261006-035331, under the
@@ -153,8 +153,7 @@
     size-adjust:118.40%;
 }
 
-/* The variables next/font used to set on each page's wrapper div. */
-.kam-supporter,
+/* The variables next/font used to set on the page's wrapper div. */
 .kam-donations {
     --font-montserrat: "Montserrat", "Montserrat Fallback";
     --font-noto-serif: "Noto Serif", "Noto Serif Fallback";
