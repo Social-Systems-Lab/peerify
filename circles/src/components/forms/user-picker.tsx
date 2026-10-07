@@ -22,6 +22,8 @@ type Props = {
     // and gate on events.view, the wrong permission for this feature.
     fetchInitial?: () => Promise<Circle[]>;
     fetchSearch?: (query: string, limit: number) => Promise<Circle[]>;
+    // Shown once the initial pool has loaded empty (before any search).
+    emptyMessage?: React.ReactNode;
 };
 
 export default function UserPicker({
@@ -32,11 +34,13 @@ export default function UserPicker({
     placeholder = "Invite users...",
     fetchInitial,
     fetchSearch,
+    emptyMessage,
 }: Props) {
     const [search, setSearch] = useState("");
     const [results, setResults] = useState<Circle[]>([]);
     const [selected, setSelected] = useState<Circle[]>(initialSelection);
     const [defaultUsers, setDefaultUsers] = useState<Circle[]>([]);
+    const [hasLoadedInitial, setHasLoadedInitial] = useState(false);
 
     useEffect(() => {
         const fetchInitialUsers = async () => {
@@ -48,6 +52,7 @@ export default function UserPicker({
             const filtered = (members || []).filter((u) => !excludeDids?.includes(u.did!));
             setDefaultUsers(filtered);
             setResults(filtered);
+            setHasLoadedInitial(true);
         };
         fetchInitialUsers();
     }, [circleHandle, excludeDids, fetchInitial]);
@@ -117,6 +122,9 @@ export default function UserPicker({
                     onChange={(e) => setSearch(e.target.value)}
                 />
             </div>
+            {emptyMessage && hasLoadedInitial && defaultUsers.length === 0 && search.length < 2 && (
+                <div className="mt-2 rounded-md border border-dashed p-3 text-sm text-muted-foreground">{emptyMessage}</div>
+            )}
             {results.length > 0 && (
                 <ScrollArea className="mt-2 h-40 rounded-md border">
                     {results.map((user) => (
