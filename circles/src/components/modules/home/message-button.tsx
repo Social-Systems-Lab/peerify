@@ -3,12 +3,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { userAtom } from "@/lib/data/atoms";
 import { Circle } from "@/models/models";
 import { useAtom } from "jotai";
@@ -20,7 +14,7 @@ import {
 } from "./actions";
 import { useToast } from "@/components/ui/use-toast";
 import { useIsCompact } from "@/components/utils/use-is-compact";
-import { ChevronDown, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { TbMessage } from "react-icons/tb";
 import { useRouter } from "next/navigation";
 import { findOrCreateDMConversationAction } from "../chat/actions";
@@ -191,7 +185,7 @@ export const ProfileRelationshipHeaderAction = ({
     pendingOnly,
 }: {
     circle: Circle;
-    // When true, only render the "Respond now" accept/decline control (pending_received).
+    // When true, only render the Accept / Decline controls (pending_received).
     // Skips the "Connected" badge so this can sit alongside MessageButton, which already
     // renders its own "Connected" badge for the accepted state.
     pendingOnly?: boolean;
@@ -279,29 +273,28 @@ export const ProfileRelationshipHeaderAction = ({
 
     if (relationshipState.connectLabelReason === "pending_received") {
         return (
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button
-                        variant="default"
-                        size="sm"
-                        className="rounded-full bg-amber-500 text-white shadow-sm hover:bg-amber-600 focus-visible:ring-amber-400"
-                        disabled={isResponding}
-                    >
-                        {isResponding ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-                        Respond now
-                        <ChevronDown className="ml-1 h-3.5 w-3.5" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                    <DropdownMenuItem onSelect={() => void handleAcceptRequest()}>Accept connection</DropdownMenuItem>
-                    <DropdownMenuItem
-                        className="text-amber-900 focus:bg-amber-50 focus:text-amber-950"
-                        onSelect={() => void handleDeclineRequest()}
-                    >
-                        Decline request
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-1">
+                <Button
+                    variant="default"
+                    size="sm"
+                    className="rounded-full bg-amber-500 text-white shadow-sm hover:bg-amber-600 focus-visible:ring-amber-400"
+                    disabled={isResponding}
+                    onClick={() => void handleAcceptRequest()}
+                >
+                    {isAcceptingConnect ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                    Accept
+                </Button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full"
+                    disabled={isResponding}
+                    onClick={() => void handleDeclineRequest()}
+                >
+                    {isDecliningConnect ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                    Decline
+                </Button>
+            </div>
         );
     }
 
