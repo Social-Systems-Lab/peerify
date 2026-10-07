@@ -139,6 +139,9 @@ export const UserToolbox = () => {
         pendingOutgoing: [],
     });
     const [isLoadingConnections, setIsLoadingConnections] = useState(true);
+    // Bumped each time the Connections tab opens, so a request that arrived after the toolbox
+    // mounted shows up (e.g. when a bell row switches straight to this tab).
+    const [connectionsReloadKey, setConnectionsReloadKey] = useState(0);
     const [respondingConnectionDid, setRespondingConnectionDid] = useState<string | null>(null);
     const handleToolboxEventHidden = useCallback(
         (eventId: string) => {
@@ -355,13 +358,21 @@ export const UserToolbox = () => {
             }
         };
 
-        setIsLoadingConnections(true);
+        if (connectionsReloadKey === 0) {
+            setIsLoadingConnections(true);
+        }
         void loadConnections();
 
         return () => {
             isMounted = false;
         };
-    }, [user?.did]);
+    }, [user?.did, connectionsReloadKey]);
+
+    useEffect(() => {
+        if (tab === "connections") {
+            setConnectionsReloadKey((key) => key + 1);
+        }
+    }, [tab]);
 
     const closeToolbox = useCallback(() => {
         setUserToolboxState(undefined);
@@ -785,7 +796,7 @@ export const UserToolbox = () => {
                         />
                     </TabsContent>
                     <TabsContent value="notifications" className="m-0 flex-grow overflow-auto pt-1">
-                        <Notifications onNavigate={closeToolbox} />
+                        <Notifications onNavigate={closeToolbox} onOpenConnections={() => setTab("connections")} />
                     </TabsContent>
                     <TabsContent value="circles" className="m-0 flex-grow overflow-auto pt-1">
                         {circles.length > 0 ? (
