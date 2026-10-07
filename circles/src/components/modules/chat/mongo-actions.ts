@@ -21,6 +21,7 @@ import {
     updateMessage,
     isActiveGroupMembership,
     resolveMongoConversationAccess,
+    addDmGrant,
 } from "@/lib/data/mongo-chat";
 import { ChatConversations, ChatMessageDocs, ChatRoomMembers, ChatRooms, Circles, Members } from "@/lib/data/db";
 import { getCircleByDid, getCircleByHandle, getCircleById, getCirclesByDids } from "@/lib/data/circle";
@@ -37,6 +38,10 @@ import {
     UNVERIFIED_PROFILE_EXPLAINER,
 } from "@/lib/auth/verification";
 import { getDmEligibility } from "@/lib/data/relationships";
+import { isAuthorized } from "@/lib/auth/auth";
+import { features } from "@/lib/data/constants";
+import { hasPeerifyPledgeFrom } from "@/lib/data/peerify-pledges";
+import type { DmGrantKind } from "@/lib/chat/mongo-types";
 import {
     formatPeerifyBookingEnquiryMessage,
     formatPeerifyPledgeEnquiryMessage,
@@ -928,9 +933,35 @@ export const toggleMongoReactionAction = async (
     return { success: true, reactions: reactionMap };
 };
 
+// An artist admin messaging one of the artist's pledgers or crew members from the Pledge or Crew
+// dashboard. The client only names the context; checkDmGrantContext verifies it on the server.
+export type DmGrantContext = { kind: Exclude<DmGrantKind, "enquiry">; circleId: string };
+
+const checkDmGrantContext = async (
+    senderDid: string,
+    recipientDid: string,
+    context: DmGrantContext,
+): Promise<boolean> => {
+    if (!context?.circleId || (context.kind !== "pledge" && context.kind !== "crew")) {
+        return false;
+    }
+    const circle = await getCircleById(context.circleId);
+    if (!circle?._id || !isPeerifyManagedIdentity(circle)) {
+        return false;
+    }
+    const circleId = String(circle._id);
+    if (!(await isAuthorized(senderDid, circleId, features.settings.edit_about))) {
+        return false;
+    }
+    if (context.kind === "pledge") {
+        return await hasPeerifyPledgeFrom(circleId, recipientDid);
+    }
+    return !!(await Members.findOne({ circleId, userDid: recipientDid, userGroups: "crew" }, { projection: { _id: 1 } }));
+};
+
 export const findOrCreateDMConversationAction = async (
     inRecipient: Circle,
-    options?: { source?: "composer" | "profile" },
+    options?: { source?: "composer" | "profile"; grantContext?: DmGrantContext },
 ): Promise<{ success: boolean; message?: string; chatRoom?: ChatRoomDisplay }> => {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -953,14 +984,25 @@ export const findOrCreateDMConversationAction = async (
 
     const source = options?.source || "composer";
     const dmEligibility = await getDmEligibility(userDid, recipient.did!);
-    if (source !== "profile" && !dmEligibility.isAllowed) {
+    const grantContext = options?.grantContext;
+    const grantVerified =
+        !dmEligibility.isAllowed && grantContext ? await checkDmGrantContext(userDid, recipient.did!, grantContext) : false;
+    if (source !== "profile" && !dmEligibility.isAllowed && !grantVerified) {
         return {
             success: false,
             message: "Messaging is only available for existing conversations and contacts right now.",
         };
     }
 
-    await findOrCreateDmConversation(currentUser, recipient);
+    const createdConversation = await findOrCreateDmConversation(currentUser, recipient);
+    if (grantVerified && grantContext && createdConversation?._id) {
+        await addDmGrant(String(createdConversation._id), {
+            kind: grantContext.kind,
+            circleId: grantContext.circleId,
+            grantedBy: userDid,
+            createdAt: new Date(),
+        });
+    }
 
     // Why this broke: list-based rediscovery depends on Members -> allowedCircleIds.
     // In prod, incomplete Members can hide the DM even when it was just created.
@@ -1159,6 +1201,14 @@ export const sendPeerifyArtistEnquiryAction = async ({
             }
 
             const conversationId = String(dmConversation._id);
+            // The enquiry itself is the verified reason for this DM: the enquirer can follow up
+            // and the artist can reply without being connected.
+            await addDmGrant(conversationId, {
+                kind: "enquiry",
+                circleId: String(artist._id),
+                grantedBy: userDid,
+                createdAt: new Date(),
+            });
             const doc = await createMessage({
                 conversationId,
                 senderDid: userDid,

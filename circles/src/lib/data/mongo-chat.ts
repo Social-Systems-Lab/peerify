@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 import { ChatRoomDisplay, Circle } from "@/models/models";
-import { ChatAttachment, ChatConversation, ChatMessageDoc, ChatReaction } from "@/lib/chat/mongo-types";
+import { ChatAttachment, ChatConversation, ChatMessageDoc, ChatReaction, DmGrant } from "@/lib/chat/mongo-types";
 import { ChatConversations, ChatMessageDocs, ChatReadStates, ChatRoomMembers } from "./db";
 import { getCircleByHandle, getCircleById, getCirclesByDids } from "./circle";
 import { getKamooniSystemSender, SystemSenderIdentity } from "@/config/system-sender";
@@ -179,6 +179,21 @@ export const findConversationByHandleForUser = async (
     return conversation ? normalizeConversation(conversation) : null;
 };
  
+
+// Records a server-verified grant on a DM, once per kind and circle.
+export const addDmGrant = async (conversationId: string, grant: DmGrant): Promise<void> => {
+    if (!ObjectId.isValid(conversationId)) {
+        return;
+    }
+    await ChatConversations.updateOne(
+        {
+            _id: new ObjectId(conversationId),
+            type: "dm",
+            dmGrants: { $not: { $elemMatch: { kind: grant.kind, circleId: grant.circleId } } },
+        },
+        { $push: { dmGrants: grant } } as any,
+    );
+};
 
 export const findOrCreateDmConversation = async (userA: Circle, userB: Circle): Promise<ChatConversation> => {
     const participants = [userA.did!, userB.did!].sort();

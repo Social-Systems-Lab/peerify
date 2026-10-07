@@ -1,3 +1,4 @@
+import { ObjectId } from "mongodb";
 import { Circle } from "@/models/models";
 import { ChatConversations, ChatMessageDocs, Circles, Members, UserRelationships } from "./db";
 
@@ -59,6 +60,7 @@ export type DmEligibilityReason =
     | "existing_dm_history"
     | "dm_permission_contact"
     | "dm_permission_recipient_setting"
+    | "dm_permission_conversation_grant"
     | "dm_not_allowed";
 
 export type ProfileRelationshipState = {
@@ -310,7 +312,8 @@ export const upsertLegacyDmPermissionPair = async (didA: string, didB: string): 
     return touchedEdges;
 };
 
-// New DMs need an accepted connection (or the recipient's own setting). The one exception is
+// New DMs need an accepted connection (or the recipient's own setting), or a server-verified
+// grant on the conversation (pledge, crew or enquiry; see DmGrant). The other exception is
 // legacy: a two-person DM whose first message is before LEGACY_DM_CUTOFF (the prod deploy time
 // of this rule) keeps working. Conversations created empty by the old profile "Message" button
 // don't count. Read only: this never writes, unlike the old version, which upserted legacy_dm
@@ -339,6 +342,17 @@ const getFirstMessageTimes = async (conversationIds: string[]): Promise<Map<stri
         { $group: { _id: "$conversationId", first: { $min: "$createdAt" } } },
     ]).toArray();
     return new Map(rows.map((row: any) => [String(row._id), new Date(row.first)]));
+};
+
+const hasDmGrant = async (conversationId: string): Promise<boolean> => {
+    if (!ObjectId.isValid(conversationId)) {
+        return false;
+    }
+    const conversation = await ChatConversations.findOne(
+        { _id: new ObjectId(conversationId), "dmGrants.0": { $exists: true } },
+        { projection: { _id: 1 } },
+    );
+    return !!conversation;
 };
 
 const isLegacyFirstMessage = (first: Date | undefined, cutoff: Date | null): boolean =>
@@ -374,6 +388,10 @@ export const getDmEligibility = async (viewerDid: string, targetDid: string): Pr
 
     if (relationshipEdge?.dmPermission === "allowed" && relationshipEdge.dmPermissionSource === "recipient_setting") {
         return { ...base, isAllowed: true, reason: "dm_permission_recipient_setting" };
+    }
+
+    if (existingConversationId && (await hasDmGrant(existingConversationId))) {
+        return { ...base, isAllowed: true, reason: "dm_permission_conversation_grant" };
     }
 
     if (existingConversationId) {
@@ -456,7 +474,7 @@ export const listDmEligibleContactsForUserDid = async (userDid: string): Promise
             archived: { $ne: true },
         },
         {
-            projection: { participants: 1 },
+            projection: { participants: 1, dmGrants: 1 },
         },
     ).toArray();
 
@@ -470,7 +488,12 @@ export const listDmEligibleContactsForUserDid = async (userDid: string): Promise
             ),
         );
         const otherDid = participants.find((did) => did !== userDid);
-        if (participants.length === 2 && otherDid && !contactDids.has(otherDid)) {
+        if (participants.length !== 2 || !otherDid || contactDids.has(otherDid)) {
+            continue;
+        }
+        if (Array.isArray((conversation as any)?.dmGrants) && (conversation as any).dmGrants.length > 0) {
+            contactDids.add(otherDid);
+        } else {
             otherDidByConversationId.set(String(conversation._id), otherDid);
         }
     }

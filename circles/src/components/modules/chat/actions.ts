@@ -36,6 +36,7 @@ import {
     getUnreadCountsAction as getUnreadCountsActionInternal,
     markConversationReadAction as markConversationReadActionInternal,
 } from "./mongo-actions";
+import type { DmGrantContext } from "./mongo-actions";
 
 const isActiveChatRoomMembership = (membership: any): boolean => {
     if (!membership) return false;
@@ -270,7 +271,7 @@ export const toggleMongoReactionAction = async (messageId: string, emoji: string
 
 export const findOrCreateDMConversationAction = async (
     inRecipient: Circle,
-    options?: { source?: "composer" | "profile" },
+    options?: { source?: "composer" | "profile"; grantContext?: DmGrantContext },
 ) => {
     return await findOrCreateDMConversationActionInternal(inRecipient, options);
 };

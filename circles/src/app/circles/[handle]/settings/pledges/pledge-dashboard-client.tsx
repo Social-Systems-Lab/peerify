@@ -654,11 +654,13 @@ function MessageComposeDialog({
         setError("");
         try {
             // Same two actions the rest of the app's messaging already uses: find-or-create the
-            // DM (source: "profile" skips the contacts-only eligibility gate, same as
-            // MessageButton on profile pages) then send into it — no new messaging
-            // infrastructure, and no navigation away from the Dashboard.
+            // DM then send into it — no new messaging infrastructure, and no navigation away from
+            // the Dashboard. The pledger needn't be a connection: the server checks that this is
+            // an admin of the artist and that the recipient pledged to it, and records a grant.
             const recipient: Circle = { did: pledge.pledgerDid };
-            const conversationResult = await findOrCreateDMConversationAction(recipient, { source: "profile" });
+            const conversationResult = await findOrCreateDMConversationAction(recipient, {
+                grantContext: { kind: "pledge", circleId: pledge.artistCircleId },
+            });
             const conversationId = conversationResult.chatRoom?._id || conversationResult.chatRoom?.handle;
             if (!conversationResult.success || !conversationId) {
                 setError(conversationResult.message || "Could not start the conversation.");
