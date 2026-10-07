@@ -154,6 +154,14 @@ export async function listPeerifyPledgesForArtist(artistCircleId: string): Promi
     return records.map(mapPledgeRecord);
 }
 
+export async function hasPeerifyPledgeFrom(artistCircleId: string, pledgerDid: string): Promise<boolean> {
+    if (!artistCircleId || !pledgerDid) {
+        return false;
+    }
+    const collection = await getPledgeCollection();
+    return !!(await collection.findOne({ artistCircleId, pledgerDid }, { projection: { _id: 1 } }));
+}
+
 export async function getPeerifyPledgeById(pledgeId: string): Promise<PeerifyPledgeRecord | null> {
     if (!ObjectId.isValid(pledgeId)) {
         return null;

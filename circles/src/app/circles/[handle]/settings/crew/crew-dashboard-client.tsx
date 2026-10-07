@@ -132,10 +132,13 @@ function MessageComposeDialog({
         setIsSending(true);
         setError("");
         try {
-            // Same generic DM actions the Pledge Dashboard already uses (source: "profile" skips
-            // the contacts-only eligibility gate) — no new messaging infrastructure needed here.
+            // Same generic DM actions the Pledge Dashboard already uses — no new messaging
+            // infrastructure needed here. The server checks that this is an admin of the artist
+            // and that the recipient is in its Crew, and records a grant.
             const recipient: Circle = { did: member.userDid };
-            const conversationResult = await findOrCreateDMConversationAction(recipient, { source: "profile" });
+            const conversationResult = await findOrCreateDMConversationAction(recipient, {
+                grantContext: { kind: "crew", circleId: member.circleId },
+            });
             const conversationId = conversationResult.chatRoom?._id || conversationResult.chatRoom?.handle;
             if (!conversationResult.success || !conversationId) {
                 setError(conversationResult.message || "Could not start the conversation.");

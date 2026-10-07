@@ -48,6 +48,20 @@ export type ChatConversation = {
     archived?: boolean;
     lastMessageAt?: Date;
     metadata?: ChatConversationMetadata;
+    // Server-verified reasons a two-person DM may exist without an accepted connection (see
+    // findOrCreateDMConversationAction and sendPeerifyArtistEnquiryAction). Either participant
+    // can send while one exists.
+    dmGrants?: DmGrant[];
+};
+
+export type DmGrantKind = "pledge" | "crew" | "enquiry";
+
+export type DmGrant = {
+    kind: DmGrantKind;
+    // The artist circle the pledge, crew membership or enquiry belongs to.
+    circleId: string;
+    grantedBy: string;
+    createdAt: Date;
 };
 
 export type ChatMessageDoc = {
