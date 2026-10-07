@@ -40,6 +40,73 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-07 — Queue item 4, Batches A and B: connections and the DM rule — on staging, not promoted
+
+Tim's decisions: new DMs need an accepted connection; Connect appears only on personal profiles;
+one term everywhere ("Connect" / "connection"); a decline is silent, and the requester keeps seeing
+"Requested" and can't resend for 30 days; push for requests stays on under "Messages".
+
+### Batch A: requests and notifications
+Staging commits `0de48860`..`bb3ba529`, plus the fix `afc16ae4`.
+- **Wording (`0de48860`):** "Add Contact" / "contact request" became "Connect" / "connection
+  request" in the header, the toolbox, notifications, push and email settings. Bodies come from
+  `src/lib/connection-copy.ts`, and the bell rebuilds them from the type and actor name, so old
+  rows read the same as new ones.
+- **Decline cooldown (`5bedad7f`):** declining sets the decliner's edge to `none` and leaves the
+  requester's edge `pending_sent` with `declinedAt`. `getEffectiveConnectStatus` treats it as
+  pending for 30 days, then as `none`. A resend inside the window succeeds silently and notifies
+  no one. If the decliner sends a request back inside the window, it auto-accepts (`connected:
+  true`, toast "You're now connected", fixed in `afc16ae4`).
+- **Server-resolved notifications (`b35d9e24`):** request notifications carry top-level
+  `actorDid`, and accept / decline / withdraw set a top-level `resolution`. `content` is
+  unchanged (the IMY workstream owns it); old rows are matched on `content.user.did`.
+- **Throttle (`463025b8`):** one request notification per pair per 24h. A resend within that
+  window reopens the existing row instead of adding one.
+- **Toolbox and bell (`45870b08`, `13ff3e84`, `99acdc74`, `e0170910`, `bb3ba529`):** inline
+  Accept / Decline; resolved rows show how they ended; repeat requests from one person collapse
+  into one row; a request row opens the toolbox Connections tab; "Message" on an accepted
+  notification opens the DM.
+
+### Batch B: the DM rule
+Staging commits `25f4c9c6`..`a67a9cd4`.
+- **Count script (`25f4c9c6`):** `scripts/count-dm-legacy-permissions.mongosh.js`, read-only,
+  counts only, with an `EXPECT_DB` guard and an optional `CUTOFF`. Tim runs it on prod before
+  promotion. The guard has only been exercised against staging.
+- **Eligibility (`b25d4733`):** `getDmEligibility` no longer writes. It allows a DM when the pair
+  is connected, the recipient's setting allows it, the conversation has a `dmGrants` entry, or
+  it's a two-person DM whose first message is before `LEGACY_DM_CUTOFF`. Empty conversations
+  created by the old profile "Message" button don't count. Stored `legacy_dm` fields are no
+  longer read.
+- **Grants (`5485cd91`):** pledge and crew DMs from an artist dashboard pass a `grantContext`.
+  The server checks that the circle is managed, the sender can edit its settings, and the
+  recipient has a pledge or a `crew` membership, then records the grant. Enquiries to an artist
+  record an `enquiry` grant. Either side can reply in a granted conversation.
+- **Enforcement (`43d201cf`, `9b2d7171`, `88314523`):** the `source === "profile"` bypass is
+  gone; new DMs without a connection are refused; sends, attachments and thread replies into an
+  ineligible two-person DM are refused; group-chat creators, and admins adding people later,
+  must pass the rule with everyone they add.
+- **UI (`875875a4`, `fdd6a676`, `097c5967`, `339c4d8f`, `f8e24dd6`):** Withdraw request; the
+  personal-profile header shows Connect / Requested ▾ / Message (grandfathered unconnected pairs
+  get Message and Connect); the DM banner and composer point non-connections to Connect;
+  new-chat and admin-invite pickers explain they list connections only.
+- **`LEGACY_DM_CUTOFF` (`a67a9cd4`):** documented in `.env.example`. Staging's `.env.local` has
+  `LEGACY_DM_CUTOFF=2026-10-07T14:31:27Z`.
+
+### Verified on staging
+Playwright with throwaway accounts (`qa-conn-*`, `qa-artist`), through the UI and by calling the
+server actions directly. Batch A: 26 checks; Batch B: every check, including server refusals,
+legacy vs. empty DMs, grants (allowed and refused), group chats, withdraw, the unverified-viewer
+Connect explainer, empty states, and the cutoff (a DM whose first message is after it is
+refused). All test records were deleted afterwards and staging's relationship counts are back to
+baseline. No real users were touched.
+
+**Status:** deployed to staging (`a67a9cd4`). Not promoted. Before promotion: Tim runs the count
+script on prod and does his own click-through; `LEGACY_DM_CUTOFF` goes into prod's `.env.local`
+just before that deploy. Batch C (Remove connection, event-invite skips reported to the inviter,
+batched bell lookups) is next.
+
+---
+
 ## 2026-10-07 — Prod font regression fixed: self-hosted fonts and a deploy font guard; /supporter retired — promoted to production
 
 ### Incident: prod rendered in a fallback serif (2026-10-05)
