@@ -842,3 +842,51 @@ export const declineConnectRequestAction = async (
         return { success: false, message: "Failed to decline connection request" };
     }
 };
+
+// Cancels the viewer's own pending request. If the request had been declined, the cooldown still
+// applies (declinedAt is kept), so a resend within it stays silent.
+export const withdrawConnectRequestAction = async (
+    targetDid: string,
+): Promise<{ success: boolean; message: string }> => {
+    const viewerDid = await getAuthenticatedUserDid();
+    if (!viewerDid) {
+        return { success: false, message: "You need to be logged in to withdraw a connection request" };
+    }
+
+    if (!targetDid || viewerDid === targetDid) {
+        return { success: false, message: "Invalid connection request" };
+    }
+
+    try {
+        const [viewerEdge, targetEdge] = await Promise.all([
+            getRelationshipEdge(viewerDid, targetDid),
+            getRelationshipEdge(targetDid, viewerDid),
+        ]);
+        if (getEffectiveConnectStatus(viewerEdge) !== "pending_sent") {
+            return { success: false, message: "No pending connection request to withdraw" };
+        }
+
+        const now = new Date();
+        await UserRelationships.updateOne(
+            { fromDid: viewerDid, toDid: targetDid },
+            { $set: { connectStatus: "none", updatedAt: now } },
+        );
+        if (targetEdge?.connectStatus === "pending_received") {
+            await UserRelationships.updateOne(
+                { fromDid: targetDid, toDid: viewerDid },
+                { $set: { connectStatus: "none", updatedAt: now } },
+            );
+        }
+
+        try {
+            await resolveConnectionRequestNotifications(targetDid, viewerDid, "withdrawn");
+        } catch (notificationError) {
+            console.error("Failed to resolve connection request notifications", notificationError);
+        }
+
+        return { success: true, message: "Connection request withdrawn" };
+    } catch (error) {
+        console.error("Failed to withdraw connect request", error);
+        return { success: false, message: "Failed to withdraw connection request" };
+    }
+};

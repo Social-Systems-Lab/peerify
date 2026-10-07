@@ -58,6 +58,7 @@ import {
     declineConnectRequestAction,
     getProfileRelationshipStateAction,
     sendConnectRequestAction,
+    withdrawConnectRequestAction,
 } from "@/components/modules/home/actions";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -406,17 +407,32 @@ const DmConnectBanner: React.FC<{ chatRoom: ChatRoomDisplay; user?: Circle | nul
                             Decline
                         </Button>
                     </div>
+                ) : state.connectStatus === "pending_sent" ? (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-full"
+                        disabled={isActing || isLoading}
+                        onClick={() =>
+                            void runContactAction(
+                                () => withdrawConnectRequestAction(otherParticipant.did!),
+                                "Withdraw request",
+                            )
+                        }
+                    >
+                        Withdraw request
+                    </Button>
                 ) : (
                     <Button
                         size="sm"
-                        variant={state.connectStatus === "pending_sent" ? "outline" : "default"}
+                        variant="default"
                         className="rounded-full"
-                        disabled={isActing || isLoading || state.connectStatus === "pending_sent"}
+                        disabled={isActing || isLoading}
                         onClick={() =>
                             void runContactAction(() => sendConnectRequestAction(otherParticipant.did!), "Connect")
                         }
                     >
-                        {state.connectStatus === "pending_sent" ? "Requested" : "Connect"}
+                        Connect
                     </Button>
                 )}
             </div>
