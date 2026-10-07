@@ -41,11 +41,8 @@ export default function PublicSupporterPage() {
                                 Explore
                             </Link>
                         </div>
-                        <div className="menu menu-right">
-                            <Link href="/login" className="login">
-                                Log in
-                            </Link>
-                        </div>
+                        {/* No login link here: the root layout's floating account menu already shows Log in /
+                            Sign up to visitors and the mail/tasks/notifications icons to members, in this corner. */}
                     </div>
                 </nav>
 
