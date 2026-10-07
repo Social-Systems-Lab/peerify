@@ -21,7 +21,8 @@ import {
     resolveMongoConversationAccess as resolveMongoConversationAccessInternal,
 } from "@/lib/data/mongo-chat";
 import { emitGroupChatMembershipSystemEvent, sendSystemMessage } from "@/lib/data/system-message-events";
-import { listDmEligibleContactsForUserDid } from "@/lib/data/relationships";
+import { listDidsFailingDmRule, listDmEligibleContactsForUserDid } from "@/lib/data/relationships";
+import { GROUP_REQUIRES_CONNECTIONS_MESSAGE } from "@/lib/connection-copy";
 import {
     listChatRoomsAction as listMongoChatRoomsAction,
     fetchMongoMessagesAction as fetchMongoMessagesActionInternal,
@@ -761,6 +762,10 @@ export const addMembersAction = async (
             members.map((member) => (typeof member?.userDid === "string" ? member.userDid : "")),
         );
         const memberDidsNewlyActivated = uniqueMemberDids.filter((did) => !existingActiveMemberDids.has(did));
+        // Whoever adds people must pass the DM rule with each newcomer, as the creator did.
+        if ((await listDidsFailingDmRule(userDid, memberDidsNewlyActivated)).length > 0) {
+            return { success: false, message: GROUP_REQUIRES_CONNECTIONS_MESSAGE };
+        }
         const now = new Date();
         for (const newMemberDid of uniqueMemberDids) {
             await ChatRoomMembers.updateOne(

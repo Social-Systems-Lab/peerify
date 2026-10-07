@@ -404,6 +404,14 @@ export const getDmEligibility = async (viewerDid: string, targetDid: string): Pr
     return { ...base, isAllowed: false, reason: "dm_not_allowed" };
 };
 
+// The DIDs in targetDids that userDid could not start a DM with. Group chats use it: a creator
+// (or an admin adding people later) must pass the DM rule with every participant they add.
+export const listDidsFailingDmRule = async (userDid: string, targetDids: string[]): Promise<string[]> => {
+    const uniqueTargets = Array.from(new Set(targetDids.filter((did) => did && did !== userDid)));
+    const results = await Promise.all(uniqueTargets.map((did) => getDmEligibility(userDid, did)));
+    return uniqueTargets.filter((_, index) => !results[index].isAllowed);
+};
+
 export const getProfileRelationshipState = async (
     viewerDid: string,
     targetDid: string,

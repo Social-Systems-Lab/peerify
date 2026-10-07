@@ -37,8 +37,8 @@ import {
     getRestrictedActionMessage,
     UNVERIFIED_PROFILE_EXPLAINER,
 } from "@/lib/auth/verification";
-import { getDmEligibility } from "@/lib/data/relationships";
-import { DM_REQUIRES_CONNECTION_MESSAGE } from "@/lib/connection-copy";
+import { getDmEligibility, listDidsFailingDmRule } from "@/lib/data/relationships";
+import { DM_REQUIRES_CONNECTION_MESSAGE, GROUP_REQUIRES_CONNECTIONS_MESSAGE } from "@/lib/connection-copy";
 import { isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { hasPeerifyPledgeFrom } from "@/lib/data/peerify-pledges";
@@ -1300,6 +1300,9 @@ export const createMongoGroupChatAction = async (
     }
 
     const participants = Array.from(new Set([userDid, ...participantDids])).filter(Boolean);
+    if ((await listDidsFailingDmRule(userDid, participants)).length > 0) {
+        return { success: false, message: GROUP_REQUIRES_CONNECTIONS_MESSAGE };
+    }
     const handle = name
         .toLowerCase()
         .trim()
