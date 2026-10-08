@@ -104,6 +104,10 @@ result and shows "Thanks — we'll get back to you soon." even though nothing wa
 spare-port server with Postmark blanked). A Postmark rejection (`send_failed`) does throw, so
 that case already shows the error message. Not to be fixed now.
 
+### Open item: subscription settings page shows no plans on staging
+`/circles/<handle>/settings/subscription` shows no plans on staging (seen by Tim on
+`tim-admin`). Not investigated. Low priority, not fixing now.
+
 ---
 
 ## 2026-10-08 — Item 4 promoted; credential exposure and Phase 1 rotation; server secrets and public locations fixed — all promoted to production
