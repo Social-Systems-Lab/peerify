@@ -15,6 +15,13 @@ export function canBypassVerificationRestrictions(user: VerificationSubject): bo
     return user?.isAdmin === true;
 }
 
+// Generic circles and projects (CircleWizard / saveBasicInfoAction) are platform-admin only.
+// Artist and venue identities and signup-as-artist have their own actions and are not gated by
+// this; ordinary users create those as before.
+export function canCreateGenericCircle(user: VerificationSubject): boolean {
+    return user?.isAdmin === true;
+}
+
 export function canPerformRestrictedAction(user: VerificationSubject): boolean {
     return canBypassVerificationRestrictions(user) || isVerifiedUser(user);
 }

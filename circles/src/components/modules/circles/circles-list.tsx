@@ -13,6 +13,7 @@ import { useAtom } from "jotai";
 import { contentPreviewAtom, sidePanelContentVisibleAtom, userAtom } from "@/lib/data/atoms";
 import { features, LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { isAuthorized } from "@/lib/auth/client-auth";
+import { canCreateGenericCircle } from "@/lib/auth/verification";
 import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useIsCompact } from "@/components/utils/use-is-compact";
 import { CirclePicture } from "./circle-picture";
@@ -49,7 +50,9 @@ const CirclesList = ({ circle, circles, activeTab, inUser, isProjectsList }: Cir
     const [user] = useAtom(userAtom);
     const isCompact = useIsCompact();
     const isMobile = useIsMobile();
-    const canCreateSubcircle = isAuthorized(user, circle, features.communities.create);
+    // Generic circles, sub-circles and projects are platform-admin only (saveBasicInfoAction
+    // enforces the same server-side).
+    const canCreateSubcircle = canCreateGenericCircle(user) && isAuthorized(user, circle, features.communities.create);
     const router = useRouter();
     const [contentPreview, setContentPreview] = useAtom(contentPreviewAtom);
     const [searchQuery, setSearchQuery] = useState("");
