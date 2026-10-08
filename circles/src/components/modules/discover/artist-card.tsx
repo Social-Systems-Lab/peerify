@@ -10,10 +10,11 @@ import { cancelFade, fadeOutPlayingAudio } from "@/lib/audio/fade";
 import { getTracksForCirclePreviewAction, TrackPreview } from "@/components/modules/circles/map-explorer-actions";
 import { CirclePicture } from "@/components/modules/circles/circle-picture";
 import { CirclePreview } from "@/components/layout/content-preview";
-import { Circle, WithMetric } from "@/models/models";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import type { DiscoverArtist } from "./actions";
 
 type ArtistCardProps = {
-    artist: WithMetric<Circle>;
+    artist: DiscoverArtist;
 };
 
 // audio-manager.ts's exclusivity pause (a different track starting) stays an instant .pause():
@@ -101,7 +102,11 @@ export default function ArtistCard({ artist }: ArtistCardProps) {
                     <div className="truncate text-sm text-gray-500">{subtitle}</div>
                     {bio && <div className="line-clamp-1 text-xs text-gray-400">{bio}</div>}
                 </div>
-                <ArtistCardPlayButton circleId={artist._id as string} artistName={artist.name || "artist"} />
+                <ArtistCardPlayButton
+                    circleId={artist._id as string}
+                    artistName={artist.name || "artist"}
+                    hasPlayableTracks={artist.hasPlayableTracks}
+                />
                 {expanded ? (
                     <ChevronUp className="h-5 w-5 flex-shrink-0 text-gray-400" />
                 ) : (
@@ -132,10 +137,24 @@ export default function ArtistCard({ artist }: ArtistCardProps) {
 // Since we don't know in advance whether this artist has any tracks (that's the whole point of
 // not fetching eagerly), the button starts in a generic, always-visible "idle" state rather than
 // staying hidden until data arrives. First tap: brief "loading" spinner while the fetch resolves,
-// then either becomes an interactive play/pause control or disappears (this artist has no
-// tracks). Every tap after that first one is instant — the fetched track stays cached in state.
-function ArtistCardPlayButton({ circleId, artistName }: { circleId: string; artistName: string }) {
-    const [status, setStatus] = useState<"idle" | "loading" | "ready" | "empty">("idle");
+// then becomes an interactive play/pause control. Every tap after that first one is instant — the
+// fetched track stays cached in state.
+//
+// hasPlayableTracks (from getDiscoverResultsAction) is a cheap "has any tracks" boolean, no track
+// data: when it's false the button renders greyed out from the start and never fetches. When the
+// fetch still comes back empty despite it (this viewer isn't allowed to play this artist's music,
+// or the action swallowed an error), the button greys out the same way instead of disappearing.
+// undefined means the flag lookup failed, so the button falls back to the plain lazy behaviour.
+function ArtistCardPlayButton({
+    circleId,
+    artistName,
+    hasPlayableTracks,
+}: {
+    circleId: string;
+    artistName: string;
+    hasPlayableTracks?: boolean;
+}) {
+    const [status, setStatus] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
     const [track, setTrack] = useState<TrackPreview | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const audioRef = useExclusiveAudio();
@@ -171,7 +190,12 @@ function ArtistCardPlayButton({ circleId, artistName }: { circleId: string; arti
         }
     }, [track, audioRef]);
 
-    if (status === "empty") return null;
+    if (hasPlayableTracks === false) {
+        return <UnavailablePlayButton label="No music uploaded yet" />;
+    }
+    if (status === "unavailable") {
+        return <UnavailablePlayButton label="Music not available" />;
+    }
 
     const handleTap = async (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -179,13 +203,15 @@ function ArtistCardPlayButton({ circleId, artistName }: { circleId: string; arti
         if (status === "idle") {
             setStatus("loading");
             autoPlayOnLoadRef.current = true;
-            const tracks = await getTracksForCirclePreviewAction(circleId);
+            // The action already returns [] for server-side errors; this catch covers the request
+            // itself failing (e.g. offline), which would otherwise leave the spinner stuck.
+            const tracks = await getTracksForCirclePreviewAction(circleId).catch(() => [] as TrackPreview[]);
             const first = tracks[0] ?? null;
             if (!first) {
                 autoPlayOnLoadRef.current = false;
             }
             setTrack(first);
-            setStatus(first ? "ready" : "empty");
+            setStatus(first ? "ready" : "unavailable");
             return;
         }
 
@@ -228,5 +254,42 @@ function ArtistCardPlayButton({ circleId, artistName }: { circleId: string; arti
                 Your browser does not support the audio element.
             </audio>
         </span>
+    );
+}
+
+// Greyed, non-playing stand-in for ArtistCardPlayButton. aria-disabled rather than the native
+// disabled attribute, because a disabled <button> gets no pointer events and the tooltip trigger
+// would never fire. Hover tooltips don't exist on touch, so a tap opens the tooltip too (it closes
+// again on any tap outside it, via Radix's own outside-pointer handling). Clicks and Enter/Space
+// stop here so they never toggle the card's expand handler on the parent row.
+function UnavailablePlayButton({ label }: { label: string }) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <TooltipProvider>
+            <Tooltip open={open} onOpenChange={setOpen}>
+                <TooltipTrigger asChild>
+                    <button
+                        type="button"
+                        aria-disabled="true"
+                        aria-label={label}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            // Radix's trigger closes the tooltip on click unless the event is
+                            // defaultPrevented, which would undo the tap-to-open below.
+                            e.preventDefault();
+                            setOpen(true);
+                        }}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="flex h-9 w-9 flex-shrink-0 cursor-not-allowed items-center justify-center rounded-full bg-gray-200 text-gray-400"
+                    >
+                        <Play className="h-4 w-4 pl-0.5" />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent className="z-[1000]">
+                    <p>{label}</p>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     );
 }

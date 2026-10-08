@@ -4,11 +4,19 @@ import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { searchDiscoverableCircles } from "@/lib/data/search";
 import { getMetricsForCircles } from "@/lib/data/circle";
 import { getOpenEventsForMap } from "@/lib/data/event";
+import { getCircleIdsWithTracks } from "@/lib/data/track";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { Circle, WithMetric, EventDisplay } from "@/models/models";
 
+// hasPlayableTracks is attached after searchDiscoverableCircles' public redaction, so it never
+// needs to go through SAFE_CIRCLE_PROJECTION / PUBLIC_LIST_EXTRA_FIELDS. It is viewer-independent
+// ("has any tracks"): ArtistCard still handles a viewer who can't play them (music access rules,
+// anonymous visitor on a non-managed artist) via its own empty-fetch fallback. Left undefined if
+// the lookup fails, which ArtistCard treats as "unknown" (today's lazy behaviour).
+export type DiscoverArtist = WithMetric<Circle> & { hasPlayableTracks?: boolean };
+
 export type DiscoverResults = {
-    artists: WithMetric<Circle>[];
+    artists: DiscoverArtist[];
     events: EventDisplay[];
 };
 
@@ -54,10 +62,19 @@ export async function getDiscoverResultsAction(input: DiscoverQueryInput): Promi
             : Promise.resolve([] as EventDisplay[]);
 
         const [candidateCircles, events] = await Promise.all([artistsPromise, eventsPromise]);
-        const artists = candidateCircles.filter((circle) => isPeerifyArtistIdentity(circle));
+        const artists: DiscoverArtist[] = candidateCircles.filter((circle) => isPeerifyArtistIdentity(circle));
 
         if (userDid && artists.length > 0) {
             await getMetricsForCircles(artists, userDid);
+        }
+
+        try {
+            const withTracks = await getCircleIdsWithTracks(artists.map((artist) => artist._id as string));
+            for (const artist of artists) {
+                artist.hasPlayableTracks = withTracks.has(artist._id as string);
+            }
+        } catch (error) {
+            console.error("getDiscoverResultsAction hasPlayableTracks lookup failed:", error);
         }
 
         return { artists, events: events || [] };
