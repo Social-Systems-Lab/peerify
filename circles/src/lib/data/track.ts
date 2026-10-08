@@ -42,6 +42,15 @@ export const getTracksByCircleId = async (circleId: string, featuredTrackId?: st
     return normalized;
 };
 
+// Which of the given artist circles have at least one track. Returns ids only, never track data,
+// so callers can expose it as a plain boolean (e.g. Discover's hasPlayableTracks). Every stored
+// Track is playable: uploadTrackAction only inserts after the preview transcode has succeeded.
+export const getCircleIdsWithTracks = async (circleIds: string[]): Promise<Set<string>> => {
+    if (circleIds.length === 0) return new Set();
+    const ids = (await Tracks.distinct("artistProfileId", { artistProfileId: { $in: circleIds } })) as string[];
+    return new Set(ids);
+};
+
 export const getTrackById = async (trackId: string): Promise<Track | null> => {
     if (!ObjectId.isValid(trackId)) {
         return null;
