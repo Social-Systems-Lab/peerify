@@ -39,6 +39,105 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-08 (later) — Discover play button; admin-only circle creation; pilot wording removed — promoted to production
+
+### Shipped to staging
+- `f0e77a84`: the Discover artist card's play button no longer disappears for an artist with
+  no tracks. `getDiscoverResultsAction` attaches a viewer-independent `hasPlayableTracks`
+  boolean (one `Tracks.distinct` over the page's artist ids, after public redaction; no
+  projection change, no track data exposed). False: greyed button, tooltip "No music uploaded
+  yet", never fetches. True but the fetch is empty or fails (music access rules, anonymous
+  viewer on a non-managed artist, errors): greyed, "Music not available".
+- `c52da889` (pre-existing bug, separate commit): Enter/Space on the play button bubbled to the
+  card row, which suppressed the click and expanded the card instead of playing.
+- Deployed via `deploy-staging.sh` (release `20261008-155729-c52da889`, prod pid unchanged).
+  Verified with Playwright on a spare port (desktop and mobile touch) and on live staging.
+- Verified by Tim on live staging: real playback with a freshly uploaded track, and the greyed
+  buttons.
+
+### Admin-only generic circle creation (`c31cf128`)
+- `canCreateGenericCircle(user)` = `isAdmin` (`lib/auth/verification.ts`). Non-admins no longer
+  see the Create modal's Circle/Project cards or CirclesList's Create Circle/Project button
+  (`/circles`, communities and projects tabs, so sub-circles too). `saveBasicInfoAction`
+  refuses its create branch for non-admins; the update branch is unchanged.
+- `canCreateIndependentCircle` now lets `isAdmin` through (admins without member perks were
+  refused top-level circles server-side although the wizard offered it).
+- Artist/venue identity actions and signup-as-artist (`createPilotArtistCircle`) are separate
+  paths and untouched.
+- Deployed via `deploy-staging.sh` (release `20261008-182546-c31cf128`, prod pid unchanged).
+- Verified before deploy, on a spare port with Postmark blanked in the launcher only: a
+  throwaway signup-as-artist still created its artist circle; no email reached Postmark. The
+  logged-in checks were not run (the DB write to complete email verification was blocked).
+  The throwaway was deleted straight after (user, artist circle, 3 members, chat room/members/
+  conversations/message, feed, key dir; Backstage Lounge `members` 9 -> 8); confirmed nothing
+  remains. Side effect left: `signupOrderCounter` advanced by 1.
+- Verified by Tim on live staging with his own admin account and a permanent non-admin test
+  account: both the admin and non-admin paths.
+
+### Pilot/prototype wording removed (`00b237fa`)
+- User-facing copy only: landing CTA "Join the prototype" -> "Join Peerify"; signup eyebrows
+  "Peerify Pilot Signup" (x3) -> "Join Peerify"; status badge "Test pilot" -> "Verified"; Code
+  of Conduct eyebrow "Pilot Verification" -> "Verification"; subscription free plan "Test
+  Pilots" -> "Community" plus two sentences; default welcome message and platform banner text
+  drop the pilot phrasing.
+- Unchanged on purpose: routes (`/signup/pilot`, `/onboarding/pilot`), CSS classes,
+  identifiers, stored values (`onboardingFlow: "pilot-quick-signup"`, localStorage key), and
+  the unrendered Kamooni pages.
+- Deployed via `deploy-staging.sh` (release `20261008-185914-00b237fa`, prod pid unchanged).
+  Checked on a spare port and on live staging: `/`, `/signup/pilot` (both roles) and
+  `/signup/pilot/check-email` show "Join Peerify" and no pilot/prototype text; no old string
+  remains in any client chunk.
+- Pending: Tim checks the admin System Messages template and the stored banner (they override
+  the defaults), plus Postmark templates, for pilot wording.
+
+### Promoted to production
+- Cherry-picked onto `main` (no conflicts; all 15 touched files identical to `staging`
+  before and after): `62152b4c` (= `f0e77a84`), `cf7d7659` (= `c52da889`), `8e7726be`
+  (= `c31cf128`), `0c0295c7` (= `00b237fa`). No SESSION_LOG commits. Pushed
+  `origin/main` `6cdec549..0c0295c7`.
+- Deployed via `scripts/deploy-peerify.sh` in the foreground, no other build in the prod
+  checkout (release `20261008-194729-0c0295c7`, BUILD_ID `pvvBTT33eNR_Cbtu0cyXG`, all 9 steps
+  passed, `peerify-staging` untouched).
+- Logged-out checks on https://peerify.one: `/`, `/signup/pilot` (both roles) and
+  `/signup/pilot/check-email` show "Join Peerify" and no pilot/prototype text; /discover shows
+  5 greyed and 12 playable artist buttons, the greyed tooltip reads "No music uploaded yet" and
+  doesn't expand the card; no page errors; no "hasPlayableTracks lookup failed" in the prod
+  error log. No prod DB access.
+- Pending on prod (Tim): admin and non-admin circle-creation paths, real playback, and the
+  stored welcome template and banner (they override the new defaults).
+
+### Open item: staging audio files missing
+Audio files are missing from the `circles-staging` bucket: live staging returns 404 on
+`/api/peerify/audio` for existing tracks (MinIO `statObject` → `NotFound`), so no existing
+staging track actually plays. Seen for Tim Solo, A Friendly Few and The Rank Amateurs on
+/discover. Not fixed here; for a separate chat.
+
+### Open item: contact form reports success when no email was sent
+`submitContactFormAction` calls `sendEmail`, which returns `{ ok: false, reason:
+"not_configured" }` instead of throwing when Postmark isn't configured. The action ignores the
+result and shows "Thanks — we'll get back to you soon." even though nothing was sent (seen on a
+spare-port server with Postmark blanked). A Postmark rejection (`send_failed`) does throw, so
+that case already shows the error message. Not to be fixed now.
+
+### Open item: subscription settings page shows no plans on staging
+`/circles/<handle>/settings/subscription` shows no plans on staging (seen by Tim on
+`tim-admin`). Not investigated. Low priority, not fixing now.
+
+### Open item: user status badge never renders
+`UserStatusBadge` (`modules/users/user-status-badge.tsx`, via `UserBadge`) is only used on post
+and comment author names (`feeds/post-list.tsx` `PostItem`/`CommentItem`,
+`discussions/discussion-list.tsx` `DiscussionItem`/`CommentItem`; the copy at
+`discussion-list.tsx:857` sits in a dead `{false && (` block). It returns null unless
+`circleType === "user"`, and the author objects built in `src/lib/data/feed.ts` (posts,
+highlighted comments, `getAllComments`) never include `circleType`, nor `verificationStatus` or
+`isFoundingMember` (comments lack `isVerified` too). So no Verified/Unverified/Founding Member
+badge shows anywhere; confirmed on live staging with a post by verified `cryp-tim`. Commit
+`00b237fa`'s "Test pilot" -> "Verified" therefore has no visible effect yet. Fix: add those
+fields to the author projections, after checking they're fine to expose publicly. Not fixing
+now.
+
+---
+
 ## 2026-10-08 — Item 4 promoted; credential exposure and Phase 1 rotation; server secrets and public locations fixed — all promoted to production
 
 ### Item 4 (connections and the DM rule) promoted
