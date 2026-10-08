@@ -230,6 +230,9 @@ function ArtistCardPlayButton({
             <button
                 type="button"
                 onClick={handleTap}
+                // Without this, Enter/Space bubble to the card row's onKeyDown, which
+                // preventDefault()s them (suppressing this button's own click) and toggles expand.
+                onKeyDown={(e) => e.stopPropagation()}
                 disabled={status === "loading"}
                 aria-label={isPlaying ? `Pause ${artistName}` : `Play ${artistName}`}
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500 text-white transition-colors hover:bg-orange-600 disabled:opacity-70"
