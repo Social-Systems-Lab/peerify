@@ -34,7 +34,7 @@ Peerify helps artists, listeners, fans, and hosts build real music communities a
 
 [Follow the official Peerify circle](${PEERIFY_BASE_URL}/circles/kamooni)
 
-That is where product updates, platform notes, and early pilot announcements will show up first.
+That is where product updates, platform notes, and announcements will show up first.
 
 **Useful next steps**
 

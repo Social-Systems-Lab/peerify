@@ -123,7 +123,7 @@ export default function PeerifyLandingPage() {
                         {user ? (
                             <Link href={getCircleDefaultPath(user)} className={"btnGhost"}>Go to profile</Link>
                         ) : (
-                            <Link href="/signup/pilot" className={"btnGhost"}>Join the prototype</Link>
+                            <Link href="/signup/pilot" className={"btnGhost"}>Join Peerify</Link>
                         )}
                     </div>
                 </div>

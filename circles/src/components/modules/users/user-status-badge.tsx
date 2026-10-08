@@ -45,7 +45,7 @@ export function UserStatusBadge({ user, className }: UserStatusBadgeProps) {
                     className,
                 )}
             >
-                Test pilot
+                Verified
             </Badge>
         );
     }

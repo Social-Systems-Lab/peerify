@@ -83,7 +83,7 @@ export default function SubscriptionForm({ circle: user }: { circle: Circle; onD
                 <div className="formatted mt-2 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-2">
                     <Card className="flex flex-col rounded-3xl p-4">
                         <CardHeader>
-                            <CardTitle className="text-2xl font-bold">Test Pilots</CardTitle>
+                            <CardTitle className="text-2xl font-bold">Community</CardTitle>
                             <CardDescription>€0 / forever</CardDescription>
                         </CardHeader>
                         <CardContent className="flex flex-grow flex-col space-y-4">
@@ -97,7 +97,7 @@ export default function SubscriptionForm({ circle: user }: { circle: Circle; onD
                                     optional.
                                 </p>
                                 <p>
-                                    Early users are joining as Test Pilots and helping us improve the platform together.
+                                    Early users are helping us shape and improve the platform together.
                                 </p>
                             </div>
 
@@ -205,7 +205,7 @@ export default function SubscriptionForm({ circle: user }: { circle: Circle; onD
 function FreeMembershipPanel() {
     return (
         <div className="space-y-5 pr-8">
-            <h3 className="text-2xl font-bold text-foreground">How Test Pilots can become supporters</h3>
+            <h3 className="text-2xl font-bold text-foreground">How to become a supporter</h3>
             <div className="space-y-4 text-sm leading-7 text-muted-foreground">
                 <p>
                     Peerify needs funding to stay open, independent, and accessible to as many people as possible, and we also want to

@@ -63,7 +63,7 @@ export function CodeOfConductAgreement({
             <div className="border-b border-stone-200 bg-stone-50 px-6 py-5 sm:px-8">
                 <div className="flex items-center gap-2 text-amber-700">
                     <ShieldCheck className="h-5 w-5" />
-                    <span className="text-sm font-semibold uppercase tracking-[0.18em]">Pilot Verification</span>
+                    <span className="text-sm font-semibold uppercase tracking-[0.18em]">Verification</span>
                 </div>
                 <div className="mt-3 space-y-2">
                     <h2 className="text-2xl font-semibold">Agree to the Peerify Code of Conduct</h2>
