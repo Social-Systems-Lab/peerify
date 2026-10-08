@@ -56,7 +56,7 @@ export function LocationStep({
 
     return (
         <div className="space-y-6">
-            <LocationPicker value={location} onChange={setLocation} compact />
+            <LocationPicker value={location} onChange={setLocation} compact profileLocation />
 
             {showSearchToggle ? (
                 <div className="space-y-2 rounded-lg border p-4">

@@ -1054,7 +1054,7 @@ export const DynamicLocationField: React.FC<RenderFieldProps> = ({ field, formFi
         <FormItem>
             <FormLabel>{getUserOrCircleInfo(field.label, isUser)}</FormLabel>
             <FormControl>
-                <LocationPicker value={formField.value} onChange={formField.onChange} />
+                <LocationPicker value={formField.value} onChange={formField.onChange} profileLocation />
             </FormControl>
             {field.description && <FormDescription>{getUserOrCircleInfo(field.description, isUser)}</FormDescription>}
             <FormMessage />

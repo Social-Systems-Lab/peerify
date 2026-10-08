@@ -140,9 +140,55 @@ export type LocationViewerContext = {
     viewerIsAdmin?: boolean;
 };
 
+// Public location rule: city or coarser unless the owner explicitly opted into "exact".
+// LocationPicker used to default to Exact (4) — in compact mode without even showing the choice —
+// so a stored precision 4 isn't a disclosure decision on its own. Only a location whose owner
+// ticked "Show my exact location publicly" (LocationPicker stores exactConfirmedAt) is shown
+// exactly; any other precision-4 location is shown at city level with its pin snapped to a
+// ~5 km grid. Owners and platform admins bypass this, like every other redaction here.
+export const PUBLIC_COARSE_PIN_GRID_DEGREES = 0.05;
+
+export function hasConfirmedExactLocation(location: Location | undefined): boolean {
+    return location?.precision === 4 && !!location.exactConfirmedAt;
+}
+
+const snapToGrid = (value: number) =>
+    Math.round(Math.round(value / PUBLIC_COARSE_PIN_GRID_DEGREES) * PUBLIC_COARSE_PIN_GRID_DEGREES * 1e6) / 1e6;
+
+export function coarsenLngLat(lngLat: Location["lngLat"]): Location["lngLat"] {
+    if (!lngLat || typeof lngLat.lng !== "number" || typeof lngLat.lat !== "number") {
+        return undefined;
+    }
+    return { lng: snapToGrid(lngLat.lng), lat: snapToGrid(lngLat.lat) };
+}
+
+// An unconfirmed "exact" location as the public sees it: city level, no street, coarse pin.
+// Callers must not redact the result again (city level would then drop the pin).
+function toUnconfirmedExactPublicLocation(location: Location): Location {
+    const { street: _street, exactConfirmedAt: _confirmed, ...rest } = location;
+    return { ...rest, precision: 2, lngLat: coarsenLngLat(location.lngLat) };
+}
+
+// Offers map pins (lib/data/circle.ts) — see the comment above its caller there. The same for
+// every viewer: the real pin and street only when the owner confirmed "exact"; otherwise city
+// level at most, with the pin snapped to the public ~5 km grid so it still renders.
+export function getOfferPinLocation(location: Location | undefined): Location | undefined {
+    if (!location?.lngLat) {
+        return location;
+    }
+    if (hasConfirmedExactLocation(location)) {
+        return location;
+    }
+    const { street: _street, exactConfirmedAt: _confirmed, ...rest } = location;
+    return { ...rest, precision: Math.min(location.precision ?? 2, 2), lngLat: coarsenLngLat(location.lngLat) };
+}
+
 // Pure: returns a new Location object (or the same reference when nothing changes), never
 // mutates its input. Strips fields above the location's own declared precision.
 function capLocationToPrecision(location: Location): Location {
+    if (location.precision === 4 && !hasConfirmedExactLocation(location)) {
+        return toUnconfirmedExactPublicLocation(location);
+    }
     switch (location.precision) {
         default:
         case 0: // country
