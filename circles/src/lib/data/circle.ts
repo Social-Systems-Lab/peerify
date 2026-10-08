@@ -21,8 +21,8 @@ import { ObjectId } from "mongodb";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
-import { redactCircleLocationForViewer, viewerBypassesLocationRedaction } from "../utils";
-import { toPublicLocation } from "../utils/public-circle";
+import { getOfferPinLocation, redactCircleLocationForViewer, viewerBypassesLocationRedaction } from "../utils";
+import { toPublicCircleListItem, toPublicLocation } from "../utils/public-circle";
 import { deleteVbdCircle, deleteVbdPost, upsertVbdCircles } from "./vdb";
 import { createDefaultChatRooms, getChatRoomByHandle, updateChatRoom } from "./chat";
 import { createDefaultFeed } from "./feed";
@@ -319,14 +319,10 @@ export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => 
             circle._id = circle._id.toString();
         }
     });
-    // redactCircleLocationForViewer, not the plain filterLocations/redactLocationForViewer other
-    // callers (e.g. member.ts) use — this list includes venue circles, which need the extra
-    // addressVisibility-based ceiling (see that function's own comment in lib/utils.ts).
-    circles = circles.map((circle) => {
-        const location = redactCircleLocationForViewer(circle, { viewerDid, viewerIsAdmin: isAdmin });
-        return location === circle.location ? circle : { ...circle, location };
-    });
-    return circles;
+    // These reach anonymous visitors (/explore). toPublicCircleListItem allow-lists the fields,
+    // strips private metadata and redacts the location (redactCircleLocationForViewer: venue
+    // addressVisibility ceiling, city level with a coarse pin unless "exact" was confirmed).
+    return circles.map((circle) => toPublicCircleListItem(circle, { viewerDid, viewerIsPlatformAdmin: isAdmin }));
 };
 
 // Internal-only projection for the Offers map layer — deliberately separate from
@@ -357,36 +353,16 @@ type OfferMapCircleRow = {
     metadata?: { peerify?: { identityType?: string } };
 };
 
-// Offer-pin location is decoupled entirely from the profile's own location.precision-gated
+// Offer-pin location (getOfferPinLocation, lib/utils.ts) is decoupled entirely from the profile's own location.precision-gated
 // redaction (filterLocations/redactLocationForViewer) and from viewer identity — no owner/admin
 // bypass, same value for everyone. Two cases:
-// - precision === 4 (Exact): use the real lngLat unchanged. Covers venues/businesses who've
-//   already consented to precise findability by setting Exact precision; being precisely
-//   findable is the point of a venue listing.
-// - anything below Exact: a circle's own precision choice governs OTHER surfaces (their own
-//   profile pin, search results, etc.) but must never silently block Offers pins from rendering
-//   at all — that was a real bug (toggle on, count shows, no pin, no explanation why). Falls back
-//   to a fixed, coarse ~1km-resolution coordinate (snapped to the nearest 0.01° grid point)
-//   instead, so a pin always renders once offersVisible is on, regardless of what precision the
-//   profile happens to have chosen for unrelated purposes.
-const OFFER_PIN_COARSE_GRID_DEGREES = 0.01;
-
-function getOfferPinLocation(location: Location | undefined): Location | undefined {
-    if (!location?.lngLat) {
-        return location;
-    }
-    if (location.precision === 4) {
-        return location;
-    }
-    return {
-        ...location,
-        street: undefined,
-        lngLat: {
-            lng: Math.round(location.lngLat.lng / OFFER_PIN_COARSE_GRID_DEGREES) * OFFER_PIN_COARSE_GRID_DEGREES,
-            lat: Math.round(location.lngLat.lat / OFFER_PIN_COARSE_GRID_DEGREES) * OFFER_PIN_COARSE_GRID_DEGREES,
-        },
-    };
-}
+// - precision 4 confirmed by the owner (exactConfirmedAt, "Show my exact location publicly"):
+//   the real lngLat. Being precisely findable is the point of a venue listing, but it has to be
+//   an explicit choice: LocationPicker used to store 4 by default.
+// - anything else: a circle's own precision choice governs OTHER surfaces but must never silently
+//   block Offers pins from rendering at all — that was a real bug (toggle on, count shows, no
+//   pin, no explanation why). Falls back to a coarse coordinate snapped to the public ~5 km grid
+//   (PUBLIC_COARSE_PIN_GRID_DEGREES, 0.05°), so a pin always renders once offersVisible is on.
 
 // Global, cross-circle query for Offer map pins — one pin PER OFFER, not per circle. A circle
 // with 3 offerings produces 3 pins here, each carrying that one offering's type/label and the
@@ -628,11 +604,14 @@ export const getCirclesWithMetrics = async (
     // gets its location at city level at most — never street or lngLat, whatever precision is
     // stored. redactCircleLocationForViewer first, for the venue addressVisibility ceiling.
     const viewer = { viewerDid: userDid, viewerIsAdmin: await resolveViewerIsAdmin(userDid) };
-    circles = circles.map((circle) =>
-        !circle.location || viewerBypassesLocationRedaction(circle.did, viewer)
-            ? circle
-            : { ...circle, location: toPublicLocation(redactCircleLocationForViewer(circle, viewer)) },
-    );
+    circles = circles.map((circle) => {
+        if (viewerBypassesLocationRedaction(circle.did, viewer)) return circle;
+        // Allow-listed fields and public metadata only; location without street or pin.
+        const item = toPublicCircleListItem(circle, { viewerDid: userDid, viewerIsPlatformAdmin: viewer.viewerIsAdmin });
+        if (item === circle) return circle;
+        const location = toPublicLocation(redactCircleLocationForViewer(circle, viewer));
+        return { ...item, location };
+    });
 
     console.log("🔍 [DB] getCirclesWithMetrics result:", {
         count: circles.length,

@@ -67,6 +67,7 @@ const PUBLIC_CIRCLE_FIELDS = [
 const PUBLIC_LOCATION_FIELDS = ["city", "region", "country", "countryCode", "precision"] as const;
 const PUBLIC_PEERIFY_FIELDS = ["intent", "managedIdentity", "identityType"] as const;
 const PUBLIC_ARTIST_PROFILE_FIELDS = [
+    "baseCity",
     "primaryGenres",
     "primaryGenreOther",
     "genres",
@@ -82,7 +83,12 @@ const PUBLIC_BOOKING_SETTINGS_FIELDS = [
     "localBookingsOnly",
     "preferredEventTypes",
 ] as const;
+// Logged-in viewers also get technicalNeeds (Tim, 2026-10-08).
+const LOGGED_IN_BOOKING_SETTINGS_FIELDS = [...PUBLIC_BOOKING_SETTINGS_FIELDS, "technicalNeeds"] as const;
 const PRIVATE_VENUE_PROFILE_FIELDS = new Set(["address", "publicCity"]);
+// Contact details and the booking note are for logged-in viewers only (Tim, 2026-10-08). phone is
+// treated like contactEmail.
+const LOGGED_IN_VENUE_PROFILE_FIELDS = new Set(["contactEmail", "phone", "bookingNote"]);
 
 type AnyRecord = Record<string, unknown>;
 
@@ -106,7 +112,9 @@ const pickPresent = (source: AnyRecord, keys: readonly string[]): AnyRecord => {
 export const toPublicLocation = (location: Location | undefined): Location | undefined =>
     location ? (pickPresent(location as AnyRecord, PUBLIC_LOCATION_FIELDS) as Location) : location;
 
-const toPublicMetadata = (metadata: Circle["metadata"]): Circle["metadata"] => {
+// Only metadata.peerify's listed public fields survive: onboardingFlow, signupIntent,
+// autoProvisionedFromSignup, authProviders and anything else stored there never go out.
+export const toPublicMetadata = (metadata: Circle["metadata"], viewerLoggedIn: boolean): Circle["metadata"] => {
     const peerify = asRecord(metadata?.peerify);
     if (!peerify) {
         return undefined;
@@ -119,7 +127,10 @@ const toPublicMetadata = (metadata: Circle["metadata"]): Circle["metadata"] => {
         const publicArtistProfile = pickPresent(artistProfile, PUBLIC_ARTIST_PROFILE_FIELDS);
         const bookingSettings = asRecord(artistProfile.bookingSettings);
         if (artistProfile.bookingEnabled === true && bookingSettings) {
-            publicArtistProfile.bookingSettings = pickPresent(bookingSettings, PUBLIC_BOOKING_SETTINGS_FIELDS);
+            publicArtistProfile.bookingSettings = pickPresent(
+                bookingSettings,
+                viewerLoggedIn ? LOGGED_IN_BOOKING_SETTINGS_FIELDS : PUBLIC_BOOKING_SETTINGS_FIELDS,
+            );
         }
         publicPeerify.artistProfile = publicArtistProfile;
     }
@@ -127,7 +138,10 @@ const toPublicMetadata = (metadata: Circle["metadata"]): Circle["metadata"] => {
     const venueProfile = asRecord(peerify.venueProfile);
     if (venueProfile) {
         publicPeerify.venueProfile = Object.fromEntries(
-            Object.entries(venueProfile).filter(([key]) => !PRIVATE_VENUE_PROFILE_FIELDS.has(key)),
+            Object.entries(venueProfile).filter(
+                ([key]) =>
+                    !PRIVATE_VENUE_PROFILE_FIELDS.has(key) && (viewerLoggedIn || !LOGGED_IN_VENUE_PROFILE_FIELDS.has(key)),
+            ),
         );
     }
 
@@ -164,7 +178,7 @@ export function toPublicCircle(
         publicCircle.location = pickPresent(redactedLocation, PUBLIC_LOCATION_FIELDS) as Circle["location"];
     }
 
-    const publicMetadata = toPublicMetadata(circle.metadata);
+    const publicMetadata = toPublicMetadata(circle.metadata, !!viewerDid);
     if (publicMetadata) {
         publicCircle.metadata = publicMetadata;
     }
@@ -174,4 +188,49 @@ export function toPublicCircle(
     }
 
     return publicCircle;
+}
+
+// Extra top-level fields the list surfaces (Explore map and swipe cards, search, Discover, the
+// circles directory) read on top of PUBLIC_CIRCLE_FIELDS. tourTeamOfferings is only present
+// when the caller already decided this viewer may see it (searchDiscoverableCircles).
+const PUBLIC_LIST_EXTRA_FIELDS = [
+    "metrics",
+    "cover",
+    "isPublic",
+    "mapVisible",
+    "searchable",
+    "isVerified",
+    "verificationStatus",
+    "isMember",
+    "foundingMemberNumber",
+    "createdAt",
+    "primaryGenres",
+    "primaryGenreOther",
+    "representsOrganization",
+    "organizationName",
+    "offersVisible",
+    "tourTeamOfferings",
+] as const;
+const PUBLIC_LIST_LOCATION_FIELDS = [...PUBLIC_LOCATION_FIELDS, "street", "lngLat"] as const;
+
+// For circles in lists that reach anonymous visitors. Unlike toPublicCircle (profile pages, no
+// pin), these keep a map pin, so the location is redacted here (city or coarser unless the owner
+// confirmed "exact", venue addressVisibility ceiling) rather than dropped. Callers pass the
+// stored location — or undefined to hide it — and must not redact it themselves first.
+// Owners and platform admins get the circle back unchanged.
+export function toPublicCircleListItem<T extends Circle>(circle: T, viewer: Omit<PublicCircleViewer, "viewerCanManage">): T {
+    const { viewerDid, viewerIsPlatformAdmin } = viewer;
+    if (viewerIsPlatformAdmin || (!!viewerDid && (circle.did === viewerDid || circle.createdBy === viewerDid))) {
+        return circle;
+    }
+    const item = pickPresent(circle as AnyRecord, [...PUBLIC_CIRCLE_FIELDS, ...PUBLIC_LIST_EXTRA_FIELDS]) as T;
+    const location = redactCircleLocationForViewer(circle, { viewerDid, viewerIsAdmin: viewerIsPlatformAdmin });
+    if (location) {
+        item.location = pickPresent(location as AnyRecord, PUBLIC_LIST_LOCATION_FIELDS) as Location;
+    }
+    const metadata = toPublicMetadata(circle.metadata, !!viewerDid);
+    if (metadata) {
+        item.metadata = metadata;
+    }
+    return item;
 }

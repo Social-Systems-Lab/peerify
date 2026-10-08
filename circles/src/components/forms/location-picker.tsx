@@ -13,6 +13,7 @@ import { useAtom } from "jotai";
 import { LngLat, Location } from "@/models/models";
 import { AutoComplete, Option } from "@/components/ui/autocomplete";
 import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const precisionLevels = [
     { name: "Country", icon: Globe, zoom: 3 },
@@ -28,15 +29,40 @@ interface LocationPickerProps {
     value?: Location;
     onChange: (value: Location) => void;
     compact?: boolean; // Add compact mode option
+    // A circle's or person's own profile location. Defaults to City, and "Exact" is only shown
+    // publicly after the owner ticks "Show my exact location publicly" (stored as
+    // exactConfirmedAt — see hasConfirmedExactLocation in lib/utils.ts). Off for post, event,
+    // task and issue locations, which have their own display rules.
+    profileLocation?: boolean;
 }
 
-const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compact = false }) => {
+// Public rule for profile locations (lib/utils.ts): exact only with an explicit opt-in.
+const PROFILE_DEFAULT_PRECISION = 2;
+
+const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compact = false, profileLocation = false }) => {
     const map = useRef<mapboxgl.Map | null>(null);
     const mapContainer = useRef<HTMLDivElement | null>(null);
     const mapMarker = useRef<mapboxgl.Marker | null>(null);
     const [searchOptions, setSearchOptions] = useState<Option[]>([]);
-    // Default to Exact precision (4), regardless of whether location is set
-    const [precision, setPrecision] = useState<PrecisionLevel>((value?.precision as PrecisionLevel) ?? 4);
+    // Profile locations default to City; other locations keep the old Exact default.
+    const [precision, setPrecision] = useState<PrecisionLevel>(
+        (value?.precision as PrecisionLevel) ?? (profileLocation ? PROFILE_DEFAULT_PRECISION : 4),
+    );
+    // Profile locations only: the owner's explicit opt-in to showing the exact location publicly.
+    const [exactConfirmed, setExactConfirmed] = useState<boolean>(!!value?.exactConfirmedAt);
+    const exactCheckboxId = React.useId();
+    // Adds or removes exactConfirmedAt so it's only ever present on a confirmed, exact location.
+    const withExactOptIn = useCallback(
+        (location: Location): Location => {
+            if (!profileLocation) return location;
+            if (location.precision === 4 && exactConfirmed) {
+                return { ...location, exactConfirmedAt: value?.exactConfirmedAt ?? new Date() };
+            }
+            const { exactConfirmedAt: _removed, ...rest } = location;
+            return rest;
+        },
+        [profileLocation, exactConfirmed, value?.exactConfirmedAt],
+    );
     const [mapboxKey] = useAtom(mapboxKeyAtom);
     const [isLoading, setIsLoading] = useState(false);
     const [isLocating, setIsLocating] = useState(false);
@@ -207,7 +233,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
 
             setLocationError(null);
             // After map updates are done, update the location state
-            onChange(newLocation);
+            onChange(withExactOptIn(newLocation));
             return true;
         } catch (error) {
             console.error("Error updating location:", error);
@@ -216,13 +242,13 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
         }
     };
 
-    // This effect updates the location's precision when the slider changes
+    // This effect updates the location's precision (and exact opt-in) when the slider or checkbox changes
     useEffect(() => {
         if (value && value.lngLat) {
-            // Only update if we have an actual location and precision has changed
-            if (value.precision !== precision) {
-                const updatedValue = { ...value, precision };
-                onChange(updatedValue);
+            // Only update if we have an actual location and precision or opt-in has changed
+            const wantsConfirmed = profileLocation && precision === 4 && exactConfirmed;
+            if (value.precision !== precision || wantsConfirmed !== !!value.exactConfirmedAt) {
+                onChange(withExactOptIn({ ...value, precision }));
             }
 
             // Always update the map view when precision changes
@@ -231,7 +257,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
                 mapMarker.current.setLngLat(value.lngLat);
             }
         }
-    }, [precision, onChange]);
+    }, [precision, exactConfirmed, onChange]);
 
     // Reflects a `value` that arrived from outside this component's own onChange loop (e.g. a
     // parent prefilling from the creating circle's saved location only after this component has
@@ -397,7 +423,7 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
     }, [value?.lngLat, memoizedDisplayLocation]);
 
     const handleClearLocation = () => {
-        onChange({ precision } as Location);
+        onChange(withExactOptIn({ precision } as Location));
         setIsLocationConfirmed(false);
         setAutoCompleteValue({ value: "", label: "" });
     };
@@ -482,6 +508,30 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
                         Precision Level: <span className="font-bold">{precisionLevels[precision].name}</span>
                     </div>
                 </>
+            )}
+
+            {/* Compact: the checkbox is the only precision control (City or confirmed Exact).
+                Full: shown once the slider is on Exact. */}
+            {profileLocation && (compact || precision === 4) && (
+                <div className="space-y-1 rounded-md border p-3">
+                    <div className="flex items-center gap-2">
+                        <Checkbox
+                            id={exactCheckboxId}
+                            checked={precision === 4 && exactConfirmed}
+                            onCheckedChange={(checked) => {
+                                const on = checked === true;
+                                setExactConfirmed(on);
+                                if (compact) setPrecision(on ? 4 : PROFILE_DEFAULT_PRECISION);
+                            }}
+                        />
+                        <Label htmlFor={exactCheckboxId}>Show my exact location publicly</Label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                        {precision === 4 && exactConfirmed
+                            ? "Anyone, including people who aren't logged in, will see your street address and exact map position."
+                            : "Others see your city and an approximate map pin (within about 5 km). Your exact location stays visible only to you."}
+                    </p>
+                </div>
             )}
         </div>
     );

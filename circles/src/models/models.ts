@@ -84,6 +84,10 @@ export const locationSchema = z.object({
     city: z.string().optional(),
     street: z.string().optional(),
     lngLat: lngLatSchema.optional(),
+    // Set when the owner ticks "Show my exact location publicly" in LocationPicker. Without it a
+    // precision-4 location is shown publicly at city level with a coarse pin (lib/utils.ts,
+    // hasConfirmedExactLocation).
+    exactConfirmedAt: z.coerce.date().optional(),
 });
 
 export type Location = z.infer<typeof locationSchema>;

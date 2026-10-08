@@ -68,7 +68,7 @@ export default function LocationStep({ circleData, setCircleData, nextStep, prev
             <Card>
                 <CardContent className="space-y-4 pt-6">
                     <Label>{`${entityLabel} Location`}</Label>
-                    <LocationPicker value={circleData.location} onChange={handleLocationChange} compact={true} />
+                    <LocationPicker value={circleData.location} onChange={handleLocationChange} compact={true} profileLocation />
 
                     <div className="flex items-center justify-between gap-4 rounded-lg border p-4">
                         <div>
@@ -85,7 +85,7 @@ export default function LocationStep({ circleData, setCircleData, nextStep, prev
             </Card>
 
             <p className="text-center text-sm text-gray-500">
-                You can adjust the precision level to control how specific your location appears to others
+                Others see your city and an approximate map pin unless you choose to show your exact location
             </p>
 
             {locationError && <p className="text-sm text-red-500">{locationError}</p>}

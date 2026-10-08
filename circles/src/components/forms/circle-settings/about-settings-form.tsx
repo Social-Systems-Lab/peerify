@@ -1493,7 +1493,7 @@ export function AboutSettingsForm({
                                     <div className="md:col-span-2">
                                         <div className="mb-3 rounded-lg border bg-slate-50 p-3 text-sm text-muted-foreground">
                                             {venueAddressVisibility === "public"
-                                                ? "Public location display is set to exact. The saved map location can be shown publicly as the venue pin."
+                                                ? "Public location display is set to exact. Your exact address and map pin are only shown publicly once you also set Map location to Exact and tick \"Show my exact location publicly\" below. Until then, visitors see your city and an approximate pin (within about 5 km)."
                                                 : "Public location display is private or approximate. Use the map to save the venue location for discovery, but Peerify should not show the exact address publicly."}
                                         </div>
                                         <Controller

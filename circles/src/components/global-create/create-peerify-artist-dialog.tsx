@@ -261,7 +261,7 @@ export function CreatePeerifyArtistDialog({
                                 above blank, it will be derived from the location you pick here. You can also set
                                 this later in Settings.
                             </p>
-                            <LocationPicker value={form.location} onChange={handleLocationChange} compact={true} />
+                            <LocationPicker value={form.location} onChange={handleLocationChange} compact={true} profileLocation />
                         </div>
 
                         <div className="space-y-2 sm:col-span-2">

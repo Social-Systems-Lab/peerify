@@ -97,7 +97,8 @@ const normalizePeerifyVenueLocation = (
     const precision =
         typeof input.precision === "number" && Number.isFinite(input.precision)
             ? Math.min(Math.max(Math.trunc(input.precision), 0), 4)
-            : 4; // LocationPicker always sends a precision; 4 only covers a malformed/absent value.
+            : 2; // LocationPicker always sends a precision; city level only covers a malformed/absent value.
+    const confirmedAt = input.exactConfirmedAt ? new Date(input.exactConfirmedAt) : undefined;
     const lngLat =
         isValidCoordinate(input.lngLat?.lng, -180, 180) && isValidCoordinate(input.lngLat?.lat, -90, 90)
             ? { lng: input.lngLat.lng, lat: input.lngLat.lat }
@@ -112,6 +113,9 @@ const normalizePeerifyVenueLocation = (
                 ? input.street.trim() || undefined
                 : undefined,
         lngLat,
+        // The owner's explicit "Show my exact location publicly" opt-in (LocationPicker).
+        exactConfirmedAt:
+            precision === 4 && confirmedAt && !Number.isNaN(confirmedAt.getTime()) ? confirmedAt : undefined,
     };
 
     if (!location.country && !location.region && !location.city && !location.street && !location.lngLat) {

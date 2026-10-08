@@ -1,7 +1,7 @@
 import { Circle, CircleType, WithMetric } from "@/models/models";
 import { Circles } from "./db";
 import { getPublishedCircleQuery, isCirclePublished, SAFE_CIRCLE_PROJECTION } from "./circle";
-import { redactCircleLocationForViewer } from "../utils";
+import { toPublicCircleListItem } from "../utils/public-circle";
 
 const SEARCHABLE_TYPES: CircleType[] = ["circle", "project", "user"];
 const SEARCHABLE_FIELDS = [
@@ -264,27 +264,30 @@ export const searchDiscoverableCircles = async ({
         // regardless of the (unrelated) searchable/mapVisible flags this function otherwise keys
         // location visibility off of.
         const isOwnCircle = !!viewerDid && circle.did === viewerDid;
-        // Stopgap: SAFE_CIRCLE_PROJECTION still carries private fields, and these results reach
-        // anonymous visitors (/api/circles/search) — omit them here until the projection is slimmed.
+        // These results reach anonymous visitors (/api/circles/search): toPublicCircleListItem
+        // allow-lists the fields, strips private metadata and redacts the location
+        // (redactCircleLocationForViewer — venue addressVisibility ceiling, city level with a
+        // coarse pin unless "exact" was confirmed). Owners and platform admins get everything.
+        // Never in a search result, whoever is asking (platform admins and owners skip the allow-list).
         const {
             email: _email,
             officialEmail: _officialEmail,
             bookmarkedCircles: _bookmarkedCircles,
             pinnedCircles: _pinnedCircles,
             hiddenCancelledEventIds: _hiddenCancelledEventIds,
-            ...publicCircle
+            ...searchCircle
         } = circle;
-        return {
-            ...publicCircle,
-            // redactCircleLocationForViewer, not the plain redactLocationForViewer — this result
-            // set includes venue circles, which need the extra addressVisibility-based ceiling
-            // (see that function's own comment in lib/utils.ts).
-            location: redactCircleLocationForViewer({ ...circle, location: exposedLocation }, { viewerDid, viewerIsAdmin }),
-            tourTeamOfferings: viewerIsAdmin || isOwnCircle ? circle.tourTeamOfferings : undefined,
-            metrics: {
-                searchRank: score / maxScore,
-                similarity: score / maxScore,
+        return toPublicCircleListItem(
+            {
+                ...searchCircle,
+                location: exposedLocation,
+                tourTeamOfferings: viewerIsAdmin || isOwnCircle ? circle.tourTeamOfferings : undefined,
+                metrics: {
+                    searchRank: score / maxScore,
+                    similarity: score / maxScore,
+                },
             },
-        };
+            { viewerDid, viewerIsPlatformAdmin: viewerIsAdmin },
+        );
     });
 };
