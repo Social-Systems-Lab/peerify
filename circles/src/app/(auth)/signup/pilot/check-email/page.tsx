@@ -18,7 +18,7 @@ export default async function PilotCheckEmailPage(props: PageProps) {
         <div className="flex min-h-screen items-center justify-center bg-[#f7f2ea] px-4 py-10">
             <Card className="w-full max-w-xl border-[#e3d5c2] bg-[#faf6ef] shadow-sm">
                 <CardHeader className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e8720c]">Peerify Pilot Signup</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e8720c]">Join Peerify</p>
                     <CardTitle className="text-3xl text-[#181512]">Check your email</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">

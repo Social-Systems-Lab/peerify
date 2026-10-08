@@ -258,7 +258,7 @@ export function PilotSignupForm() {
                 <Card className="w-full max-w-md border-[#e3d5c2] bg-[#faf6ef] shadow-sm">
                     <CardHeader className="space-y-2">
                         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e8720c]">
-                            Peerify Pilot Signup
+                            Join Peerify
                         </p>
                         <CardTitle className="text-2xl text-[#181512]">How will you use Peerify?</CardTitle>
                         <p className="text-sm text-[#6b5f52]">Pick what fits best. You can always add more later.</p>
@@ -295,7 +295,7 @@ export function PilotSignupForm() {
             <Card className="w-full max-w-md border-[#e3d5c2] bg-[#faf6ef] shadow-sm">
                 <CardHeader className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#e8720c]">
-                        Peerify Pilot Signup
+                        Join Peerify
                     </p>
                     <CardTitle className="text-2xl text-[#181512]">Create your personal account</CardTitle>
                     <p className="text-sm text-[#6b5f52]">
