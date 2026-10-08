@@ -40,7 +40,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
-## 2026-10-08 (later) — Discover play button for artists with no tracks — on staging, not promoted
+## 2026-10-08 (later) — Discover play button; admin-only circle creation — on staging, not promoted
 
 ### Shipped to staging
 - `f0e77a84`: the Discover artist card's play button no longer disappears for an artist with
@@ -54,14 +54,39 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Deployed via `deploy-staging.sh` (release `20261008-155729-c52da889`, prod pid unchanged).
   Verified with Playwright on a spare port (desktop and mobile touch) and on live staging.
 - Pending: Tim uploads a fresh test track on staging to confirm real playback and that the
-  artist flips from greyed to active on reload. Items 2 (admin-only circle creation) and 3
-  (pilot/prototype wording) from the same investigation are decided but not started.
+  artist flips from greyed to active on reload.
+
+### Admin-only generic circle creation (`c31cf128`)
+- `canCreateGenericCircle(user)` = `isAdmin` (`lib/auth/verification.ts`). Non-admins no longer
+  see the Create modal's Circle/Project cards or CirclesList's Create Circle/Project button
+  (`/circles`, communities and projects tabs, so sub-circles too). `saveBasicInfoAction`
+  refuses its create branch for non-admins; the update branch is unchanged.
+- `canCreateIndependentCircle` now lets `isAdmin` through (admins without member perks were
+  refused top-level circles server-side although the wizard offered it).
+- Artist/venue identity actions and signup-as-artist (`createPilotArtistCircle`) are separate
+  paths and untouched.
+- Deployed via `deploy-staging.sh` (release `20261008-182546-c31cf128`, prod pid unchanged).
+- Verified before deploy, on a spare port with Postmark blanked in the launcher only: a
+  throwaway signup-as-artist still created its artist circle; no email reached Postmark. The
+  logged-in checks were not run (the DB write to complete email verification was blocked).
+  The throwaway was deleted straight after (user, artist circle, 3 members, chat room/members/
+  conversations/message, feed, key dir; Backstage Lounge `members` 9 -> 8); confirmed nothing
+  remains. Side effect left: `signupOrderCounter` advanced by 1.
+- Pending: Tim verifies admin and non-admin paths on live staging with his own accounts.
+- Item 3 (pilot/prototype wording) in progress.
 
 ### Open item: staging audio files missing
 Audio files are missing from the `circles-staging` bucket: live staging returns 404 on
 `/api/peerify/audio` for existing tracks (MinIO `statObject` → `NotFound`), so no existing
 staging track actually plays. Seen for Tim Solo, A Friendly Few and The Rank Amateurs on
 /discover. Not fixed here; for a separate chat.
+
+### Open item: contact form reports success when no email was sent
+`submitContactFormAction` calls `sendEmail`, which returns `{ ok: false, reason:
+"not_configured" }` instead of throwing when Postmark isn't configured. The action ignores the
+result and shows "Thanks — we'll get back to you soon." even though nothing was sent (seen on a
+spare-port server with Postmark blanked). A Postmark rejection (`send_failed`) does throw, so
+that case already shows the error message. Not to be fixed now.
 
 ---
 
