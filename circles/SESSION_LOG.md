@@ -40,7 +40,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
-## 2026-10-08 (later) — Discover play button; admin-only circle creation — on staging, not promoted
+## 2026-10-08 (later) — Discover play button; admin-only circle creation; pilot wording removed — on staging, not promoted
 
 ### Shipped to staging
 - `f0e77a84`: the Discover artist card's play button no longer disappears for an artist with
@@ -53,8 +53,8 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   card row, which suppressed the click and expanded the card instead of playing.
 - Deployed via `deploy-staging.sh` (release `20261008-155729-c52da889`, prod pid unchanged).
   Verified with Playwright on a spare port (desktop and mobile touch) and on live staging.
-- Pending: Tim uploads a fresh test track on staging to confirm real playback and that the
-  artist flips from greyed to active on reload.
+- Verified by Tim on live staging: real playback with a freshly uploaded track, and the greyed
+  buttons.
 
 ### Admin-only generic circle creation (`c31cf128`)
 - `canCreateGenericCircle(user)` = `isAdmin` (`lib/auth/verification.ts`). Non-admins no longer
@@ -72,8 +72,24 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   The throwaway was deleted straight after (user, artist circle, 3 members, chat room/members/
   conversations/message, feed, key dir; Backstage Lounge `members` 9 -> 8); confirmed nothing
   remains. Side effect left: `signupOrderCounter` advanced by 1.
-- Pending: Tim verifies admin and non-admin paths on live staging with his own accounts.
-- Item 3 (pilot/prototype wording) in progress.
+- Verified by Tim on live staging with his own admin account and a permanent non-admin test
+  account: both the admin and non-admin paths.
+
+### Pilot/prototype wording removed (`00b237fa`)
+- User-facing copy only: landing CTA "Join the prototype" -> "Join Peerify"; signup eyebrows
+  "Peerify Pilot Signup" (x3) -> "Join Peerify"; status badge "Test pilot" -> "Verified"; Code
+  of Conduct eyebrow "Pilot Verification" -> "Verification"; subscription free plan "Test
+  Pilots" -> "Community" plus two sentences; default welcome message and platform banner text
+  drop the pilot phrasing.
+- Unchanged on purpose: routes (`/signup/pilot`, `/onboarding/pilot`), CSS classes,
+  identifiers, stored values (`onboardingFlow: "pilot-quick-signup"`, localStorage key), and
+  the unrendered Kamooni pages.
+- Deployed via `deploy-staging.sh` (release `20261008-185914-00b237fa`, prod pid unchanged).
+  Checked on a spare port and on live staging: `/`, `/signup/pilot` (both roles) and
+  `/signup/pilot/check-email` show "Join Peerify" and no pilot/prototype text; no old string
+  remains in any client chunk.
+- Pending: Tim checks the admin System Messages template and the stored banner (they override
+  the defaults), plus Postmark templates, for pilot wording.
 
 ### Open item: staging audio files missing
 Audio files are missing from the `circles-staging` bucket: live staging returns 404 on
