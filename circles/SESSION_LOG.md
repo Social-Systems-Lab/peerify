@@ -40,7 +40,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
-## 2026-10-08 (later) — Discover play button; admin-only circle creation; pilot wording removed — on staging, not promoted
+## 2026-10-08 (later) — Discover play button; admin-only circle creation; pilot wording removed — promoted to production
 
 ### Shipped to staging
 - `f0e77a84`: the Discover artist card's play button no longer disappears for an artist with
@@ -90,6 +90,22 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   remains in any client chunk.
 - Pending: Tim checks the admin System Messages template and the stored banner (they override
   the defaults), plus Postmark templates, for pilot wording.
+
+### Promoted to production
+- Cherry-picked onto `main` (no conflicts; all 15 touched files identical to `staging`
+  before and after): `62152b4c` (= `f0e77a84`), `cf7d7659` (= `c52da889`), `8e7726be`
+  (= `c31cf128`), `0c0295c7` (= `00b237fa`). No SESSION_LOG commits. Pushed
+  `origin/main` `6cdec549..0c0295c7`.
+- Deployed via `scripts/deploy-peerify.sh` in the foreground, no other build in the prod
+  checkout (release `20261008-194729-0c0295c7`, BUILD_ID `pvvBTT33eNR_Cbtu0cyXG`, all 9 steps
+  passed, `peerify-staging` untouched).
+- Logged-out checks on https://peerify.one: `/`, `/signup/pilot` (both roles) and
+  `/signup/pilot/check-email` show "Join Peerify" and no pilot/prototype text; /discover shows
+  5 greyed and 12 playable artist buttons, the greyed tooltip reads "No music uploaded yet" and
+  doesn't expand the card; no page errors; no "hasPlayableTracks lookup failed" in the prod
+  error log. No prod DB access.
+- Pending on prod (Tim): admin and non-admin circle-creation paths, real playback, and the
+  stored welcome template and banner (they override the new defaults).
 
 ### Open item: staging audio files missing
 Audio files are missing from the `circles-staging` bucket: live staging returns 404 on
