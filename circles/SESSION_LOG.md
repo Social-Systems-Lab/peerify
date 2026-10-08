@@ -40,6 +40,31 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-08 (later) — Discover play button for artists with no tracks — on staging, not promoted
+
+### Shipped to staging
+- `f0e77a84`: the Discover artist card's play button no longer disappears for an artist with
+  no tracks. `getDiscoverResultsAction` attaches a viewer-independent `hasPlayableTracks`
+  boolean (one `Tracks.distinct` over the page's artist ids, after public redaction; no
+  projection change, no track data exposed). False: greyed button, tooltip "No music uploaded
+  yet", never fetches. True but the fetch is empty or fails (music access rules, anonymous
+  viewer on a non-managed artist, errors): greyed, "Music not available".
+- `c52da889` (pre-existing bug, separate commit): Enter/Space on the play button bubbled to the
+  card row, which suppressed the click and expanded the card instead of playing.
+- Deployed via `deploy-staging.sh` (release `20261008-155729-c52da889`, prod pid unchanged).
+  Verified with Playwright on a spare port (desktop and mobile touch) and on live staging.
+- Pending: Tim uploads a fresh test track on staging to confirm real playback and that the
+  artist flips from greyed to active on reload. Items 2 (admin-only circle creation) and 3
+  (pilot/prototype wording) from the same investigation are decided but not started.
+
+### Open item: staging audio files missing
+Audio files are missing from the `circles-staging` bucket: live staging returns 404 on
+`/api/peerify/audio` for existing tracks (MinIO `statObject` → `NotFound`), so no existing
+staging track actually plays. Seen for Tim Solo, A Friendly Few and The Rank Amateurs on
+/discover. Not fixed here; for a separate chat.
+
+---
+
 ## 2026-10-08 — Item 4 promoted; credential exposure and Phase 1 rotation; server secrets and public locations fixed — all promoted to production
 
 ### Item 4 (connections and the DM rule) promoted
