@@ -6,26 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
-import { Circle } from "@/models/models";
+import type { ClientServerSettings } from "@/lib/utils/client-server-settings";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { saveServerSettings } from "@/app/circles/[handle]/settings/server-settings/actions";
 
 interface ServerSettingsFormProps {
-    circle: Circle;
-    serverSettings?: {
-        name?: string;
-        description?: string;
-        url?: string;
-        registryUrl?: string;
-        jwtSecret?: string;
-        openaiKey?: string;
-        mapboxKey?: string;
-    };
+    serverSettings: ClientServerSettings;
 }
 
-export function ServerSettingsForm({ circle, serverSettings }: ServerSettingsFormProps): React.ReactElement {
+export function ServerSettingsForm({ serverSettings }: ServerSettingsFormProps): React.ReactElement {
     const { toast } = useToast();
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,8 +27,6 @@ export function ServerSettingsForm({ circle, serverSettings }: ServerSettingsFor
             description: serverSettings?.description || "",
             url: serverSettings?.url || "",
             registryUrl: serverSettings?.registryUrl || "",
-            jwtSecret: serverSettings?.jwtSecret || "",
-            openaiKey: serverSettings?.openaiKey || "",
             mapboxKey: serverSettings?.mapboxKey || "",
         },
     });
@@ -47,8 +36,6 @@ export function ServerSettingsForm({ circle, serverSettings }: ServerSettingsFor
         description?: string;
         url?: string;
         registryUrl?: string;
-        jwtSecret?: string;
-        openaiKey?: string;
         mapboxKey?: string;
     }) => {
         setIsSubmitting(true);
@@ -111,12 +98,18 @@ export function ServerSettingsForm({ circle, serverSettings }: ServerSettingsFor
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">JWT Secret</label>
-                            <Input {...form.register("jwtSecret")} type="password" placeholder="JWT secret key" />
+                            <div className="text-sm font-medium">JWT Secret</div>
+                            <p className="text-sm text-muted-foreground">
+                                {serverSettings.secrets.jwtSecret === "set" ? "Set" : "Not set"} in the server
+                                environment (.env.local). Change it there and restart the app.
+                            </p>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">OpenAI API Key</label>
-                            <Input {...form.register("openaiKey")} type="password" placeholder="OpenAI API key" />
+                            <div className="text-sm font-medium">OpenAI API Key</div>
+                            <p className="text-sm text-muted-foreground">
+                                {serverSettings.secrets.openaiKey === "set" ? "Set" : "Not set"} in the server
+                                environment (.env.local). Change it there and restart the app.
+                            </p>
                         </div>
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Mapbox API Key</label>

@@ -27,12 +27,15 @@ const MONGODB_URI =
     process.env.MONGODB_URI ||
     `mongodb://${process.env.MONGO_ROOT_USERNAME || "admin"}:${process.env.MONGO_ROOT_PASSWORD || "password"}@${process.env.MONGO_HOST || "127.0.0.1"}:${process.env.MONGO_PORT || "27017"}`;
 
+if (!process.env.MINIO_ROOT_USERNAME || !process.env.MINIO_ROOT_PASSWORD) {
+    throw new Error("MINIO_ROOT_USERNAME and MINIO_ROOT_PASSWORD must be set (source the app's .env.local)");
+}
 const minioClient = new MinioClient({
     endPoint: process.env.MINIO_HOST || "127.0.0.1",
     port: parseInt(process.env.MINIO_PORT || "9000"),
     useSSL: false,
-    accessKey: process.env.MINIO_ROOT_USERNAME || "minioadmin",
-    secretKey: process.env.MINIO_ROOT_PASSWORD || "minioadmin",
+    accessKey: process.env.MINIO_ROOT_USERNAME,
+    secretKey: process.env.MINIO_ROOT_PASSWORD,
 });
 const bucketName = process.env.MINIO_BUCKET || "circles";
 

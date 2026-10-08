@@ -13,12 +13,8 @@ export async function saveServerSettings(values: {
     description?: string;
     url?: string;
     registryUrl?: string;
-    jwtSecret?: string;
-    openaiKey?: string;
     mapboxKey?: string;
 }): Promise<FormSubmitResponse> {
-    console.log("Saving server settings with values", values);
-
     // check if user is authorized to edit server settings
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -37,8 +33,6 @@ export async function saveServerSettings(values: {
             description: values.description,
             url: values.url,
             registryUrl: values.registryUrl,
-            jwtSecret: values.jwtSecret,
-            openaiKey: values.openaiKey,
             mapboxKey: values.mapboxKey,
         };
 

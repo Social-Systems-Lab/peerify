@@ -1,6 +1,9 @@
 import { ServerSettingsForm } from "@/components/forms/circle-settings/server-settings-form";
-import { getCircleByHandle } from "@/lib/data/circle";
+import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getServerSettings } from "@/lib/data/server-settings";
+import { getUserPrivate } from "@/lib/data/user";
+import { toClientServerSettings } from "@/lib/utils/client-server-settings";
+import { redirect } from "next/navigation";
 
 type PageProps = {
     params: Promise<{ handle: string }>;
@@ -8,21 +11,19 @@ type PageProps = {
 };
 
 export default async function ServerSettingsPage(props: PageProps) {
-    const params = await props.params;
-    const { handle } = params;
-    const circle = await getCircleByHandle(handle);
-
-    if (!circle) {
-        return <div>Circle not found</div>;
+    // Server settings are platform-wide, so the VIEWER must be a platform admin, the same check
+    // /admin and saveServerSettings make. Which circle's URL this is reached through doesn't
+    // matter. The middleware's settings-module check for the circle still runs first.
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        redirect("/unauthenticated");
     }
-
-    // Check if user is admin
-    if (circle.isAdmin !== true) {
+    const viewer = await getUserPrivate(userDid).catch(() => null);
+    if (viewer?.isAdmin !== true) {
         return <div>You do not have permission to access server settings</div>;
     }
 
-    // Get server settings
-    const serverSettings = await getServerSettings();
+    const serverSettings = toClientServerSettings(await getServerSettings());
 
     return (
         <div className="container py-6">
@@ -31,7 +32,7 @@ export default async function ServerSettingsPage(props: PageProps) {
                 Configure server-wide settings including API keys and server information. These settings affect the
                 entire application.
             </p>
-            <ServerSettingsForm circle={circle} serverSettings={serverSettings} />
+            <ServerSettingsForm serverSettings={serverSettings} />
         </div>
     );
 }

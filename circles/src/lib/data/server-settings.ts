@@ -7,14 +7,19 @@ import { createServerDid, getServerPublicKey, signRegisterServerChallenge } from
 import { sdgs } from "@/lib/data/sdgs";
 import { skills } from "@/lib/data/skills";
 
+// Non-secret settings only. CIRCLES_JWT_SECRET and OPENAI_API_KEY used to be merged in here too,
+// which put them in every settings object a page could hand to a client component; the code that
+// needs them (auth/jwt.ts, data/vdb.ts) reads process.env directly. Pages pass settings to the
+// client only through toClientServerSettings (lib/utils/client-server-settings.ts).
 const ENV_TO_SETTINGS_MAP: Record<string, keyof ServerSettings> = {
     CIRCLES_INSTANCE_NAME: "name",
     CIRCLES_URL: "url",
     CIRCLES_REGISTRY_URL: "registryUrl",
-    CIRCLES_JWT_SECRET: "jwtSecret",
-    OPENAI_API_KEY: "openaiKey",
     MAPBOX_API_KEY: "mapboxKey",
 };
+
+// Never written to the serverSettings document, whatever a caller passes (see ENV_TO_SETTINGS_MAP).
+const NEVER_STORED_SETTINGS = ["jwtSecret", "openaiKey", "matrixAdminAccessToken"] as const;
 
 export const upsertSdgsAndSkills = async () => {
     try {
@@ -145,7 +150,13 @@ export const updateServerSettings = async (serverSettings: ServerSettings): Prom
     const ServerSettingsCollection = db.collection<ServerSettings>("serverSettings");
 
     let { _id, ...serverSettingsWithoutId } = serverSettings;
-    let result = await ServerSettingsCollection.updateOne({}, { $set: serverSettingsWithoutId });
+    // Undefined fields are left as they are rather than written as null.
+    const update = Object.fromEntries(
+        Object.entries(serverSettingsWithoutId).filter(
+            ([key, value]) => value !== undefined && !(NEVER_STORED_SETTINGS as readonly string[]).includes(key),
+        ),
+    );
+    let result = await ServerSettingsCollection.updateOne({}, { $set: update });
     if (result.matchedCount === 0) {
         throw new Error("Server settings not found");
     }
