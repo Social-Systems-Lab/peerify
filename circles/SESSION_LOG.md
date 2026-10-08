@@ -40,6 +40,146 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-08 — Item 4 promoted; credential exposure and Phase 1 rotation; server secrets and public locations fixed — all promoted to production
+
+### Item 4 (connections and the DM rule) promoted
+Batch C landed on staging first: Remove connection (`bd6dcb57`, `f1aad214`, `c82fffdd`), event
+invites report skipped people to the inviter (`a30c66ec`), one connection-status lookup for the
+bell (`9bc4fed7`), `LEGACY_DM_CUTOFF` fails closed when missing or invalid (`56b223e1`), and
+only people who can edit an event can invite to it (`35050e45`). After Tim's staging
+click-through, prod's `.env.local` got `LEGACY_DM_CUTOFF=2026-10-08T05:05:00Z` and `main`
+(`5343f789`) was deployed at 05:07Z (release `20261008-050918-5343f789`). The deploy started
+about two minutes after the cutoff, so a two-person DM first written between 05:05 and 05:09Z
+doesn't count as legacy.
+
+### Credential exposure and Phase 1 rotation
+**What happened:** while backing up prod's `.env.local` before the cutoff edit, Claude ran a
+`cp` of the file on a Bash command line. Claude Code shows a diff preview for any file a
+command creates, so the whole file, real values included, appeared in the session output.
+Tim treated every prod value as exposed.
+
+**Standing rule from now on:** `.env*` files are never read, written or displayed through
+tools. No Read/Write/Edit on them, no `cat`/`grep`/`diff`/`tail` with values visible, and no
+`cp` or `printf >>` with an env path on a command line, since both trigger the diff preview.
+Edits happen only inside a script file that writes a temp file, swaps it in (permissions 600),
+takes its own backup, and prints counts and true/false only. Every `.env.local` edit, staging
+included, needs Tim's yes.
+
+**Rotation (Phase 1), one step at a time with Tim's yes:**
+- **MinIO:** each app has its own access key, limited by policy to its own buckets:
+  `peerify-prod-app` gets `circles` and `peerify-media`; `peerify-staging-app` gets
+  `circles-staging` and a new `peerify-media-staging`. Cross-reads were tested and refused.
+  Both env files switched to these keys, and both apps were verified with uploads and stored
+  images. The root password was then rotated by a sudo script Tim ran: the old one is
+  rejected and the `peerify-local` mc alias was updated.
+- **Postmark:** Tim created a new server token; it was checked against the Postmark API and
+  written to the env file without being shown. A login email arrived and the old token was
+  revoked.
+- **`NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` and `ALTCHA_HMAC_KEY`:** new values generated with
+  `openssl` inside the edit script. They went live with the 07:48Z deploy (release
+  `20261008-074816-5343f789`). The "Failed to find Server Action" lines afterwards came from
+  stale tabs.
+- **`JWT_SECRET` removed:** it was unused because `CIRCLES_JWT_SECRET` is set. Two duplicate
+  `APP_DIR` lines were also removed; all three were identical. pm2's stored environment still
+  holds `JWT_SECRET` until a `pm2 delete` and fresh start.
+- **Mapbox:** the key is a public `pk.` token used by the browser, so nothing to rotate. Its URL
+  restrictions are worth checking.
+- **MongoDB:** nothing to rotate. Both URIs carry no credentials and authentication is off
+  (`/etc/mongod.conf` has no `security:` section; it binds to 127.0.0.1 only). Any process on
+  the box, staging included, can read and write the prod database. Turning on authentication
+  is a high-priority follow-up.
+
+**Cleanup:** all `.env.local.bak-20261008-*` backups (five on prod, one on staging), the
+scratchpad copies and app-key files, the rotate script, the stale mc alias `local` and mc's
+`config.json.old` were overwritten and deleted. A search of `~/.pm2`, `~/.mc`, files in the home
+folder and the shell history found no other copies of the retired values.
+`/etc/default/minio.bak-20261008` is for Tim to remove with sudo. `.env*.bak*` is now in
+`.gitignore`.
+
+### Server secrets no longer reach the browser (`d92e3810`, prod `0d2babf3`)
+`getServerSettings()` copied `CIRCLES_JWT_SECRET` and `OPENAI_API_KEY` into the settings object,
+and `/admin` passed the whole object to a client form. So the JWT secret reached platform
+admins' browsers, and every admin save copied the secrets into Mongo `serverSettings`. Prod's
+`serverSettings` holds only `_id`, `defaultCircleId` and `did` (Tim checked), so no stored copy
+exists. The circle server-settings page checked `circle.isAdmin`, which the projection never
+loads, so it denied everyone; that was luck, not design.
+- Client components get settings only through the allow-list `toClientServerSettings()`.
+  Secrets show as "Set / Not set in the server environment (.env.local)", and the forms no
+  longer edit them, because the app reads both from env (`auth/jwt.ts`, `data/vdb.ts`).
+- `getServerSettings()` no longer merges the two secrets. `updateServerSettings()` never stores
+  `jwtSecret`, `openaiKey` or `matrixAdminAccessToken`, and skips undefined fields.
+- The admin save stores only the editable fields and takes the server DID from the database.
+- `saveServerSettings` no longer logs submitted values. The pm2 logs had 0 lines from it and 0
+  copies of the JWT secret.
+- The server-settings page now checks that the viewer is a platform admin; the middleware
+  check stays.
+- Removed: the unauthenticated, unused `getCircleAction`; `getDefaultChatRoomByCircleHandle`;
+  every `minioadmin` default credential.
+- Staging check with throwaway accounts: no staging secret value in any response for an admin
+  or a non-admin; both forms save; a non-admin and a logged-out visitor are refused;
+  `serverSettings` was restored afterwards.
+
+### Public locations and metadata (`e16b5616`, prod `4d7e5990`)
+A logged-out prod probe (counts only) found:
+- `/explore` and `/api/circles/search` sent each circle's full `metadata` to anonymous
+  visitors: a venue `contactEmail` (1), `bookingNote` (1), `accessibilityNotes` (1), an artist
+  `technicalNeeds` (1), and signup fields (`onboardingFlow`, `signupIntent`,
+  `autoProvisionedFromSignup`).
+- 24 circles sent street plus exact coordinates: 9 artists, 7 bands, 4 other circles, 4 user
+  profiles. LocationPicker defaulted to Exact, and the compact picker used by onboarding, the
+  wizard and the artist/venue dialogs never showed the choice. The data can't tell a deliberate
+  "exact" from the default.
+
+Tim's decisions, all built:
+- A precision-4 location is public only when its owner ticked "Show my exact location publicly"
+  (`location.exactConfirmedAt`). Otherwise visitors see city level, no street, and a pin on a
+  0.05° grid (~5 km): "city or coarser", as in the IMY work, because ~1 km can identify a home
+  in a small town. There's no data migration and no notification. Owners and platform admins
+  see everything, as before.
+- The Offers map follows the same rule (`getOfferPinLocation`, now in `lib/utils.ts`).
+- `/explore`, search (API, search panel, Discover) and the `/circles` directory go through
+  `toPublicCircleListItem`, which allow-lists fields, runs `toPublicMetadata` and redacts the
+  location.
+- Venue `contactEmail`, `phone` and `bookingNote`, and artist `technicalNeeds`, go to logged-in
+  viewers only. `accessibilityNotes` and artist `baseCity` are public.
+- Profile pickers (about settings, wizard, onboarding, artist/venue dialogs) default to City and
+  offer the opt-in with a warning. Venue settings explain that a public address also needs the
+  opt-in. Post, event, task and issue pickers are unchanged.
+- Unit test `src/lib/utils/public-location.test.ts`: an unconfirmed precision-4 circle never
+  yields its street or exact coordinates on any public surface.
+
+Verified with a trial build on a spare port, then staging, then prod (logged out, counts only).
+On prod after the deploy (release `20261008-113740-4d7e5990`):
+- 0 streets and all 25 pins on the grid on `/explore` (32 circles) and search (53 circles);
+- 0 internal or contact fields anywhere, with `baseCity` (17) and `accessibilityNotes` (2) as
+  the only metadata;
+- `access-denied` and `not-found` send no private fields;
+- the opt-in round trip works in the browser (tick, exact shown; untick, coarse again), and the
+  contact fields reach logged-in viewers only.
+
+### Follow-ups
+- **Phase 2, at a quiet time Tim picks:** rotate `CIRCLES_JWT_SECRET` (logs everyone out) and
+  the VAPID key pair (needs a rebuild; check the app's push re-subscribe behaviour first). Tim
+  first confirms `/admin` shows the set/not-set rows on prod. Clear `JWT_SECRET` from pm2's
+  stored environment at the same restart.
+- **MongoDB authentication (high priority):** separate least-privilege users for prod and
+  staging, updated URIs and scripts, and a planned `mongod` restart.
+- `/etc/default/minio.bak-20261008`: Tim removes it with sudo.
+- Task and issue locations, which still default to Exact: check (read-only, counts only)
+  whether they're visible beyond the people involved.
+- Fix `src/lib/auth/participation-readiness.test.ts`, which fails on `HEAD` already.
+- Validate `baseCity` as city-level only; it's free text today, though all 11 prod values look
+  fine.
+- Put capped pins at the geocoded city centre instead of on the grid.
+- `/api/circles/search` ignores the viewer, so it's always shaped as logged out.
+- Remaining audit items: about 30 `[handle]` pages pass raw circle documents to client
+  components; `getUserPrivate()` returns a user's whole record to themselves; circle admins
+  see requesters' emails. An audit of server actions that take a circle plus an object id is
+  also pending (investigation only).
+- An optional mongosh count of DMs first written in the 05:05–05:09Z cutoff window.
+
+---
+
 ## 2026-10-07 — Queue item 4, Batches A and B: connections and the DM rule — on staging, not promoted
 
 Tim's decisions: new DMs need an accepted connection; Connect appears only on personal profiles;
