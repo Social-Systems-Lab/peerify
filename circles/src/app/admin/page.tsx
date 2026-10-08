@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { getServerSettings } from "@/lib/data/server-settings";
+import { toClientServerSettings } from "@/lib/utils/client-server-settings";
 import AdminDashboard from "@/components/modules/admin/admin-dashboard";
 import { getOnboardingMcpStats, getUserPrivate } from "@/lib/data/user";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
@@ -11,8 +12,6 @@ type AdminPageProps = {
 };
 
 export default async function AdminPage({ searchParams }: AdminPageProps) {
-    let serverSettings = await getServerSettings();
-
     // check if user is admin
     let userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -23,6 +22,8 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
         redirect("/unauthorized");
     }
 
+    // Allow-listed for the client: secrets are reported as set / not set, never sent.
+    const serverSettings = toClientServerSettings(await getServerSettings());
     const [circles, onboardingMcpStats] = await Promise.all([getCircles(), getOnboardingMcpStats()]);
     const resolvedSearchParams = searchParams ? await searchParams : {};
     const initialTab =

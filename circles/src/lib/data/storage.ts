@@ -32,8 +32,10 @@ const minioClient = new MinioClient({
     endPoint: resolveMinioHost(),
     port: parseInt(process.env.MINIO_PORT || "9000"),
     useSSL: false,
-    accessKey: process.env.MINIO_ROOT_USERNAME || "minioadmin",
-    secretKey: process.env.MINIO_ROOT_PASSWORD || "minioadmin",
+    // No default credentials. Unset keys make an anonymous client, whose requests MinIO refuses,
+    // rather than a guess at the well-known default. (Not a throw: this runs at import, during builds.)
+    accessKey: process.env.MINIO_ROOT_USERNAME ?? "",
+    secretKey: process.env.MINIO_ROOT_PASSWORD ?? "",
 });
 
 const bucketName = process.env.MINIO_BUCKET || "circles";

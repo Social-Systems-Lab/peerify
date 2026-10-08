@@ -21,8 +21,13 @@ export async function GET(
 
   const host = process.env.MINIO_HOST || "127.0.0.1";
   const port = parseInt(process.env.MINIO_PORT || "9000", 10);
-  const accessKey = process.env.MINIO_ROOT_USERNAME || "minioadmin";
-  const secretKey = process.env.MINIO_ROOT_PASSWORD || "minioadmin";
+  // No default credentials: a missing key is a configuration error, not a guess.
+  const accessKey = process.env.MINIO_ROOT_USERNAME;
+  const secretKey = process.env.MINIO_ROOT_PASSWORD;
+  if (!accessKey || !secretKey) {
+    console.error("Storage proxy: MINIO_ROOT_USERNAME / MINIO_ROOT_PASSWORD not set");
+    return NextResponse.json({ error: "Storage not configured" }, { status: 500 });
+  }
   const bucket = process.env.MINIO_BUCKET || "circles";
 
   const objectName = (path || []).join("/");

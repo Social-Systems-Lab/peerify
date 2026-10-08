@@ -301,14 +301,25 @@ export async function saveGlobalServerSettings(data: GlobalServerSettingsFormDat
         // Fetch current settings to compare registry URL
         const currentSettings = await getServerSettings();
 
+        // Only the editable, non-secret fields are saved. The server DID comes from the database,
+        // never from the client.
+        const update: ServerSettings = {
+            name: validatedData.name,
+            description: validatedData.description,
+            url: validatedData.url,
+            registryUrl: validatedData.registryUrl,
+            mapboxKey: validatedData.mapboxKey,
+        };
+        const serverDid = currentSettings.did;
+
         // Update the settings in the database
-        await updateServerSettings(validatedData as ServerSettings); // Cast needed as DB model might have more fields
+        await updateServerSettings(update);
 
         // Handle registry registration if URL changed and is valid
         if (
             validatedData.registryUrl &&
             validatedData.registryUrl !== currentSettings.registryUrl &&
-            validatedData.did && // Ensure server DID exists
+            serverDid && // Ensure server DID exists
             validatedData.name &&
             validatedData.url
         ) {
@@ -318,17 +329,14 @@ export async function saveGlobalServerSettings(data: GlobalServerSettingsFormDat
                 try {
                     const publicKey = getServerPublicKey();
                     const registryInfo = await registerServer(
-                        validatedData.did,
+                        serverDid,
                         validatedData.name,
                         validatedData.url,
                         validatedData.registryUrl,
                         publicKey,
                     );
                     // Save updated registry info back to settings
-                    await updateServerSettings({
-                        ...validatedData,
-                        activeRegistryInfo: registryInfo,
-                    } as ServerSettings);
+                    await updateServerSettings({ activeRegistryInfo: registryInfo });
                     console.log("Server re-registered with registry successfully.");
                 } catch (regError) {
                     console.error("Failed to re-register server with registry after settings update:", regError);

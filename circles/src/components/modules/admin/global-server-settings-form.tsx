@@ -10,13 +10,27 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea"; // Assuming Textarea component exists
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
-import { ServerSettings } from "@/models/models";
+import type { ClientServerSettings, SecretStatus } from "@/lib/utils/client-server-settings";
 import { GlobalServerSettingsFormData, globalServerSettingsValidationSchema } from "./global-server-settings-schema";
 import { saveGlobalServerSettings } from "./actions";
 
 interface GlobalServerSettingsFormProps {
-    serverSettings: ServerSettings; // Use the full ServerSettings type for initial data
+    serverSettings: ClientServerSettings; // Allow-listed: never contains secret values
     maxWidth?: string; // Optional prop for styling
+}
+
+// Secrets are only ever shown as set / not set: the app reads them from the server environment,
+// so they're changed in .env.local, not here.
+function SecretStatusItem({ label, status }: { label: string; status: SecretStatus }) {
+    return (
+        <div className="space-y-2">
+            <div className="text-sm font-medium">{label}</div>
+            <p className="text-sm text-muted-foreground">
+                {status === "set" ? "Set" : "Not set"} in the server environment (.env.local). Change it there and
+                restart the app.
+            </p>
+        </div>
+    );
 }
 
 export function GlobalServerSettingsForm({
@@ -34,21 +48,14 @@ export function GlobalServerSettingsForm({
             description: serverSettings?.description || "",
             url: serverSettings?.url || "",
             registryUrl: serverSettings?.registryUrl || "",
-            jwtSecret: serverSettings?.jwtSecret || "",
-            openaiKey: serverSettings?.openaiKey || "",
             mapboxKey: serverSettings?.mapboxKey || "",
-            defaultCircleId: serverSettings?.defaultCircleId || "",
-            did: serverSettings?.did || "", // Include DID, though it's not directly editable
         },
     });
 
     const onSubmit = async (data: GlobalServerSettingsFormData) => {
         setIsSubmitting(true);
         try {
-            // Ensure DID from initial settings is included if not present in form data (it shouldn't be editable)
-            const dataToSave = { ...data, did: serverSettings?.did || data.did };
-
-            const result = await saveGlobalServerSettings(dataToSave);
+            const result = await saveGlobalServerSettings(data);
             if (result.success) {
                 toast({
                     title: "Success",
@@ -163,36 +170,8 @@ export function GlobalServerSettingsForm({
                         <CardDescription>Confidential keys for authentication and external services.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <FormField
-                            control={form.control}
-                            name="jwtSecret"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>JWT Secret</FormLabel>
-                                    <FormControl>
-                                        <Input type="password" placeholder="Keep this secret" {...field} />
-                                    </FormControl>
-                                    <FormDescription>
-                                        Secret key for signing user authentication tokens.
-                                    </FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
-                        <FormField
-                            control={form.control}
-                            name="openaiKey"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>OpenAI API Key</FormLabel>
-                                    <FormControl>
-                                        <Input type="password" placeholder="sk-..." {...field} />
-                                    </FormControl>
-                                    <FormDescription>API key for using OpenAI features.</FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        <SecretStatusItem label="JWT Secret" status={serverSettings.secrets.jwtSecret} />
+                        <SecretStatusItem label="OpenAI API Key" status={serverSettings.secrets.openaiKey} />
                         <FormField
                             control={form.control}
                             name="mapboxKey"

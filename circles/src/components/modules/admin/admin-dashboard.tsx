@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GlobalServerSettingsForm } from "./global-server-settings-form"; // Import the new form
-import { Circle, ServerSettings } from "@/models/models";
+import { Circle } from "@/models/models";
+import type { ClientServerSettings } from "@/lib/utils/client-server-settings";
 import { Button } from "@/components/ui/button"; // Import Button
 import { Input } from "@/components/ui/input";
 import {
@@ -28,7 +29,7 @@ const monthlyAmountFormatter = new Intl.NumberFormat(undefined, {
 const amountBucketOrder: OnboardingMcpAmountBucket[] = ["5", "10", "25", "50", "100+", "custom"];
 
 interface AdminDashboardProps {
-    serverSettings: ServerSettings;
+    serverSettings: ClientServerSettings;
     circles: Circle[];
     onboardingMcpStats: OnboardingMcpStats;
     initialTab?: string;

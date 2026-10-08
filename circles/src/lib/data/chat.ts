@@ -186,24 +186,6 @@ export const getMentionableUserIdsForUserDid = async (userDid: string): Promise<
     );
 };
 
-export const getDefaultChatRoomByCircleHandle = async (circleHandle: string): Promise<ChatRoomDisplay | null> => {
-    let circle = await Circles.findOne({ handle: circleHandle });
-    if (!circle) {
-        return null;
-    }
-
-    let chatRoom = await getChatRoomByHandle(circle._id.toString(), "members");
-    if (!chatRoom) {
-        return null;
-    }
-
-    let chatRoomDisplay: ChatRoomDisplay = {
-        ...chatRoom,
-        circle,
-    };
-    return chatRoomDisplay;
-};
-
 export const getChatRoomByHandle = async (
     circleId: string,
     chatRoomHandle: string | undefined,
