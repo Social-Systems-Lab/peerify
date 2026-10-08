@@ -17,7 +17,11 @@ import { features, getDefaultModules } from "@/lib/data/constants";
 import { isFile, saveFile, deleteFile } from "@/lib/data/storage";
 import { addMember } from "@/lib/data/member";
 import { revalidatePath } from "next/cache";
-import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
+import {
+    canCreateGenericCircle,
+    canPerformRestrictedAction,
+    getRestrictedActionMessage,
+} from "@/lib/auth/verification";
 import { hasContributorPerks } from "@/lib/auth/perks";
 import {
     getPeerifyDefaultAvatarUrl,
@@ -32,7 +36,10 @@ import { generateSlug } from "@/lib/utils";
 const deriveCityFromLocation = (location?: Location): string =>
     [location?.city, location?.country].filter(Boolean).join(", ");
 
-const canCreateIndependentCircle = (user: UserPrivate | undefined) => hasContributorPerks(user);
+// Platform admins pass regardless of member perks, matching the wizard's own UI check
+// (basic-info-step.tsx), which already let them pick top-level.
+const canCreateIndependentCircle = (user: UserPrivate | undefined) =>
+    user?.isAdmin === true || hasContributorPerks(user);
 
 const normalizeWebsiteUrl = (url?: string) => {
     if (!url) return undefined;
@@ -121,6 +128,11 @@ export async function saveBasicInfoAction(
             const currentUser = await getUserPrivate(userDid);
             if (!canPerformRestrictedAction(currentUser)) {
                 return { success: false, message: getRestrictedActionMessage("create circles") };
+            }
+            // Covers circles, sub-circles and projects. Only the create branch: the wizard calls
+            // this again with circleId to edit basic info, which stays governed by edit_about.
+            if (!canCreateGenericCircle(currentUser)) {
+                return { success: false, message: "Only Peerify admins can create circles" };
             }
             const resolvedCircleType = circleType || "circle";
             const resolvedCircleLevel = getCircleLevelForCreate(circleLevel, parentCircleId);

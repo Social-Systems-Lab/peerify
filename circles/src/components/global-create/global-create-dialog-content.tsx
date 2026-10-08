@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { useAtomValue } from "jotai";
 import { DialogTitle, DialogDescription, DialogHeader } from "@/components/ui/dialog";
 import { Card, CardTitle } from "@/components/ui/card";
 import {
@@ -16,6 +17,8 @@ import {
     Music4,
     MapPin,
 } from "lucide-react";
+import { userAtom } from "@/lib/data/atoms";
+import { canCreateGenericCircle } from "@/lib/auth/verification";
 
 // Define types for creatable items
 export type CreatableItemKey =
@@ -157,7 +160,13 @@ export const GlobalCreateDialogContent: React.FC<GlobalCreateDialogContentProps>
     setCreateCommunityOpen,
     setCreateProjectOpen,
 }) => {
-    const visibleCreatableItems = creatableItemsList.filter((item) => visibleGlobalCreateItemKeys.includes(item.key));
+    const user = useAtomValue(userAtom);
+    const canCreateCircle = canCreateGenericCircle(user);
+    const visibleCreatableItems = creatableItemsList.filter(
+        (item) =>
+            visibleGlobalCreateItemKeys.includes(item.key) &&
+            (canCreateCircle || (item.key !== "community" && item.key !== "project")),
+    );
 
     const handleItemClick = (itemKey: CreatableItemKey) => {
         onCloseMainDialog(); // Close this selection dialog
