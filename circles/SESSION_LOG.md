@@ -108,6 +108,19 @@ that case already shows the error message. Not to be fixed now.
 `/circles/<handle>/settings/subscription` shows no plans on staging (seen by Tim on
 `tim-admin`). Not investigated. Low priority, not fixing now.
 
+### Open item: user status badge never renders
+`UserStatusBadge` (`modules/users/user-status-badge.tsx`, via `UserBadge`) is only used on post
+and comment author names (`feeds/post-list.tsx` `PostItem`/`CommentItem`,
+`discussions/discussion-list.tsx` `DiscussionItem`/`CommentItem`; the copy at
+`discussion-list.tsx:857` sits in a dead `{false && (` block). It returns null unless
+`circleType === "user"`, and the author objects built in `src/lib/data/feed.ts` (posts,
+highlighted comments, `getAllComments`) never include `circleType`, nor `verificationStatus` or
+`isFoundingMember` (comments lack `isVerified` too). So no Verified/Unverified/Founding Member
+badge shows anywhere; confirmed on live staging with a post by verified `cryp-tim`. Commit
+`00b237fa`'s "Test pilot" -> "Verified" therefore has no visible effect yet. Fix: add those
+fields to the author projections, after checking they're fine to expose publicly. Not fixing
+now.
+
 ---
 
 ## 2026-10-08 — Item 4 promoted; credential exposure and Phase 1 rotation; server secrets and public locations fixed — all promoted to production
