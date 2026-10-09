@@ -39,6 +39,54 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-09 — Credential rotation Phase 2: JWT secret and VAPID key pair rotated on production
+
+Follows the 2026-10-08 credential-exposure entry below.
+
+### Preflight (read-only)
+- Prod checkout clean; local `main` = `origin/main` = `0b345ec2`. Prod was running release
+  `20261008-194729-0c0295c7`; `origin/main` added only the SESSION_LOG commit, so the deploy
+  shipped no new code. Staging worktree clean and in sync; no unpushed UI edits on this server.
+- Push behaviour after a VAPID change: the app does **not** re-subscribe automatically (the
+  settings toggle reads "on" whenever any browser subscription exists; `public/sw.js` has no
+  `pushsubscriptionchange` handler), and `src/lib/data/push.ts` deletes a subscription only on
+  404/410, so old-key subscriptions rejected with 401/403 stay in Mongo. Tim chose option (a):
+  users who had push on switch it off and on again.
+
+### Steps (each with Tim's yes)
+1. New `CIRCLES_JWT_SECRET` and VAPID pair generated inside a script (never printed) and written
+   in place to prod `.env.local`: exactly 4 lines changed (`CIRCLES_JWT_SECRET`,
+   `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`), 37 lines kept, mode
+   600, `VAPID_SUBJECT` unchanged. Staging's JWT secret and VAPID private key already differed
+   from prod's old and new values.
+2. Prod deploy first (`NEXT_PUBLIC_VAPID_PUBLIC_KEY` is inlined at build time, so the fresh
+   start alone would have paired the old public key with the new private key): release
+   `20261009-054624-0b345ec2`, BUILD_ID `9mIbMBzxxPaUm9Ln_4XVS`, all deploy steps PASS. The client
+   bundle holds the new public key once and the old one nowhere; pm2 env had all four new values.
+   `/`, `/discover`, `/explore`, `/login` 200; no new error-log lines; staging pid unchanged.
+3. `pm2 delete peerify` + fresh start + `pm2 save`, run by Tim (the auto-mode classifier blocked
+   it for me). `deploy-common.sh` restarts with `--update-env`, which adds variables but never
+   removes them, hence this step. Tim's check: all four values new, `JWT_SECRET` gone from the
+   pm2 env, prod online with 200. Tim tested login and re-enabling push.
+
+### Cleanup
+- `.env.local.bak-20261009-phase2` overwritten and deleted; no `.env*.bak*` left on prod or staging.
+- The leaked env-file diff (`toolUseResult.bashEditDiff` on line 2294 of the 2026-10-08 session
+  transcript, the result of the `cp` on line 2293) removed; the transcript is otherwise unchanged
+  and every line is still valid JSON. A sweep of `~/.claude` found no remaining copy of the old JWT
+  secret or old VAPID private key.
+
+### Follow-ups
+- **Push (b), not done:** in `use-push-subscription.ts`, re-subscribe when the existing
+  subscription's `applicationServerKey` doesn't match the current key; in `lib/data/push.ts`,
+  also delete subscriptions rejected with 401/403 (today only 404/410).
+- Rolling back to a release older than `20261009-054624-0b345ec2` would put the old public VAPID
+  key back in browsers: emergencies only.
+- Still open from 2026-10-08: MongoDB authentication (high priority). `/etc/default/minio.bak-20261008`
+  and `~/.mc/config.json.old` no longer exist.
+
+---
+
 ## 2026-10-08 (later) — Discover play button; admin-only circle creation; pilot wording removed — promoted to production
 
 ### Shipped to staging
