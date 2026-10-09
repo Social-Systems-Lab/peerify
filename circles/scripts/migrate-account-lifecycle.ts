@@ -25,13 +25,41 @@
  *
  * Dry-run (default): bun scripts/migrate-account-lifecycle.ts
  * Apply:             bun scripts/migrate-account-lifecycle.ts --apply
+ *
+ * Requires MONGODB_URI (with the database in its path) and EXPECT_DB naming that database,
+ * e.g. EXPECT_DB=peerify_staging.
  */
 
 import { MongoClient } from "mongodb";
 
-const MONGODB_URI =
-    process.env.MONGODB_URI ||
-    `mongodb://${process.env.MONGO_ROOT_USERNAME || "admin"}:${process.env.MONGO_ROOT_PASSWORD || "password"}@${process.env.MONGO_HOST || "127.0.0.1"}:${process.env.MONGO_PORT || "27017"}`;
+// The database comes from MONGODB_URI's path, never a default, and must match EXPECT_DB,
+// so the script can't run against the wrong environment's data by accident.
+const MONGODB_URI = process.env.MONGODB_URI ?? "";
+if (!MONGODB_URI) {
+    console.error("Refusing to run: MONGODB_URI is not set.");
+    process.exit(1);
+}
+let dbName = "";
+try {
+    dbName = new URL(MONGODB_URI).pathname.replace(/^\//, "");
+} catch {
+    // Never print the error: it carries the URI, credentials included.
+    console.error("Refusing to run: MONGODB_URI is not a valid URI.");
+    process.exit(1);
+}
+if (!dbName) {
+    console.error("Refusing to run: MONGODB_URI names no database.");
+    process.exit(1);
+}
+if (!/^[A-Za-z0-9_-]+$/.test(dbName)) {
+    // Not a plain database name, so the URI is malformed and the "path" may hold credentials.
+    console.error("Refusing to run: MONGODB_URI is malformed (unexpected characters in the database name).");
+    process.exit(1);
+}
+if (process.env.EXPECT_DB !== dbName) {
+    console.error(`Refusing to run: EXPECT_DB must be set to the database in MONGODB_URI ("${dbName}").`);
+    process.exit(1);
+}
 
 const args = new Set(process.argv.slice(2));
 const apply = args.has("--apply");
@@ -40,7 +68,7 @@ const mode = apply ? "apply" : "dry-run";
 async function main() {
     const client = new MongoClient(MONGODB_URI);
     await client.connect();
-    const db = client.db("circles");
+    const db = client.db(dbName);
     const circles = db.collection("circles");
     const platformSettings = db.collection("platformSettings");
 
