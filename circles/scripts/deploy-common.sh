@@ -459,6 +459,19 @@ step_http_checks() {
     step_ok "GET / -> HTTP $http_code"
     HTTP_CODE="$http_code"
 
+    local health_code="000"
+    for i in $(seq 1 10); do
+        health_code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${EXPECTED_PORT}/api/health" || echo "000")"
+        if [ "$health_code" = "200" ]; then
+            break
+        fi
+        sleep 1
+    done
+    if [ "$health_code" != "200" ]; then
+        fail "GET http://localhost:${EXPECTED_PORT}/api/health returned '$health_code' (expected 200): the app cannot read its database."
+    fi
+    step_ok "GET /api/health -> HTTP $health_code"
+
     local asset_file
     asset_file="$(find "${RELEASE_DIR}/.next/static/css" -type f -name '*.css' | head -1)"
     if [ -z "$asset_file" ]; then
