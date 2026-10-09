@@ -3,10 +3,10 @@
 // SAFE_CIRCLE_PROJECTION) embed the commenter's email and officialEmail there. No code path
 // returns this snapshot to clients any more, but the data should not sit in the collection.
 //
-// Usage (dry run is the default and only prints counts):
-//   EXPECT_DB=circles mongosh "$MONGODB_URI" --quiet --file scripts/scrub-comment-author-snapshots.mongosh.js
-// Apply:
-//   EXPECT_DB=circles APPLY=1 mongosh "$MONGODB_URI" --quiet --file scripts/scrub-comment-author-snapshots.mongosh.js
+// Usage, from the repo root (dry run is the default and only prints counts; the read-only user is enough):
+//   (set -a; . /home/tim/.config/peerify/prod-ro.env; set +a; EXPECT_DB=circles mongosh --nodb --norc --quiet --file scripts/scrub-comment-author-snapshots.mongosh.js)
+// Apply (needs the app's read-write user):
+//   (set -a; . /home/tim/apps/peerify-app/circles/.env.local; set +a; EXPECT_DB=circles APPLY=1 mongosh --nodb --norc --quiet --file scripts/scrub-comment-author-snapshots.mongosh.js)
 //
 // EXPECT_DB must match the database the URI points at, so a wrong URI aborts instead of
 // touching the wrong database. Back up the comments collection before running with APPLY=1.
@@ -24,6 +24,20 @@ const FIELDS = [
     "matrixUsername",
     "matrixPassword",
 ];
+
+// The URI is read from the environment, not passed on the command line, so the password
+// never appears in argv (visible to every local user via ps).
+if (!process.env.MONGODB_URI) {
+    print("Refusing to run: MONGODB_URI is not set.");
+    quit(1);
+}
+try {
+    db = connect(process.env.MONGODB_URI);
+} catch (e) {
+    // Only the error's name: a parse error message can carry the URI.
+    print(`Refusing to run: could not connect (${e && e.name}).`);
+    quit(1);
+}
 
 const expectedDb = process.env.EXPECT_DB;
 const apply = process.env.APPLY === "1";

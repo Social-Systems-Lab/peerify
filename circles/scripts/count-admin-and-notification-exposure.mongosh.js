@@ -11,11 +11,11 @@
 // counts, notification types and content field paths only: no names, handles, emails, DIDs
 // or ids.
 //
-// Usage (run from the repo root; each .env.local holds a MONGODB_URI that names its database):
+// Usage (run from the repo root; each env file holds a MONGODB_URI that names its database):
 //   Staging:
-//     (set -a; . /home/tim/apps/peerify-staging/circles/.env.local; set +a; EXPECT_DB=peerify_staging mongosh "$MONGODB_URI" --quiet --file scripts/count-admin-and-notification-exposure.mongosh.js)
-//   Production:
-//     (set -a; . /home/tim/apps/peerify-app/circles/.env.local; set +a; EXPECT_DB=circles mongosh "$MONGODB_URI" --quiet --file scripts/count-admin-and-notification-exposure.mongosh.js)
+//     (set -a; . /home/tim/apps/peerify-staging/circles/.env.local; set +a; EXPECT_DB=peerify_staging mongosh --nodb --norc --quiet --file scripts/count-admin-and-notification-exposure.mongosh.js)
+//   Production (read-only user):
+//     (set -a; . /home/tim/.config/peerify/prod-ro.env; set +a; EXPECT_DB=circles mongosh --nodb --norc --quiet --file scripts/count-admin-and-notification-exposure.mongosh.js)
 //
 // EXPECT_DB must match the database the URI points at, so a wrong URI aborts instead of
 // querying the wrong database.
@@ -32,6 +32,20 @@ const PRIVATE_KEYS = [
     "emailVerificationToken",
 ];
 const ELEVATED_GROUPS = ["admins", "moderators"];
+
+// The URI is read from the environment, not passed on the command line, so the password
+// never appears in argv (visible to every local user via ps).
+if (!process.env.MONGODB_URI) {
+    print("Refusing to run: MONGODB_URI is not set.");
+    quit(1);
+}
+try {
+    db = connect(process.env.MONGODB_URI);
+} catch (e) {
+    // Only the error's name: a parse error message can carry the URI.
+    print(`Refusing to run: could not connect (${e && e.name}).`);
+    quit(1);
+}
 
 const expectedDb = process.env.EXPECT_DB;
 if (!expectedDb) {
