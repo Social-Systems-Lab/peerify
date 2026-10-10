@@ -11,14 +11,8 @@ import { getShiftEndAt, getShiftStartAt, isShiftTask } from "@/components/module
 import type { Circle, EventDisplay, TaskDisplay, TaskPermissions } from "@/models/models";
 import type { FundingAskDisplay } from "@/models/models";
 import { getFundingCirclePermissions, isFundingEnabledForCircle, listFundingAsksByCircleId } from "@/lib/data/funding";
-import { getMember, getMembers } from "@/lib/data/member";
+import { getMembers } from "@/lib/data/member";
 import { getHumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
-import { getUserPrivate } from "@/lib/data/user";
-import {
-    createCircleMembershipCredentialCard,
-    getLinkedVibeIdDid,
-    type CircleMembershipCredentialCardData,
-} from "@/lib/vibe-id/membership-credentials";
 import { isPeerifyArtistIdentity, isPeerifyManagedIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import { getEventsByCircleId, getPublicEventsByCircleId } from "@/lib/data/event";
 import { getTracksByCircleId } from "@/lib/data/track";
@@ -60,7 +54,6 @@ export default async function CircleHomePage(props: PageProps) {
     let offersPanelVisibility: "visible" | "sign_in" | "members_only" = "visible";
     let canCreateFundingAsk = false;
     let canCreateVenueEvent = false;
-    let membershipCredential: CircleMembershipCredentialCardData | null = null;
     const proofOfHumanitySummary =
         circle.circleType === "user" && circle.did && !isPeerifyArtistProfile
             ? await getHumanityVerificationSummary(circle.did, viewerDid)
@@ -217,21 +210,6 @@ export default async function CircleHomePage(props: PageProps) {
         }
     }
 
-    if (circle.circleType !== "user" && circle._id && viewerDid) {
-        const [viewer, member] = await Promise.all([
-            getUserPrivate(viewerDid),
-            getMember(viewerDid, String(circle._id)),
-        ]);
-        const subjectVibeDid = getLinkedVibeIdDid(viewer);
-        if (member && subjectVibeDid) {
-            membershipCredential = createCircleMembershipCredentialCard({
-                circle,
-                member,
-                subjectVibeDid,
-            });
-        }
-    }
-
     // tourTeamOfferings' photos/detail only ever reach AboutPage when offersPanelVisibility is
     // "visible" — getCircleByHandle/SAFE_CIRCLE_PROJECTION has no viewer-awareness of its own, so
     // this is the one place that can withhold them from a viewer who doesn't qualify, without
@@ -298,7 +276,6 @@ export default async function CircleHomePage(props: PageProps) {
             showUpcomingShiftsPanel={showUpcomingShiftsPanel}
             adminLeaders={JSON.parse(JSON.stringify(adminLeaders))}
             proofOfHumanitySummary={proofOfHumanitySummary ? JSON.parse(JSON.stringify(proofOfHumanitySummary)) : null}
-            membershipCredential={membershipCredential}
             featuredTracks={featuredTracks}
         />
     );

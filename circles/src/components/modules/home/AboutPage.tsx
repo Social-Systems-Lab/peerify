@@ -47,8 +47,6 @@ import { UserPicture } from "../members/user-picture";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { ProofOfHumanityCard } from "./proof-of-humanity-card";
 import type { HumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
-import MembershipCredentialCard from "./MembershipCredentialCard";
-import type { CircleMembershipCredentialCardData } from "@/lib/vibe-id/membership-credentials";
 import { useProfileRelationshipState } from "./message-button";
 import {
     getPeerifyArtistProfile,
@@ -78,7 +76,6 @@ interface AboutPageProps {
     showUpcomingShiftsPanel?: boolean;
     adminLeaders?: MemberDisplay[];
     proofOfHumanitySummary?: HumanityVerificationSummary | null;
-    membershipCredential?: CircleMembershipCredentialCardData | null;
     featuredTracks?: FeaturedTrack[];
 }
 
@@ -146,7 +143,6 @@ export default function AboutPage({
     showUpcomingShiftsPanel = false,
     adminLeaders = [],
     proofOfHumanitySummary = null,
-    membershipCredential = null,
     featuredTracks = [],
 }: AboutPageProps) {
     const isCompact = useIsCompact();
@@ -294,8 +290,6 @@ export default function AboutPage({
     const shouldShowVerifiedContributions =
         VERIFIED_CONTRIBUTIONS_PANEL_ENABLED && isUserProfile && !isPeerifyArtistProfile;
     const shouldShowProofOfHumanity = isUserProfile && !!proofOfHumanitySummary && !isPeerifyArtistProfile;
-    const shouldShowMembershipCredential =
-        !isUserProfile && !isPeerifyArtistProfile && !isPeerifyVenueProfile && !!membershipCredential;
     const shouldShowFundingPanel = showFundingPanel;
     const shouldShowUpcomingShiftsPanel = showUpcomingShiftsPanel;
     const followerCount = circle.members ? Math.max(circle.members - 1, 0) : 0;
@@ -403,7 +397,6 @@ export default function AboutPage({
         hasAdminDetails ||
         hasNeedsMatchingDetails ||
         shouldShowProofOfHumanity ||
-        shouldShowMembershipCredential ||
         shouldShowVerifiedContributions ||
         shouldShowFundingPanel ||
         shouldShowUpcomingShiftsPanel ||
@@ -1425,12 +1418,6 @@ export default function AboutPage({
                                             })}
                                         </div>
                                     </TooltipProvider>
-                                </div>
-                            )}
-
-                            {shouldShowMembershipCredential && membershipCredential && (
-                                <div className="md:order-[110]">
-                                    <MembershipCredentialCard credential={membershipCredential} />
                                 </div>
                             )}
                         </div>
