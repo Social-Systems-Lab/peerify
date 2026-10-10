@@ -39,6 +39,98 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-10 — VibeID removed (code only); PM2 now starts with only the app's env file — both promoted to production
+
+### VibeID removal
+Plan and investigation: `~/cc-reports/vibeid-removal-investigation.md` (2026-10-09). VibeID had
+been switched off for Peerify since `4fbd4a00` (2026-06-13); only the ungated
+`/.well-known/vibeid/templates/membership-v1.json` was still served.
+
+**Data and env (Tim's runs of v1/v2, read-only):** both databases had 0 VibeID collections, 0
+linked users, 0 `vibe-` handles, 0 VibeID-only users. Both env files and both pm2 processes had
+0 VibeID/KAMOONI names, and VibeID was effectively off everywhere. **Decision: GO, code only.**
+The planned env edits (E1/E2) and data cleanup (D1/D2) were skipped, since there was nothing to remove.
+
+**Commits** (staging → main):
+- V1 `83b719e7` → `c6f2ae8f` `refactor(auth): move generateLocalDidAndPublicKey out of the VibeID module`.
+  - Moved verbatim to `lib/auth/local-identity.ts`; normal signup and the circle wizard use it.
+- V2 `4e66a0d1` → `4e116a0c` `feat(auth): remove VibeID sign-in, signup and account linking`.
+  - Deleted `lib/auth/vibe-id.ts`, the request/callback/status/complete routes, the auth button and the settings card.
+  - Also removed the "or" dividers that `8170552e` added for the button.
+- V3 `0308156e` → `56772426` `feat(vibe-id): remove VibeID membership credentials`.
+  - Deleted `lib/vibe-id/`, the `credentials/*` routes, the `.well-known/vibeid` route and `MembershipCredentialCard`.
+  - The circle home page no longer loads the viewer and their membership just to build that card.
+- V4 `d84a6685` → `81ae7cd2` `chore(deps): drop @vibe-id/core and the VibeID issuer key script`.
+  - Also removed the unread `features.vibeId` and the `.env.example` lines.
+
+**Checks:**
+- tsc and the build are clean.
+- `git grep -i vibe` leaves only `public-location.test.ts` (fixture kept on purpose), this log and
+  the old Kamooni landing-page FAQ text ("we'll also integrate with Vibe"), which was not touched.
+- `participation-readiness.test.ts` fails, but it fails identically at `bd5f7290`, before these
+  changes, so it is a pre-existing failure and was not touched.
+- Main's 33 touched files are byte-identical to staging `d84a6685`.
+
+**Verified on staging** (`d84a6685`):
+- All 12 removed routes return 404 (every `/api/vibe-id/*` plus the `.well-known` template).
+- Playwright against `https://staging.peerify.one` with a throwaway account
+  (`test@blackhole.postmarkapp.com`, Postmark's discard address, so no bounce):
+  - Pilot signup worked; the new did is sha256 hex and the key folder was created.
+  - Login link worked. A wrong password shows "Incorrect password".
+  - Artist-identity wizard worked. The account was first marked verified in the DB: the real
+    path needs a picture upload, and unverified users are correctly refused.
+  - Account settings, the new circle's home page, `default`'s home page (logged in and out) and
+    the profile page all returned 200, with no VibeID strings and no console errors.
+- **Cleanup:**
+  - Deleted 14 documents: 2 circles, 3 members, 4 chatConversations, 2 chatRoomMembers, 1 chatRoom, 1 chatMessageDoc, 1 feed.
+  - Decremented `the-backstage-lounge` `members` by 1 (to 8, matching its rows), as `removeMember` does.
+  - Removed the user's key folder.
+  - A final scan found nothing referencing the throwaway.
+
+**Production:**
+- Release `20261010-085637-81ae7cd2`; all deploy steps PASS, including step 8: `/` 200,
+  `/api/health` 200, `/api/version` = `81ae7cd2`. Staging's pid was unchanged.
+- On localhost:3000, all 12 routes return 404, and `/login` has no VibeID text.
+- The deployed release contains no `@vibe-id` files. `bun install --frozen-lockfile` doesn't
+  prune, so `node_modules/@vibe-id/core` is still in the prod checkout; it isn't used or shipped.
+
+**Notes found along the way:**
+- `OnboardingSignupFlow` and `SignupForm` are not imported anywhere. The live `/signup` is
+  `PilotSignupForm` (magic-link, random server-side password). Their VibeID parts were removed
+  anyway, checked by tsc and the build only.
+- The artist-identity success toast reads "Artist_identity created successfully!".
+
+### PM2 starts with only the app's env file
+Found 2026-10-09 (`~/cc-reports/pm2-env-leak-investigation.md`): `pm2 start/restart --update-env`
+copies the pm2 CLI's whole environment into the app and `dump.pm2`, so deploys run from a Claude
+session put 10 `CLAUDE_*` names (including a session messaging token) and ~20 shell names into both
+apps. `~/.pm2` files were 664.
+- `8a79047c` → `8548ed92` `chore(deploy): start PM2 with only the app's env file, never the calling shell's env`.
+  - `pm2_with_app_env` in `deploy-common.sh` runs pm2 under `env -i`, passing only:
+    - HOME and PATH (plus PM2_HOME if set);
+    - the env file;
+    - PORT, NODE_ENV, GIT_SHA and BUILD_TIME.
+- `bd5f7290` → `626387a3` `chore(deploy): check /api/version reports the deployed sha after restart`
+  (step 8). There is no VERSION file, so the sha comes from the runtime env.
+- Verified by a staging deploy run from a Claude session's shell: no new names, and the per-session
+  values were not copied.
+- **Cleanup by Tim, in his own tab** (`~/cc-reports/cleanup-0..3-*.sh`):
+  - Staging's old `JWT_SECRET` line was removed.
+  - Both apps were restarted with `env -i` delete + start.
+  - `pm2 save` was run and `dump.pm2.bak` was shredded.
+  - `~/.pm2` is now 700/600.
+  - `s2` shows `(none)` and 0 Claude/Anthropic names for both apps, live and dump. It was still
+    `(none)` after today's prod deploy.
+- **Still open:**
+  - `pm2 save` recreates `dump.pm2.bak` at 664, and new log files are created with umask 0002.
+    The 700 `~/.pm2` folder keeps them unreadable to other accounts, but the lasting fix is
+    umask 077 (Mongo auth plan step 18 / p09).
+  - The staging Postmark token belongs to the separate "Peerify Staging" server (`GET /server` → 200).
+
+**Status:** live on `main`/prod as of 2026-10-10 (`81ae7cd2`).
+
+---
+
 ## 2026-10-09 — Credential rotation Phase 2: JWT secret and VAPID key pair rotated on production
 
 Follows the 2026-10-08 credential-exposure entry below.
