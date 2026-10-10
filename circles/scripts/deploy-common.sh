@@ -98,6 +98,38 @@ sys.exit(1)
 "
 }
 
+pm2_with_app_env() {
+    # pm2_with_app_env <pm2 args...>
+    # Run pm2 with only the app's env file plus a minimal base, never the
+    # calling shell's env: `pm2 start/restart --update-env` copies the pm2
+    # CLI's whole environment into the app (and into dump.pm2), so anything
+    # the deploying shell exported (session tokens, SSH_*, ...) leaked in.
+    # HOME and PATH (and PM2_HOME if set) are kept so pm2 finds the running
+    # daemon instead of spawning a second one. --update-env only adds or
+    # overwrites names; it never removes names already in the app's env.
+    local base=(HOME="$HOME" PATH="$PATH")
+    if [ -n "${PM2_HOME:-}" ]; then
+        base+=(PM2_HOME="$PM2_HOME")
+    fi
+    env -i "${base[@]}" \
+        _APP_ENV_FILE="$ENV_FILE" \
+        _APP_PORT="$EXPECTED_PORT" \
+        _APP_GIT_SHA="${GIT_SHA:-unknown}" \
+        _APP_BUILD_TIME="${BUILD_TIME:-unknown}" \
+        bash -c '
+            set -a
+            # shellcheck disable=SC1090
+            source "$_APP_ENV_FILE" || exit 1
+            PORT="$_APP_PORT"
+            NODE_ENV=production
+            GIT_SHA="$_APP_GIT_SHA"
+            BUILD_TIME="$_APP_BUILD_TIME"
+            set +a
+            unset _APP_ENV_FILE _APP_PORT _APP_GIT_SHA _APP_BUILD_TIME
+            exec pm2 "$@"
+        ' pm2_with_app_env "$@"
+}
+
 _require_config() {
     local missing=()
     local v
@@ -380,29 +412,22 @@ step_restart_pm2() {
         || fail "Could not find sibling PM2 process '$PM2_OTHER' to capture a baseline. Refusing to proceed."
     echo "Sibling baseline ($PM2_OTHER) (pid uptime_ts): $other_baseline"
 
-    # Fresh env for the restart specifically: never trust what the calling
-    # shell already has exported.
-    unset PORT
-    set -a
-    # shellcheck disable=SC1090
-    source "$ENV_FILE"
-    set +a
-    PORT="$EXPECTED_PORT"
-
     local already_running="false"
     if pm2_field "$PM2_NAME" "p['pid']" >/dev/null 2>&1; then
         already_running="true"
     fi
 
+    # Env for the app comes only from ENV_FILE (see pm2_with_app_env), never
+    # from what the calling shell has exported.
     if [ "$already_running" = "true" ]; then
-        if ! PORT="$PORT" NODE_ENV=production pm2 restart "$PM2_NAME" --update-env; then
+        if ! pm2_with_app_env restart "$PM2_NAME" --update-env; then
             fail "'pm2 restart $PM2_NAME' failed."
         fi
     else
         # First-ever start on this box (no existing process). Establishes
         # --cwd pointed at the symlink, which is what makes future restarts
         # safe under this scheme.
-        if ! PORT="$PORT" NODE_ENV=production pm2 start "$RELEASES_ROOT/current/server.js" \
+        if ! pm2_with_app_env start "$RELEASES_ROOT/current/server.js" \
             --name "$PM2_NAME" \
             --cwd "$RELEASES_ROOT/current" \
             --update-env; then
