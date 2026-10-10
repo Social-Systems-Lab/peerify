@@ -2,10 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { Circle } from "@/models/models";
-import type { PlatformMembershipCredentialCardData } from "@/lib/vibe-id/membership-credentials";
 import SubscriptionForm from "./subscription-form";
 import { VerificationSettingsCard } from "./verification-settings-card";
-import { VibeIdSettingsCard } from "./vibe-id-settings-card";
 import { updateEmailPreferenceSetting, updatePushPreferenceSetting } from "./actions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -77,13 +75,7 @@ const getInitialPushPreferences = (user: Circle): Record<PushPreferenceKey, bool
     pushCommunity: user.pushCommunity === true,
 });
 
-export default function SubscriptionFormSettings({
-    user,
-    membershipCredential,
-}: {
-    user: Circle;
-    membershipCredential?: PlatformMembershipCredentialCardData | null;
-}) {
+export default function SubscriptionFormSettings({ user }: { user: Circle }) {
     const [subscriptionAttempted, setSubscriptionAttempted] = useState(false);
     const initialEmailPreferences = getInitialEmailPreferences(user);
     const initialPushPreferences = getInitialPushPreferences(user);
@@ -95,7 +87,6 @@ export default function SubscriptionFormSettings({
     if (subscriptionAttempted) {
         return (
             <div className="space-y-8">
-                <VibeIdSettingsCard user={user} membershipCredential={membershipCredential} />
                 {/* Hidden for personal profiles: verification is now automatic once a profile picture
                     and About text are both set (see updateCircle in src/lib/data/circle.ts), so the
                     manual request/thread flow no longer applies here. Not deleted in case manual
@@ -127,7 +118,6 @@ export default function SubscriptionFormSettings({
 
     return (
         <div className="space-y-8">
-            <VibeIdSettingsCard user={user} membershipCredential={membershipCredential} />
             {/* Hidden for personal profiles: verification is now automatic once a profile picture
                 and About text are both set (see updateCircle in src/lib/data/circle.ts), so the
                 manual request/thread flow no longer applies here. Not deleted in case manual

@@ -14,7 +14,6 @@ import Link from "next/link";
 import { submitLoginFormAction, requestLoginLinkAction } from "./actions"; // Import the action object
 import { useAtom } from "jotai";
 import { authInfoAtom, userAtom } from "@/lib/data/atoms";
-import { VibeIdAuthButton } from "@/components/auth/vibe-id-auth-button";
 
 // Zod schema based on loginFormSchema
 const loginValidationSchema = z.object({
@@ -240,17 +239,6 @@ export function LoginForm(): React.ReactElement {
                     </form>
                 </Form>
             )}
-
-            <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-white px-2 text-muted-foreground">or</span>
-                </div>
-            </div>
-
-            <VibeIdAuthButton />
 
             <div className="text-center text-sm text-muted-foreground">
                 Don&#39;t have an account?{" "}

@@ -29,7 +29,6 @@ import { featuredSkills } from "@/lib/data/skills";
 import { cn } from "@/lib/utils";
 import OnboardingCompleteAnimation from "@/components/onboarding/onboarding-complete-animation";
 import DonationIntentCard from "@/components/onboarding/donation-intent-card";
-import { VibeIdAuthButton } from "@/components/auth/vibe-id-auth-button";
 
 const montserrat = Montserrat({
     subsets: ["latin"],
@@ -99,9 +98,8 @@ function sanitizeHandle(value: string) {
     return value.trim().toLowerCase().replace(/\s+/g, "-").replace(/_/g, "-");
 }
 
-function getAccountErrors(state: SignupState, options?: { passwordRequired?: boolean }): SignupErrors {
+function getAccountErrors(state: SignupState): SignupErrors {
     const errors: SignupErrors = {};
-    const passwordRequired = options?.passwordRequired ?? true;
 
     if (!state.name.trim()) {
         errors.name = "Name is required.";
@@ -113,12 +111,10 @@ function getAccountErrors(state: SignupState, options?: { passwordRequired?: boo
         errors.email = "Enter a valid email address.";
     }
 
-    if (passwordRequired) {
-        if (!state.password) {
-            errors.password = "Password is required.";
-        } else if (state.password.length < 8) {
-            errors.password = "Password must be at least 8 characters.";
-        }
+    if (!state.password) {
+        errors.password = "Password is required.";
+    } else if (state.password.length < 8) {
+        errors.password = "Password must be at least 8 characters.";
     }
 
     const handle = sanitizeHandle(state.handle);
@@ -133,12 +129,10 @@ function getAccountErrors(state: SignupState, options?: { passwordRequired?: boo
         errors.handle = "Use lowercase letters, numbers, and hyphens only.";
     }
 
-    if (passwordRequired) {
-        if (!state.confirmPassword) {
-            errors.confirmPassword = "Please repeat your password.";
-        } else if (state.password !== state.confirmPassword) {
-            errors.confirmPassword = "Passwords do not match.";
-        }
+    if (!state.confirmPassword) {
+        errors.confirmPassword = "Please repeat your password.";
+    } else if (state.password !== state.confirmPassword) {
+        errors.confirmPassword = "Passwords do not match.";
     }
 
     return errors;
@@ -206,8 +200,6 @@ export function OnboardingSignupFlow() {
     const [isInterestsExpanded, setIsInterestsExpanded] = useState(false);
     const [completionRedirectUrl, setCompletionRedirectUrl] = useState<string | null>(null);
     const [donationIntent, setDonationIntent] = useState<DonationIntentValue>(initialDonationIntent);
-    const [vibeIdSignupRequestId, setVibeIdSignupRequestId] = useState<string | null>(null);
-    const isVibeIdSignup = Boolean(vibeIdSignupRequestId);
 
     const visibleSkillOptions = isSkillsExpanded ? featuredSkills : featuredSkills.slice(0, INITIAL_VISIBLE_OPTIONS);
     const visibleInterestOptions = isInterestsExpanded
@@ -233,42 +225,6 @@ export function OnboardingSignupFlow() {
             state[field].includes(value) ? state[field].filter((item) => item !== value) : [...state[field], value],
         );
     };
-
-    const continueWithVibeIdSignup = (details: { requestId: string; profile?: { displayName?: string } }) => {
-        setVibeIdSignupRequestId(details.requestId);
-        setState((prev) => ({
-            ...prev,
-            name: prev.name || details.profile?.displayName || "",
-            password: "",
-            confirmPassword: "",
-        }));
-        setErrors({});
-        setStepIndex(1);
-    };
-
-    useEffect(() => {
-        const requestId = searchParams?.get("vibeIdRequestId");
-        if (!requestId || vibeIdSignupRequestId) {
-            return;
-        }
-
-        const displayName = searchParams?.get("vibeIdName") || "";
-        setVibeIdSignupRequestId(requestId);
-        setState((prev) => ({
-            ...prev,
-            name: prev.name || displayName,
-            password: "",
-            confirmPassword: "",
-        }));
-        setErrors({});
-        setStepIndex(1);
-
-        const nextParams = new URLSearchParams(searchParams.toString());
-        nextParams.delete("vibeIdRequestId");
-        nextParams.delete("vibeIdName");
-        const nextQuery = nextParams.toString();
-        router.replace(nextQuery ? `/signup?${nextQuery}` : "/signup");
-    }, [router, searchParams, vibeIdSignupRequestId]);
 
     useEffect(() => {
         return () => {
@@ -307,7 +263,7 @@ export function OnboardingSignupFlow() {
 
     const goToNextStep = () => {
         if (stepIndex === 1) {
-            const nextErrors = getAccountErrors(state, { passwordRequired: !isVibeIdSignup });
+            const nextErrors = getAccountErrors(state);
             if (Object.keys(nextErrors).length > 0) {
                 setErrors(nextErrors);
                 return;
@@ -320,9 +276,6 @@ export function OnboardingSignupFlow() {
 
     const goToPreviousStep = () => {
         setErrors({});
-        if (stepIndex === 1 && isVibeIdSignup) {
-            setVibeIdSignupRequestId(null);
-        }
         setStepIndex((prev) => Math.max(prev - 1, 0));
     };
 
@@ -352,40 +305,18 @@ export function OnboardingSignupFlow() {
         setIsSubmitting(true);
 
         try {
-            const result = vibeIdSignupRequestId
-                ? await fetch("/api/vibe-id/complete", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      cache: "no-store",
-                      body: JSON.stringify({
-                          requestId: vibeIdSignupRequestId,
-                          name: state.name.trim(),
-                          handle: sanitizeHandle(state.handle),
-                          email: state.email.trim(),
-                          skills: state.skills,
-                          interests: state.interests,
-                          metadata: {
-                              onboardingFlow: ONBOARDING_FLOW,
-                          },
-                      }),
-                  }).then(async (response) => {
-                      const data = await response.json();
-                      return response.ok && data.status === "approved" && data.user
-                          ? { success: true, data: { user: data.user } }
-                          : { success: false, message: data.message || "Could not complete VibeID signup." };
-                  })
-                : await submitSignupFormAction({
-                      name: state.name.trim(),
-                      handle: sanitizeHandle(state.handle),
-                      type: "user",
-                      _email: state.email.trim(),
-                      _password: state.password,
-                      skills: state.skills,
-                      interests: state.interests,
-                      metadata: {
-                          onboardingFlow: ONBOARDING_FLOW,
-                      },
-                  });
+            const result = await submitSignupFormAction({
+                name: state.name.trim(),
+                handle: sanitizeHandle(state.handle),
+                type: "user",
+                _email: state.email.trim(),
+                _password: state.password,
+                skills: state.skills,
+                interests: state.interests,
+                metadata: {
+                    onboardingFlow: ONBOARDING_FLOW,
+                },
+            });
 
             if (!result.success) {
                 const message = result.message || "An error occurred during signup.";
@@ -410,7 +341,6 @@ export function OnboardingSignupFlow() {
             setAuthInfo((prev) => ({ ...prev, authStatus: "authenticated" }));
             setCreatedUserId(String(result.data.user._id || ""));
             setCreatedUserHandle(result.data.user.handle || sanitizeHandle(state.handle));
-            setVibeIdSignupRequestId(null);
 
             toast({
                 title: "Account created",
@@ -773,45 +703,41 @@ export function OnboardingSignupFlow() {
                                             {errors.email && <p className="text-sm text-red-600">{errors.email}</p>}
                                         </div>
 
-                                        {!isVibeIdSignup && (
-                                            <>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="signup-password">Password</Label>
-                                                    <Input
-                                                        id="signup-password"
-                                                        type="password"
-                                                        value={state.password}
-                                                        onChange={(event) =>
-                                                            updateField("password", event.target.value)
-                                                        }
-                                                        autoComplete="new-password"
-                                                        placeholder="At least 8 characters"
-                                                        className="h-12 border-[#d9c7a0] bg-white/80"
-                                                    />
-                                                    {errors.password && (
-                                                        <p className="text-sm text-red-600">{errors.password}</p>
-                                                    )}
-                                                </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="signup-password">Password</Label>
+                                            <Input
+                                                id="signup-password"
+                                                type="password"
+                                                value={state.password}
+                                                onChange={(event) =>
+                                                    updateField("password", event.target.value)
+                                                }
+                                                autoComplete="new-password"
+                                                placeholder="At least 8 characters"
+                                                className="h-12 border-[#d9c7a0] bg-white/80"
+                                            />
+                                            {errors.password && (
+                                                <p className="text-sm text-red-600">{errors.password}</p>
+                                            )}
+                                        </div>
 
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="signup-confirm-password">Repeat password</Label>
-                                                    <Input
-                                                        id="signup-confirm-password"
-                                                        type="password"
-                                                        value={state.confirmPassword}
-                                                        onChange={(event) =>
-                                                            updateField("confirmPassword", event.target.value)
-                                                        }
-                                                        autoComplete="new-password"
-                                                        placeholder="Repeat password"
-                                                        className="h-12 border-[#d9c7a0] bg-white/80"
-                                                    />
-                                                    {errors.confirmPassword && (
-                                                        <p className="text-sm text-red-600">{errors.confirmPassword}</p>
-                                                    )}
-                                                </div>
-                                            </>
-                                        )}
+                                        <div className="space-y-2">
+                                            <Label htmlFor="signup-confirm-password">Repeat password</Label>
+                                            <Input
+                                                id="signup-confirm-password"
+                                                type="password"
+                                                value={state.confirmPassword}
+                                                onChange={(event) =>
+                                                    updateField("confirmPassword", event.target.value)
+                                                }
+                                                autoComplete="new-password"
+                                                placeholder="Repeat password"
+                                                className="h-12 border-[#d9c7a0] bg-white/80"
+                                            />
+                                            {errors.confirmPassword && (
+                                                <p className="text-sm text-red-600">{errors.confirmPassword}</p>
+                                            )}
+                                        </div>
 
                                         <div className="space-y-2 sm:col-span-2">
                                             <Label htmlFor="signup-handle">Handle</Label>
@@ -831,24 +757,6 @@ export function OnboardingSignupFlow() {
                                             {errors.handle && <p className="text-sm text-red-600">{errors.handle}</p>}
                                         </div>
                                     </div>
-
-                                    {!isVibeIdSignup && (
-                                        <div className="relative">
-                                            <div className="absolute inset-0 flex items-center">
-                                                <span className="w-full border-t border-[#d7bf94]" />
-                                            </div>
-                                            <div className="relative flex justify-center text-xs uppercase">
-                                                <span className="bg-[#fffaf2] px-2 text-kam-gray-dark/55">or</span>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {!isVibeIdSignup && (
-                                        <VibeIdAuthButton
-                                            label="Sign up with VibeID"
-                                            onNeedsSignup={continueWithVibeIdSignup}
-                                        />
-                                    )}
 
                                     <div className="flex flex-col gap-3 pt-3 sm:flex-row">
                                         <Button
