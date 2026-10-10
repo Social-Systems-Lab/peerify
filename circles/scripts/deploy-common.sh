@@ -497,6 +497,16 @@ step_http_checks() {
     fi
     step_ok "GET /api/health -> HTTP $health_code"
 
+    # /api/version reads gitSha from the runtime GIT_SHA env (there is no
+    # VERSION file), so this also proves the restart passed the app's env.
+    local served_sha
+    served_sha="$(curl -s "http://localhost:${EXPECTED_PORT}/api/version" \
+        | python3 -c "import json, sys; print(json.load(sys.stdin).get('gitSha', ''))" 2>/dev/null || true)"
+    if [ "$served_sha" != "$GIT_SHA" ]; then
+        fail "GET /api/version reports gitSha '${served_sha:-<none>}', expected '$GIT_SHA'."
+    fi
+    step_ok "GET /api/version -> gitSha $served_sha"
+
     local asset_file
     asset_file="$(find "${RELEASE_DIR}/.next/static/css" -type f -name '*.css' | head -1)"
     if [ -z "$asset_file" ]; then
