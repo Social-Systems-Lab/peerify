@@ -2,11 +2,6 @@ import { getCircleByHandle } from "@/lib/data/circle";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getUserPrivate } from "@/lib/data/user";
 import SubscriptionFormSettings from "./subscription-form-settings";
-import {
-    createPlatformMembershipCredentialCard,
-    getLinkedVibeIdDid,
-    type PlatformMembershipCredentialCardData,
-} from "@/lib/vibe-id/membership-credentials";
 
 type SubscriptionProps = {
     params: Promise<{ handle: string }>;
@@ -17,18 +12,9 @@ export default async function SubscriptionPage(props: SubscriptionProps) {
     const circle = await getCircleByHandle(params.handle);
     const userDid = await getAuthenticatedUserDid();
     const user = userDid ? await getUserPrivate(userDid) : null;
-    let membershipCredential: PlatformMembershipCredentialCardData | null = null;
 
     if (!circle || !user || user.handle !== circle.handle) {
         return <div>Unauthorized</div>;
-    }
-
-    const subjectVibeDid = getLinkedVibeIdDid(user);
-    if (subjectVibeDid) {
-        membershipCredential = createPlatformMembershipCredentialCard({
-            user,
-            subjectVibeDid,
-        });
     }
 
     return (
@@ -40,7 +26,7 @@ export default async function SubscriptionPage(props: SubscriptionProps) {
                 </p>
             </div>
             <div className="mt-8 max-w-5xl">
-                <SubscriptionFormSettings user={user} membershipCredential={membershipCredential} />
+                <SubscriptionFormSettings user={user} />
             </div>
         </div>
     );
