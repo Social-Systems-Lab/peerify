@@ -10,6 +10,7 @@ import { ensureWelcomeMessageForNewUser } from "@/lib/data/mongo-chat";
 import { getResolvedWelcomeTemplate } from "@/lib/data/system-message-templates";
 import { createNewUser, getUserPrivate } from "@/lib/data/user";
 import { createUserSession, getAuthenticatedUserDid, PUBLIC_KEY_FILENAME, USERS_DIR } from "@/lib/auth/auth";
+import { generateLocalDidAndPublicKey } from "@/lib/auth/local-identity";
 import { isVibeIdEnabled, VIBE_ID_DISABLED_MESSAGE } from "@/lib/vibe-id/config";
 import type { Circle } from "@/models/models";
 
@@ -113,13 +114,6 @@ function normalizeEmail(value: unknown): string {
 
 function isValidEmail(value: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-export function generateLocalDidAndPublicKey(): { did: string; publicKeyPem: string } {
-    const { publicKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
-    const publicKeyPem = publicKey.export({ type: "pkcs1", format: "pem" }) as string;
-    const did = crypto.createHash("sha256").update(publicKeyPem).digest("hex");
-    return { did, publicKeyPem };
 }
 
 function makeHandleSeed(profile: VibeIdProfile | undefined, vibeDid: string): string {
