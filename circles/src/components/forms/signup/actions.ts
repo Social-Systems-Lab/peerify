@@ -10,7 +10,7 @@ import { ensureWelcomeMessageForNewUser } from "@/lib/data/mongo-chat";
 import { getResolvedWelcomeTemplate } from "@/lib/data/system-message-templates";
 import { verifyAltchaPayload } from "@/lib/auth/altcha";
 import { generateSlug } from "@/lib/utils";
-import { generateLocalDidAndPublicKey } from "@/lib/auth/vibe-id";
+import { generateLocalDidAndPublicKey } from "@/lib/auth/local-identity";
 import { getDefaultModules } from "@/lib/data/constants";
 import { PEERIFY_DEFAULT_ARTIST_AVATAR_URL, normalizePeerifyArtistProfile } from "@/lib/peerify/artist-profile";
 

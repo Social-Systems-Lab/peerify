@@ -11,7 +11,7 @@ import {
 import { Circle, CircleLevel, CircleType, Location, Media, FileInfo, UserPrivate } from "@/models/models";
 import { ImageItem } from "@/components/forms/controls/multi-image-uploader";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
-import { generateLocalDidAndPublicKey } from "@/lib/auth/vibe-id";
+import { generateLocalDidAndPublicKey } from "@/lib/auth/local-identity";
 import { getUser, getUserPrivate } from "@/lib/data/user"; // Corrected import for getUserPrivate
 import { features, getDefaultModules } from "@/lib/data/constants";
 import { isFile, saveFile, deleteFile } from "@/lib/data/storage";

@@ -8,7 +8,7 @@
  * back to the underlying account's own did until now. See src/components/circle-wizard/actions.ts
  * for the (now fixed) creation-time did assignment this backfill catches existing rows up to.
  *
- * did format matches generateLocalDidAndPublicKey() in src/lib/auth/vibe-id.ts:
+ * did format matches generateLocalDidAndPublicKey() in src/lib/auth/local-identity.ts:
  * sha256 of a freshly generated RSA-2048 public key (PEM). Only the did is persisted — managed
  * identities don't authenticate independently, so (unlike "user" circles) no private key or
  * USERS_DIR keypair directory is needed.
