@@ -27,6 +27,5 @@ export const appConfig = {
         mapDiscovery: true,
         donations: false,
         memberships: false,
-        vibeId: false,
     },
 } as const;
