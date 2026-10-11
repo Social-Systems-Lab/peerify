@@ -109,6 +109,9 @@ pm2_with_app_env() {
     # HOME and PATH (and PM2_HOME if set) are kept so pm2 finds the running
     # daemon instead of spawning a second one. --update-env only adds or
     # overwrites names; it never removes names already in the app's env.
+    # HOSTNAME=127.0.0.1 makes the Next standalone server listen on loopback
+    # only (its default is 0.0.0.0); nginx proxies to 127.0.0.1, and the
+    # middleware's /api/access call goes to CIRCLES_HOST, which is 127.0.0.1.
     local base=(HOME="$HOME" PATH="$PATH")
     if [ -n "${PM2_HOME:-}" ]; then
         base+=(PM2_HOME="$PM2_HOME")
@@ -123,6 +126,7 @@ pm2_with_app_env() {
             # shellcheck disable=SC1090
             source "$_APP_ENV_FILE" || exit 1
             PORT="$_APP_PORT"
+            HOSTNAME=127.0.0.1
             NODE_ENV=production
             GIT_SHA="$_APP_GIT_SHA"
             BUILD_TIME="$_APP_BUILD_TIME"
@@ -492,40 +496,54 @@ step_http_checks() {
     local http_code="000"
     local i
     for i in $(seq 1 10); do
-        http_code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${EXPECTED_PORT}/" || echo "000")"
+        http_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${EXPECTED_PORT}/" || echo "000")"
         if [ "$http_code" = "200" ]; then
             break
         fi
         sleep 1
     done
     if [ "$http_code" != "200" ]; then
-        fail "GET http://localhost:${EXPECTED_PORT}/ returned '$http_code' (expected 200) after retries."
+        fail "GET http://127.0.0.1:${EXPECTED_PORT}/ returned '$http_code' (expected 200) after retries."
     fi
     step_ok "GET / -> HTTP $http_code"
     HTTP_CODE="$http_code"
 
     local health_code="000"
     for i in $(seq 1 10); do
-        health_code="$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:${EXPECTED_PORT}/api/health" || echo "000")"
+        health_code="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${EXPECTED_PORT}/api/health" || echo "000")"
         if [ "$health_code" = "200" ]; then
             break
         fi
         sleep 1
     done
     if [ "$health_code" != "200" ]; then
-        fail "GET http://localhost:${EXPECTED_PORT}/api/health returned '$health_code' (expected 200): the app cannot read its database."
+        fail "GET http://127.0.0.1:${EXPECTED_PORT}/api/health returned '$health_code' (expected 200): the app cannot read its database."
     fi
     step_ok "GET /api/health -> HTTP $health_code"
 
     # /api/version reads gitSha from the runtime GIT_SHA env (there is no
     # VERSION file), so this also proves the restart passed the app's env.
     local served_sha
-    served_sha="$(curl -s "http://localhost:${EXPECTED_PORT}/api/version" \
+    served_sha="$(curl -s "http://127.0.0.1:${EXPECTED_PORT}/api/version" \
         | python3 -c "import json, sys; print(json.load(sys.stdin).get('gitSha', ''))" 2>/dev/null || true)"
     if [ "$served_sha" != "$GIT_SHA" ]; then
         fail "GET /api/version reports gitSha '${served_sha:-<none>}', expected '$GIT_SHA'."
     fi
     step_ok "GET /api/version -> gitSha $served_sha"
+
+    # The app must listen on loopback only (HOSTNAME in pm2_with_app_env).
+    local listeners
+    listeners="$(ss -Hltn "sport = :${EXPECTED_PORT}" | awk '{print $4}' | sort -u | tr '\n' ' ')"
+    if [ -z "$listeners" ]; then
+        fail "Nothing is listening on port ${EXPECTED_PORT} according to ss."
+    fi
+    local addr
+    for addr in $listeners; do
+        if [ "$addr" != "127.0.0.1:${EXPECTED_PORT}" ]; then
+            fail "Port ${EXPECTED_PORT} listens on '${addr}', expected only 127.0.0.1:${EXPECTED_PORT}."
+        fi
+    done
+    step_ok "Port ${EXPECTED_PORT} listens on loopback only: ${listeners% }"
 
     local asset_file
     asset_file="$(find "${RELEASE_DIR}/.next/static/css" -type f -name '*.css' | head -1)"
@@ -533,7 +551,7 @@ step_http_checks() {
         fail "No .css file found under ${RELEASE_DIR}/.next/static/css to test."
     fi
     local asset_rel="${asset_file#${RELEASE_DIR}/.next/static/}"
-    local asset_url="http://localhost:${EXPECTED_PORT}/_next/static/${asset_rel}"
+    local asset_url="http://127.0.0.1:${EXPECTED_PORT}/_next/static/${asset_rel}"
 
     local asset_curl_output asset_code asset_size
     asset_curl_output="$(curl -s -o /dev/null -w '%{http_code} %{size_download}' "$asset_url")"
