@@ -39,11 +39,15 @@ import { AggregateRank } from "./ranking";
 import { ChatConversation, ChatMessageDoc, ChatReadState, MessageEmailReminder } from "@/lib/chat/mongo-types";
 import type { PlatformBroadcastMessage } from "./platform-broadcasts";
 
-const MONGODB_URI =
-    process.env.MONGODB_URI ||
-    `mongodb://${process.env.MONGO_ROOT_USERNAME || "admin"}:${process.env.MONGO_ROOT_PASSWORD || "password"}@${process.env.MONGO_HOST || "127.0.0.1"}:${process.env.MONGO_PORT || "27017"}`;
+// No fallback: a missing MONGODB_URI used to become admin:password@127.0.0.1, which only produced
+// "Authentication failed" noise against a server with auth on. The build (IS_BUILD=true) never
+// connects, so it may run without the URI.
+const MONGODB_URI = process.env.MONGODB_URI ?? "";
+if (!MONGODB_URI && process.env.IS_BUILD !== "true") {
+    throw new Error("MONGODB_URI is not set; refusing to start without a database URI.");
+}
 
-const dbName = new URL(MONGODB_URI).pathname.replace(/^\//, '') || 'circles';
+const dbName = (MONGODB_URI && new URL(MONGODB_URI).pathname.replace(/^\//, "")) || "circles";
 
 const options: MongoClientOptions = {};
 
