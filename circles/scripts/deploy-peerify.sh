@@ -17,25 +17,47 @@
 # already point at PROJECT_DIR-adjacent 'current', which the one-time
 # migration (see SESSION_LOG.md) establishes before this script is used.
 #
-# Never touches the `peerify-staging` PM2 process except to confirm,
-# before and after, that it was not disturbed.
+# The config depends on the box (hostname): the old shared box `peerify`,
+# where staging runs next to prod, or the Cleura prod server, which runs
+# only prod. Any other hostname is refused.
+#
+# On the shared box, never touches the `peerify-staging` PM2 process except
+# to confirm, before and after, that it was not disturbed.
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-PROJECT_DIR="/home/tim/apps/peerify-app/circles"
-ENV_FILE="/home/tim/apps/peerify-app/circles/.env.local"
-EXPECTED_HOST="peerify"
-EXPECTED_BRANCH="main"
-EXPECTED_PORT="3000"
-NESTED_APP_PATH="apps/peerify-app/circles"
-PM2_NAME="peerify"
-PM2_OTHER="peerify-staging"
-RUN_BUN_INSTALL="true"
-
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/scripts/deploy-common.sh"
+
+EXPECTED_BRANCH="main"
+EXPECTED_PORT="3000"
+PM2_NAME="peerify"
+
+case "$(hostname)" in
+    peerify)
+        # Old shared box (prod + staging), until the Cleura cutover.
+        EXPECTED_HOST="peerify"
+        PROJECT_DIR="/home/tim/apps/peerify-app/circles"
+        ENV_FILE="/home/tim/apps/peerify-app/circles/.env.local"
+        NESTED_APP_PATH="apps/peerify-app/circles"
+        PM2_OTHER="peerify-staging"
+        RUN_BUN_INSTALL="true"
+        ;;
+    peerify-prod)
+        # Cleura prod server: prod only, APP_DIR and env outside the checkout.
+        EXPECTED_HOST="peerify-prod"
+        PROJECT_DIR="/srv/peerify/app/circles"
+        ENV_FILE="/srv/peerify/env/app.env"
+        NESTED_APP_PATH="."
+        PM2_OTHER=""
+        RUN_BUN_INSTALL="true"
+        ;;
+    *)
+        fail "Unknown host '$(hostname)': no prod deploy config for it."
+        ;;
+esac
 
 if [ "$SCRIPT_DIR" != "$PROJECT_DIR" ]; then
     fail "Running from '$SCRIPT_DIR', expected '$PROJECT_DIR'."
