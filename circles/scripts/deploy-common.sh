@@ -41,10 +41,12 @@
 #   EXPECTED_BRANCH  - git branch this must run on
 #   EXPECTED_PORT    - PORT this app's PM2 process listens on
 #   NESTED_APP_PATH  - path under .next/standalone/ where server.js lands,
-#                       e.g. "apps/peerify-app/circles"
+#                       e.g. "apps/peerify-app/circles", or "." when
+#                       server.js lands directly in .next/standalone/
 #   PM2_NAME         - PM2 process name for this app
 #   PM2_OTHER        - PM2 process name for the sibling app that must be
-#                       confirmed untouched before and after
+#                       confirmed untouched before and after. Must be set,
+#                       but may be empty on a box that runs only this app.
 #   RUN_BUN_INSTALL  - "true"/"false" - whether to run
 #                       `bun install --frozen-lockfile` before building
 # Optional:
@@ -134,11 +136,16 @@ _require_config() {
     local missing=()
     local v
     for v in PROJECT_DIR ENV_FILE EXPECTED_HOST EXPECTED_BRANCH EXPECTED_PORT \
-             NESTED_APP_PATH PM2_NAME PM2_OTHER RUN_BUN_INSTALL; do
+             NESTED_APP_PATH PM2_NAME RUN_BUN_INSTALL; do
         if [ -z "${!v:-}" ]; then
             missing+=("$v")
         fi
     done
+    # PM2_OTHER may be empty (one app per box), but must be set explicitly,
+    # so a wrapper that forgets it fails instead of skipping the sibling check.
+    if [ -z "${PM2_OTHER+set}" ]; then
+        missing+=("PM2_OTHER")
+    fi
     if [ "${#missing[@]}" -gt 0 ]; then
         fail "deploy-common.sh: missing required config variable(s): ${missing[*]}"
     fi
@@ -258,7 +265,10 @@ step_locate_standalone() {
     fi
     echo "BUILD_ID: $BUILD_ID"
 
-    local expected_standalone_root="$PROJECT_DIR/.next/standalone/$NESTED_APP_PATH"
+    local expected_standalone_root="$PROJECT_DIR/.next/standalone"
+    if [ "$NESTED_APP_PATH" != "." ]; then
+        expected_standalone_root="$expected_standalone_root/$NESTED_APP_PATH"
+    fi
     local found_servers=()
     mapfile -t found_servers < <(
         find "$PROJECT_DIR/.next/standalone" -path "*/node_modules" -prune -o -type f -name "server.js" -print
@@ -407,10 +417,14 @@ step_restart_pm2() {
     CURRENT_STEP=7
     echo "=== Step 7: Restart $PM2_NAME only ==="
 
-    local other_baseline
-    other_baseline="$(pm2_field "$PM2_OTHER" "f\"{p['pid']} {p['pm2_env']['pm_uptime']}\"")" \
-        || fail "Could not find sibling PM2 process '$PM2_OTHER' to capture a baseline. Refusing to proceed."
-    echo "Sibling baseline ($PM2_OTHER) (pid uptime_ts): $other_baseline"
+    local other_baseline=""
+    if [ -n "$PM2_OTHER" ]; then
+        other_baseline="$(pm2_field "$PM2_OTHER" "f\"{p['pid']} {p['pm2_env']['pm_uptime']}\"")" \
+            || fail "Could not find sibling PM2 process '$PM2_OTHER' to capture a baseline. Refusing to proceed."
+        echo "Sibling baseline ($PM2_OTHER) (pid uptime_ts): $other_baseline"
+    else
+        echo "No sibling PM2 process configured for this box (PM2_OTHER is empty)."
+    fi
 
     local already_running="false"
     if pm2_field "$PM2_NAME" "p['pid']" >/dev/null 2>&1; then
@@ -427,9 +441,11 @@ step_restart_pm2() {
         # First-ever start on this box (no existing process). Establishes
         # --cwd pointed at the symlink, which is what makes future restarts
         # safe under this scheme.
+        # --time prefixes every log line with a timestamp; a restart keeps it.
         if ! pm2_with_app_env start "$RELEASES_ROOT/current/server.js" \
             --name "$PM2_NAME" \
             --cwd "$RELEASES_ROOT/current" \
+            --time \
             --update-env; then
             fail "'pm2 start' failed for $PM2_NAME."
         fi
@@ -453,13 +469,17 @@ step_restart_pm2() {
     fi
     step_ok "$PM2_NAME status: $status"
 
-    local other_after
-    other_after="$(pm2_field "$PM2_OTHER" "f\"{p['pid']} {p['pm2_env']['pm_uptime']}\"")" \
-        || fail "Could not find sibling PM2 process '$PM2_OTHER' after restart — verify manually right now."
-    if [ "$other_after" != "$other_baseline" ]; then
-        fail "SIBLING PROCESS $PM2_OTHER WAS AFFECTED by this deploy. Before: [$other_baseline] After: [$other_after]. Investigate immediately."
+    local other_after="n/a (no sibling on this box)"
+    if [ -n "$PM2_OTHER" ]; then
+        other_after="$(pm2_field "$PM2_OTHER" "f\"{p['pid']} {p['pm2_env']['pm_uptime']}\"")" \
+            || fail "Could not find sibling PM2 process '$PM2_OTHER' after restart — verify manually right now."
+        if [ "$other_after" != "$other_baseline" ]; then
+            fail "SIBLING PROCESS $PM2_OTHER WAS AFFECTED by this deploy. Before: [$other_baseline] After: [$other_after]. Investigate immediately."
+        fi
+        step_ok "Sibling ($PM2_OTHER) pid/uptime unchanged: $other_after"
+    else
+        step_ok "No sibling process to check on this box"
     fi
-    step_ok "Sibling ($PM2_OTHER) pid/uptime unchanged: $other_after"
 
     PM2_STATUS="$status"
     PM2_OTHER_AFTER="$other_after"
@@ -584,7 +604,7 @@ run_atomic_deploy() {
     echo "BUILD_ID:            $BUILD_ID"
     echo "Release:             $RELEASE_DIR"
     echo "PM2 $PM2_NAME:       $PM2_STATUS"
-    echo "PM2 $PM2_OTHER (untouched): $PM2_OTHER_AFTER"
+    echo "PM2 ${PM2_OTHER:-sibling} (untouched): $PM2_OTHER_AFTER"
     echo "HTTP  /            : $HTTP_CODE"
     echo "HTTP  static asset : $ASSET_CODE (${ASSET_SIZE} bytes)"
     echo "                      $ASSET_URL"
