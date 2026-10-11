@@ -41,7 +41,7 @@ case "$(hostname)" in
         EXPECTED_HOST="peerify"
         PROJECT_DIR="/home/tim/apps/peerify-app/circles"
         ENV_FILE="/home/tim/apps/peerify-app/circles/.env.local"
-        NESTED_APP_PATH="apps/peerify-app/circles"
+        NESTED_APP_PATH="."
         PM2_OTHER="peerify-staging"
         RUN_BUN_INSTALL="true"
         ;;
