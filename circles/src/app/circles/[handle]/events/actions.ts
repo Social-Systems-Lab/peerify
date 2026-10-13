@@ -28,6 +28,7 @@ import {
     getCirclesBySearchQuery,
     getCircleById,
     getCirclesByIds,
+    isCirclePublished,
 } from "@/lib/data/circle";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate, getPrivateUserByDid, updateUser } from "@/lib/data/user";
@@ -1404,9 +1405,14 @@ export async function searchArtistCirclesAction(
         // Artist/band/venue-adjacent managed identities can be circleType "circle" (e.g. a band
         // with its own delegated admins) or circleType "user" (a solo artist using their personal
         // account), so search across all circle types and filter by identity afterward — mirrors
-        // how map-explorer's search fetches broadly then filters client-side.
+        // how map-explorer's search fetches broadly then filters client-side. Drafts are left out:
+        // their pages show "not found" to everyone but their own admins.
         const circles = await getCirclesBySearchQuery(query, limit * 3);
-        return { circles: circles.filter(isPeerifyArtistIdentity).slice(0, limit) };
+        return {
+            circles: circles
+                .filter((circle) => isPeerifyArtistIdentity(circle) && isCirclePublished(circle))
+                .slice(0, limit),
+        };
     } catch (error) {
         console.error("Error in searchArtistCirclesAction:", error);
         return defaultResult;

@@ -67,7 +67,7 @@ export default function EventArtistPicker({ value, onChange }: Props) {
             <Label htmlFor="artist-search">Additional artists / bands (optional)</Label>
             <Input
                 id="artist-search"
-                placeholder="Search for a band, artist, DJ, or producer..."
+                placeholder="Search for a band, artist, or DJ..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
             />

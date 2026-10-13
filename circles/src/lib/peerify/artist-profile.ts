@@ -6,6 +6,20 @@ export type PeerifyIdentityType = PeerifyArtistIdentityType | PeerifyVenueIdenti
 export const PEERIFY_ARTIST_IDENTITY_TYPES = ["artist", "band", "dj", "producer"] as const;
 export const PEERIFY_MANAGED_IDENTITY_TYPES = [...PEERIFY_ARTIST_IDENTITY_TYPES, "venue"] as const;
 
+// Feature flags for parts of Peerify that are paused while they're reworked. Off hides every
+// user-facing surface and makes the server refuse new use; stored data is left untouched, so
+// flipping a flag back to true restores the feature as it was.
+//
+// Booking enquiries: artist Booking card + enquiry dialog, venue "Booking enquiries enabled"
+// callout, both settings toggles, sendPeerifyArtistEnquiryAction's "booking" type. When turning
+// this back on, also restore the landing page's Hosts & Venues line in peerify-landing-page.tsx
+// ("List on the map & accept bookings", replaced by "List your venue on the map" while off).
+export const PEERIFY_BOOKING_ENQUIRIES_ENABLED = false;
+// Producer identity type: hidden from the Create Artist Identity dialog and refused by
+// createPeerifyManagedArtistIdentityAction while off. "producer" stays a valid stored identityType, so existing
+// producer circles keep rendering with their label.
+export const PEERIFY_PRODUCER_IDENTITY_ENABLED = false;
+
 export const PEERIFY_DEFAULT_PROFILE_AVATAR_URL = "/peerify/default-profile-avatar.png";
 export const PEERIFY_DEFAULT_ARTIST_AVATAR_URL = "/peerify/default-artist-avatar.png";
 export const PEERIFY_DEFAULT_BAND_AVATAR_URL = "/peerify/default-band-avatar.png";
@@ -234,6 +248,14 @@ export const PEERIFY_MANAGED_IDENTITY_TYPE_OPTIONS: ReadonlyArray<{
         description: "A public identity for a producer or beatmaker project.",
     },
 ] as const;
+
+// The identity types a user can choose when creating a new artist identity.
+export const PEERIFY_SELECTABLE_IDENTITY_TYPE_OPTIONS = PEERIFY_MANAGED_IDENTITY_TYPE_OPTIONS.filter(
+    (option) => option.value !== "producer" || PEERIFY_PRODUCER_IDENTITY_ENABLED,
+);
+
+export const isPeerifyIdentityTypeSelectable = (identityType: PeerifyArtistIdentityType): boolean =>
+    PEERIFY_SELECTABLE_IDENTITY_TYPE_OPTIONS.some((option) => option.value === identityType);
 
 export const PEERIFY_MANAGED_IDENTITY_TYPE_LABELS: Record<PeerifyIdentityType, string> = {
     artist: "Artist / Solo Project",
@@ -699,7 +721,7 @@ export const hasPeerifyVenueProfileContent = (profile: PeerifyVenueProfile): boo
     Boolean(profile.lighting) ||
     Boolean(profile.loadInNotes) ||
     Boolean(profile.parkingNotes) ||
-    profile.bookingEnquiriesEnabled === true ||
+    (PEERIFY_BOOKING_ENQUIRIES_ENABLED && profile.bookingEnquiriesEnabled === true) ||
     Boolean(profile.minimumFee) ||
     Boolean(profile.doorSplit) ||
     Boolean(profile.houseCut) ||

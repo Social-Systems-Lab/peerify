@@ -46,8 +46,10 @@ import type { DmGrantKind } from "@/lib/chat/mongo-types";
 import {
     formatPeerifyBookingEnquiryMessage,
     formatPeerifyPledgeEnquiryMessage,
+    getPeerifyArtistProfile,
     isPeerifyArtistIdentity,
     isPeerifyManagedIdentity,
+    PEERIFY_BOOKING_ENQUIRIES_ENABLED,
     type PeerifyArtistEnquiryType,
     type PeerifyBookingEnquiryInput,
     type PeerifyPledgeEnquiryInput,
@@ -1171,6 +1173,11 @@ export const sendPeerifyArtistEnquiryAction = async ({
 
     if (!isPeerifyArtistIdentity(artist)) {
         return { success: false, message: "This profile is not accepting Peerify artist enquiries" };
+    }
+
+    // The UI hides the booking dialog in both cases; this stops a direct call getting through.
+    if (enquiryType === "booking" && (!PEERIFY_BOOKING_ENQUIRIES_ENABLED || !getPeerifyArtistProfile(artist).bookingEnabled)) {
+        return { success: false, message: "This profile is not accepting booking enquiries" };
     }
 
     const sender = await getCircleByDid(userDid);

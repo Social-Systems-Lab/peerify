@@ -2,9 +2,12 @@
 
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import {
+    canRepublishWithoutVerification,
     getCircleById,
     getCircleOfficialEmail,
     getCirclePath,
+    getCirclePublishStatus,
+    getCircleUnpublishedIdentity,
     isPilotArtistCircleReadyToPublish,
     updateCircle,
 } from "@/lib/data/circle";
@@ -272,6 +275,99 @@ export async function publishCircleAction(formData: FormData) {
         }
     }
 
+    return updateCirclePublishStatus(circleId, "published");
+}
+
+// Takes a published circle back to draft: the same state a new circle starts in, so it drops out
+// of search, Discover and the map, and its pages (events included) show "not found" to everyone
+// except its creator, admins and moderators. Records the current name and handle so an
+// independent circle can come back without re-verification if neither changes while in draft.
+export async function unpublishCircleAction(circleId: string): Promise<FormSubmitResponse> {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to edit circle settings" };
+    }
+
+    const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+    if (!authorized) {
+        return { success: false, message: "You are not authorized to edit circle settings" };
+    }
+
+    const circle = await getCircleById(circleId);
+    if (!circle?._id) {
+        return { success: false, message: "Circle not found" };
+    }
+
+    if (circle.circleType === "user") {
+        return { success: false, message: "User profiles do not support this workflow" };
+    }
+
+    if (getCirclePublishStatus(circle) !== "published") {
+        return { success: false, message: "Only a published circle can be moved back to draft" };
+    }
+
+    await updateCircle(
+        {
+            _id: circleId,
+            publishStatus: "draft",
+            unpublishedIdentity: { name: circle.name, handle: circle.handle, unpublishedAt: new Date() },
+        },
+        userDid,
+    );
+
+    const circlePath = await getCirclePath(circle);
+    revalidatePath(circlePath);
+    revalidatePath(`${circlePath}settings/about`);
+    revalidatePath("/circles");
+    revalidatePath("/explore");
+    revalidatePath("/profiles");
+
+    return { success: true, message: "Moved back to draft" };
+}
+
+// The verification-flow counterpart of publishCircleAction for a circle that was published before
+// and taken back to draft: publishes directly while its name and handle are unchanged since then.
+// Otherwise it has to go through submitCircleForVerificationAction again.
+export async function republishCircleAction(formData: FormData) {
+    const circleId = String(formData.get("circleId") || "");
+    if (!circleId) {
+        return { success: false, message: "Circle not found" };
+    }
+
+    // Auth first, before anything below reads the circle or describes its state.
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to edit circle settings" };
+    }
+
+    const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+    if (!authorized) {
+        return { success: false, message: "You are not authorized to edit circle settings" };
+    }
+
+    const circle = await getCircleById(circleId);
+    if (!circle) {
+        return { success: false, message: "Circle not found" };
+    }
+
+    // Profile circles and pilot-signup artist circles never needed verification; they publish again
+    // through publishCircleAction, which keeps the pilot readiness check.
+    if (circle.circleLevel === "profile_child" || getPeerifyMetadata(circle).autoProvisionedFromSignup === true) {
+        return { success: false, message: "Use the Publish button to publish this profile again." };
+    }
+
+    if (getCirclePublishStatus(circle) !== "draft") {
+        return { success: false, message: "Only a draft circle can be published again" };
+    }
+
+    if (!canRepublishWithoutVerification(circle, await getCircleUnpublishedIdentity(circleId))) {
+        return {
+            success: false,
+            message: "This circle's name or handle changed since it was unpublished, so it needs verification again.",
+        };
+    }
+
+    // updateCirclePublishStatus repeats the same login + edit_about check before writing.
     return updateCirclePublishStatus(circleId, "published");
 }
 

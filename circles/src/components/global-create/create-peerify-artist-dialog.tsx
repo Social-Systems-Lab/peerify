@@ -11,7 +11,7 @@ import { generateSlug } from "@/lib/utils";
 import LocationPicker from "@/components/forms/location-picker";
 import { Location } from "@/models/models";
 import {
-    PEERIFY_MANAGED_IDENTITY_TYPE_OPTIONS,
+    PEERIFY_SELECTABLE_IDENTITY_TYPE_OPTIONS,
     type PeerifyArtistIdentityType,
 } from "@/lib/peerify/artist-profile";
 import { createPeerifyManagedArtistIdentityAction } from "@/components/circle-wizard/actions";
@@ -55,7 +55,7 @@ export function CreatePeerifyArtistDialog({
     const [errors, setErrors] = useState<Partial<Record<keyof FormState, string>>>({});
 
     const selectedIdentity = useMemo(
-        () => PEERIFY_MANAGED_IDENTITY_TYPE_OPTIONS.find((option) => option.value === form.identityType),
+        () => PEERIFY_SELECTABLE_IDENTITY_TYPE_OPTIONS.find((option) => option.value === form.identityType),
         [form.identityType],
     );
 
@@ -191,7 +191,7 @@ export function CreatePeerifyArtistDialog({
                             </p>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-2">
-                            {PEERIFY_MANAGED_IDENTITY_TYPE_OPTIONS.map((option) => {
+                            {PEERIFY_SELECTABLE_IDENTITY_TYPE_OPTIONS.map((option) => {
                                 const selected = form.identityType === option.value;
                                 return (
                                     <button

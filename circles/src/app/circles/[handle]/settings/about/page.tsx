@@ -4,21 +4,25 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import {
+    canRepublishWithoutVerification,
     getAutoProvisionedArtistCircle,
     getCircleByHandle,
     getCircleById,
     getCircleOfficialEmail,
     getCirclePublishStatus,
     getCirclesByDids,
+    getCircleUnpublishedIdentity,
     getPilotArtistCircleReadiness,
 } from "@/lib/data/circle";
+import { countUpcomingEventsHostedByCircle } from "@/lib/data/event";
 import { getPendingAdminInvitationsSentByUser } from "@/lib/data/admin-invitations";
 import { resolveRoleNames } from "@/lib/data/admin-invitation-notifications";
 import { features } from "@/lib/data/constants";
 import { getPendingAttachCircleRequest, getPendingIncomingAttachCircleRequests } from "@/lib/data/circle-attach";
 import { getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { getAdminMembers, getMember, getMembers } from "@/lib/data/member";
-import { publishCircleAction, submitCircleForVerificationAction } from "./actions";
+import { publishCircleAction, republishCircleAction, submitCircleForVerificationAction } from "./actions";
+import { UnpublishCircleCard } from "./unpublish-circle-card";
 import { CircleVerificationThreadCard } from "./circle-verification-thread-card";
 import { CircleStructureCard } from "./circle-structure-card";
 import { AdminsListCard, type PendingAdminInvitationDisplay } from "./admins-list-card";
@@ -109,12 +113,12 @@ export default async function AboutSettingsPage(props: PageProps) {
         : null;
 
     const publishStatus = getCirclePublishStatus(circle);
-    // Once a circle reaches "published" there is no path back to draft (no artist-facing or
-    // admin unpublish toggle exists — see verification-workflow.ts's rejectVerificationRequest,
-    // the only other publishStatus writer, which only ever reverts a still-pending request back
-    // to draft, never a published circle). So this workflow card has nothing left to show or do
-    // once published — hide it entirely rather than displaying a static "Published" no-op.
+    // The workflow card covers draft and pending_verification. A published circle gets
+    // UnpublishCircleCard instead, the only way back to draft (unpublishCircleAction).
     const showWorkflowCard = circle.circleType !== "user" && publishStatus !== "published";
+    const showUnpublishCard = circle.circleType !== "user" && publishStatus === "published";
+    const upcomingEventCount =
+        showUnpublishCard && circle._id ? await countUpcomingEventsHostedByCircle(String(circle._id)) : 0;
     const isUserProfile = circle.circleType === "user";
     const isPeerifyManagedCircle = isPeerifyManagedIdentity(circle);
     const isDraft = publishStatus === "draft";
@@ -132,6 +136,11 @@ export default async function AboutSettingsPage(props: PageProps) {
     // a reliable signal that a circle should skip the manual-verification UI below. Auto-provisioned
     // artist circles need the same "publish directly" treatment regardless of circleLevel.
     const usesPilotPublishFlow = isProfileCircle || isAutoProvisionedArtistCircle;
+    // A verification-flow circle that was published before and moved back to draft: it skips
+    // verification while its name and handle are unchanged (republishCircleAction).
+    const unpublishedIdentity =
+        isDraft && !usesPilotPublishFlow && circle._id ? await getCircleUnpublishedIdentity(String(circle._id)) : undefined;
+    const canRepublishDirectly = canRepublishWithoutVerification(circle, unpublishedIdentity);
     const pilotArtistCircleReadiness =
         isDraft && isAutoProvisionedArtistCircle ? await getPilotArtistCircleReadiness(circle) : null;
     const pilotArtistCirclePublishReady = pilotArtistCircleReadiness ? pilotArtistCircleReadiness.isReady : true;
@@ -180,6 +189,14 @@ export default async function AboutSettingsPage(props: PageProps) {
             {showAdminsCard ? (
                 <AdminsListCard circle={circle} admins={circleAdmins} pendingInvitations={pendingAdminInvitations} />
             ) : null}
+            {showUnpublishCard && circle._id ? (
+                <UnpublishCircleCard
+                    circleId={String(circle._id)}
+                    entityLabel={workflowEntityLabel}
+                    upcomingEventCount={upcomingEventCount}
+                    needsVerificationToPublish={!usesPilotPublishFlow}
+                />
+            ) : null}
             {showWorkflowCard ? (
                 <div className="mb-6 rounded-lg border bg-white p-4 shadow-sm">
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -209,7 +226,14 @@ export default async function AboutSettingsPage(props: PageProps) {
                                             website and official email you provided.
                                         </p>
                                     ) : null}
-                                    {!usesPilotPublishFlow && isDraft && !verificationReadiness.isReady ? (
+                                    {!usesPilotPublishFlow && isDraft && unpublishedIdentity ? (
+                                        <p className="text-sm text-muted-foreground">
+                                            {canRepublishDirectly
+                                                ? `This ${workflowEntityLabel} was published before and its name and handle haven't changed, so it can go live again without a new verification.`
+                                                : `This ${workflowEntityLabel}'s name or handle changed since it was unpublished, so it needs verification again.`}
+                                        </p>
+                                    ) : null}
+                                    {!usesPilotPublishFlow && isDraft && !canRepublishDirectly && !verificationReadiness.isReady ? (
                                         <VerificationReadinessChecklist readiness={verificationReadiness} />
                                     ) : null}
                                 </>
@@ -225,6 +249,11 @@ export default async function AboutSettingsPage(props: PageProps) {
                                     <Button type="submit" disabled={!pilotArtistCirclePublishReady}>
                                         Publish {workflowEntityLabel}
                                     </Button>
+                                </form>
+                            ) : canRepublishDirectly ? (
+                                <form action={republishCircleAction}>
+                                    <input type="hidden" name="circleId" value={circle._id} />
+                                    <Button type="submit">Publish {workflowEntityLabel} again</Button>
                                 </form>
                             ) : (
                                 <form action={submitCircleForVerificationAction}>

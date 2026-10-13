@@ -48,6 +48,7 @@ import {
     isPeerifyArtistIdentity,
     isPeerifyManagedIdentity,
     isPeerifyVenueIdentity,
+    PEERIFY_BOOKING_ENQUIRIES_ENABLED,
 } from "@/lib/peerify/artist-profile";
 import { cn } from "@/lib/utils";
 
@@ -706,7 +707,7 @@ export default function HomeContent({
                                             </span>
                                         </Link>
                                     </div>
-                                    {!peerifyArtistProfile.bookingEnabled && (
+                                    {PEERIFY_BOOKING_ENQUIRIES_ENABLED && !peerifyArtistProfile.bookingEnabled && (
                                         <div className="text-xs text-muted-foreground">
                                             Booking enquiries are not enabled on this profile yet.
                                         </div>

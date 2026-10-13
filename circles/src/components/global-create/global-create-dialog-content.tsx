@@ -56,7 +56,7 @@ export const creatableItemsList: CreatableItemDetail[] = [
     {
         key: "artist_identity",
         title: "Artist Identity",
-        description: "Create a managed public Peerify artist, band, DJ, or producer profile.",
+        description: "Create a managed public Peerify artist, band, or DJ profile.",
         icon: Music4,
         moduleHandle: "communities",
         createFeatureHandle: "create",

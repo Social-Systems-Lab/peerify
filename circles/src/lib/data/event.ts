@@ -1354,6 +1354,19 @@ export const changeEventStage = async (eventId: string, newStage: EventStage): P
     }
 };
 
+// Events this circle hosts that haven't ended and aren't cancelled — the ones whose pages and links
+// stop working if the circle goes back to draft (the unpublish confirmation names the count).
+// Events store circleId as the host circle's _id string (createEventAction). endAt is required by
+// the schema, but an event without one still counts while its startAt is in the future.
+export const countUpcomingEventsHostedByCircle = async (circleId: string): Promise<number> => {
+    const now = new Date();
+    return Events.countDocuments({
+        circleId,
+        stage: { $ne: "cancelled" },
+        $or: [{ endAt: { $gte: now } }, { endAt: { $exists: false }, startAt: { $gte: now } }],
+    });
+};
+
 /**
  * Whether a logged-out visitor may use the public events path (getPublicEventsByCircleId /
  * getPublicEventByIdForCircle) for this circle: its events tab and event pages. Peerify managed

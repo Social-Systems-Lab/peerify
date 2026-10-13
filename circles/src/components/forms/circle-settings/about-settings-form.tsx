@@ -57,6 +57,7 @@ import {
     isPeerifyManagedIdentity,
     isPeerifyVenueIdentity,
     PEERIFY_ARTIST_TYPE_OPTIONS,
+    PEERIFY_BOOKING_ENQUIRIES_ENABLED,
     PEERIFY_CURRENCY_OPTIONS,
     PEERIFY_EVENT_TYPE_OPTIONS,
     PRIMARY_GENRE_OPTIONS,
@@ -1195,7 +1196,9 @@ export function AboutSettingsForm({
                     scrolling back to the top of a long Artist Identity section. */}
                 {isPeerifyManagedArtistCircle ? renderSaveButton() : null}
 
-                {isPeerifyManagedArtistCircle ? (
+                {/* Hidden while PEERIFY_BOOKING_ENQUIRIES_ENABLED is off; the stored values stay in
+                    the form's defaults, so saving other sections leaves them unchanged. */}
+                {isPeerifyManagedArtistCircle && PEERIFY_BOOKING_ENQUIRIES_ENABLED ? (
                     <Card>
                         <CardHeader>
                             <CardTitle>Booking enquiries</CardTitle>
@@ -1363,8 +1366,9 @@ export function AboutSettingsForm({
 
                 {/* Same renderSaveButton() as every other call site in this form (see the Venue
                     equivalent above) — the Booking enquiries card gets long once expanded, so this
-                    saves a trip back to the top. */}
-                {isPeerifyManagedArtistCircle ? renderSaveButton() : null}
+                    saves a trip back to the top. Skipped with the card, or it would sit right after
+                    the checkpoint above it. */}
+                {isPeerifyManagedArtistCircle && PEERIFY_BOOKING_ENQUIRIES_ENABLED ? renderSaveButton() : null}
 
                 {isPeerifyManagedArtistCircle ? (
                     <Card>
@@ -1745,18 +1749,22 @@ export function AboutSettingsForm({
 
                                         <section className="space-y-4">
                                             <h3 className="font-medium">Booking terms</h3>
-                                            <Controller
-                                                name="peerifyVenueProfile.bookingEnquiriesEnabled"
-                                                control={form.control}
-                                                render={({ field }) => (
-                                                    <PeerifyCheckboxField
-                                                        label="Booking enquiries enabled"
-                                                        value={field.value}
-                                                        onChange={field.onChange}
-                                                    />
-                                                )}
-                                            />
-                                            {venueBookingEnabled ? (
+                                            {PEERIFY_BOOKING_ENQUIRIES_ENABLED ? (
+                                                <Controller
+                                                    name="peerifyVenueProfile.bookingEnquiriesEnabled"
+                                                    control={form.control}
+                                                    render={({ field }) => (
+                                                        <PeerifyCheckboxField
+                                                            label="Booking enquiries enabled"
+                                                            value={field.value}
+                                                            onChange={field.onChange}
+                                                        />
+                                                    )}
+                                                />
+                                            ) : null}
+                                            {/* With the enquiry toggle hidden, the fee/terms fields stay
+                                                editable for every venue. */}
+                                            {venueBookingEnabled || !PEERIFY_BOOKING_ENQUIRIES_ENABLED ? (
                                                 <div className="space-y-4 rounded-lg border bg-slate-50 p-4">
                                                     <div className="grid gap-4 md:grid-cols-2">
                                                         <Controller

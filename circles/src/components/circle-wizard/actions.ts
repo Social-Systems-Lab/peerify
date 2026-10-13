@@ -27,6 +27,7 @@ import {
     getPeerifyDefaultAvatarUrl,
     normalizePeerifyArtistProfile,
     PEERIFY_ARTIST_IDENTITY_TYPES,
+    isPeerifyIdentityTypeSelectable,
     PEERIFY_MANAGED_IDENTITY_TYPE_LABELS,
     PRIMARY_GENRE_MAX_SELECTIONS,
     type PeerifyArtistIdentityType,
@@ -228,7 +229,10 @@ export async function createPeerifyManagedArtistIdentityAction(input: {
 
         const baseCity = input.baseCity.trim() || deriveCityFromLocation(input.location);
 
-        if (!PEERIFY_ARTIST_IDENTITY_TYPES.includes(input.identityType)) {
+        if (
+            !PEERIFY_ARTIST_IDENTITY_TYPES.includes(input.identityType) ||
+            !isPeerifyIdentityTypeSelectable(input.identityType)
+        ) {
             return { success: false, message: "Unsupported Peerify identity type" };
         }
 
