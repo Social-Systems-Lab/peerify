@@ -1,6 +1,7 @@
 import { verifyUserToken } from "@/lib/auth/jwt";
 import { getAuthCookieNamesForClearing, readAuthToken } from "@/lib/auth/cookie";
 import { NextResponse, type NextRequest } from "next/server";
+import { buildPublicUrl } from "@/lib/utils/public-origin";
 
 export async function middleware(request: NextRequest) {
     const pathname = request.nextUrl.pathname;
@@ -11,7 +12,7 @@ export async function middleware(request: NextRequest) {
         const isBypassed = maintenanceBypassPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
         if (!isBypassed) {
-            const redirectUrl = new URL("/holding", request.url);
+            const redirectUrl = publicUrl(request, "/holding");
             redirectUrl.searchParams.set("redirectTo", pathname);
             return Response.redirect(redirectUrl);
         }
@@ -38,7 +39,7 @@ export async function middleware(request: NextRequest) {
 
         // If a user has an old/invalid cookie (e.g. after a deploy or secret change),
         // clear it automatically and reload the same URL once.
-        const res = NextResponse.redirect(request.nextUrl);
+        const res = NextResponse.redirect(publicUrl(request, request.nextUrl.pathname, request.nextUrl.search));
         for (const cookieName of getAuthCookieNamesForClearing()) {
             res.cookies.set(cookieName, "", { maxAge: 0, path: "/" });
         }
@@ -172,26 +173,35 @@ async function fetchFirstAccessApi(
     throw lastError;
 }
 
+// Absolute URL on the visitor's own origin. Not request.url: behind nginx that is the app's own
+// listen address (https://localhost:3000), see getPublicOrigin. A relative Location isn't an
+// option either: Next's middleware adapter parses every redirect Location with new NextURL(),
+// which throws on a path without an origin. buildPublicUrl sets the path on its own, so a request
+// path like //evil.example/x can't change the host.
+function publicUrl(request: NextRequest, pathname: string, search?: string): URL {
+    return buildPublicUrl(request.headers, request.url, pathname, search);
+}
+
 function redirectToNotFound(request: NextRequest) {
-    const redirectUrl = new URL("/not-found", request.url);
+    const redirectUrl = publicUrl(request, "/not-found");
     redirectUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
     return Response.redirect(redirectUrl);
 }
 
 function redirectToUnauthorized(request: NextRequest) {
-    const redirectUrl = new URL("/unauthorized", request.url);
+    const redirectUrl = publicUrl(request, "/unauthorized");
     redirectUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
     return Response.redirect(redirectUrl);
 }
 
 function redirectToUnauthenticated(request: NextRequest) {
-    const redirectUrl = new URL("/unauthenticated", request.url);
+    const redirectUrl = publicUrl(request, "/unauthenticated");
     redirectUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
     return Response.redirect(redirectUrl);
 }
 
 function redirectToErrorPage(request: NextRequest) {
-    const redirectUrl = new URL("/error", request.url);
+    const redirectUrl = publicUrl(request, "/error");
     return Response.redirect(redirectUrl);
 }
 
@@ -201,7 +211,7 @@ function redirectToCircleAccessDenied(
     moduleHandle: string,
     reason: "unauthenticated" | "unauthorized",
 ) {
-    const redirectUrl = new URL(`/circles/${circleHandle}/access-denied`, request.url);
+    const redirectUrl = publicUrl(request, `/circles/${circleHandle}/access-denied`);
     redirectUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
     redirectUrl.searchParams.set("module", moduleHandle);
     redirectUrl.searchParams.set("reason", reason);
@@ -209,7 +219,7 @@ function redirectToCircleAccessDenied(
 }
 
 function redirectToCircleNotFound(request: NextRequest, circleHandle: string, moduleHandle: string) {
-    const redirectUrl = new URL(`/circles/${circleHandle}/not-found`, request.url);
+    const redirectUrl = publicUrl(request, `/circles/${circleHandle}/not-found`);
     redirectUrl.searchParams.set("redirectTo", request.nextUrl.pathname);
     redirectUrl.searchParams.set("module", moduleHandle);
     return Response.redirect(redirectUrl);

@@ -59,6 +59,7 @@ import {
     formatFileSizeMB,
 } from "@/lib/image-upload-limits";
 import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
+import { classifyLocationInput, toUsableLocation } from "@/lib/utils/event-location";
 
 const normalizeWebsiteUrl = (url?: string) => {
     if (!url) return undefined;
@@ -772,6 +773,8 @@ export async function saveAbout(values: {
 }): Promise<FormSubmitResponse> {
     console.log("Saving circle about with values (images length):", values.images?.length);
 
+    const usableLocation = toUsableLocation(values.location);
+    const locationInput = classifyLocationInput(values.location);
     let circleUpdateData: Partial<Circle> = {
         _id: values._id,
         name: values.name,
@@ -784,7 +787,10 @@ export async function saveAbout(values: {
         showAdminsPublicly: values.showAdminsPublicly,
         mapVisible: values.mapVisible === true,
         searchable: values.searchable === true,
-        location: values.location,
+        // The form starts from circle.location || {}, so a profile saved without a map location
+        // sent back {} and stored it. Only a location that says where is written here; a cleared
+        // one is handled below once the stored circle is loaded, and {} leaves it as it is.
+        ...(usableLocation ? { location: usableLocation } : {}),
         socialLinks: sanitizeSocialLinks(values.socialLinks),
         defaultEventTags: normalizeEventTags(values.defaultEventTags),
     };
@@ -815,6 +821,13 @@ export async function saveAbout(values: {
         let existingCircle = await getCircleById(values._id);
         if (!existingCircle) {
             throw new Error("Circle not found");
+        }
+
+        // LocationPicker's Clear removes a stored location. Written as null, the same as the
+        // venue branch below stores an empty venue location. Nothing is written when there was
+        // no location to remove.
+        if (locationInput === "cleared" && existingCircle.location) {
+            circleUpdateData.location = null as unknown as Circle["location"];
         }
 
         if (existingCircle.circleType !== "user" && existingCircle.circleLevel === "profile_child") {

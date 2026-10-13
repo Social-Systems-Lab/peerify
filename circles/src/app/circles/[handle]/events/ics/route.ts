@@ -1,5 +1,6 @@
 import { Events } from "@/lib/data/db";
 import { getCircleByHandle, isCirclePublished } from "@/lib/data/circle";
+import { getPublicOrigin, ICS_UID_DOMAIN } from "@/lib/utils/public-origin";
 
 // Helpers for ICS formatting
 function pad(n: number): string {
@@ -89,8 +90,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string 
             .limit(500)
             .toArray();
 
-        const origin = new URL(req.url).origin;
-        const hostname = new URL(origin).hostname;
+        // Not new URL(req.url).origin: behind nginx that is the app's own listen address.
+        const origin = getPublicOrigin(req.headers, req.url);
         const calName = `${circle.name || circle.handle || "Circle"} Events`;
         const calDesc = `Upcoming events for ${circle.name || circle.handle || "this circle"} on Circles`;
 
@@ -108,7 +109,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string 
 
         for (const ev of events) {
             const isAllDay = !!ev.allDay;
-            const uid = `event-${String(ev._id)}@${hostname}`;
+            const uid = `event-${String(ev._id)}@${ICS_UID_DOMAIN}`;
             const summary = escapeICS(ev.title);
             const description = escapeICS(ev.description);
             const eventUrl = `${origin}/circles/${handle}/events/${String(ev._id)}`;

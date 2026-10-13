@@ -31,6 +31,11 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
 import LocationPicker from "@/components/forms/location-picker";
+import {
+    EVENT_LOCATION_REQUIRED_MESSAGE,
+    eventNeedsLocation,
+    toUsableLocation,
+} from "@/lib/utils/event-location";
 import TimePicker from "@/components/forms/time-picker";
 import { format, addHours, setHours, setMinutes } from "date-fns";
 import {
@@ -482,8 +487,11 @@ export default function EventForm({
                 // Only for new events — an edit form already seeded `location`/`currency` from
                 // the event itself, and shouldn't have them overwritten by the circle's defaults.
                 if (!event) {
-                    if (circle?.location) {
-                        setLocation(circle.location);
+                    // A profile saved without a map location holds {} — copying that would leave
+                    // an unusable value the picker can't show or clear.
+                    const circleLocation = toUsableLocation(circle?.location);
+                    if (circleLocation) {
+                        setLocation(circleLocation);
                     }
                     const circleCurrency = circle ? getPeerifyArtistProfile(circle).bookingSettings.currency : "";
                     if (circleCurrency && EVENT_CURRENCY_OPTIONS.includes(circleCurrency)) {
@@ -612,6 +620,13 @@ export default function EventForm({
             return;
         }
 
+        // New events only, same rule as createEventAction; existing ones stay editable without one.
+        const usableLocation = toUsableLocation(location);
+        if (!event && eventNeedsLocation(isVirtual, isHybrid) && !usableLocation) {
+            toast({ title: "Validation", description: EVENT_LOCATION_REQUIRED_MESSAGE, variant: "destructive" });
+            return;
+        }
+
         startTransition(async () => {
             try {
                 const fd = new FormData();
@@ -633,8 +648,8 @@ export default function EventForm({
                     }
                 }
 
-                if (location) {
-                    fd.set("location", JSON.stringify(location));
+                if (usableLocation) {
+                    fd.set("location", JSON.stringify(usableLocation));
                 }
 
                 if (tags) {
