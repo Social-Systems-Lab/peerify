@@ -887,6 +887,47 @@ export const ensureCrewUserGroupOnCircle = async (circleId: string): Promise<voi
     );
 };
 
+// Personal profiles auto-verify (no admin action) once picture + about text are both filled in AND
+// the email address is verified: a profile filled in by a bot that signed up with someone else's
+// address must not become a full member. Called after every profile save and once at first email
+// verification (first-email-verification.ts), so the order the two happen in doesn't matter.
+// Forward-only: never revokes isVerified if those fields are later cleared. Returns the circle as
+// it is afterwards.
+export const autoVerifyUserIfReady = async (circleId: string): Promise<Circle> => {
+    let c = await getCircleById(circleId);
+    if (c?.circleType !== "user" || c.isVerified || !getVerificationReadiness(c).isReady) {
+        return c;
+    }
+    // isEmailVerified is not in SAFE_CIRCLE_PROJECTION, so read it on its own.
+    const emailState = await Circles.findOne({ _id: new ObjectId(circleId) }, { projection: { isEmailVerified: 1 } });
+    if (emailState?.isEmailVerified !== true) {
+        return c;
+    }
+
+    await Circles.updateOne(
+        { _id: new ObjectId(circleId) },
+        { $set: { ...buildVerifiedUserSet("system:auto-verified"), accountStatus: "active" } },
+    );
+    c = await getCircleById(circleId);
+
+    // Dynamic import avoids a circular dependency: notifications.ts imports from circle.ts.
+    try {
+        const { sendUserVerifiedNotification } = await import("./notifications");
+        // getVerificationReadiness (picture+about+guidelines) deliberately excludes location —
+        // it's genuinely optional for participation and that's not changing here. But claiming
+        // the profile is "complete" is only accurate when location is ALSO set, since that's
+        // still part of isPilotPersonalPhaseComplete's (the onboarding flow's own) definition
+        // of a finished personal profile. Check it just for wording, not to gate anything.
+        const message = hasLocationSet(c)
+            ? "Your profile is complete! You can now post, comment, and message on Peerify."
+            : "You can now post, comment, and message on Peerify!";
+        await sendUserVerifiedNotification(c as any, message);
+    } catch (e) {
+        console.error("Failed to send auto-verification notification", e);
+    }
+    return c;
+};
+
 export const updateCircle = async (circle: Partial<Circle>, authenticatedUserDid: string): Promise<void> => {
     const { _id, ...circleWithoutId } = circle;
     if (!_id) {
@@ -934,33 +975,7 @@ export const updateCircle = async (circle: Partial<Circle>, authenticatedUserDid
     }
 
     // update circle embedding
-    let c = await getCircleById(_id);
-
-    // Personal profiles auto-verify (no admin action) once picture + about text are both filled in.
-    // Forward-only: never revokes isVerified if those fields are later cleared.
-    if (c.circleType === "user" && !c.isVerified && getVerificationReadiness(c).isReady) {
-        await Circles.updateOne(
-            { _id: new ObjectId(_id) },
-            { $set: { ...buildVerifiedUserSet("system:auto-verified"), accountStatus: "active" } },
-        );
-        c = await getCircleById(_id);
-
-        // Dynamic import avoids a circular dependency: notifications.ts imports from circle.ts.
-        try {
-            const { sendUserVerifiedNotification } = await import("./notifications");
-            // getVerificationReadiness (picture+about+guidelines) deliberately excludes location —
-            // it's genuinely optional for participation and that's not changing here. But claiming
-            // the profile is "complete" is only accurate when location is ALSO set, since that's
-            // still part of isPilotPersonalPhaseComplete's (the onboarding flow's own) definition
-            // of a finished personal profile. Check it just for wording, not to gate anything.
-            const message = hasLocationSet(c)
-                ? "Your profile is complete! You can now post, comment, and message on Peerify."
-                : "You can now post, comment, and message on Peerify!";
-            await sendUserVerifiedNotification(c as any, message);
-        } catch (e) {
-            console.error("Failed to send auto-verification notification", e);
-        }
-    }
+    const c = await autoVerifyUserIfReady(_id);
 
     try {
         await upsertVbdCircles([c]);

@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createUserSession, getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getUserPrivate } from "@/lib/data/user";
 import { getAutoProvisionedArtistCircle, getCirclePublishStatus } from "@/lib/data/circle";
+import { completeFirstEmailVerification } from "@/lib/data/first-email-verification";
 import {
     buildEmailVerificationLink,
     EMAIL_VERIFICATION_TOKEN_TTL_MS,
@@ -133,6 +134,9 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
             );
             return { success: false, message: "Could not update email verification status. Please try again." };
         }
+
+        // Lounge follow and auto-verification wait for this moment (see first-email-verification.ts).
+        await completeFirstEmailVerification(user);
 
         // Revalidate user-specific paths if necessary, e.g., profile page
         if (user.handle) {

@@ -19,6 +19,7 @@ import {
 } from "./auth";
 import { Circles } from "../data/db";
 import { getUserPrivate } from "../data/user";
+import { completeFirstEmailVerification } from "../data/first-email-verification";
 
 // Schema for the initiatePasswordReset action input
 const initiateResetSchema = z.object({
@@ -331,6 +332,11 @@ export async function consumeLoginLink(token: string): Promise<ConsumeLoginLinkR
             updateSet.isEmailVerified = true;
         }
         await Circles.updateOne({ _id: user._id }, { $set: updateSet });
+        if (!user.isEmailVerified) {
+            // Login links now only go to verified addresses, but links sent before that may still
+            // be valid; this click is the account's first email verification.
+            await completeFirstEmailVerification(user);
+        }
 
         const privateUser = await getUserPrivate(user.did);
         await createUserSession(privateUser, user.did);
