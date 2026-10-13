@@ -75,6 +75,11 @@ import { Comment } from "@/models/models";
 import { getTasksByEventId } from "@/lib/data/task";
 import { listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
+import {
+    EVENT_LOCATION_REQUIRED_MESSAGE,
+    eventNeedsLocation,
+    parseUsableLocationInput,
+} from "@/lib/utils/event-location";
 
 // ----- Types -----
 
@@ -113,21 +118,9 @@ const createEventSchema = z.object({
     title: z.string().min(1, "Title is required"),
     description: z.string().min(1, "Description is required"),
     images: z.array(z.any()).optional(),
-    location: z
-        .string()
-        .optional()
-        .refine(
-            (val) => {
-                if (!val) return true;
-                try {
-                    locationSchema.parse(JSON.parse(val));
-                    return true;
-                } catch {
-                    return false;
-                }
-            },
-            { message: "Invalid location data format" },
-        ),
+    // JSON from LocationPicker. Not validated here: an empty or incomplete value means "no
+    // location" (parseUsableLocationInput), and whether one is needed depends on isVirtual.
+    location: z.string().optional(),
     userGroups: z.array(z.string()).optional(),
     isVirtual: z.string().optional(), // "on" / "true" / undefined
     isHybrid: z.string().optional(),
@@ -583,9 +576,9 @@ export async function createEventAction(
         const capacity =
             typeof data.capacity === "string" && data.capacity.trim().length > 0 ? Number(data.capacity) : undefined;
 
-        let locationData: EventModel["location"] = undefined;
-        if (data.location) {
-            locationData = JSON.parse(data.location);
+        const locationData: EventModel["location"] = parseUsableLocationInput(data.location);
+        if (eventNeedsLocation(isVirtual, isHybrid) && !locationData) {
+            return { success: false, message: EVENT_LOCATION_REQUIRED_MESSAGE };
         }
 
         let recurrenceData: EventModel["recurrence"] = undefined;
@@ -747,13 +740,12 @@ export async function updateEventAction(
         }
         const data = validated.data;
 
+        // Only replaced when the form sends one; an empty or incomplete value clears it. Not
+        // required here even for physical events: existing events without a location must stay
+        // editable (createEventAction enforces it for new ones).
         let locationData: EventModel["location"] = event.location;
         if (data.location) {
-            try {
-                locationData = JSON.parse(data.location);
-            } catch {
-                /* already validated */
-            }
+            locationData = parseUsableLocationInput(data.location);
         }
 
         // Tags are edited independently of the circle's defaultEventTags once an event exists —

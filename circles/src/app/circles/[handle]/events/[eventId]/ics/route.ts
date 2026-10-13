@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { Events } from "@/lib/data/db";
 import { getCircleByHandle, isCirclePublished } from "@/lib/data/circle";
+import { getPublicOrigin, ICS_UID_DOMAIN } from "@/lib/utils/public-origin";
 import type { Event as EventModel, Location } from "@/models/models";
 
 // Helpers for ICS formatting
@@ -98,12 +99,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string;
             return new Response("Event not accessible", { status: 404 });
         }
 
-        const origin = new URL(req.url).origin;
+        // Not new URL(req.url).origin: behind nginx that is the app's own listen address.
+        const origin = getPublicOrigin(req.headers, req.url);
         const eventUrl = `${origin}/circles/${handle}/events/${eventId}`;
 
         const isAllDay = !!event.allDay;
         const dtStamp = toUTCStringBasic(new Date());
-        const uid = `event-${eventId}@${new URL(origin).hostname}`;
+        const uid = `event-${eventId}@${ICS_UID_DOMAIN}`;
         const summary = escapeICS(event.title);
         const description = escapeICS(event.description);
         const locStr = event.isVirtual ? "Online" : locationToString(event.location);
