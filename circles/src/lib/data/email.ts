@@ -127,7 +127,8 @@ export const createEmailSender = (emailClient: TemplateEmailClient | null, sende
     const sendEmail = async (options: EmailOptions): Promise<SendEmailResult> => {
         const result = await trySendEmail(options);
         if (!result.ok && result.reason === "send_failed") {
-            throw new Error(`Failed to send email: ${result.message}`);
+            // Callers log this error, and Postmark messages can name the recipient.
+            throw new Error(`Failed to send email: ${redactEmailAddresses(result.message)}`);
         }
         return result;
     };

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -51,6 +51,29 @@ export function LoginForm(): React.ReactElement {
     const [linkEmailError, setLinkEmailError] = useState<string | null>(null);
     const [isSendingLoginLink, setIsSendingLoginLink] = useState(false);
     const [loginLinkSent, setLoginLinkSent] = useState(false);
+    const altchaRef = useRef<HTMLElement | null>(null);
+    const [altchaPayload, setAltchaPayload] = useState<string | null>(null);
+
+    useEffect(() => {
+        import("altcha");
+    }, []);
+
+    useEffect(() => {
+        const el = altchaRef.current;
+        if (!el) return;
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail?.state === "verified" && typeof detail.payload === "string") {
+                setAltchaPayload(detail.payload);
+            } else {
+                setAltchaPayload(null);
+            }
+        };
+        el.addEventListener("statechange", handler as EventListener);
+        return () => el.removeEventListener("statechange", handler as EventListener);
+        // The altcha-widget only exists in link mode before a link was sent, so re-attach
+        // whenever it mounts again.
+    }, [mode, loginLinkSent]);
 
     const form = useForm<LoginFormData>({
         resolver: zodResolver(loginValidationSchema),
@@ -110,16 +133,29 @@ export function LoginForm(): React.ReactElement {
         }
         setLinkEmailError(null);
 
+        if (!altchaPayload) {
+            toast({
+                title: "Verification required",
+                description: "Please complete the human-verification check.",
+                variant: "destructive",
+            });
+            return;
+        }
+
         setIsSendingLoginLink(true);
         try {
-            const result = await requestLoginLinkAction(emailToUse);
+            const result = await requestLoginLinkAction(emailToUse, altchaPayload);
             toast({
-                title: result.success ? "Login link sent" : "Request failed",
+                title: result.success ? "Check your inbox" : "Request failed",
                 description: result.message,
                 variant: result.success ? undefined : "destructive",
             });
             if (result.success) {
                 setLoginLinkSent(true);
+            } else {
+                // A challenge is single-use from the user's point of view; make them solve a fresh one.
+                setAltchaPayload(null);
+                (altchaRef.current as (HTMLElement & { reset?: () => void }) | null)?.reset?.();
             }
         } catch (error) {
             toast({
@@ -161,8 +197,8 @@ export function LoginForm(): React.ReactElement {
                 <form onSubmit={handleSendLoginLink} className="space-y-4">
                     {loginLinkSent ? (
                         <p className="text-center text-sm text-muted-foreground">
-                            If an account with that email exists, a login link has been sent. Check your inbox (and
-                            spam folder).
+                            If a verified account uses that email address, a login link is on its way. Check your
+                            inbox (and spam folder). Not verified yet? Use the link in your signup email.
                         </p>
                     ) : (
                         <>
@@ -181,7 +217,8 @@ export function LoginForm(): React.ReactElement {
                                 />
                                 {linkEmailError ? <p className="text-sm text-red-600">{linkEmailError}</p> : null}
                             </div>
-                            <Button type="submit" disabled={isSendingLoginLink} className="w-full">
+                            <altcha-widget ref={altchaRef} challenge="/api/altcha/challenge" />
+                            <Button type="submit" disabled={isSendingLoginLink || !altchaPayload} className="w-full">
                                 {isSendingLoginLink ? "Sending..." : "Send login link"}
                             </Button>
                         </>

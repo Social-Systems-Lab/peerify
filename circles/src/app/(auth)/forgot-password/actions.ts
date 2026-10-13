@@ -5,6 +5,7 @@ import { sendEmail, generateSecureToken, hashToken } from "@/lib/data/email";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { emailSchema } from "@/models/models"; // Assuming emailSchema is in models
+import { maskEmail } from "@/lib/utils/mask-email";
 
 interface RequestPasswordResetResponse {
     success: boolean;
@@ -105,7 +106,7 @@ export async function requestPasswordResetAction(email: string): Promise<Request
                 (process.env.CIRCLES_DEV_LOG_PASSWORD_RESET === "true" && process.env.NODE_ENV !== "production");
 
             if (shouldLogResetLink) {
-                console.log(`[DEV_RESET_LINK] email=${user.email} url=${resetLink} token=${unhashedToken}`);
+                console.log(`[DEV_RESET_LINK] email=${maskEmail(user.email)} url=${resetLink} token=${unhashedToken}`);
             }
 
             try {
@@ -125,9 +126,9 @@ export async function requestPasswordResetAction(email: string): Promise<Request
                         // browser_name: "Unknown", // Placeholder
                     },
                 });
-                console.log(`Password reset email initiated for ${user.email}`);
+                console.log(`Password reset email initiated for user ${user.did}`);
             } catch (emailError) {
-                console.error(`Failed to send password reset email to ${user.email}:`, emailError);
+                console.error(`Failed to send password reset email for user ${user.did}:`, emailError);
                 // Do not expose this error to the client to prevent information leakage.
                 // Log it for server-side debugging.
                 // The generic success message will still be returned.
@@ -135,10 +136,10 @@ export async function requestPasswordResetAction(email: string): Promise<Request
         } else if (user && !user.isEmailVerified) {
             // User exists but email not verified. Still return generic success message.
             // Log this case for admin review if necessary.
-            console.log(`Password reset requested for unverified email: ${validation.data.email}`);
+            console.log(`Password reset requested for user ${user.did}: email not verified`);
         } else {
             // User does not exist. Still return generic success message.
-            console.log(`Password reset requested for non-existent email: ${validation.data.email}`);
+            console.log(`Password reset requested for unknown address ${maskEmail(validation.data.email)}`);
         }
 
         // Always return a generic success message to prevent email enumeration
