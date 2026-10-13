@@ -3,7 +3,7 @@
 import React from "react";
 import { Circle } from "@/models/models";
 import { useIsCompact } from "@/components/utils/use-is-compact";
-import { getPeerifyVenueProfile } from "@/lib/peerify/artist-profile";
+import { getPeerifyVenueProfile, PEERIFY_BOOKING_ENQUIRIES_ENABLED } from "@/lib/peerify/artist-profile";
 
 interface VenueBookingDetailProps {
     circle: Circle;
@@ -57,7 +57,9 @@ export default function VenueBookingDetail({ circle }: VenueBookingDetailProps) 
         not_specified: "Not specified",
     };
     const venueBookingDetails = [
-        peerifyVenueProfile.bookingEnquiriesEnabled ? { label: "Booking enquiries", value: "Enabled" } : null,
+        PEERIFY_BOOKING_ENQUIRIES_ENABLED && peerifyVenueProfile.bookingEnquiriesEnabled
+            ? { label: "Booking enquiries", value: "Enabled" }
+            : null,
         peerifyVenueProfile.minimumFee ? { label: "Minimum fee", value: peerifyVenueProfile.minimumFee } : null,
         peerifyVenueProfile.doorSplit ? { label: "Door split", value: peerifyVenueProfile.doorSplit } : null,
         peerifyVenueProfile.houseCut

@@ -131,20 +131,28 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
         circle = await getDefaultCircle();
     }
 
+    const icons: Metadata["icons"] = {
+        icon: [
+            { url: "/peerify/favicon.ico", sizes: "any" },
+            { url: "/peerify/favicon.png", type: "image/png" },
+        ],
+        shortcut: "/peerify/favicon.ico",
+        apple: "/peerify/favicon.png",
+    };
+
+    // A draft (or pending) circle's page is "not found" for most visitors, so its link preview and
+    // tab title must not give away its name or description either.
+    if (!isCirclePublished(circle)) {
+        return { title: appConfig.name, icons, robots: { index: false, follow: false } };
+    }
+
     const title = circle.name;
     const description = circle.description ?? circle.mission;
 
     return {
         title,
         description,
-        icons: {
-            icon: [
-                { url: "/peerify/favicon.ico", sizes: "any" },
-                { url: "/peerify/favicon.png", type: "image/png" },
-            ],
-            shortcut: "/peerify/favicon.ico",
-            apple: "/peerify/favicon.png",
-        },
+        icons,
         openGraph: {
             title,
             description: description ?? appConfig.description,

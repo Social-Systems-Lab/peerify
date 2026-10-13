@@ -797,6 +797,24 @@ export const getCircleOfficialEmail = async (circleId: string): Promise<string |
     return circle?.officialEmail || undefined;
 };
 
+export const getCircleUnpublishedIdentity = async (circleId: string): Promise<Circle["unpublishedIdentity"]> => {
+    if (!ObjectId.isValid(circleId)) {
+        return undefined;
+    }
+    const circle = await Circles.findOne({ _id: new ObjectId(circleId) }, { projection: { unpublishedIdentity: 1 } });
+    return circle?.unpublishedIdentity || undefined;
+};
+
+// True when a circle that was taken back to draft still has the name and handle it had when it
+// was published, so it may go live again without a new verification request.
+export const canRepublishWithoutVerification = (
+    circle: Pick<Circle, "name" | "handle">,
+    unpublishedIdentity: Circle["unpublishedIdentity"],
+): boolean =>
+    Boolean(unpublishedIdentity) &&
+    (unpublishedIdentity?.name ?? "") === (circle.name ?? "") &&
+    (unpublishedIdentity?.handle ?? "") === (circle.handle ?? "");
+
 // The draft/pending_verification->published completion bar for a pilot-signup-provisioned
 // artist circle (see createPilotArtistCircle in src/components/forms/signup/actions.ts):
 // its own picture + About text + map location are filled in, and its creator has signed

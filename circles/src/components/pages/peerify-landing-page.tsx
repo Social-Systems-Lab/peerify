@@ -233,7 +233,9 @@ export default function PeerifyLandingPage() {
                                     <ul>
                                         <li>Private events with guest vetting</li>
                                         <li>10% on tickets, invoiced after the event</li>
-                                        <li>List on the map &amp; accept bookings</li>
+                                        {/* Was "List on the map &amp; accept bookings" — restore when
+                                            PEERIFY_BOOKING_ENQUIRIES_ENABLED goes back on. */}
+                                        <li>List your venue on the map</li>
                                         <li>No membership fee to get started</li>
                                     </ul>
                                     <Link href="/signup/pilot" className={"roleCta"}>List your space &rarr;</Link>

@@ -54,6 +54,7 @@ import {
     getPeerifyVenueProfile,
     formatVenueTagLabel,
     hasPeerifyVenueProfileContent,
+    PEERIFY_BOOKING_ENQUIRIES_ENABLED,
     PEERIFY_BOOKING_SUPPORT_OPTIONS,
     isPeerifyArtistIdentity,
     isPeerifyVenueIdentity,
@@ -388,7 +389,12 @@ export default function AboutPage({
         );
     // Booking-enquiries-enabled callout, relocated into the sidebar (Phase 1b) — same gate it
     // always had, just no longer coupled to whatever else is or isn't in the sidebar alongside it.
-    const hasVenueBookingCalloutContent = isPeerifyVenueProfile && peerifyVenueProfile.bookingEnquiriesEnabled === true;
+    const hasVenueBookingCalloutContent =
+        PEERIFY_BOOKING_ENQUIRIES_ENABLED &&
+        isPeerifyVenueProfile &&
+        peerifyVenueProfile.bookingEnquiriesEnabled === true;
+    const showArtistBookingCard =
+        PEERIFY_BOOKING_ENQUIRIES_ENABLED && isPeerifyArtistProfile && peerifyArtistProfile.bookingEnabled;
     const hasSidebarContent =
         isPeerifyArtistProfile ||
         hasBandInfoContent ||
@@ -532,7 +538,8 @@ export default function AboutPage({
     };
 
     const openBookDialog = React.useCallback(() => {
-        if (!peerifyArtistProfile.bookingEnabled) {
+        // Also covers the ?artistAction=booking link and the peerify:open-artist-enquiry event.
+        if (!PEERIFY_BOOKING_ENQUIRIES_ENABLED || !peerifyArtistProfile.bookingEnabled) {
             return;
         }
         if (!user?.did) {
@@ -593,7 +600,8 @@ export default function AboutPage({
         }));
     };
 
-    const isVenueBookingContact = isPeerifyVenueProfile && contactType === "ask_question";
+    const isVenueBookingContact =
+        PEERIFY_BOOKING_ENQUIRIES_ENABLED && isPeerifyVenueProfile && contactType === "ask_question";
 
     const submitBookingEnquiry = async () => {
         if (!user?.did) {
@@ -975,7 +983,7 @@ export default function AboutPage({
                                 </div>
                             )}
 
-                            {isPeerifyArtistProfile && peerifyArtistProfile.bookingEnabled && (
+                            {showArtistBookingCard && (
                                 <div
                                     className={`flex flex-col bg-white p-6 md:order-[20] ${
                                         isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"

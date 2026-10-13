@@ -16,7 +16,12 @@ import { saveFile } from "@/lib/data/storage";
 import { revalidatePath } from "next/cache";
 import { Circle, FormSubmitResponse, Location, Media } from "@/models/models";
 import type { ImageItem } from "@/components/forms/controls/multi-image-uploader";
-import { normalizePeerifyArtistProfile, PEERIFY_ARTIST_IDENTITY_TYPES, PeerifyArtistIdentityType } from "@/lib/peerify/artist-profile";
+import {
+    isPeerifyIdentityTypeSelectable,
+    normalizePeerifyArtistProfile,
+    PEERIFY_ARTIST_IDENTITY_TYPES,
+    PeerifyArtistIdentityType,
+} from "@/lib/peerify/artist-profile";
 import type { VerificationReadiness } from "@/lib/verification-readiness";
 
 const authorizeEdit = async (circleId: string): Promise<{ userDid: string } | { error: FormSubmitResponse }> => {
@@ -151,7 +156,7 @@ export async function saveArtistIdentityTypeAction(
         return { success: false, message: "Profile not found." };
     }
 
-    if (!PEERIFY_ARTIST_IDENTITY_TYPES.includes(identityType)) {
+    if (!PEERIFY_ARTIST_IDENTITY_TYPES.includes(identityType) || !isPeerifyIdentityTypeSelectable(identityType)) {
         return { success: false, message: "Invalid artist type." };
     }
 

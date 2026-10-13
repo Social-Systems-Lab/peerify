@@ -823,6 +823,13 @@ export const circleSchema = z.object({
     representsOrganization: z.boolean().optional(),
     organizationName: z.string().optional(),
     officialEmail: z.string().email().optional(),
+    // Written by unpublishCircleAction: the name and handle a published circle had when it went
+    // back to draft. An independent (verification-flow) circle whose name and handle still match
+    // can be published again without a new verification request. Owner/admin-only, so it's not
+    // in SAFE_CIRCLE_PROJECTION; read it with getCircleUnpublishedIdentity.
+    unpublishedIdentity: z
+        .object({ name: z.string().optional(), handle: z.string().optional(), unpublishedAt: z.date() })
+        .optional(),
     completedOnboardingSteps: z.array(z.string()).optional(),
     matrixAccessToken: z.string().optional(),
     matrixUsername: z.string().optional(),
