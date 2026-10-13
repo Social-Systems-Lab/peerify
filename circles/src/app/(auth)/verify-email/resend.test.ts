@@ -44,6 +44,12 @@ mock.module("@/lib/data/circle", () => ({
     getCirclePublishStatus: () => "published",
 }));
 mock.module("next/cache", () => ({ revalidatePath: () => undefined }));
+const firstVerifications: string[] = [];
+mock.module("@/lib/data/first-email-verification", () => ({
+    completeFirstEmailVerification: async (user: { did?: string }) => {
+        firstVerifications.push(String(user.did));
+    },
+}));
 
 const { resendVerificationEmailAction, getVerificationResendStatusAction, verifyEmailAction } = await import(
     "./actions"
@@ -237,9 +243,23 @@ describe("resendVerificationEmailAction", () => {
             success: false,
             message: "Invalid or expired verification token.",
         });
+        firstVerifications.length = 0;
         const verified = await verifyEmailAction(newToken);
         expect(verified.success).toBe(true);
         expect(circles.docs[0].isEmailVerified).toBe(true);
+        // Lounge follow and auto-verification run once, at this first verification.
+        expect(firstVerifications).toEqual([circles.docs[0].did]);
+    });
+
+    test("clicking a link again after verifying does not repeat the first-verification steps", async () => {
+        seedUser();
+        await resendVerificationEmailAction();
+        const newToken = tokenFromLastEmail();
+        await verifyEmailAction(newToken);
+        // The success branch nulls the token; a re-click of a consumed link finds no account.
+        firstVerifications.length = 0;
+        expect((await verifyEmailAction(newToken)).success).toBe(false);
+        expect(firstVerifications).toEqual([]);
     });
 
     test("already verified returns a distinct result and sends nothing", async () => {
