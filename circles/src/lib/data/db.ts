@@ -39,6 +39,9 @@ import { AggregateRank } from "./ranking";
 import { ChatConversation, ChatMessageDoc, ChatReadState, MessageEmailReminder } from "@/lib/chat/mongo-types";
 import type { PlatformBroadcastMessage } from "./platform-broadcasts";
 
+// One document per rate-limit key (see rate-limit.ts); expiresAt drives a TTL index.
+export type RateLimitDoc = { _id: string; until: Date; expiresAt: Date };
+
 // No fallback: a missing MONGODB_URI used to become admin:password@127.0.0.1, which only produced
 // "Authentication failed" noise against a server with auth on. The build (IS_BUILD=true) never
 // connects, so it may run without the URI.
@@ -96,6 +99,7 @@ let PlatformBroadcastMessages: Collection<PlatformBroadcastMessage>;
 let StripeWebhookEvents: Collection<any>;
 let UserRelationships: Collection<any>;
 let HumanityVerifications: Collection<HumanityVerification>;
+let RateLimits: Collection<RateLimitDoc>;
 
 // Only initialize the database connection if not in build mode
 if (process.env.IS_BUILD !== "true") {
@@ -151,6 +155,7 @@ if (process.env.IS_BUILD !== "true") {
     UserRelationships = db.collection("userRelationships");
     HumanityVerifications = db.collection<HumanityVerification>("humanityVerifications");
     PlatformSettingsCollection = db.collection<PlatformSettings>("platformSettings");
+    RateLimits = db.collection<RateLimitDoc>("rateLimits");
 }
 export async function getDb() {
   if (!client) throw new Error("Mongo client not initialised (IS_BUILD=true?)");
@@ -204,4 +209,5 @@ export {
     UserRelationships,
     HumanityVerifications,
     PlatformSettingsCollection,
+    RateLimits,
 };

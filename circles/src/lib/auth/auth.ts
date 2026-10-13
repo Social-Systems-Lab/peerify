@@ -16,6 +16,7 @@ import { getCircleById, getCirclesByDids, getCirclesByIds, getDefaultCircle } fr
 import { generateSecureToken, hashToken, trySendEmail } from "../data/email";
 import { isVerifiedUser } from "./verification";
 import { buildEmailVerificationLink, EMAIL_VERIFICATION_TOKEN_TTL_MS } from "./verification-email";
+import { maskEmail } from "@/lib/utils/mask-email";
 
 export const SALT_FILENAME = "salt.bin";
 export const IV_FILENAME = "iv.bin";
@@ -141,8 +142,8 @@ export const createUserAccount = async (
     // Send verification email
     const verificationLink = buildEmailVerificationLink(unhashedVerificationToken);
     if (process.env.NODE_ENV !== "production") {
-        console.log(`[DEV_EMAIL_VERIFICATION_TOKEN] ${email}: ${unhashedVerificationToken}`);
-        console.log(`[DEV_EMAIL_VERIFICATION_URL] ${email}: ${verificationLink}`);
+        console.log(`[DEV_EMAIL_VERIFICATION_TOKEN] ${maskEmail(email)}: ${unhashedVerificationToken}`);
+        console.log(`[DEV_EMAIL_VERIFICATION_URL] ${maskEmail(email)}: ${verificationLink}`);
         const devUser = user as Circle & { devVerificationToken?: string; devVerificationUrl?: string };
         devUser.devVerificationToken = unhashedVerificationToken;
         devUser.devVerificationUrl = verificationLink;

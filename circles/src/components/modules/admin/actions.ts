@@ -34,6 +34,7 @@ import {
 } from "@/lib/data/platform-broadcasts";
 import { buildUnverifiedUserUpdate, buildVerifiedUserSet } from "@/lib/auth/verification";
 import { activateUserAccount } from "@/lib/data/account-lifecycle";
+import { maskEmail } from "@/lib/utils/mask-email";
 
 // Get all circles of a specific type
 export async function getEntitiesByType(type: "circle" | "user" | "project") {
@@ -1104,7 +1105,7 @@ export async function syncAllDonorboxSubscriptions() {
                     updatedCount++;
                 }
             } catch (e) {
-                console.error(`Error processing plan for donor ${plan.donor.email}:`, e);
+                console.error(`Error processing plan for donor ${maskEmail(plan.donor.email)}:`, e);
                 errorCount++;
             }
         }

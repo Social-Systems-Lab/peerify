@@ -877,6 +877,10 @@ export const circleSchema = z.object({
     // whose password is a random value nobody knows)
     loginLinkToken: z.string().nullable().optional(),
     loginLinkTokenExpiry: z.date().nullable().optional(),
+    // Login-link send limit (requestLoginLinkAction), same shape as the verification resend fields.
+    loginLinkLastSentAt: z.date().nullable().optional(),
+    loginLinkSendWindowStart: z.date().nullable().optional(),
+    loginLinkSendCount24h: z.number().optional(),
     // Platform-level verification
     isVerified: z.boolean().optional(),
     isMember: z.boolean().optional(),

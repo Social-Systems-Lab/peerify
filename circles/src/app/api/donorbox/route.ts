@@ -5,6 +5,7 @@ import { ObjectId } from "mongodb";
 import { sendUserBecomesMemberNotification } from "@/lib/data/notifications";
 import { getUserPrivate } from "@/lib/data/user";
 import { sendEmail } from "@/lib/data/email";
+import { maskEmail } from "@/lib/utils/mask-email";
 
 const DONORBOX_WEBHOOK_SECRET = process.env.DONORBOX_WEBHOOK_SECRET;
 
@@ -38,10 +39,11 @@ export async function POST(req: NextRequest) {
 
     try {
         console.log("--- Donorbox Webhook Received ---");
-        console.log("Payload:", JSON.stringify(events, null, 2));
+        // The payload carries donor names, emails and addresses; log only what identifies the event.
+        console.log(`Payload: ${events.length} event(s)`);
 
         for (const event of events) {
-            console.log("Processing event:", JSON.stringify(event, null, 2));
+            console.log(`Processing event: ${event?.event_name ?? "unknown"}`);
 
             // A new subscription should be a recurring donation.
             if (event.event_name === "donation.created" && event.donation?.recurring === true) {
@@ -79,7 +81,7 @@ async function handleNewSubscription(donation: any) {
     const user = await circles.findOne({ email: email, circleType: "user" });
 
     if (!user) {
-        console.error(`User with email ${email} not found.`);
+        console.error(`User with email ${maskEmail(email)} not found.`);
         return;
     }
 
@@ -135,7 +137,7 @@ async function handlePlanUpdate(plan: any) {
     const user = await circles.findOne({ email: email, circleType: "user" });
 
     if (!user) {
-        console.error(`User with email ${email} not found for plan update.`);
+        console.error(`User with email ${maskEmail(email)} not found for plan update.`);
         return;
     }
 
