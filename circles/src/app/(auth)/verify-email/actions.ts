@@ -1,18 +1,14 @@
 "use server";
 
 import { Circles } from "@/lib/data/db";
-import { generateSecureToken, hashToken, trySendEmail } from "@/lib/data/email";
+import { hashToken } from "@/lib/data/email";
 import { revalidatePath } from "next/cache";
 import { createUserSession, getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getUserPrivate } from "@/lib/data/user";
 import { getAutoProvisionedArtistCircle, getCirclePublishStatus } from "@/lib/data/circle";
 import { completeFirstEmailVerification } from "@/lib/data/first-email-verification";
-import {
-    buildEmailVerificationLink,
-    EMAIL_VERIFICATION_TOKEN_TTL_MS,
-    evaluateVerificationResend,
-    VERIFICATION_RESEND_COOLDOWN_SECONDS,
-} from "@/lib/auth/verification-email";
+import { evaluateVerificationResend } from "@/lib/auth/verification-email";
+import { sendVerificationEmailToSubject, VERIFICATION_SUBJECT_PROJECTION } from "@/lib/auth/send-verification-email";
 
 interface VerifyEmailResponse {
     success: boolean;
@@ -192,15 +188,7 @@ export type ResendVerificationEmailResult =
     | { status: "rate_limited"; email: string; reason: "cooldown" | "daily_cap"; retryAfterSeconds: number }
     | { status: "failed"; message: string };
 
-const RESEND_STATE_PROJECTION = {
-    did: 1,
-    name: 1,
-    email: 1,
-    isEmailVerified: 1,
-    emailVerificationLastSentAt: 1,
-    emailVerificationSendWindowStart: 1,
-    emailVerificationSendCount24h: 1,
-} as const;
+const RESEND_STATE_PROJECTION = VERIFICATION_SUBJECT_PROJECTION;
 
 const RESEND_FAILED_MESSAGE = "We couldn't send the email just now. Please try again in a minute.";
 
@@ -258,61 +246,26 @@ export async function resendVerificationEmailAction(): Promise<ResendVerificatio
             return { status: "failed", message: RESEND_FAILED_MESSAGE };
         }
 
-        const now = new Date();
-        const decision = evaluateVerificationResend(user, now);
-        if (!decision.allowed) {
-            return {
-                status: "rate_limited",
-                email: user.email,
-                reason: decision.reason,
-                retryAfterSeconds: decision.retryAfterSeconds,
-            };
+        const result = await sendVerificationEmailToSubject(user);
+        switch (result.status) {
+            case "already_verified":
+                return { status: "already_verified" };
+            case "no_email":
+                return { status: "failed", message: RESEND_FAILED_MESSAGE };
+            case "rate_limited":
+                return {
+                    status: "rate_limited",
+                    email: user.email,
+                    reason: result.reason,
+                    retryAfterSeconds: result.retryAfterSeconds,
+                };
+            case "not_sent":
+                console.error(`Verification email resend NOT sent for user ${did}: ${result.reason}`);
+                return { status: "failed", message: RESEND_FAILED_MESSAGE };
+            case "sent":
+                console.log(`Verification email resent for user ${did} (MessageID ${result.messageId})`);
+                return { status: "sent", email: user.email, retryAfterSeconds: result.retryAfterSeconds };
         }
-
-        // Overwriting the stored hash invalidates any earlier link. Matching on the
-        // emailVerificationLastSentAt value just read (null also matches a missing field) makes
-        // this a compare-and-set, so two concurrent requests can't both pass the limit.
-        const unhashedToken = generateSecureToken();
-        const claim = await Circles.updateOne(
-            {
-                _id: user._id,
-                isEmailVerified: { $ne: true },
-                emailVerificationLastSentAt: user.emailVerificationLastSentAt ?? null,
-            },
-            {
-                $set: {
-                    emailVerificationToken: hashToken(unhashedToken),
-                    emailVerificationTokenExpiry: new Date(now.getTime() + EMAIL_VERIFICATION_TOKEN_TTL_MS),
-                    emailVerificationLastSentAt: now,
-                    emailVerificationSendWindowStart: decision.windowStart,
-                    emailVerificationSendCount24h: decision.sendCount,
-                },
-            },
-        );
-        if (claim.matchedCount === 0) {
-            return {
-                status: "rate_limited",
-                email: user.email,
-                reason: "cooldown",
-                retryAfterSeconds: VERIFICATION_RESEND_COOLDOWN_SECONDS,
-            };
-        }
-
-        const sendResult = await trySendEmail({
-            to: user.email,
-            templateAlias: "email-verification",
-            templateModel: {
-                name: user.name || "User",
-                actionUrl: buildEmailVerificationLink(unhashedToken),
-            },
-        });
-        if (!sendResult.ok) {
-            console.error(`Verification email resend NOT sent for user ${did}: ${sendResult.reason}`);
-            return { status: "failed", message: RESEND_FAILED_MESSAGE };
-        }
-
-        console.log(`Verification email resent for user ${did} (MessageID ${sendResult.messageId})`);
-        return { status: "sent", email: user.email, retryAfterSeconds: VERIFICATION_RESEND_COOLDOWN_SECONDS };
     } catch (error) {
         console.error(
             `Verification email resend failed for user ${did}:`,
