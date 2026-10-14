@@ -1,18 +1,14 @@
-import { createChallenge } from "altcha-lib";
-import { deriveKey } from "altcha-lib/algorithms/pbkdf2";
 import { NextResponse } from "next/server";
+import { createAltchaChallenge } from "@/lib/auth/altcha";
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
     const hmacKey = process.env.ALTCHA_HMAC_KEY;
     if (!hmacKey) {
         return NextResponse.json({ error: "ALTCHA not configured" }, { status: 500 });
     }
-    const challenge = await createChallenge({
-        algorithm: "PBKDF2/SHA-256",
-        cost: 5000,
-        deriveKey,
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-        hmacSignatureSecret: hmacKey,
-    });
-    return NextResponse.json(challenge);
+    const challenge = await createAltchaChallenge(hmacKey);
+    // Each challenge carries its own issue time and can be spent once; never serve one from a cache.
+    return NextResponse.json(challenge, { headers: { "Cache-Control": "no-store" } });
 }

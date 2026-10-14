@@ -11,6 +11,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { submitSignupFormAction } from "./actions";
+import { SIGNUP_HONEYPOT_FIELD, SignupHoneypotField } from "./signup-honeypot-field";
+import { restartAltcha } from "@/lib/auth/altcha-widget";
 import { useAtom } from "jotai";
 import { authInfoAtom, userAtom } from "@/lib/data/atoms";
 import { DynamicAutoHandleField } from "../dynamic-field";
@@ -37,6 +39,7 @@ export function SignupForm(): React.ReactElement {
     const searchParams = useSearchParams();
     const altchaRef = useRef<HTMLElement | null>(null);
     const [altchaPayload, setAltchaPayload] = useState<string | null>(null);
+    const honeypotRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         import("altcha");
@@ -78,7 +81,14 @@ export function SignupForm(): React.ReactElement {
         }
         setIsSubmitting(true);
         try {
-            const result = await submitSignupFormAction({ ...data, altcha: altchaPayload });
+            const result = await submitSignupFormAction({
+                ...data,
+                altcha: altchaPayload,
+                [SIGNUP_HONEYPOT_FIELD]: honeypotRef.current?.value ?? "",
+            });
+            if (!result.success && !result.keepAltcha) {
+                restartAltcha(altchaRef.current, setAltchaPayload);
+            }
             if (result.success) {
                 toast({
                     title: "Signup Successful",
@@ -100,6 +110,8 @@ export function SignupForm(): React.ReactElement {
                 });
             }
         } catch (error) {
+            // The server may have spent the challenge before failing.
+            restartAltcha(altchaRef.current, setAltchaPayload);
             toast({
                 title: "Error",
                 description: error instanceof Error ? error.message : "An unexpected error occurred.",
@@ -212,7 +224,9 @@ export function SignupForm(): React.ReactElement {
                     )}
                 />
 
-                <altcha-widget ref={altchaRef} challenge="/api/altcha/challenge" />
+                <SignupHoneypotField inputRef={honeypotRef} />
+
+                <altcha-widget ref={altchaRef} challenge="/api/altcha/challenge" auto="onload" />
 
                 <Button type="submit" disabled={isSubmitting || !altchaPayload} className="w-full">
                     {isSubmitting ? "Signing up..." : "Sign up"}
