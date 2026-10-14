@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { useAtom } from "jotai";
 import { authInfoAtom, userAtom } from "@/lib/data/atoms";
 import { submitSignupFormAction } from "@/components/forms/signup/actions";
+import { SIGNUP_HONEYPOT_FIELD, SignupHoneypotField } from "@/components/forms/signup/signup-honeypot-field";
+import { restartAltcha } from "@/lib/auth/altcha-widget";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -118,6 +120,7 @@ export function PilotSignupForm() {
     const [hasEditedHandle, setHasEditedHandle] = useState(false);
     const altchaRef = useRef<HTMLElement | null>(null);
     const [altchaPayload, setAltchaPayload] = useState<string | null>(null);
+    const honeypotRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         import("altcha");
@@ -195,6 +198,7 @@ export function PilotSignupForm() {
                 handle: sanitizeHandle(state.handle),
                 _email: state.email.trim(),
                 altcha: altchaPayload,
+                [SIGNUP_HONEYPOT_FIELD]: honeypotRef.current?.value ?? "",
                 metadata: {
                     onboardingFlow: "pilot-quick-signup",
                     signupIntent: role,
@@ -203,6 +207,9 @@ export function PilotSignupForm() {
             });
 
             if (!result.success) {
+                if (!result.keepAltcha) {
+                    restartAltcha(altchaRef.current, setAltchaPayload);
+                }
                 const message = result.message || "An error occurred during signup.";
                 if (message.toLowerCase().includes("handle")) {
                     setErrors({ handle: message });
@@ -242,6 +249,8 @@ export function PilotSignupForm() {
 
             router.push(`/signup/pilot/check-email?${nextParams.toString()}`);
         } catch (error) {
+            // The server may have spent the challenge before failing.
+            restartAltcha(altchaRef.current, setAltchaPayload);
             toast({
                 title: "Error",
                 description: error instanceof Error ? error.message : "An unexpected error occurred.",
@@ -347,6 +356,7 @@ export function PilotSignupForm() {
                                     id="pilot-signup-performing-name"
                                     value={state.bandOrVenueName}
                                     onChange={(event) => updateField("bandOrVenueName", event.target.value)}
+                                    maxLength={80}
                                     placeholder="e.g. Jane Doe"
                                 />
                                 <p className="text-sm text-[#6b5f52]">
@@ -390,7 +400,9 @@ export function PilotSignupForm() {
                             {errors.handle ? <p className="text-sm text-red-600">{errors.handle}</p> : null}
                         </div>
 
-                        <altcha-widget ref={altchaRef} challenge="/api/altcha/challenge" />
+                        <SignupHoneypotField inputRef={honeypotRef} />
+
+                        <altcha-widget ref={altchaRef} challenge="/api/altcha/challenge" auto="onload" />
 
                         <Button type="submit" disabled={isSubmitting || !altchaPayload} className="w-full">
                             {isSubmitting ? "Creating account..." : "Create account"}
