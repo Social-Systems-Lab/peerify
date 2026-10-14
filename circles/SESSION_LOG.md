@@ -40,6 +40,33 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-13/14 — Booking/Producer flags, back to draft, redirect and ICS fix, signup and login-link hardening, bot cleanup — all promoted to production
+
+### Product changes (2026-10-13)
+- **Booking enquiries and the Producer identity are behind flags**, both off (`PEERIFY_BOOKING_ENQUIRIES_ENABLED`, `PEERIFY_PRODUCER_IDENTITY_ENABLED`). The server refuses both while off. Landing copy reads "List your venue on the map". (`dbf2ea22` → `3eba1383`)
+- **Unpublish back to draft** for published non-personal circles, with a warning about upcoming events. An independent circle republishes without new verification while its name and handle are unchanged. Draft pages get a generic, noindex title, and the event artist picker skips drafts. (same commit)
+- **Redirects and ICS links use the visitor's domain.** Middleware redirects used to go to the server's own listen address. `buildPublicUrl` sets the path separately, so `//host` can't change the host; ICS UIDs use `@peerify.one`. (`8bbe9c25` → `84e87b37`)
+- **Event locations:** an empty location counts as none. New physical or hybrid events need a location or the virtual flag; existing events stay editable. Settings → About no longer stores `{}`. (same commit)
+- **Image resizing:** a duplicate `sharp` install broke `/_next/image`; deduplicated. (`bc34da00` → `68869f9f`)
+
+### Login-link limits (Batch 0, 2026-10-14)
+- **The login-link form** has ALTCHA, a per-IP wait and per-account limits. Only accounts with a verified email get a link. Every refusal gets the same neutral reply. Server logs mask email addresses, and the Donorbox webhook no longer logs payloads. (`89227841` → `33eabedc`)
+- **Following the Backstage Lounge and auto-verification wait for email verification.** Signup no longer follows the Lounge, and auto-verify needs a verified email. (`ddb04710` → `b436c66a`)
+
+### Signup friction (c) (2026-10-14)
+- **ALTCHA hardened** (single-use, bounded cost, minimum form time, honeypot); altcha-lib updated for GHSA-rx38-p542-v527. A client-sent signup `metadata` object is reduced to the keys the forms use. (`72b3def2` → `13db6697`)
+
+### Bot cleanup (2026-10-14)
+- **`purgeUnverifiedAccount` helper and a one-off script** (dry run by default, explicit list, keep list, per-account backup before deleting, counters recounted from rows). Only pending accounts with an unverified email and no activity qualify. The welcome DM and the announcements thread count as system-created, not activity. (`b8e338de` → `a239e9fc`, `3b42e252` → `00e287b2`)
+- **Resend-verification one-off for named accounts.** It shares the resend button's logic and limits (`sendVerificationEmailToSubject`), so the button's behaviour is unchanged. (`a49e9ab1` → `aa4fe795`)
+- **Production:** 21 never-verified bot accounts were removed with the script, after a reviewed dry run and a backup.
+
+### Follow-ups
+- Per-IP signup limit and nginx limits (batch (b)), then an automatic purge of unverified accounts (d). A verified email alone doesn't prove a human, since mail scanners click links.
+- The signup confirmation page shouldn't carry the email address in its URL.
+- Sweep chat rows that admin delete leaves behind (welcome DMs, announcement threads).
+- `participation-readiness.test.ts` still fails as before; not touched.
+
 ## 2026-10-10 — VibeID removed (code only); PM2 now starts with only the app's env file — both promoted to production
 
 ### VibeID removal
