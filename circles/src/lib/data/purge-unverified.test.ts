@@ -225,7 +225,7 @@ describe("purgeUnverifiedAccount", () => {
                     }),
             ],
             [
-                "conversations besides the welcome DM",
+                "conversations with other participants",
                 () => cols.ChatConversations.docs.push({ _id: new ObjectId(), participants: [BOT, REAL] }),
             ],
         ];
@@ -244,6 +244,69 @@ describe("purgeUnverifiedAccount", () => {
         expect((await planPurgeUnverifiedAccount(BOT)).skipReasons.join("; ")).toContain(
             "followers of its personal circle",
         );
+    });
+
+    test("signup shape: the welcome DM and the announcements thread are purged with the account", async () => {
+        // Exactly what a fresh signup has once its chat list has loaded: the welcome DM (seeded) plus
+        // the platform-announcements thread with one broadcast copy from the system sender.
+        seed();
+        const announcements = new ObjectId();
+        cols.ChatConversations.docs.push({
+            _id: announcements,
+            type: "announcement",
+            handle: "kamooni-announcements",
+            participants: [BOT],
+            repliesDisabled: true,
+        });
+        cols.ChatMessageDocs.docs.push({
+            _id: new ObjectId(),
+            conversationId: String(announcements),
+            senderDid: "system:kamooni",
+        });
+        cols.ChatReadStates.docs.push({ _id: new ObjectId(), userDid: BOT, conversationId: String(announcements) });
+        // Another user's announcements thread stays.
+        const realAnnouncements = new ObjectId();
+        cols.ChatConversations.docs.push({
+            _id: realAnnouncements,
+            type: "announcement",
+            handle: "kamooni-announcements",
+            participants: [REAL],
+        });
+
+        const plan = await planPurgeUnverifiedAccount(BOT);
+        expect(plan.skipReasons).toEqual([]);
+        expect(plan.docs.chatConversations.length).toBe(2);
+        const result = await applyPurgePlan(plan);
+        expect(result.deleted.chatConversations).toBe(2);
+        expect(result.deleted.chatMessageDocs).toBe(2);
+        expect(result.deleted.chatReadStates).toBe(2);
+        expect(await cols.ChatConversations.countDocuments({ _id: realAnnouncements })).toBe(1);
+    });
+
+    test("conversation rule stays strict: other participants, a non-list, or the account's own message", async () => {
+        // The system sender as a participant is still automatic.
+        seed();
+        cols.ChatConversations.docs.push({ _id: new ObjectId(), participants: [BOT, "system:kamooni"] });
+        expect((await planPurgeUnverifiedAccount(BOT)).eligible).toBe(true);
+
+        reset();
+        seed();
+        cols.ChatConversations.docs.push({ _id: new ObjectId(), type: "dm", participants: [BOT, REAL] });
+        expect((await planPurgeUnverifiedAccount(BOT)).skipReasons.join("; ")).toContain(
+            "1 conversations with other participants",
+        );
+
+        reset();
+        seed();
+        cols.ChatConversations.docs.push({ _id: new ObjectId(), participants: BOT });
+        expect((await planPurgeUnverifiedAccount(BOT)).eligible).toBe(false);
+
+        reset();
+        seed();
+        const announcements = new ObjectId();
+        cols.ChatConversations.docs.push({ _id: announcements, type: "announcement", participants: [BOT] });
+        cols.ChatMessageDocs.docs.push({ _id: new ObjectId(), conversationId: String(announcements), senderDid: BOT });
+        expect((await planPurgeUnverifiedAccount(BOT)).skipReasons.join("; ")).toContain("1 sent messages");
     });
 
     test("createdAfter (the automatic purge) skips accounts created before verification was enforced", async () => {

@@ -24,6 +24,7 @@ import {
 } from "./db";
 import { deleteVbdCircle } from "./vdb";
 import { USERS_DIR } from "../auth/auth";
+import { getKamooniSystemSender } from "@/config/system-sender";
 
 // Removes an account that never verified its email, with everything signup and its first steps
 // created. Admin delete (deleteCircle) leaves chat rows, notifications, relationship edges and the
@@ -40,8 +41,9 @@ import { USERS_DIR } from "../auth/auth";
 // be purged. Anything else is skipped, never partly deleted:
 //   - accountStatus "active" (or anything but pending), isVerified / verificationStatus "verified",
 //     a verified email, admin rights;
-//   - activity a person might care about: posts, comments, reactions, sent messages, conversations
-//     other than the welcome DM, connections or DM permissions, RSVPs, crew applications, followers
+//   - activity a person might care about: posts, comments, reactions, any message it sent,
+//     conversations with anyone besides itself and the system sender (see below), connections or
+//     DM permissions, RSVPs, crew applications, followers
 //     of its personal circle or incoming follows, other circles it created, or an artist circle
 //     with other members, posts or events;
 //   - with `createdAfter` (the automatic purge passes VERIFICATION_ENFORCED_AT): accounts created
@@ -52,6 +54,21 @@ import { USERS_DIR } from "../auth/auth";
 // get no login link and never auto-verify. The automatic purge only considers accounts created after
 // this; everything older needs the reviewed one-off list.
 export const VERIFICATION_ENFORCED_AT = new Date("2026-10-14T12:00:00Z");
+
+// Conversations the system creates for every new account have only the account itself as
+// participant: the welcome DM (ensureWelcomeMessageForNewUser, handle "welcome-<did>") and the
+// platform-announcements thread (ensureAnnouncementConversationForUser, created the first time the
+// chat list loads). Their messages come from the system sender (or the welcome template's sender),
+// which is not a participant. Such a conversation is purged with the account; one with any other
+// participant counts as activity. A message the account sent anywhere always counts as activity.
+const isAutomaticConversation = (participants: unknown, did: string): boolean => {
+    const systemDid = getKamooniSystemSender().did;
+    return (
+        Array.isArray(participants) &&
+        participants.length > 0 &&
+        participants.every((p) => p === did || p === systemDid)
+    );
+};
 
 export const PURGE_COLLECTIONS = [
     "circles",
@@ -194,10 +211,9 @@ export async function planPurgeUnverifiedAccount(did: string, { createdAfter }: 
         if (n > 0) skip(`${n} ${label}`);
     }
 
-    const welcomeHandle = `welcome-${did}`;
     const conversations = await findAll("chatConversations", { participants: did });
-    const otherConversations = conversations.filter((c) => c.handle !== welcomeHandle);
-    if (otherConversations.length > 0) skip(`${otherConversations.length} conversations besides the welcome DM`);
+    const withOthers = conversations.filter((c) => !isAutomaticConversation(c.participants, did));
+    if (withOthers.length > 0) skip(`${withOthers.length} conversations with other participants`);
 
     // Auto-created artist circles: deleted with the account only if nobody else is in them and
     // they hold no content.
