@@ -32,46 +32,52 @@ const FEATURES = [
         tag: "Fans & artists",
         title: "Map-based discovery",
         body: "Browse artists worldwide or filter by your city, genre, or touring status. See tour pledges building in real time. No algorithm — just geography and music.",
-        icon: <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="3"/><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>,
+        art: "feature-map.svg",
+        alt: "A folded map with pins and a dotted route to a house",
     },
     {
         tag: "The core mechanic",
         title: "Pledge to bring them here",
         body: "Found an artist you want to bring to your city? Start or join a tour pledge. When it tips, a tour team forms and the show moves from possibility to plan.",
-        icon: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>,
+        art: "feature-pledge.svg",
+        alt: "A pledge jar filling up with coins towards a flag",
     },
     {
         tag: "Fair economics",
         title: "Buy music directly",
         body: "Peerify is not a streaming site. When you buy music here, it’s yours. The artist receives 90% of the price. Your €5/month membership includes €4 in music credit.",
-        icon: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>,
+        art: "feature-vinyl.svg",
+        alt: "A record sliding out of its sleeve beside a cassette",
     },
     {
         tag: "Coming soon",
         title: "The Peerify Player",
         body: "Your personal collection. When you’re in close proximity to another listener, you can share the music you own with them. All plays are recorded, and Peerify surplus becomes royalties for the artists.",
-        icon: <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="8,6 8,18 19,12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/></svg>,
+        art: "feature-player.svg",
+        alt: "Two phones held side by side, sharing a song",
     },
     {
         tag: "Tour support",
         title: "Join the tour team",
         body: "When a tour pledge hits 10%, a tour team forms. Offer a spare room, a meal, transport, or a stage. Community makes tours possible, and you get to make new friends along the way.",
-        icon: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>,
+        art: "feature-crew.svg",
+        alt: "A small car with a guitar case strapped to the roof",
     },
     {
         tag: "For hosts",
         title: "Host a house concert",
         body: "Open your living room to live music. Set the capacity, vet your guests, and share the address only with people you’ve approved. Intimate music in the places it belongs.",
-        icon: <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+        art: "feature-door.svg",
+        alt: "An open front door to a room lit with string lights",
     },
 ]
 
 // ─── Steps ────────────────────────────────────────────────────────────────────
 const STEPS = [
-    { n: "01", title: "Discover on the map",    body: "Browse artists worldwide or filter by your city, genre, or touring status. Find someone whose music you love and who hasn’t played near you yet." },
-    { n: "02", title: "Pledge to bring them",   body: "Start or join a tour pledge. Watch it grow. When it tips, a tour team forms and the show moves from possibility to real life." },
-    { n: "03", title: "Help make it happen",    body: "Offer a spare room, a meal, transport, or a space to play. Join the Crew and build the tour together with the artists. Peer-to-peer all the way through." },
-    { n: "04", title: "Show up & support", body: "Attend the show, buy the record, spread the word. Your membership credit goes directly to artists. Every purchase, every play counts." },
+    { n: "01", art: "step-1-discover.svg", alt: "A globe dotted with location pins", title: "Discover on the map",    body: "Browse artists worldwide or filter by your city, genre, or touring status. Find someone whose music you love and who hasn’t played near you yet." },
+    { n: "02", art: "step-2-pledge.svg",   alt: "A hand dropping coins into a pledge jar", title: "Pledge to bring them",   body: "Start or join a tour pledge. Watch it grow. When it tips, a tour team forms and the show moves from possibility to real life." },
+    { n: "03", art: "step-3-host.svg",     alt: "Someone on a step stool hanging string lights", title: "Help make it happen",    body: "Offer a spare room, a meal, transport, or a space to play. Join the Crew and build the tour together with the artists. Peer-to-peer all the way through." },
+    { n: "04", art: "step-4-perform.svg",  alt: "An artist playing guitar to a small seated audience", title: "Show up & support", body: "Attend the show, buy the record, spread the word. Your membership credit goes directly to artists. Every purchase, every play counts." },
 ]
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -105,7 +111,6 @@ export default function PeerifyLandingPage() {
             {/* ── HERO ── */}
             <section className={"hero"}>
                 <div className={"heroBg"} />
-                <div className={"heroOverlay"} />
                 <div className={"heroInner"}>
                     <div className={"logoLockup"}>
                         <Image src="/peerify/logo-mark.png" alt="Peerify mark" width={42} height={42} priority />
@@ -140,7 +145,7 @@ export default function PeerifyLandingPage() {
                             <Link href="/explore" className={"btnOrange"} style={{ marginTop: "8px" }}>Explore artists on the map</Link>
                         </div>
                         <div className={"photoFrame"}>
-                            <Image src="/peerify/fans.jpg" alt="Fans at an intimate house concert" fill className={"photoImg"} sizes="(max-width: 768px) 100vw, 50vw" />
+                            <Image src="/peerify/illustrations/idea-ticket.svg" alt="A hand-numbered gig ticket: No. 1000" fill unoptimized className={"photoImg"} />
                         </div>
                     </div>
                 </div>
@@ -154,7 +159,9 @@ export default function PeerifyLandingPage() {
                     <div className={"featuresGrid"}>
                         {FEATURES.map((f) => (
                             <div key={f.title} className={"featureCard"}>
-                                <span className={"featureIcon"}>{f.icon}</span>
+                                <div className={"featureArt"}>
+                                    <Image src={`/peerify/illustrations/${f.art}`} alt={f.alt} fill unoptimized className={"featureImg"} />
+                                </div>
                                 <h3>{f.title}</h3>
                                 <p>{f.body}</p>
                                 <span className={"featureTag"}>{f.tag}</span>
@@ -173,7 +180,7 @@ export default function PeerifyLandingPage() {
 
                         <div className={"roleCard"}>
                             <div className={"roleImageWrap"}>
-                                <Image src="/peerify/fans.jpg" alt="Artist performing at a house concert" fill className={"roleImg"} sizes="(max-width: 768px) 100vw, 33vw" />
+                                <Image src="/peerify/illustrations/role-artist.svg" alt="An artist carrying a guitar case towards a house with a lit window" fill unoptimized className={"roleImg"} />
                             </div>
                             <div className={"roleBody"}>
                                 <p className={"roleType"}>For Artists</p>
@@ -202,7 +209,7 @@ export default function PeerifyLandingPage() {
 
                         <div className={"roleCard"}>
                             <div className={"roleImageWrap"}>
-                                <Image src="/peerify/artist.jpg" alt="Fans enjoying a house concert" fill className={"roleImg"} sizes="(max-width: 768px) 100vw, 33vw" />
+                                <Image src="/peerify/illustrations/role-fan.svg" alt="Fans sitting around an artist playing in a living room" fill unoptimized className={"roleImg"} />
                             </div>
                             <div className={"roleBody"}>
                                 <p className={"roleType"}>For Fans &amp; Members</p>
@@ -225,7 +232,7 @@ export default function PeerifyLandingPage() {
                         {SHOW_VENUE_SIGNUP && (
                             <div className={"roleCard"}>
                                 <div className={"roleImageWrap"}>
-                                    <Image src="/peerify/hosts.jpg" alt="Hosts setting up a space for a concert" fill className={"roleImg"} sizes="(max-width: 768px) 100vw, 33vw" />
+                                    <Image src="/peerify/illustrations/role-host.svg" alt="A host carrying an amp into a room under string lights" fill unoptimized className={"roleImg"} />
                                 </div>
                                 <div className={"roleBody"}>
                                     <p className={"roleType"}>For Hosts &amp; Venues</p>
@@ -255,6 +262,9 @@ export default function PeerifyLandingPage() {
                     <div className={"steps"}>
                         {STEPS.map((s) => (
                             <div key={s.n} className={"step"}>
+                                <div className={"stepArt"}>
+                                    <Image src={`/peerify/illustrations/${s.art}`} alt={s.alt} fill unoptimized className={"stepImg"} />
+                                </div>
                                 <div className={"stepN"}>{s.n}</div>
                                 <h4>{s.title}</h4>
                                 <p>{s.body}</p>
@@ -275,13 +285,6 @@ export default function PeerifyLandingPage() {
                 </div>
             </section>
 
-            {/* ── PHOTO STRIP ── */}
-            <div className={"photoStrip"}>
-                <div className={"stripItem"}><Image src="/peerify/about.jpg"    alt="A room set up for music"              fill className={"strip-img"} sizes="33vw" /></div>
-                <div className={"stripItem"}><Image src="/peerify/artist.jpg"   alt="Artist performing at a house concert" fill className={"strip-img"} sizes="33vw" /></div>
-                <div className={"stripItem"}><Image src="/peerify/involved.jpg" alt="Everyone together after a show"       fill className={"strip-img"} sizes="33vw" /></div>
-            </div>
-
             {/* ── MANIFESTO ── */}
             <section className={"manifesto-section reveal"}>
                 <blockquote>
@@ -289,6 +292,7 @@ export default function PeerifyLandingPage() {
                     It&apos;s a room, a couch, a song, <em>a space where strangers become friends</em>.&rdquo;
                 </blockquote>
                 <p className={"manifesto-attr"}>&mdash; The Peerify thesis</p>
+                <Image src="/peerify/illustrations/manifesto-lights.svg" alt="" width={1600} height={140} unoptimized className={"manifestoLights"} />
             </section>
 
             {/* ── TRUST ── */}
