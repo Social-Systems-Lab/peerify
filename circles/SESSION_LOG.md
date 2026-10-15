@@ -40,6 +40,29 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-15 — Cleura cutover runbook reviewed; count-check script n12 v2 tested — no code changes
+
+### Cutover runbook (outside the repo, `~/cc-reports/cleura-cutover-runbook.md`)
+- **Reviewed section by section with Tim and a second reviewer; nothing has run yet.** Step 10 is the go/no-go. A clean rollback ends before step 11, because the old box's forward already sends writes to the new box. After that it's fix forward, with the old data left untouched for 7 days; there is no reverse migration. Prod has a 90-minute time box.
+- **Safety in the commands:** a hostname guard on every writing command; peerify work in an interactive `sudo -iu peerify` shell (umask 077); a go/no-go check before anything on the day (Cleura's written DPA confirmation, the tested n12, the backup gate, the exact commit to deploy, no pushes until step 11).
+- **Found in the review:**
+  - the real-name certificate step would have overwritten the Phase A nginx file;
+  - webroot certificate renewals need a reload hook;
+  - per-IP limits would have counted every forwarded visitor as one client, so a temporary real-IP config now goes in, and is removed together with the forward;
+  - the old box's forward is now tested for real the day before;
+  - the temporary name answers only the box itself once real data is there.
+- **DPA:** the day-before steps may start once the confirmation has been requested. Personal data moves only after Cleura's written confirmation.
+
+### n12 v2 (the count check for the database move)
+- **What changed:** index definitions are now compared exactly for every collection. Collections with a TTL index (`rateLimits`, `usedAltchaChallenges`) are reported separately, because their documents expire between the dump and the compare; their count may only drop.
+- **Tested** with a scratch-mongod test script on peerify-staging: 15/15.
+- **Versions:** the old box and Cleura run the same MongoDB versions (8.0.23, FCV 8.0). Staging has no TTL collections yet, so prod's cutover is the first real compare that includes them.
+
+### Follow-ups
+- Prod Phase A, then the staging cutover once Cleura's written DPA confirmation has arrived. Prod dates before 2026-10-23 if possible (the Mongo auth plan's deadline).
+- **No cherry-pick to `main` until the prod cutover**, this log entry included: `main` must stay at prod's live commit, so Cleura prod's Phase A checkout isn't ahead of the commit the cutover deploys.
+- n08: change its default URL once the temporary names are gone. Possibly a `--resolve` option, depending on the day-before source-address test.
+
 ## 2026-10-13/14 — Booking/Producer flags, back to draft, redirect and ICS fix, signup and login-link hardening, bot cleanup — all promoted to production
 
 ### Product changes (2026-10-13)
