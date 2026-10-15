@@ -30,24 +30,26 @@
     background: #0f0d0b;
     overflow: hidden;
 }
+/* Drawing occupies the right ~55%; the text column is capped at 45% so it never sits behind it. */
 .peerify-home .heroBg {
     position: absolute;
-    inset: 0;
-    background-image: url("/peerify/everyone.jpg");
-    background-size: cover;
-    background-position: center 30%;
-    opacity: 0.52;
-}
-.peerify-home .heroOverlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(108deg, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.65) 46%, rgba(0,0,0,0.20) 100%);
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 55%;
+    background-image: url("/peerify/illustrations/hero.svg");
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-position: right center;
+    background-origin: content-box;
+    padding: 56px 56px 56px 0;
+    opacity: 1;
 }
 .peerify-home .heroInner {
     position: relative;
     z-index: 2;
     padding: 80px 72px 80px;
-    max-width: 700px;
+    max-width: min(700px, 45%);
 }
 .peerify-home .logoLockup {
     display: flex;
@@ -201,7 +203,7 @@
     aspect-ratio: 4 / 3;
     position: relative;
 }
-.peerify-home .photoImg { object-fit: cover; }
+.peerify-home .photoImg { object-fit: contain; }
 
 /* ── FEATURES ── */
 .peerify-home .featuresSection { background: #0a0a0a; padding: 96px 72px; }
@@ -219,21 +221,10 @@
 .peerify-home .featureCard {
     background: #1e1a14;
     padding: 36px 28px;
-    transition: background 0.2s;
 }
-.peerify-home .featureCard:hover { background: #252018; }
 
-.peerify-home .featureIcon { display: block; margin-bottom: 18px; }
-.peerify-home .featureIcon svg {
-    width: 26px;
-    height: 26px;
-    stroke: #e8720c;
-    stroke-width: 1.6;
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    color: #e8720c;
-}
+.peerify-home .featureArt { position: relative; aspect-ratio: 3 / 2; margin-bottom: 22px; }
+.peerify-home .featureImg { object-fit: contain; }
 .peerify-home .featureCard h3 {
     font-family: "Playfair Display", serif;
     font-size: 18px;
@@ -285,9 +276,8 @@
 }
 .peerify-home .roleCard:hover { border-color: rgba(232,114,12,0.38); transform: translateY(-2px); }
 
-.peerify-home .roleImageWrap { position: relative; aspect-ratio: 3 / 2; overflow: hidden; }
-.peerify-home .roleImg { object-fit: cover; opacity: 0.82; transition: opacity 0.25s; }
-.peerify-home .roleCard:hover .roleImg { opacity: 0.93; }
+.peerify-home .roleImageWrap { position: relative; aspect-ratio: 4 / 3; overflow: hidden; }
+.peerify-home .roleImg { object-fit: contain; opacity: 1; }
 
 .peerify-home .roleBody { padding: 26px; }
 .peerify-home .roleType {
@@ -350,10 +340,13 @@
     background: #1e1a14;
     border-radius: 8px;
     padding: 28px 24px 24px;
-    transition: background 0.2s, transform 0.15s;
+    transition: transform 0.15s;
     cursor: default;
 }
-.peerify-home .step:hover { background: #252018; transform: translateY(-2px); }
+.peerify-home .step:hover { transform: translateY(-2px); }
+
+.peerify-home .stepArt { position: relative; aspect-ratio: 1 / 1; margin-bottom: 20px; }
+.peerify-home .stepImg { object-fit: contain; }
 
 .peerify-home .stepN {
     width: 54px;
@@ -420,17 +413,6 @@
     margin-bottom: 6px;
 }
 .peerify-home .playerBlock p { font-size: 13px; color: rgba(245,245,245,0.55); line-height: 1.72; font-weight: 400; }
-
-/* ── PHOTO STRIP ── */
-.peerify-home .photoStrip {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    height: 280px;
-    overflow: hidden;
-}
-.peerify-home .stripItem { position: relative; overflow: hidden; }
-.peerify-home .stripImg { object-fit: cover; filter: saturate(0.82); transition: filter 0.3s; }
-.peerify-home .stripItem:hover .stripImg { filter: saturate(1); }
 
 /* ── MANIFESTO ── */
 .peerify-home .manifestoSection { background: #0a0a0a; padding: 88px 72px; text-align: center; }
@@ -536,8 +518,10 @@
 
 /* ── MOBILE (≤768px) ── */
 @media (max-width: 768px) {
-    .peerify-home .heroInner { padding: 72px 24px 64px; }
-    .peerify-home .heroBg { background-position: 70% center; }
+    /* Drawing stacks full-width above the text instead of behind it. */
+    .peerify-home .hero { flex-direction: column; align-items: stretch; min-height: auto; }
+    .peerify-home .heroBg { position: relative; width: 100%; aspect-ratio: 980 / 860; max-height: 60vh; padding: 24px 24px 0; background-position: center; }
+    .peerify-home .heroInner { padding: 32px 24px 64px; max-width: none; }
     .peerify-home .heroHeading { font-size: clamp(38px, 10vw, 54px); }
     .peerify-home .heroSub { font-size: 15px; max-width: 100%; }
     .peerify-home .heroActions { flex-direction: column; gap: 12px; }
@@ -558,14 +542,9 @@
     .peerify-home .featureCard { padding: 28px 22px; }
 
     .peerify-home .rolesGrid { grid-template-columns: 1fr; gap: 20px; }
-    .peerify-home .roleImageWrap { aspect-ratio: 16 / 9; }
 
     .peerify-home .steps { grid-template-columns: 1fr 1fr; gap: 12px; }
     .peerify-home .playerBlock { flex-direction: column; align-items: flex-start; gap: 18px; padding: 24px; }
-
-    .peerify-home .photoStrip { grid-template-columns: 1fr; height: auto; }
-    .peerify-home .stripItem { height: 220px; }
-    .peerify-home .stripItem:nth-child(2), .peerify-home .stripItem:nth-child(3) { display: none; }
 
     .peerify-home .trustGrid { grid-template-columns: 1fr; gap: 16px; }
 
@@ -637,6 +616,14 @@
     font-weight: 700;
     letter-spacing: 3px;
     text-transform: uppercase;
+}
+
+.peerify-home .manifestoLights {
+    display: block;
+    width: 100%;
+    max-width: 760px;
+    height: auto;
+    margin: 32px auto 0;
 }
 
 .peerify-home .trustSection,
@@ -960,27 +947,4 @@
     letter-spacing: 2.8px;
     text-transform: uppercase;
     color: rgba(0,0,0,0.55);
-}
-
-/* Image strip height polish */
-.peerify-home .photoStrip {
-    height: 340px;
-}
-
-.peerify-home .stripItem {
-    height: 340px;
-}
-
-.peerify-home .stripItem img {
-    object-fit: cover;
-}
-
-@media (max-width: 768px) {
-    .peerify-home .photoStrip {
-        height: auto;
-    }
-
-    .peerify-home .stripItem {
-        height: 260px;
-    }
 }
