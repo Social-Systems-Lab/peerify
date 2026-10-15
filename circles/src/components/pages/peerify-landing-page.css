@@ -520,7 +520,7 @@
 @media (max-width: 768px) {
     /* Drawing stacks full-width above the text instead of behind it. */
     .peerify-home .hero { flex-direction: column; align-items: stretch; min-height: auto; }
-    .peerify-home .heroBg { position: relative; width: 100%; aspect-ratio: 980 / 860; max-height: 60vh; padding: 24px 24px 0; background-position: center; }
+    .peerify-home .heroBg { position: relative; width: 100%; height: calc((100vw - 48px) * 860 / 980 + 76px); max-height: calc(60vh + 52px); padding: 76px 24px 0; background-position: center; }
     .peerify-home .heroInner { padding: 32px 24px 64px; max-width: none; }
     .peerify-home .heroHeading { font-size: clamp(38px, 10vw, 54px); }
     .peerify-home .heroSub { font-size: 15px; max-width: 100%; }
