@@ -40,6 +40,31 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-15/16 — Landing page illustrations and copy — promoted to production as two one-time exceptions to the main freeze
+
+### What changed (landing page at `/` and `/welcome` only)
+- **Photos replaced by line drawings:** 16 SVGs in `public/peerify/illustrations/` (hero, the idea ticket, 6 features, 3 roles, 4 steps, manifesto lights), all `<Image unoptimized>`. The hero drawing sits on the right on desktop and above the text on mobile. The three-photo strip and the hero overlay are gone. The old photos stay in `public/peerify/`, because `src/lib/default-heroes.ts` still uses them as default covers.
+- **Mobile hero spacing:** the drawing starts below the fixed top-right profile menu (76px top padding, with a taller box so the drawing keeps its size).
+- **Copy:** For Artists ("music and ticket sale", "Build a dedicated crew around the world"; the ticket-selling and "first 1,000 artists" items removed); "For Fans & Members" became "For Fans" (the €5 item removed, "Help co-create Peerify", logged-out CTA "Create a fan profile"); the Buy music membership sentence reworded; the house concert tag is now "Home hosting"; step 4 describes the evening instead of membership credit. New ticket drawing (a pile of tickets, No. 1000 on top).
+- **Checks on each SVG:** valid XML, no scripts or external references. One early export had an undeclared `c2pa:` namespace (invalid XML, which browsers refuse to render); Tim's re-export fixed it.
+
+### Commits
+| Staging | main | What |
+|---|---|---|
+| `fefdbe76` | `c9e2d25a` | photos → line drawings |
+| `c7437f99` | `999cace8` | mobile hero spacing |
+| `e22ddd76` | `3cf1f9c8` | copy edits and new ticket drawing |
+
+### Promotion (old box, a yes for each step)
+- **Why main moved:** Tim made two one-time exceptions to "no cherry-pick to `main` until the prod cutover". `main` is **frozen again until the cutover, log commits included** (this entry stays on `staging`).
+- **Before each one:** a trial cherry-pick on `origin/main` in a temporary worktree. Clean; files identical to staging by blob hash; tsc clean; lint output identical to `main`'s.
+- **Deploys:** `999cace8` on 2026-10-15 21:23 CEST and `3cf1f9c8` on 2026-10-16 08:43 CEST. Both 9/9 steps, staging pid and uptime unchanged, no new errors after the restart. Tim checked prod in the browser (Incognito, Mac and phone).
+- **Prod and GOSHA now:** **`3cf1f9c8`**. Rollback file: `prod-rollback-20261016.md` (back to `999cace8`). Releases kept: `84e87b37`, `13db6697`, `00e287b2`, `999cace8`, `3cf1f9c8`.
+
+### Follow-ups
+- **Post-cutover:** remove the old box's SSH key from the `akrobatim` GitHub account. Both pushes to `main` printed "Bypassed rule violations", because that account is on `main`'s ruleset bypass list.
+- Cleura prod Phase A is paused at §3 (console login test and the NOPASSWD decision still open).
+
 ## 2026-10-15 — Cleura cutover runbook reviewed; count-check script n12 v2 tested — no code changes
 
 ### Cutover runbook (outside the repo, `~/cc-reports/cleura-cutover-runbook.md`)
