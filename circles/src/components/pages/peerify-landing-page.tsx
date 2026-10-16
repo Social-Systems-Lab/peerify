@@ -45,7 +45,7 @@ const FEATURES = [
     {
         tag: "Fair economics",
         title: "Buy music directly",
-        body: "Peerify is not a streaming site. When you buy music here, it’s yours. The artist receives 90% of the price. Your €5/month membership includes €4 in music credit.",
+        body: "Peerify is not a streaming site. When you buy music here, it’s yours. The artist receives 90% of the price. Paying members give €5 a month, and €4 of it goes straight to artists as music credit.",
         art: "feature-vinyl.svg",
         alt: "A record sliding out of its sleeve beside a cassette",
     },
@@ -64,7 +64,7 @@ const FEATURES = [
         alt: "A small car with a guitar case strapped to the roof",
     },
     {
-        tag: "For hosts",
+        tag: "Home hosting",
         title: "Host a house concert",
         body: "Open your living room to live music. Set the capacity, vet your guests, and share the address only with people you’ve approved. Intimate music in the places it belongs.",
         art: "feature-door.svg",
@@ -77,7 +77,7 @@ const STEPS = [
     { n: "01", art: "step-1-discover.svg", alt: "A globe dotted with location pins", title: "Discover on the map",    body: "Browse artists worldwide or filter by your city, genre, or touring status. Find someone whose music you love and who hasn’t played near you yet." },
     { n: "02", art: "step-2-pledge.svg",   alt: "A hand dropping coins into a pledge jar", title: "Pledge to bring them",   body: "Start or join a tour pledge. Watch it grow. When it tips, a tour team forms and the show moves from possibility to real life." },
     { n: "03", art: "step-3-host.svg",     alt: "Someone on a step stool hanging string lights", title: "Help make it happen",    body: "Offer a spare room, a meal, transport, or a space to play. Join the Crew and build the tour together with the artists. Peer-to-peer all the way through." },
-    { n: "04", art: "step-4-perform.svg",  alt: "An artist playing guitar to a small seated audience", title: "Show up & support", body: "Attend the show, buy the record, spread the word. Your membership credit goes directly to artists. Every purchase, every play counts." },
+    { n: "04", art: "step-4-perform.svg",  alt: "An artist playing guitar to a small seated audience", title: "Show up & support", body: "Attend the show, buy the record, spread the word. Meet new people, make new friends, and share an intimate, magical evening that couldn’t happen any other way." },
 ]
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -145,7 +145,7 @@ export default function PeerifyLandingPage() {
                             <Link href="/explore" className={"btnOrange"} style={{ marginTop: "8px" }}>Explore artists on the map</Link>
                         </div>
                         <div className={"photoFrame"}>
-                            <Image src="/peerify/illustrations/idea-ticket.svg" alt="A hand-numbered gig ticket: No. 1000" fill unoptimized className={"photoImg"} />
+                            <Image src="/peerify/illustrations/idea-ticket.svg" alt="A pile of hand-numbered gig tickets, with No. 1000 on top" fill unoptimized className={"photoImg"} />
                         </div>
                     </div>
                 </div>
@@ -186,11 +186,10 @@ export default function PeerifyLandingPage() {
                                 <p className={"roleType"}>For Artists</p>
                                 <h3>Micro-gigs, home concerts &amp; community-backed touring</h3>
                                 <ul>
-                                    <li>Earn 90% on every music sale</li>
+                                    <li>Earn 90% on every music and ticket sale</li>
                                     <li>Let fans pledge tours into existence</li>
-                                    <li>Sell tickets to intimate events</li>
                                     <li>Fan-club tools &amp; direct messaging</li>
-                                    <li>First 1,000 artists free for 3 years</li>
+                                    <li>Build a dedicated crew around the world</li>
                                 </ul>
                                 {user ? (
                                     <button
@@ -212,19 +211,18 @@ export default function PeerifyLandingPage() {
                                 <Image src="/peerify/illustrations/role-fan.svg" alt="Fans sitting around an artist playing in a living room" fill unoptimized className={"roleImg"} />
                             </div>
                             <div className={"roleBody"}>
-                                <p className={"roleType"}>For Fans &amp; Members</p>
+                                <p className={"roleType"}>For Fans</p>
                                 <h3>Discover, support &amp; experience music differently</h3>
                                 <ul>
-                                    <li>&euro;5/month includes &euro;4 music credit</li>
                                     <li>Pledge to bring artists to your city</li>
                                     <li>Attend intimate house concerts</li>
                                     <li>Join an artist&apos;s Crew</li>
-                                    <li>Help improve Peerify</li>
+                                    <li>Help co-create Peerify</li>
                                 </ul>
                                 {user ? (
                                     <Link href={getCircleDefaultPath(user)} className={"roleCta"}>Go to profile &rarr;</Link>
                                 ) : (
-                                    <Link href="/signup/pilot?role=fan" className={"roleCta"}>Become a founding member &rarr;</Link>
+                                    <Link href="/signup/pilot?role=fan" className={"roleCta"}>Create a fan profile &rarr;</Link>
                                 )}
                             </div>
                         </div>
