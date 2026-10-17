@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { FormSubmitResponse, emailSchema } from "../../../models/models";
-import { AuthenticationError, authenticateUser, createUserSession, USERS_DIR } from "@/lib/auth/auth";
+import { AuthenticationError, authenticateUser, burnPasswordCheck, createUserSession } from "@/lib/auth/auth";
 import { Circles } from "@/lib/data/db";
 import { getUserPrivate } from "@/lib/data/user";
 import { trySendEmail, generateSecureToken, hashToken, redactEmailAddresses } from "@/lib/data/email";
@@ -13,65 +13,46 @@ import { claimMinimumWait, rateLimitKey } from "@/lib/data/rate-limit";
 import { getClientIp } from "@/lib/utils/client-ip";
 import { maskEmail } from "@/lib/utils/mask-email";
 import { headers } from "next/headers";
-import fs from "fs";
-import path from "path";
 
-function escapeRegExp(value: string): string {
-    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+// One reply for an unknown address, a wrong password and missing key files, so the form never
+// reveals whether an account exists. All three also cost the same key derivation.
+const LOGIN_FAILED_MESSAGE = "Email or password is incorrect";
 
 export const submitLoginFormAction = async (values: Record<string, any>): Promise<FormSubmitResponse> => {
     try {
         const emailInput = typeof values.email === "string" ? values.email : "";
         const normalizedEmail = emailInput.trim();
-        let password = values.password;
+        const password = typeof values.password === "string" ? values.password : "";
 
         if (process.env.NODE_ENV !== "production") {
             console.log(`[LOGIN_DIAG] email=${maskEmail(normalizedEmail)}`);
         }
 
-        // Prefer exact email lookup with case-insensitive collation for deterministic matching.
-        let user = await Circles.findOne(
+        // One case-insensitive query, the same for known and unknown addresses (a second lookup only
+        // for misses would make unknown addresses measurably slower).
+        const user = await Circles.findOne(
             { email: normalizedEmail },
             { collation: { locale: "en", strength: 2 } },
         );
-        if (!user) {
-            // Fallback for legacy records: exact escaped regex (still case-insensitive).
-            const emailRegex = new RegExp(`^${escapeRegExp(normalizedEmail)}$`, "i");
-            user = await Circles.findOne({ email: { $regex: emailRegex } });
-        }
 
-        if (!user) {
+        if (!user?.did) {
             console.error(`Login failed: no account for ${maskEmail(normalizedEmail)}`);
-            throw new AuthenticationError("Account does not exist");
-        }
-        if (process.env.NODE_ENV !== "production") {
-            const credentialPath = path.join(USERS_DIR, user.did || "");
-            console.log(
-                `[LOGIN_DIAG] userId=${user._id?.toString()} did=${user.did} credentialSource=file path=${credentialPath} exists=${fs.existsSync(
-                    credentialPath,
-                )}`,
-            );
+            burnPasswordCheck(password);
+            return { success: false, message: LOGIN_FAILED_MESSAGE };
         }
 
-        authenticateUser(user.did!, password);
+        authenticateUser(user.did, password);
 
-        let privateUser = await getUserPrivate(user.did!);
-        await createUserSession(privateUser, user.did!);
+        let privateUser = await getUserPrivate(user.did);
+        await createUserSession(privateUser, user.did);
 
         return { success: true, message: "User authenticated successfully", data: { user: privateUser } };
     } catch (error) {
         if (error instanceof AuthenticationError) {
             if (process.env.NODE_ENV !== "production") {
-                const reason =
-                    error.message === "Account does not exist"
-                        ? "missing_user_or_credentials"
-                        : error.message === "Incorrect password"
-                          ? "password_mismatch"
-                          : "auth_error";
-                console.log(`[LOGIN_DIAG] verificationBranch=${reason} message="${error.message}"`);
+                console.log(`[LOGIN_DIAG] verificationBranch=auth_error message="${error.message}"`);
             }
-            return { success: false, message: error.message };
+            return { success: false, message: LOGIN_FAILED_MESSAGE };
         }
 
         if (error instanceof Error) {
@@ -79,8 +60,8 @@ export const submitLoginFormAction = async (values: Record<string, any>): Promis
             const isDbError = /(mongo|topology|econnrefused|connection|timed out|server selection)/i.test(errorText);
 
             console.error("Login failed with non-auth error", {
-                email: typeof values?.email === "string" ? values.email.trim() : values?.email,
-                error: errorText,
+                email: maskEmail(typeof values?.email === "string" ? values.email.trim() : ""),
+                error: redactEmailAddresses(errorText),
             });
 
             if (isDbError) {

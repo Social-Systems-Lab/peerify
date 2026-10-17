@@ -2,8 +2,19 @@
 // No mocks: key-file.ts has no database imports.
 
 import crypto from "crypto";
-import { describe, expect, test } from "bun:test";
-import { decryptPrivateKeyPem, KEY_FILE_ALGORITHM } from "./key-file";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { afterAll, describe, expect, test } from "bun:test";
+import {
+    decryptPrivateKeyPem,
+    deriveKeyFileKey,
+    KEY_FILE_ALGORITHM,
+    KEY_FILE_ENCRYPTED_PRIVATE_KEY,
+    KEY_FILE_IV,
+    KEY_FILE_SALT,
+    readPrivateKeyWithPassword,
+} from "./key-file";
 
 // Same format as createUserAccount writes: a PKCS#1 PEM, AES-256-CBC, hex.
 const { privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -46,5 +57,54 @@ describe("decryptPrivateKeyPem", () => {
         // Shows the test really exercised the padding case (expected ~20; 0 is ~1e-9 likely).
         expect(paddingPassed).toBeGreaterThan(0);
         expect(accepted).toBe(0);
+    });
+});
+
+// Real key files in a temporary directory, written the way createUserAccount writes them (with the
+// app's own key derivation, 100,000 rounds).
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "key-file-test-"));
+afterAll(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
+const writeAccount = (name: string, password: string): string => {
+    const dir = path.join(tmpRoot, name);
+    fs.mkdirSync(dir);
+    const s = crypto.randomBytes(16);
+    const v = crypto.randomBytes(16);
+    const c = crypto.createCipheriv(KEY_FILE_ALGORITHM, deriveKeyFileKey(password, s), v);
+    fs.writeFileSync(path.join(dir, KEY_FILE_SALT), s);
+    fs.writeFileSync(path.join(dir, KEY_FILE_IV), v);
+    fs.writeFileSync(path.join(dir, KEY_FILE_ENCRYPTED_PRIVATE_KEY), c.update(pem, "utf8", "hex") + c.final("hex"));
+    return dir;
+};
+const timed = (fn: () => void): number => {
+    const start = performance.now();
+    fn();
+    return performance.now() - start;
+};
+const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+
+describe("readPrivateKeyWithPassword", () => {
+    const account = writeAccount("account", "right password");
+
+    test("the right password returns the key", () => {
+        expect(readPrivateKeyWithPassword(account, "right password")).toEqual({ ok: true, pem });
+    });
+
+    test("a wrong password is a mismatch", () => {
+        expect(readPrivateKeyWithPassword(account, "wrong password")).toEqual({ ok: false, reason: "mismatch" });
+    });
+
+    test("a missing directory or a missing file is reported as missing", () => {
+        expect(readPrivateKeyWithPassword(path.join(tmpRoot, "nope"), "x")).toEqual({ ok: false, reason: "missing" });
+        const partial = writeAccount("partial", "x");
+        fs.rmSync(path.join(partial, KEY_FILE_IV));
+        expect(readPrivateKeyWithPassword(partial, "x")).toEqual({ ok: false, reason: "missing" });
+    });
+
+    // The missing case runs a dummy derivation, so it costs about as much as a wrong password
+    // instead of returning at once. Loose bound (half), so a busy machine doesn't make it flaky.
+    test("a missing key file takes about as long as a wrong password", () => {
+        const missing = median([1, 2, 3].map(() => timed(() => readPrivateKeyWithPassword(path.join(tmpRoot, "nope"), "x"))));
+        const wrong = median([1, 2, 3].map(() => timed(() => readPrivateKeyWithPassword(account, "wrong"))));
+        expect(missing).toBeGreaterThan(wrong * 0.5);
     });
 });
