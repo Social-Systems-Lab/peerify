@@ -40,6 +40,32 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-17 — Settings authz fix (savePresence, saveProfileAction) — promoted to production as the third and final one-time exception, security only
+
+### The two holes (found read-only on 2026-10-17)
+- **`savePresence`** (`src/app/circles/[handle]/settings/presence/actions.ts`) checked login only. Any logged-in account could overwrite offers, needs and tourTeamOfferings on another artist or venue circle, and upload offer photos under that circle. `updateCircle()` only guards user circles.
+- **`saveProfileAction`** (`src/components/onboarding/actions.ts`) deleted removed gallery images from storage **before** its `isAuthorized` check. Calling it with an empty image list permanently wiped any circle's gallery, personal profiles included.
+
+### Fix
+- Both actions now call `isAuthorized(userDid, circleId, features.settings.edit_about)` straight after the login check, before any upload or delete. This is the pattern `circle-wizard/actions.ts` already used. `savePresence` also refuses an empty circle ID.
+- New bun tests `save-presence-authz.test.ts` and `save-profile-authz.test.ts` (4 each). They fail on the old code and pass with the fix. tsc and lint clean.
+
+### Commits
+| Staging | main | What |
+|---|---|---|
+| `2cca12d4` | `83d242a4` | edit_about check in savePresence and saveProfileAction, plus tests |
+
+### Promotion (old box, a yes for each step)
+- **Why main moved:** Tim made a third and final one-time exception to the `main` freeze, for security only. `main` is **frozen again until the prod cutover, log commits included** (this entry stays on `staging`).
+- **Before:** both action files on `origin/main` were byte-identical to `2cca12d4`'s parent. A trial cherry-pick on `origin/main` in a temporary worktree applied cleanly, with files identical to `2cca12d4` by blob hash. Each test file passed 4/4 on its own, tsc was clean and lint output was identical to `main`'s.
+- **Deploy:** `83d242a4` on 2026-10-17 10:44 CEST, 9/9 steps, staging pid and uptime unchanged, no errors after the restart. Tim's owner test passed on Cleura staging (`2cca12d4`) and on peerify.one.
+- **Prod and GOSHA now:** **`83d242a4`**. Rollback file: `prod-rollback-20261017.md` (back to `3cf1f9c8`). Releases kept: `13db6697`, `00e287b2`, `999cace8`, `3cf1f9c8`, `83d242a4`.
+
+### Follow-ups
+- The rest of `settings/` was checked and is clean.
+- Delete the unused Donorbox `getSubscription`/`getPlans` actions (no auth check) so a future import can't expose them.
+- Cleura prod Phase A is done through §10. §11 and §11.4 are still open.
+
 ## 2026-10-15/16 — Landing page illustrations and copy — promoted to production as two one-time exceptions to the main freeze
 
 ### What changed (landing page at `/` and `/welcome` only)
