@@ -29,6 +29,7 @@ mock.module("@/lib/data/db", () => ({
 mock.module("@/lib/auth/auth", () => ({
     AuthenticationError: class AuthenticationError extends Error {},
     authenticateUser: () => undefined,
+    burnPasswordCheck: () => undefined,
     USERS_DIR: "/nonexistent",
     getAuthenticatedUserDid: async () => {
         if (sessionThrows) {

@@ -17,14 +17,22 @@ import { generateSecureToken, hashToken, trySendEmail } from "../data/email";
 import { isVerifiedUser } from "./verification";
 import { buildEmailVerificationLink, EMAIL_VERIFICATION_TOKEN_TTL_MS } from "./verification-email";
 import { maskEmail } from "@/lib/utils/mask-email";
-import { decryptPrivateKeyPem } from "./key-file";
+import {
+    burnKeyFileDerivation,
+    deriveKeyFileKey,
+    KEY_FILE_ALGORITHM,
+    KEY_FILE_ENCRYPTED_PRIVATE_KEY,
+    KEY_FILE_IV,
+    KEY_FILE_SALT,
+    readPrivateKeyWithPassword,
+} from "./key-file";
 
-export const SALT_FILENAME = "salt.bin";
-export const IV_FILENAME = "iv.bin";
+export const SALT_FILENAME = KEY_FILE_SALT;
+export const IV_FILENAME = KEY_FILE_IV;
 export const PUBLIC_KEY_FILENAME = "publicKey.pem";
 export const PRIVATE_KEY_FILENAME = "privateKey.pem";
-export const ENCRYPTED_PRIVATE_KEY_FILENAME = "privateKey.pem.enc";
-export const ENCRYPTION_ALGORITHM = "aes-256-cbc";
+export const ENCRYPTED_PRIVATE_KEY_FILENAME = KEY_FILE_ENCRYPTED_PRIVATE_KEY;
+export const ENCRYPTION_ALGORITHM = KEY_FILE_ALGORITHM;
 export const APP_DIR =
     process.env.APP_DIR ||
     (() => {
@@ -91,7 +99,7 @@ export const createUserAccount = async (
     // generate salt, iv, encryption key and encrypt private key
     const salt = crypto.randomBytes(16);
     const iv = crypto.randomBytes(16);
-    const encryptionKey = crypto.pbkdf2Sync(password, salt, 100000, 32, "sha512");
+    const encryptionKey = deriveKeyFileKey(password, salt);
     const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, encryptionKey, iv);
     let encryptedPrivateKey = cipher.update(
         privateKey.export({ type: "pkcs1", format: "pem" }) as string,
@@ -249,34 +257,27 @@ export class AuthenticationError extends Error {
     }
 }
 
+// Throws AuthenticationError for a wrong password and for missing key files; the login form shows one
+// generic message for both (and for unknown accounts), and both cost the same key derivation.
 export const getUserPrivateKey = (did: string, password: string): string => {
     const accountPath = path.join(USERS_DIR, did);
-    if (!fs.existsSync(accountPath)) {
-        console.error("Login failed: auth credential directory missing", { did, accountPath });
-        throw new AuthenticationError("Your account credentials need to be rebuilt. Please use Forgot Password to reset your password and restore access.");
+    const check = readPrivateKeyWithPassword(accountPath, password);
+    if (check.ok) {
+        return check.pem;
     }
-
-    const salt: Buffer = fs.readFileSync(path.join(accountPath, SALT_FILENAME));
-    const iv: Buffer = fs.readFileSync(path.join(accountPath, IV_FILENAME));
-    const encryptedPrivateKeyStr: string = fs.readFileSync(
-        path.join(accountPath, ENCRYPTED_PRIVATE_KEY_FILENAME),
-        "utf8",
-    );
-    // Explicitly type encryptionKey as Buffer
-    const encryptionKey: Buffer = crypto.pbkdf2Sync(password, salt, 100000, 32, "sha512");
-
-    // decrypt private key to authenticate user; null means the password is wrong
-    const decryptedPrivateKey = decryptPrivateKeyPem(encryptedPrivateKeyStr, encryptionKey, iv);
-    if (decryptedPrivateKey === null) {
-        if (process.env.NODE_ENV !== "production") {
-            console.log(
-                `[LOGIN_DIAG] did=${did} credentialSource=file path=${accountPath} exists=true verificationBranch=password_mismatch`,
-            );
-        }
-        throw new AuthenticationError("Incorrect password");
+    if (check.reason === "missing") {
+        console.error("Login failed: auth credential files missing", { did });
+        throw new AuthenticationError("Account credentials missing");
     }
+    if (process.env.NODE_ENV !== "production") {
+        console.log(`[LOGIN_DIAG] did=${did} credentialSource=file exists=true verificationBranch=password_mismatch`);
+    }
+    throw new AuthenticationError("Incorrect password");
+};
 
-    return decryptedPrivateKey;
+// The same key-derivation work as a real password check, for a login with nothing to check.
+export const burnPasswordCheck = (password: string): void => {
+    burnKeyFileDerivation(password);
 };
 
 export const authenticateUser = (did: string, password: string): boolean => {

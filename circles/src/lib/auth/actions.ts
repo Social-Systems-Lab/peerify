@@ -20,6 +20,7 @@ import {
 import { Circles } from "../data/db";
 import { getUserPrivate } from "../data/user";
 import { completeFirstEmailVerification } from "../data/first-email-verification";
+import { deriveKeyFileKey } from "./key-file";
 
 // Schema for the initiatePasswordReset action input
 const initiateResetSchema = z.object({
@@ -158,7 +159,7 @@ async function rebuildPasswordCredentials(params: {
 
     const newSalt = crypto.randomBytes(16);
     const newIv = crypto.randomBytes(16);
-    const newEncryptionKey = crypto.pbkdf2Sync(newPassword, newSalt, 100000, 32, "sha512");
+    const newEncryptionKey = deriveKeyFileKey(newPassword, newSalt);
     const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, newEncryptionKey, newIv);
     let newEncryptedPrivateKey = cipher.update(privateKeyPem, "utf8", "hex");
     newEncryptedPrivateKey += cipher.final("hex");
