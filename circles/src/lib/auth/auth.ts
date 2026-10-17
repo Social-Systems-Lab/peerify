@@ -17,6 +17,7 @@ import { generateSecureToken, hashToken, trySendEmail } from "../data/email";
 import { isVerifiedUser } from "./verification";
 import { buildEmailVerificationLink, EMAIL_VERIFICATION_TOKEN_TTL_MS } from "./verification-email";
 import { maskEmail } from "@/lib/utils/mask-email";
+import { decryptPrivateKeyPem } from "./key-file";
 
 export const SALT_FILENAME = "salt.bin";
 export const IV_FILENAME = "iv.bin";
@@ -264,15 +265,9 @@ export const getUserPrivateKey = (did: string, password: string): string => {
     // Explicitly type encryptionKey as Buffer
     const encryptionKey: Buffer = crypto.pbkdf2Sync(password, salt, 100000, 32, "sha512");
 
-    // decrypt private key to authenticate user
-    // Pass Buffers directly
-    const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, encryptionKey, iv);
-
-    let decryptedPrivateKey;
-    try {
-        decryptedPrivateKey = decipher.update(encryptedPrivateKeyStr, "hex", "utf8"); // Use the string variable
-        decryptedPrivateKey += decipher.final("utf8");
-    } catch (error) {
+    // decrypt private key to authenticate user; null means the password is wrong
+    const decryptedPrivateKey = decryptPrivateKeyPem(encryptedPrivateKeyStr, encryptionKey, iv);
+    if (decryptedPrivateKey === null) {
         if (process.env.NODE_ENV !== "production") {
             console.log(
                 `[LOGIN_DIAG] did=${did} credentialSource=file path=${accountPath} exists=true verificationBranch=password_mismatch`,
