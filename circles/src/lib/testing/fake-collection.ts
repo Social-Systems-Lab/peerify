@@ -1,8 +1,9 @@
 // Minimal in-memory stand-in for a MongoDB collection, for tests that mock "@/lib/data/db".
 // Supports only what the tests' subjects use: equality (a null filter value also matches a missing
 // field; a scalar matches an array field that contains it, as in MongoDB), dotted paths, $in, $nin,
-// $ne, $exists, top-level $or/$and, find().toArray(), countDocuments, deleteMany, and updateOne
-// with $set.
+// $ne, $exists, $gt/$gte/$lt/$lte, top-level $or/$and, find().toArray(), countDocuments, deleteMany,
+// and updateOne / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
+// between its match and its write).
 
 type Doc = Record<string, any>;
 
@@ -52,6 +53,15 @@ const matchesCondition = (value: unknown, condition: unknown): boolean => {
                         return !(arg as unknown[]).some((candidate) => matchesCondition(value, candidate));
                     case "$exists":
                         return (value !== undefined) === Boolean(arg);
+                    case "$gt":
+                    case "$gte":
+                    case "$lt":
+                    case "$lte": {
+                        if (value === null || value === undefined) return false;
+                        const a = value instanceof Date ? value.getTime() : (value as number);
+                        const b = arg instanceof Date ? arg.getTime() : (arg as number);
+                        return op === "$gt" ? a > b : op === "$gte" ? a >= b : op === "$lt" ? a < b : a <= b;
+                    }
                     default:
                         throw new Error(`fake-collection: unsupported operator ${op}`);
                 }
@@ -122,6 +132,21 @@ export const createFakeCollection = (initial: Doc[] = []) => {
                 found[key] = value;
             }
             return { matchedCount: 1, modifiedCount: 1 };
+        },
+        async findOneAndUpdate(filter: Doc, update: { $set?: Doc }, options?: { returnDocument?: "before" | "after" }) {
+            queries.push(filter);
+            const found = docs.find((d) => matchesFilter(d, filter));
+            if (!found) {
+                return null;
+            }
+            const before = { ...found };
+            for (const [key, value] of Object.entries(update.$set ?? {})) {
+                if (value === undefined) {
+                    throw new Error(`fake-collection: explicit undefined written to ${key}`);
+                }
+                found[key] = value;
+            }
+            return options?.returnDocument === "after" ? { ...found } : before;
         },
     };
 };

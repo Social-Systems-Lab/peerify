@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -9,7 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import Link from "next/link";
-import { requestPasswordResetAction } from "./actions"; // This action will be created next
+import { requestPasswordResetAction } from "./actions";
 
 const forgotPasswordSchema = z.object({
     email: z.string().email("Invalid email address"),
@@ -21,6 +21,34 @@ export default function ForgotPasswordPage() {
     const { toast } = useToast();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
+    const altchaRef = useRef<HTMLElement | null>(null);
+    const [altchaPayload, setAltchaPayload] = useState<string | null>(null);
+
+    useEffect(() => {
+        import("altcha");
+    }, []);
+
+    useEffect(() => {
+        const el = altchaRef.current;
+        if (!el) return;
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail?.state === "verified" && typeof detail.payload === "string") {
+                setAltchaPayload(detail.payload);
+            } else {
+                setAltchaPayload(null);
+            }
+        };
+        el.addEventListener("statechange", handler as EventListener);
+        return () => el.removeEventListener("statechange", handler as EventListener);
+        // The widget only exists while the form is shown.
+    }, [submitted]);
+
+    // A solved challenge works once; after a refused request the person solves a fresh one.
+    const resetAltcha = () => {
+        setAltchaPayload(null);
+        (altchaRef.current as (HTMLElement & { reset?: () => void }) | null)?.reset?.();
+    };
 
     const form = useForm<ForgotPasswordFormData>({
         resolver: zodResolver(forgotPasswordSchema),
@@ -30,10 +58,17 @@ export default function ForgotPasswordPage() {
     });
 
     const onSubmit = async (data: ForgotPasswordFormData) => {
+        if (!altchaPayload) {
+            toast({
+                title: "Verification required",
+                description: "Please complete the human-verification check.",
+                variant: "destructive",
+            });
+            return;
+        }
         setIsSubmitting(true);
-        setSubmitted(false);
         try {
-            const result = await requestPasswordResetAction(data.email);
+            const result = await requestPasswordResetAction(data.email, altchaPayload);
             if (result.success) {
                 toast({
                     title: "Password Reset Requested",
@@ -42,6 +77,7 @@ export default function ForgotPasswordPage() {
                 });
                 setSubmitted(true); // Show success message and hide form
             } else {
+                resetAltcha();
                 toast({
                     title: "Request Failed",
                     description: result.message || "Could not process your request. Please try again.",
@@ -49,6 +85,7 @@ export default function ForgotPasswordPage() {
                 });
             }
         } catch (error) {
+            resetAltcha();
             toast({
                 title: "Error",
                 description: error instanceof Error ? error.message : "An unexpected error occurred.",
@@ -99,7 +136,8 @@ export default function ForgotPasswordPage() {
                                     </FormItem>
                                 )}
                             />
-                            <Button type="submit" disabled={isSubmitting} className="w-full">
+                            <altcha-widget ref={altchaRef} challenge="/api/altcha/challenge" />
+                            <Button type="submit" disabled={isSubmitting || !altchaPayload} className="w-full">
                                 {isSubmitting ? "Sending..." : "Send Reset Link"}
                             </Button>
                             <div className="text-center text-sm text-muted-foreground">

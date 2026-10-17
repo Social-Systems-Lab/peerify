@@ -860,6 +860,10 @@ export const circleSchema = z.object({
     // Password Reset Fields
     passwordResetToken: z.string().nullable().optional(),
     passwordResetTokenExpiry: z.date().nullable().optional(),
+    // Reset-link send limit (requestPasswordResetAction), same shape as the login-link fields.
+    passwordResetLastSentAt: z.date().nullable().optional(),
+    passwordResetSendWindowStart: z.date().nullable().optional(),
+    passwordResetSendCount24h: z.number().optional(),
     // Email Verification Fields
     isEmailVerified: z.boolean().optional(),
     emailVerificationToken: z.string().nullable().optional(),

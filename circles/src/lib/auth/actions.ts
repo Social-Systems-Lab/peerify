@@ -197,22 +197,25 @@ export async function resetPassword(token: string, newPassword: string): Promise
         // 2. Hash the provided token for lookup
         const hashedTokenToFind = crypto.createHash("sha256").update(token).digest("hex");
 
-        // 3. Find user by the hashed password reset token
-        const user = await Circles.findOne({ passwordResetToken: hashedTokenToFind });
+        // 3. Use the token up in one atomic step: find it unexpired and clear it in the same write,
+        // so two requests with the same token can't both pass (only one gets the document back).
+        const user = await Circles.findOneAndUpdate(
+            { passwordResetToken: hashedTokenToFind, passwordResetTokenExpiry: { $gt: new Date() } },
+            { $set: { passwordResetToken: null, passwordResetTokenExpiry: null } },
+            { returnDocument: "before" },
+        );
 
-        if (!user || !user.passwordResetTokenExpiry) {
-            // Check expiry along with token existence
+        if (!user) {
+            // Tell an expired token apart from an unknown one, and clear it.
+            const expired = await Circles.findOne({ passwordResetToken: hashedTokenToFind });
+            if (expired) {
+                await Circles.updateOne(
+                    { _id: expired._id },
+                    { $set: { passwordResetToken: null, passwordResetTokenExpiry: null } },
+                );
+                return { success: false, error: "Reset token has expired." };
+            }
             return { success: false, error: "Invalid or expired reset token." };
-        }
-
-        // 4. Verify token expiry (token itself is verified by being found)
-        if (new Date() > user.passwordResetTokenExpiry) {
-            // Optionally clear the expired token here
-            await Circles.updateOne(
-                { _id: user._id },
-                { $set: { passwordResetToken: null, passwordResetTokenExpiry: null } },
-            );
-            return { success: false, error: "Reset token has expired." };
         }
 
         // DID MUST NOT CHANGE (Option A): password reset cannot mutate user.did.
@@ -238,30 +241,16 @@ export async function resetPassword(token: string, newPassword: string): Promise
             return { success: false, error: "Failed to update user credentials." };
         }
 
-        const resetUpdateSet: {
-            passwordResetToken: null;
-            passwordResetTokenExpiry: null;
-            publicKey?: string;
-        } = {
-            passwordResetToken: null,
-            passwordResetTokenExpiry: null,
-        };
-
+        // 5. Update User Database Record (DID remains unchanged; the token was cleared in step 3)
         if (publicKeyForUserRecord && publicKeyForUserRecord !== user.publicKey) {
-            resetUpdateSet.publicKey = publicKeyForUserRecord;
-        }
-
-        // 5. Update User Database Record (DID remains unchanged)
-        const userUpdateResult = await Circles.updateOne(
-            { _id: user._id },
-            {
-                $set: resetUpdateSet,
-            },
-        );
-
-        if (userUpdateResult.matchedCount !== 1) {
-            console.error(`Failed to update primary user record for DID ${existingDid}`);
-            return { success: false, error: "Failed to update user record. Please contact support." };
+            const userUpdateResult = await Circles.updateOne(
+                { _id: user._id },
+                { $set: { publicKey: publicKeyForUserRecord } },
+            );
+            if (userUpdateResult.matchedCount !== 1) {
+                console.error(`Failed to update primary user record for DID ${existingDid}`);
+                return { success: false, error: "Failed to update user record. Please contact support." };
+            }
         }
 
         return { success: true };
