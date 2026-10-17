@@ -39,8 +39,9 @@ import { AggregateRank } from "./ranking";
 import { ChatConversation, ChatMessageDoc, ChatReadState, MessageEmailReminder } from "@/lib/chat/mongo-types";
 import type { PlatformBroadcastMessage } from "./platform-broadcasts";
 
-// One document per rate-limit key (see rate-limit.ts); expiresAt drives a TTL index.
-export type RateLimitDoc = { _id: string; until: Date; expiresAt: Date };
+// One document per rate-limit key (see rate-limit.ts); expiresAt drives a TTL index. failures is set
+// only on failed-attempt counters (recordFailure).
+export type RateLimitDoc = { _id: string; until: Date; expiresAt: Date; failures?: number };
 // One document per spent ALTCHA challenge (see altcha.ts); expiresAt (the challenge's own expiry)
 // drives a TTL index.
 export type UsedAltchaChallengeDoc = { _id: string; expiresAt: Date };

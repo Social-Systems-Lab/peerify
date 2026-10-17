@@ -44,6 +44,10 @@ mock.module("@/lib/data/rate-limit", () => ({
         ipClaims.push(key);
         return ipLimited ? { allowed: false, retryAfterSeconds: 12 } : { allowed: true };
     },
+    // Used by password login (password-login.test.ts); bun's module mocks are process-wide.
+    checkFailureDelay: async () => ({ allowed: true }),
+    recordFailure: async () => ({ failures: 1 }),
+    clearFailures: async () => undefined,
 }));
 
 const ALTCHA_OK = "solved-challenge";
