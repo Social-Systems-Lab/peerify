@@ -9,7 +9,7 @@ import { trySendEmail, generateSecureToken, hashToken, redactEmailAddresses } fr
 import { resolveResetBaseUrl } from "@/app/(auth)/forgot-password/actions";
 import { verifyAltchaPayload } from "@/lib/auth/altcha";
 import { evaluateSendLimit, type SendLimitConfig } from "@/lib/auth/send-limits";
-import { claimMinimumWait, rateLimitKey } from "@/lib/data/rate-limit";
+import { checkFailureDelay, claimMinimumWait, clearFailures, rateLimitKey, recordFailure } from "@/lib/data/rate-limit";
 import { getClientIp } from "@/lib/utils/client-ip";
 import { maskEmail } from "@/lib/utils/mask-email";
 import { headers } from "next/headers";
@@ -21,6 +21,9 @@ const LOGIN_FAILED_MESSAGE = "Email or password is incorrect";
 // also needs a freshly solved ALTCHA.
 const PASSWORD_LOGIN_IP_WAIT_SECONDS = 5;
 const PASSWORD_MAX_LENGTH = 1024;
+
+const formatWait = (seconds: number): string =>
+    seconds < 90 ? `${seconds} seconds` : `${Math.ceil(seconds / 60)} minutes`;
 
 export const submitLoginFormAction = async (values: Record<string, any>): Promise<FormSubmitResponse> => {
     try {
@@ -47,6 +50,19 @@ export const submitLoginFormAction = async (values: Record<string, any>): Promis
             };
         }
 
+        // Failed attempts count per typed address, whether or not an account uses it, so this
+        // refusal reveals nothing about accounts. While it lasts, the password isn't checked.
+        const failureKey = rateLimitKey("login-password:email", normalizedEmail.toLowerCase());
+        const failureDelay = await checkFailureDelay(failureKey);
+        if (!failureDelay.allowed) {
+            return {
+                success: false,
+                message: `Too many attempts for this email address. Please wait ${formatWait(
+                    failureDelay.retryAfterSeconds,
+                )}, or log in with an email link instead.`,
+            };
+        }
+
         if (process.env.NODE_ENV !== "production") {
             console.log(`[LOGIN_DIAG] email=${maskEmail(normalizedEmail)}`);
         }
@@ -61,10 +77,19 @@ export const submitLoginFormAction = async (values: Record<string, any>): Promis
         if (!user?.did) {
             console.error(`Login failed: no account for ${maskEmail(normalizedEmail)}`);
             burnPasswordCheck(password);
+            await recordFailure(failureKey);
             return { success: false, message: LOGIN_FAILED_MESSAGE };
         }
 
-        authenticateUser(user.did, password);
+        try {
+            authenticateUser(user.did, password);
+        } catch (error) {
+            if (error instanceof AuthenticationError) {
+                await recordFailure(failureKey);
+            }
+            throw error;
+        }
+        await clearFailures(failureKey);
 
         let privateUser = await getUserPrivate(user.did);
         await createUserSession(privateUser, user.did);

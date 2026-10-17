@@ -56,11 +56,25 @@ mock.module("@/lib/auth/altcha", () => ({ verifyAltchaPayload: async (payload?: 
 // The real limiter needs MongoDB's upsert; here each key is allowed or refused on demand.
 const ipClaims: { key: string; seconds: number }[] = [];
 let ipLimited = false;
+// Failed-attempt counters: the schedule itself is tested in rate-limit.test.ts; here a key is
+// delayed or not on demand, and the calls are recorded.
+const failuresRecorded: string[] = [];
+const failuresCleared: string[] = [];
+let delayedKeys: Record<string, number> = {};
 mock.module("@/lib/data/rate-limit", () => ({
     rateLimitKey: (scope: string, value: string) => `${scope}:${value}`,
     claimMinimumWait: async (key: string, seconds: number) => {
         ipClaims.push({ key, seconds });
         return ipLimited ? { allowed: false, retryAfterSeconds: 4 } : { allowed: true };
+    },
+    checkFailureDelay: async (key: string) =>
+        delayedKeys[key] ? { allowed: false, retryAfterSeconds: delayedKeys[key] } : { allowed: true },
+    recordFailure: async (key: string) => {
+        failuresRecorded.push(key);
+        return { failures: failuresRecorded.filter((k) => k === key).length };
+    },
+    clearFailures: async (key: string) => {
+        failuresCleared.push(key);
     },
 }));
 
@@ -83,6 +97,9 @@ describe("submitLoginFormAction: one generic error, equal work", () => {
         sessions.length = 0;
         ipClaims.length = 0;
         ipLimited = false;
+        failuresRecorded.length = 0;
+        failuresCleared.length = 0;
+        delayedKeys = {};
     });
 
     test("the right password logs in", async () => {
@@ -146,6 +163,9 @@ describe("submitLoginFormAction: ALTCHA and per-IP wait", () => {
         sessions.length = 0;
         ipClaims.length = 0;
         ipLimited = false;
+        failuresRecorded.length = 0;
+        failuresCleared.length = 0;
+        delayedKeys = {};
     });
 
     test("a missing or wrong ALTCHA payload is refused before anything else", async () => {
@@ -180,5 +200,71 @@ describe("submitLoginFormAction: ALTCHA and per-IP wait", () => {
         }
         expect(ipClaims).toHaveLength(0);
         expect(circles.queries).toHaveLength(0);
+    });
+});
+
+describe("submitLoginFormAction: failed attempts per typed address", () => {
+    const KEY = "login-password:email:a@example.test";
+    beforeEach(() => {
+        circles = createFakeCollection([{ _id: "1", did: "did-a", email: "a@example.test", name: "A" }]);
+        validPasswords = { "did-a": "right password" };
+        missingKeyFiles = new Set();
+        authenticateCalls.length = 0;
+        burnCalls = 0;
+        sessions.length = 0;
+        ipClaims.length = 0;
+        ipLimited = false;
+        failuresRecorded.length = 0;
+        failuresCleared.length = 0;
+        delayedKeys = {};
+    });
+
+    test("a wrong password counts a failure for the typed address, lowercased", async () => {
+        await submitLoginFormAction({ email: " A@Example.TEST ", password: "wrong" });
+        expect(failuresRecorded).toEqual([KEY]);
+        expect(failuresCleared).toEqual([]);
+    });
+
+    test("an unknown address counts a failure the same way", async () => {
+        await submitLoginFormAction({ email: "nobody@example.test", password: "wrong" });
+        expect(failuresRecorded).toEqual(["login-password:email:nobody@example.test"]);
+    });
+
+    test("a successful login clears the counter and counts nothing", async () => {
+        await submitLoginFormAction({ email: "a@example.test", password: "right password" });
+        expect(failuresCleared).toEqual([KEY]);
+        expect(failuresRecorded).toEqual([]);
+    });
+
+    test("while the address waits, even the right password isn't checked", async () => {
+        delayedKeys[KEY] = 30;
+        const result = await submitLoginFormAction({ email: "a@example.test", password: "right password" });
+        expect(result).toEqual({
+            success: false,
+            message:
+                "Too many attempts for this email address. Please wait 30 seconds, or log in with an email link instead.",
+        });
+        expect(circles.queries).toHaveLength(0);
+        expect(authenticateCalls).toEqual([]);
+        expect(burnCalls).toBe(0);
+        expect(sessions).toEqual([]);
+        expect(failuresRecorded).toEqual([]);
+    });
+
+    test("longer waits are shown in minutes, and unknown addresses get the same wording", async () => {
+        delayedKeys["login-password:email:nobody@example.test"] = 240;
+        const result = await submitLoginFormAction({ email: "nobody@example.test", password: "x" });
+        expect(result.message).toBe(
+            "Too many attempts for this email address. Please wait 4 minutes, or log in with an email link instead.",
+        );
+    });
+
+    test("the delay is checked after the ALTCHA and the IP wait", async () => {
+        delayedKeys[KEY] = 30;
+        const noAltcha = await submitLoginFormAction({ email: "a@example.test", password: "x", altcha: "forged" });
+        expect(noAltcha.message).toBe("Please complete the human-verification check.");
+        ipLimited = true;
+        const ipWait = await submitLoginFormAction({ email: "a@example.test", password: "x" });
+        expect(ipWait.message).toBe("Please wait 4 seconds before trying again.");
     });
 });
