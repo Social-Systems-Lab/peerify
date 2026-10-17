@@ -394,6 +394,12 @@ export const saveProfileAction = async (
     }
 
     try {
+        // Check if user is authorized to edit circle settings, before any upload or delete below
+        let authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+        if (!authorized) {
+            return { success: false, message: "You are not authorized to edit profile" };
+        }
+
         let circle: Partial<Circle> = {
             _id: circleId,
             description,
@@ -469,12 +475,6 @@ export const saveProfileAction = async (
         }
         circle.images = finalMediaArray;
         // --- End Handle 'images' array ---
-
-        // Check if user is authorized to edit circle settings
-        let authorized = await isAuthorized(userDid, circle._id ?? "", features.settings.edit_about);
-        if (!authorized) {
-            return { success: false, message: "You are not authorized to edit profile" };
-        }
 
         // Add profile step to completedOnboardingSteps
         let user = await getUserByDid(userDid);

@@ -79,6 +79,16 @@ export async function savePresence(data: Circle): Promise<FormSubmitResponse> {
             throw new Error("User not authenticated");
         }
 
+        // Checked before the offer photo uploads below. updateCircle() only guards user circles.
+        const circleId = typeof data._id === "string" ? data._id : String(data._id ?? "");
+        if (!circleId) {
+            return { success: false, message: "Circle ID is required" };
+        }
+        const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+        if (!authorized) {
+            return { success: false, message: "You are not authorized to edit circle settings" };
+        }
+
         const engagementInterests = data.engagements?.interests;
         const engagementSettings: Circle["engagements"] = data.engagements
             ? { ...data.engagements }
