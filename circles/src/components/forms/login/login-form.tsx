@@ -51,8 +51,20 @@ export function LoginForm(): React.ReactElement {
     const [linkEmailError, setLinkEmailError] = useState<string | null>(null);
     const [isSendingLoginLink, setIsSendingLoginLink] = useState(false);
     const [loginLinkSent, setLoginLinkSent] = useState(false);
+    // One altcha-widget at a time: in the link form or in the password form, whichever is shown.
     const altchaRef = useRef<HTMLElement | null>(null);
     const [altchaPayload, setAltchaPayload] = useState<string | null>(null);
+
+    // A solved challenge works once; after any refused request the person solves a fresh one.
+    const resetAltcha = () => {
+        setAltchaPayload(null);
+        (altchaRef.current as (HTMLElement & { reset?: () => void }) | null)?.reset?.();
+    };
+
+    const switchMode = (next: LoginMode) => {
+        setMode(next);
+        setAltchaPayload(null);
+    };
 
     useEffect(() => {
         import("altcha");
@@ -71,8 +83,8 @@ export function LoginForm(): React.ReactElement {
         };
         el.addEventListener("statechange", handler as EventListener);
         return () => el.removeEventListener("statechange", handler as EventListener);
-        // The altcha-widget only exists in link mode before a link was sent, so re-attach
-        // whenever it mounts again.
+        // The altcha-widget mounts again when the mode changes or after a link was sent, so
+        // re-attach whenever that happens.
     }, [mode, loginLinkSent]);
 
     const form = useForm<LoginFormData>({
@@ -84,10 +96,17 @@ export function LoginForm(): React.ReactElement {
     });
 
     const onSubmit = async (data: LoginFormData) => {
+        if (!altchaPayload) {
+            toast({
+                title: "Verification required",
+                description: "Please complete the human-verification check.",
+                variant: "destructive",
+            });
+            return;
+        }
         setIsSubmitting(true);
         try {
-            // Call the onSubmit method from the imported action object
-            const result = await submitLoginFormAction(data);
+            const result = await submitLoginFormAction({ ...data, altcha: altchaPayload });
             if (result.success) {
                 toast({
                     title: "Login Successful",
@@ -105,6 +124,7 @@ export function LoginForm(): React.ReactElement {
                 // sees the freshly-set auth cookie/session.
                 window.location.assign(redirectUrl);
             } else {
+                resetAltcha();
                 toast({
                     title: "Login Failed",
                     description: result.message || "Invalid email or password.",
@@ -112,6 +132,7 @@ export function LoginForm(): React.ReactElement {
                 });
             }
         } catch (error) {
+            resetAltcha();
             toast({
                 title: "Error",
                 description: error instanceof Error ? error.message : "An unexpected error occurred.",
@@ -153,9 +174,7 @@ export function LoginForm(): React.ReactElement {
             if (result.success) {
                 setLoginLinkSent(true);
             } else {
-                // A challenge is single-use from the user's point of view; make them solve a fresh one.
-                setAltchaPayload(null);
-                (altchaRef.current as (HTMLElement & { reset?: () => void }) | null)?.reset?.();
+                resetAltcha();
             }
         } catch (error) {
             toast({
@@ -175,7 +194,7 @@ export function LoginForm(): React.ReactElement {
             <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1 text-sm">
                 <button
                     type="button"
-                    onClick={() => setMode("link")}
+                    onClick={() => switchMode("link")}
                     className={`rounded-sm px-3 py-1.5 font-medium transition-colors ${
                         mode === "link" ? "bg-white shadow-sm" : "text-muted-foreground hover:text-foreground"
                     }`}
@@ -184,7 +203,7 @@ export function LoginForm(): React.ReactElement {
                 </button>
                 <button
                     type="button"
-                    onClick={() => setMode("password")}
+                    onClick={() => switchMode("password")}
                     className={`rounded-sm px-3 py-1.5 font-medium transition-colors ${
                         mode === "password" ? "bg-white shadow-sm" : "text-muted-foreground hover:text-foreground"
                     }`}
@@ -270,7 +289,8 @@ export function LoginForm(): React.ReactElement {
                             </Link>
                         </div>
 
-                        <Button type="submit" disabled={isSubmitting} className="w-full">
+                        <altcha-widget ref={altchaRef} challenge="/api/altcha/challenge" />
+                        <Button type="submit" disabled={isSubmitting || !altchaPayload} className="w-full">
                             {isSubmitting ? "Logging in..." : "Log in"}
                         </Button>
                     </form>
