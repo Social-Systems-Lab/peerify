@@ -43,15 +43,29 @@ mock.module("@/lib/auth/auth", () => ({
 }));
 mock.module("@/lib/data/user", () => ({ getUserPrivate: async (did: string) => ({ did, handle: "h" }) }));
 mock.module("next/headers", () => ({
-    headers: async () => new Headers({ host: "staging.example.test", "x-real-ip": "203.0.113.7" }),
+    headers: async () =>
+        new Headers({
+            host: "staging.example.test",
+            "x-real-ip": "203.0.113.7",
+            // Client-supplied; must never become the limit key.
+            "x-forwarded-for": "198.51.100.66",
+        }),
 }));
-mock.module("@/lib/auth/altcha", () => ({ verifyAltchaPayload: async () => true }));
+const ALTCHA_OK = "solved-challenge";
+mock.module("@/lib/auth/altcha", () => ({ verifyAltchaPayload: async (payload?: string) => payload === ALTCHA_OK }));
+// The real limiter needs MongoDB's upsert; here each key is allowed or refused on demand.
+const ipClaims: { key: string; seconds: number }[] = [];
+let ipLimited = false;
 mock.module("@/lib/data/rate-limit", () => ({
     rateLimitKey: (scope: string, value: string) => `${scope}:${value}`,
-    claimMinimumWait: async () => ({ allowed: true }),
+    claimMinimumWait: async (key: string, seconds: number) => {
+        ipClaims.push({ key, seconds });
+        return ipLimited ? { allowed: false, retryAfterSeconds: 4 } : { allowed: true };
+    },
 }));
 
-const { submitLoginFormAction } = await import("./actions");
+const { submitLoginFormAction: submitWithValues } = await import("./actions");
+const submitLoginFormAction = (values: Record<string, unknown>) => submitWithValues({ altcha: ALTCHA_OK, ...values });
 
 const GENERIC = "Email or password is incorrect";
 
@@ -67,6 +81,8 @@ describe("submitLoginFormAction: one generic error, equal work", () => {
         authenticateCalls.length = 0;
         burnCalls = 0;
         sessions.length = 0;
+        ipClaims.length = 0;
+        ipLimited = false;
     });
 
     test("the right password logs in", async () => {
@@ -117,5 +133,52 @@ describe("submitLoginFormAction: one generic error, equal work", () => {
     test("a non-string password is refused like a wrong one", async () => {
         const result = await submitLoginFormAction({ email: "a@example.test", password: { $ne: "" } });
         expect(result).toEqual({ success: false, message: GENERIC });
+    });
+});
+
+describe("submitLoginFormAction: ALTCHA and per-IP wait", () => {
+    beforeEach(() => {
+        circles = createFakeCollection([{ _id: "1", did: "did-a", email: "a@example.test", name: "A" }]);
+        validPasswords = { "did-a": "right password" };
+        missingKeyFiles = new Set();
+        authenticateCalls.length = 0;
+        burnCalls = 0;
+        sessions.length = 0;
+        ipClaims.length = 0;
+        ipLimited = false;
+    });
+
+    test("a missing or wrong ALTCHA payload is refused before anything else", async () => {
+        for (const altcha of [undefined, "", "forged"]) {
+            const result = await submitLoginFormAction({ email: "a@example.test", password: "right password", altcha });
+            expect(result).toEqual({ success: false, message: "Please complete the human-verification check." });
+        }
+        expect(ipClaims).toHaveLength(0);
+        expect(circles.queries).toHaveLength(0);
+        expect(sessions).toEqual([]);
+    });
+
+    test("each attempt claims a 5 s wait keyed on the real client IP", async () => {
+        await submitLoginFormAction({ email: "a@example.test", password: "wrong" });
+        expect(ipClaims).toEqual([{ key: "login-password:ip:203.0.113.7", seconds: 5 }]);
+    });
+
+    test("inside the wait, the password is not checked", async () => {
+        ipLimited = true;
+        const result = await submitLoginFormAction({ email: "a@example.test", password: "right password" });
+        expect(result).toEqual({ success: false, message: "Please wait 4 seconds before trying again." });
+        expect(circles.queries).toHaveLength(0);
+        expect(authenticateCalls).toEqual([]);
+        expect(burnCalls).toBe(0);
+        expect(sessions).toEqual([]);
+    });
+
+    test("an empty or overlong password is refused without spending the ALTCHA or the IP wait", async () => {
+        for (const password of ["", "x".repeat(1025)]) {
+            const result = await submitLoginFormAction({ email: "a@example.test", password });
+            expect(result).toEqual({ success: false, message: GENERIC });
+        }
+        expect(ipClaims).toHaveLength(0);
+        expect(circles.queries).toHaveLength(0);
     });
 });

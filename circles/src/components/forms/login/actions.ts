@@ -17,12 +17,35 @@ import { headers } from "next/headers";
 // One reply for an unknown address, a wrong password and missing key files, so the form never
 // reveals whether an account exists. All three also cost the same key derivation.
 const LOGIN_FAILED_MESSAGE = "Email or password is incorrect";
+// Per client IP, across all addresses: short, because people retry right after a typo. Each attempt
+// also needs a freshly solved ALTCHA.
+const PASSWORD_LOGIN_IP_WAIT_SECONDS = 5;
+const PASSWORD_MAX_LENGTH = 1024;
 
 export const submitLoginFormAction = async (values: Record<string, any>): Promise<FormSubmitResponse> => {
     try {
         const emailInput = typeof values.email === "string" ? values.email : "";
         const normalizedEmail = emailInput.trim();
         const password = typeof values.password === "string" ? values.password : "";
+        if (!normalizedEmail || !password || password.length > PASSWORD_MAX_LENGTH) {
+            return { success: false, message: LOGIN_FAILED_MESSAGE };
+        }
+
+        if (!(await verifyAltchaPayload(typeof values.altcha === "string" ? values.altcha : undefined))) {
+            return { success: false, message: "Please complete the human-verification check." };
+        }
+
+        const clientIp = getClientIp(await headers()) ?? "unknown";
+        const ipClaim = await claimMinimumWait(
+            rateLimitKey("login-password:ip", clientIp),
+            PASSWORD_LOGIN_IP_WAIT_SECONDS,
+        );
+        if (!ipClaim.allowed) {
+            return {
+                success: false,
+                message: `Please wait ${ipClaim.retryAfterSeconds} seconds before trying again.`,
+            };
+        }
 
         if (process.env.NODE_ENV !== "production") {
             console.log(`[LOGIN_DIAG] email=${maskEmail(normalizedEmail)}`);
