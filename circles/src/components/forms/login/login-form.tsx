@@ -31,6 +31,8 @@ export function LoginForm(): React.ReactElement {
     const { toast } = useToast();
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    // After a failed password login, the "joined with just your email" hint is shown highlighted.
+    const [passwordLoginFailed, setPasswordLoginFailed] = useState(false);
     const [, setUser] = useAtom(userAtom);
     const [, setAuthInfo] = useAtom(authInfoAtom);
     const searchParams = useSearchParams();
@@ -64,6 +66,15 @@ export function LoginForm(): React.ReactElement {
     const switchMode = (next: LoginMode) => {
         setMode(next);
         setAltchaPayload(null);
+    };
+
+    // From the password tab to the email-link tab, keeping the address already typed.
+    const switchToEmailLink = () => {
+        const typed = form.getValues("email")?.trim();
+        if (typed && !linkEmail) {
+            setLinkEmail(typed);
+        }
+        switchMode("link");
     };
 
     useEffect(() => {
@@ -125,6 +136,7 @@ export function LoginForm(): React.ReactElement {
                 window.location.assign(redirectUrl);
             } else {
                 resetAltcha();
+                setPasswordLoginFailed(true);
                 toast({
                     title: "Login Failed",
                     description: result.message || "Invalid email or password.",
@@ -208,7 +220,7 @@ export function LoginForm(): React.ReactElement {
                         mode === "password" ? "bg-white shadow-sm" : "text-muted-foreground hover:text-foreground"
                     }`}
                 >
-                    Log in with password
+                    Log in with a password you&apos;ve set
                 </button>
             </div>
 
@@ -287,6 +299,22 @@ export function LoginForm(): React.ReactElement {
                             <Link href="/forgot-password" className="text-muted-foreground underline hover:text-primary">
                                 Reset password
                             </Link>
+                        </div>
+
+                        <div
+                            className={`rounded-md p-3 text-sm ${
+                                passwordLoginFailed
+                                    ? "border border-amber-300 bg-amber-50 text-amber-900"
+                                    : "bg-muted text-muted-foreground"
+                            }`}
+                        >
+                            <p>
+                                Joined with just your email address? Then you don&apos;t have a password. Log in with
+                                an email link instead.
+                            </p>
+                            <Button type="button" variant="outline" size="sm" className="mt-2" onClick={switchToEmailLink}>
+                                Use an email link instead
+                            </Button>
                         </div>
 
                         <altcha-widget ref={altchaRef} challenge="/api/altcha/challenge" />
