@@ -40,6 +40,36 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-17/18 — Login Task 0: wrong-password hotfix, then password-login and forgot-password hardening, both live on production
+
+### Hotfix: a wrong password logged in about 1 time in 256 (found 2026-10-17)
+- `getUserPrivateKey` (`src/lib/auth/auth.ts`) treated "AES-256-CBC decryption of the key file didn't throw" as a correct password. A wrong key passes the PKCS#7 padding check about 1 time in 256 (measured: 62 of 20,000 random keys). Every account has a key file, and password login had no rate limit. So anyone who knew an account's email address could log in as that account after a few hundred tries.
+- Fix: the decrypted result must also parse as a private key (`crypto.createPrivateKey`), in the new `src/lib/auth/key-file.ts`. Test: 5,000 random wrong keys, all rejected. On the old logic it fails (19 accepted).
+- History check: no code ever wrote a plaintext `privateKey.pem` into a user directory, and every writer encrypts a PKCS#1 PEM. So the fix can't reject a correct password.
+- Staging `f414ef48` → main `d06d32d8`, prod live 2026-10-17 at about 16:18 +02:00. Rollback file `prod-rollback-20261017-2.md`. Checked on Cleura staging (throwaway `t0-login-1`) and on prod.
+- **Log check** (old box nginx logs, which only reach back to 2026-10-03): no evidence of exploitation; nothing older can be checked. The only burst on POST /login (2026-10-10) was a generic scanner whose requests ran no login code. Report: `login-log-check-20261017.md` in Tim's cc-reports.
+
+### Task 0, commits 2–5 (plan `login-hardening-plan-20261017.md`, approved with additions)
+| Staging | main | What |
+|---|---|---|
+| `a8e54af3` | `2a082050` | One generic error "Email or password is incorrect" for an unknown address, a wrong password, missing key files and a missing DID; each costs one key derivation (a dummy one when there's nothing to check); the regex fallback lookup is removed; PBKDF2 settings and the key-file read move to `key-file.ts` |
+| `e4f48273` | `1ffd0d24` | Password login needs a solved ALTCHA and claims a 5 s wait per client IP; the form shows the widget and resets it after every failure |
+| `5d62e64b` | `7ff476e5` | Login page: tab "Log in with a password you've set", a note for email-only accounts with a "Use an email link instead" button, highlighted after a failed login |
+| `8a6a65e9` | `1391c2f7` | Failed logins count per typed address (unknown ones too, in `rateLimits`): 5 free, then 30 s doubling to 15 min, no lockout, cleared on success, forgotten after 24 h |
+| `f07f57fa` | `757c3321` | Forgot-password: ALTCHA, 20 s per IP, 60 s cooldown and 5 per 24 h per address (compare-and-set), the same reply always, `trySendEmail`. `resetPassword` checks and clears the token in one `findOneAndUpdate`, so two requests can't both use it |
+
+- Tests: new bun tests for each commit (`password-login`, `key-file`, `rate-limit`, `reset-request`, `reset-password`). Each fails on the commit before and passes after. tsc, eslint and `next build` clean. `participation-readiness.test.ts` already failed before this work and is unchanged.
+- Cleura staging (`f07f57fa`, throwaways `t0-login-1` and unverified `t0-login-2`): M1–M9 all passed. That covers login, the generic error, equal timing, the IP wait, the per-address delay for known and unknown addresses, the reset cooldown with Postmark unset, the same reply for unknown and unverified addresses, and the disabled buttons until ALTCHA is solved.
+- Promotion: trial cherry-pick on `origin/main`, clean (the only difference from staging is a pre-existing comment in `models.ts`). Cherry-pick, push, rollback file `prod-rollback-20261018.md` and deploy each had a yes. **Prod live `757c3321`** (release `20261018-060852`, about 08:08 +02:00), and Tim's browser checks on prod passed: home page and session, the password-tab error, a login link to his own address arrived and worked, and the forgot-password page.
+- Behaviour changes: a failed key-file write during a reset now uses the token up (request a new link). The old "credentials need to be rebuilt" login message is gone (it revealed the account).
+
+### Open, for task 7 (login by code); not fixed here
+- The login-link page fires 4 POSTs per visit (`useEffect` on `searchParams`). Consume the code or link only on an explicit user action.
+- "Use an email link instead" doesn't carry the typed address over.
+- "Please wait 1 seconds" should be singular.
+- Rework the password wording so email-only accounts know they can set a password via the reset link (login note, "Reset password" link, forgot-password page). The forgot-password green text and pop-up don't match ("verified"). Tim will provide the wording.
+- Not changed: the Donorbox webhook compares its HMAC with `!==` and has no timestamp check (on the "delete Donorbox actions" list).
+
 ## 2026-10-17 — Settings authz fix (savePresence, saveProfileAction) — promoted to production as the third and final one-time exception, security only
 
 ### The two holes (found read-only on 2026-10-17)
