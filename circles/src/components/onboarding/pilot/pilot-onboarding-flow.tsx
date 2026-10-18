@@ -12,7 +12,7 @@ import {
     PEERIFY_DEFAULT_BAND_AVATAR_URL,
     PeerifyArtistIdentityType,
 } from "@/lib/peerify/artist-profile";
-import { DEFAULT_HERO_IMAGE_URLS } from "@/lib/default-heroes";
+import { getCustomCoverImages } from "@/lib/default-heroes";
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
 import { OnboardingCardShell } from "./onboarding-card-shell";
 import { PhotoStep } from "./frames/photo-step";
@@ -35,15 +35,13 @@ import { ArtistReadyStep } from "./frames/artist/artist-ready-step";
 // picking which default to display for the identity type just selected.
 const ARTIST_STOCK_AVATAR_URLS = new Set([PEERIFY_DEFAULT_ARTIST_AVATAR_URL, PEERIFY_DEFAULT_BAND_AVATAR_URL]);
 
-// createCircle() seeds every fresh circle's `images` with one of a small fixed set of stock
-// hero photos (see getDefaultHeroImage) so profiles never render with a blank cover elsewhere
-// in the app. That's the right fallback for an already-published profile, but showing it as a
-// pre-populated "your cover image" in this onboarding step is confusing (people can't tell if
-// it's already their photo) — so the upload box here should start empty until a real photo is
-// uploaded. The stored default is left untouched in the database; this only affects what this
-// step displays.
-const stripStockCoverImages = (images?: Media[]): Media[] =>
-    (images || []).filter((image) => !DEFAULT_HERO_IMAGE_URLS.includes(image.fileInfo.url as (typeof DEFAULT_HERO_IMAGE_URLS)[number]));
+// Older circles had one of a small fixed set of stock hero photos saved into `images` at
+// creation (the default hero is now chosen at render time, see getCircleCoverImages). Showing
+// one as a pre-populated "your cover image" in this onboarding step is confusing (people can't
+// tell if it's already their photo) — so the upload box here should start empty until a real
+// photo is uploaded. Any stored stock URL is left untouched in the database; this only affects
+// what this step displays.
+const stripStockCoverImages = (images?: Media[]): Media[] => getCustomCoverImages(images);
 
 // Two independent, phase-labeled step counters (replaces one continuous "Step X of 10/12"
 // counter that made both paths — especially the artist one — feel long from the very first

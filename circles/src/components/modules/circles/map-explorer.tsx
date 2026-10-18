@@ -52,6 +52,7 @@ import { EventDisplay } from "@/models/models";
 import ActivityPanel from "@/components/layout/activity-panel";
 import MobileEventsPanel from "@/components/modules/events/mobile-events-panel";
 import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
+import { getCircleCoverImageUrl } from "@/lib/default-heroes";
 
 // mapItemToContent helper remains the same
 const mapItemToContent = (item: WithMetric<Content> | Circle | undefined): Content | null => {
@@ -1338,10 +1339,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                                 >
                                                     <div className="relative h-[220px] w-full overflow-hidden md:h-[300px]">
                                                         <Image
-                                                            src={
-                                                                circle.images?.[0]?.fileInfo?.url ??
-                                                                "/images/default-cover.png"
-                                                            }
+                                                            src={getCircleCoverImageUrl(circle)}
                                                             alt=""
                                                             className="pointer-events-none object-cover"
                                                             fill

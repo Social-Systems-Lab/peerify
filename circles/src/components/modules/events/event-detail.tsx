@@ -63,6 +63,7 @@ import RichText from "../feeds/RichText";
 import { userAtom, mapboxKeyAtom, zoomContentAtom, triggerMapOpenAtom, contentPreviewAtom } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import { formatFundingAmount } from "@/components/modules/funding/funding-shared";
+import { FALLBACK_HERO_URL } from "@/lib/default-heroes";
 
 type Props = {
     circle?: Circle;
@@ -212,7 +213,7 @@ export default function EventDetail({
                   {
                       name: "Default Cover",
                       type: "image/png",
-                      fileInfo: { url: "/images/default-cover.png" },
+                      fileInfo: { url: FALLBACK_HERO_URL },
                   } as Media,
               ];
 

@@ -36,6 +36,7 @@ import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { MessageButton } from "../modules/home/message-button";
 import { Badge } from "@/components/ui/badge";
 import ImageCarousel from "@/components/ui/image-carousel";
+import { DEFAULT_HERO_URLS, getCircleCoverImages, getDefaultHeroUrl } from "@/lib/default-heroes";
 import { ProposalItem } from "../modules/proposals/proposal-item";
 import IssueDetail from "../modules/issues/issue-detail";
 import TaskDetail from "../modules/tasks/task-detail"; // Added TaskDetail import
@@ -226,24 +227,17 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
         setImageGallery({ images: [media], initialIndex: 0 });
     };
 
-    // Prepare images for the carousel, providing a default if none exist
+    // Private profiles get the personal default hero; otherwise uploaded images, or the default
+    // hero for this profile type
     const carouselImages: Media[] = suppressed
         ? [
               {
                   name: "Private Profile Cover",
-                  type: "image/jpeg",
-                  fileInfo: { url: "/peerify/about.jpg" },
+                  type: "image/png",
+                  fileInfo: { url: DEFAULT_HERO_URLS.personal },
               },
           ]
-        : circle.images && circle.images.length > 0
-          ? circle.images
-          : [
-                {
-                    name: "Default Cover",
-                    type: "image/png",
-                    fileInfo: { url: "/images/default-cover.png" },
-                },
-            ];
+        : getCircleCoverImages(circle);
 
     return (
         <>
@@ -254,6 +248,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                     options={{ loop: carouselImages.length > 1 }}
                     containerClassName="h-full"
                     imageClassName="object-cover"
+                    fallbackUrl={getDefaultHeroUrl(circle)}
                 />
 
                 {circle?.metrics && (

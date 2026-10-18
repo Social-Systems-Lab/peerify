@@ -17,6 +17,7 @@ import { ignoreCircle } from "../home/ignore-actions";
 import CircleTypeIndicator from "@/components/utils/circle-type-indicator";
 import Indicators from "@/components/utils/indicators";
 import ImageCarousel from "@/components/ui/image-carousel";
+import { getCircleCoverImages, getDefaultHeroUrl } from "@/lib/default-heroes";
 import { sdgs } from "@/lib/data/sdgs";
 import { getSkillByHandle } from "@/lib/data/skills";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -182,17 +183,8 @@ export const CircleSwipeCard: React.FC<CircleSwipeCardProps> = ({ circle, onSwip
         x.set(0);
     }, [circle._id, x]);
 
-    // Prepare images for the carousel, providing a default if none exist
-    const carouselImages: Media[] =
-        circle.images && circle.images.length > 0
-            ? circle.images
-            : [
-                  {
-                      name: "Default Cover",
-                      type: "image/png",
-                      fileInfo: { url: "/images/default-cover.png" },
-                  },
-              ];
+    // Uploaded images, or the default hero for this profile type
+    const carouselImages: Media[] = getCircleCoverImages(circle);
 
     return (
         <motion.div
@@ -230,6 +222,7 @@ export const CircleSwipeCard: React.FC<CircleSwipeCardProps> = ({ circle, onSwip
                             containerClassName="h-full"
                             imageClassName="object-cover"
                             disableSwipe={true}
+                            fallbackUrl={getDefaultHeroUrl(circle)}
                         />
                         <div className="absolute right-2 top-2">
                             <CircleTypeIndicator circleType={circle.circleType || "circle"} size="36px" />

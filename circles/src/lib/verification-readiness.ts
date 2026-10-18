@@ -1,5 +1,5 @@
 import type { Circle } from "@/models/models";
-import { DEFAULT_HERO_IMAGE_URLS } from "@/lib/default-heroes";
+import { getCustomCoverImages } from "@/lib/default-heroes";
 import {
     PEERIFY_DEFAULT_ARTIST_AVATAR_URL,
     PEERIFY_DEFAULT_BAND_AVATAR_URL,
@@ -28,15 +28,13 @@ const DEFAULT_PICTURE_URLS = new Set([
     PEERIFY_DEFAULT_BAND_AVATAR_URL,
     PEERIFY_DEFAULT_VENUE_AVATAR_URL,
 ]);
-const DEFAULT_COVER_URLS = new Set(["/images/default-cover.png", ...DEFAULT_HERO_IMAGE_URLS]);
 
 export const hasCustomPicture = (circle?: Partial<Circle> | null): boolean => {
     const url = circle?.picture?.url?.trim();
     return Boolean(url && !DEFAULT_PICTURE_URLS.has(url));
 };
 
-const hasCustomCoverImage = (circle?: Partial<Circle> | null): boolean =>
-    Boolean(circle?.images?.some((image) => image.fileInfo?.url && !DEFAULT_COVER_URLS.has(image.fileInfo.url)));
+const hasCustomCoverImage = (circle?: Partial<Circle> | null): boolean => getCustomCoverImages(circle?.images).length > 0;
 
 export const hasAboutText = (circle?: Partial<Circle> | null): boolean => {
     if (circle?.circleType === "user") {

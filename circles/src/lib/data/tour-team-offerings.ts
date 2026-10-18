@@ -53,6 +53,43 @@ export const tourTeamOfferingTypeIcons: Record<(typeof tourTeamOfferingTypes)[nu
 export const getTourTeamOfferingIcon = (offering: { type: string }): LucideIcon =>
     tourTeamOfferingTypeIcons[offering.type as (typeof tourTeamOfferingTypes)[number]] ?? Sparkles;
 
+const OFFER_DEFAULT_IMAGES_DIR = "/peerify/illustrations/defaults";
+const OFFER_DEFAULT_OTHER_IMAGE_URL = `${OFFER_DEFAULT_IMAGES_DIR}/offer-other-parcel.png`;
+
+// Shown wherever an offering has no uploaded photo. Resolved at render time, never saved into
+// `photos` (which stays uploads only). A type with several images picks one per offer, stable
+// across reloads (see getOfferDefaultImageUrl).
+export const offerDefaultImageUrls: Record<TourTeamOffering["type"], readonly string[]> = {
+    spare_room: [`${OFFER_DEFAULT_IMAGES_DIR}/offer-accommodation-bed.png`],
+    hosting_show: [
+        `${OFFER_DEFAULT_IMAGES_DIR}/offer-show-cleared-room.png`,
+        `${OFFER_DEFAULT_IMAGES_DIR}/offer-show-garden.png`,
+    ],
+    home_cooked_meal: [`${OFFER_DEFAULT_IMAGES_DIR}/offer-meal-extra-plate.png`],
+    local_transport: [`${OFFER_DEFAULT_IMAGES_DIR}/offer-transport-beetle.png`],
+    promotion: [`${OFFER_DEFAULT_IMAGES_DIR}/offer-promotion-megaphone.png`],
+    custom: [OFFER_DEFAULT_OTHER_IMAGE_URL],
+    city_guide: [OFFER_DEFAULT_OTHER_IMAGE_URL],
+    sound_equipment_help: [OFFER_DEFAULT_OTHER_IMAGE_URL],
+};
+
+// `id` is the offering's own id, or an offer map pin's `${circleId}:${offeringId}` id — only the
+// offering half is hashed, so a pin and the profile tile for the same offer show the same image.
+export const getOfferDefaultImageUrl = (offering: { id?: string; type: string }): string => {
+    const urls = offerDefaultImageUrls[offering.type as TourTeamOffering["type"]] ?? [OFFER_DEFAULT_OTHER_IMAGE_URL];
+    if (urls.length === 1) {
+        return urls[0];
+    }
+
+    const id = offering.id ?? "";
+    const offeringId = id.slice(id.indexOf(":") + 1);
+    let hash = 0;
+    for (const char of offeringId) {
+        hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+    }
+    return urls[hash % urls.length];
+};
+
 export const accommodationSubTypeLabels: Record<(typeof accommodationSubTypes)[number], string> = {
     room: "Private room",
     couch: "Couch / shared space",

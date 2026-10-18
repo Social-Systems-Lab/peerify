@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import {
     accommodationSubTypeLabels,
+    getOfferDefaultImageUrl,
     getOfferDetailFields,
     getTourTeamOfferingIcon,
     getTourTeamOfferingLabel,
@@ -74,7 +75,8 @@ function OfferTile({ offering }: { offering: TourTeamOffering }) {
     const [modalOpen, setModalOpen] = useState(false);
     const Icon = getTourTeamOfferingIcon(offering);
     const label = getTourTeamOfferingLabel(offering);
-    const photoUrl = offering.photos?.[0]?.url;
+    // First uploaded photo, or the default illustration for this offer type
+    const imageUrl = offering.photos?.[0]?.url || getOfferDefaultImageUrl(offering);
     // "What kind of space?" is already shown persistently in the header (accommodationType), so
     // drop it here to avoid rendering the same fact twice in the modal.
     const detailFields = getOfferDetailFields(offering).filter((field) => field.label !== "What kind of space?");
@@ -97,14 +99,8 @@ function OfferTile({ offering }: { offering: TourTeamOffering }) {
                 style={{ borderColor: "var(--pc-line)" }}
             >
                 <div className="relative h-28 w-full shrink-0">
-                    {photoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={photoUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                        <div className="flex h-full w-full items-center justify-center" style={{ backgroundColor: "var(--pc-orange-tint)" }}>
-                            <Icon className="h-9 w-9" style={{ color: "var(--pc-orange-deep)" }} />
-                        </div>
-                    )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imageUrl} alt="" className="h-full w-full object-cover" />
                 </div>
                 <div className="flex flex-1 flex-col gap-1 p-3">
                     <div className="flex items-center gap-1.5">
@@ -131,14 +127,8 @@ function OfferTile({ offering }: { offering: TourTeamOffering }) {
                 (post-list.tsx's "Post Detail Modal"), just with this offering's own content. */}
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
                 <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto p-0">
-                    {photoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={photoUrl} alt="" className="h-56 w-full object-cover" />
-                    ) : (
-                        <div className="flex h-40 w-full items-center justify-center" style={{ backgroundColor: "var(--pc-orange-tint)" }}>
-                            <Icon className="h-14 w-14" style={{ color: "var(--pc-orange-deep)" }} />
-                        </div>
-                    )}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imageUrl} alt="" className="h-56 w-full object-cover" />
                     <div className="space-y-3 p-5">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2" style={{ color: "var(--pc-ink)" }}>

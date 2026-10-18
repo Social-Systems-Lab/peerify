@@ -29,7 +29,6 @@ import { createDefaultFeed } from "./feed";
 import path from "path";
 import fs from "fs";
 import { USERS_DIR } from "../auth/auth";
-import { getDefaultHeroImage, hasCircleImages } from "@/lib/default-heroes";
 import {
     getVerificationReadiness,
     hasCustomPicture,
@@ -715,9 +714,6 @@ export const createCircle = async (circle: Circle, authenticatedUserDid: string)
         // stay excluded from getOfferMapPins's exact-match {offersVisible: true} query until
         // their owner explicitly turns the Presence-settings toggle on — no retroactive backfill.
         circle.offersVisible = circle.offersVisible ?? true;
-    }
-    if (!hasCircleImages(circle.images)) {
-        circle.images = [getDefaultHeroImage(circle.handle || circle.did || circle.name)];
     }
 
     let result = await Circles.insertOne(circle);
