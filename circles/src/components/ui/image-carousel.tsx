@@ -9,8 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Media } from "@/models/models";
 import { useAtom } from "jotai";
 import { imageGalleryAtom } from "@/lib/data/atoms";
-
-const FALLBACK_IMAGE_URL = "/images/default-cover.png";
+import { FALLBACK_HERO_URL } from "@/lib/default-heroes";
 
 type PropType = {
     images: Media[];
@@ -21,6 +20,9 @@ type PropType = {
     showDots?: boolean; // New prop
     dotsPosition?: "bottom-center" | "bottom-right"; // New prop
     disableSwipe?: boolean;
+    // Shown when there are no images or one fails to load. Callers that know the profile type
+    // pass getDefaultHeroUrl(circle); otherwise the generic default hero.
+    fallbackUrl?: string;
 };
 
 const ImageCarousel: React.FC<PropType> = ({
@@ -32,6 +34,7 @@ const ImageCarousel: React.FC<PropType> = ({
     showDots = true, // Default to false
     dotsPosition = "bottom-right", // Default position
     disableSwipe = false,
+    fallbackUrl = FALLBACK_HERO_URL,
 }) => {
     const [, setImageGallery] = useAtom(imageGalleryAtom);
     const [emblaRef, emblaApi] = useEmblaCarousel({
@@ -77,7 +80,7 @@ const ImageCarousel: React.FC<PropType> = ({
         return (
             <div className={cn("relative h-full w-full", containerClassName)}>
                 <img
-                    src="/images/default-cover.png"
+                    src={fallbackUrl}
                     alt="Default image"
                     className={cn("h-full w-full object-cover", imageClassName)}
                 />
@@ -98,13 +101,13 @@ const ImageCarousel: React.FC<PropType> = ({
                 onClick={() => handleImageClick(0)}
             >
                 <img
-                    src={media.fileInfo.url || FALLBACK_IMAGE_URL}
+                    src={media.fileInfo.url || fallbackUrl}
                     alt={media.name || "Image"}
                     className={cn("h-full w-full object-cover", imageClassName)}
                     onError={(e) => {
                         const target = e.currentTarget;
-                        if (target.src.endsWith(FALLBACK_IMAGE_URL)) return;
-                        target.src = FALLBACK_IMAGE_URL;
+                        if (target.src.endsWith(fallbackUrl)) return;
+                        target.src = fallbackUrl;
                     }}
                 />
             </div>
@@ -128,14 +131,14 @@ const ImageCarousel: React.FC<PropType> = ({
                         key={media.fileInfo.url || index}
                     >
                         <img
-                            src={media.fileInfo.url || FALLBACK_IMAGE_URL}
+                            src={media.fileInfo.url || fallbackUrl}
                             alt={media.name || `Image ${index + 1}`}
                             className={cn("h-full w-full cursor-pointer object-cover", imageClassName)} // Fill height/width, object-cover
                             onClick={() => handleImageClick(index)} // Add click handler
                             onError={(e) => {
                                 const target = e.currentTarget;
-                                if (target.src.endsWith(FALLBACK_IMAGE_URL)) return;
-                                target.src = FALLBACK_IMAGE_URL;
+                                if (target.src.endsWith(fallbackUrl)) return;
+                                target.src = fallbackUrl;
                             }}
                         />
                     </div>

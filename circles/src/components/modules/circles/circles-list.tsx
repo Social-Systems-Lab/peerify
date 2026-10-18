@@ -27,6 +27,7 @@ import { updateQueryParam } from "@/lib/utils/helpers-client";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
+import { getCircleCoverImageUrl } from "@/lib/default-heroes";
 
 const RichText = dynamic(() => import("@/components/modules/feeds/RichText"), { ssr: false });
 
@@ -215,8 +216,8 @@ const CirclesList = ({ circle, circles, activeTab, inUser, isProjectsList }: Cir
                             >
                                 <div className="relative h-[150px] w-full overflow-hidden">
                                     <Image
-                                        // Use the first image from the 'images' array, fallback to default
-                                        src={circle.images?.[0]?.fileInfo?.url ?? "/images/default-cover.png"}
+                                        // First uploaded image, or the default hero for this profile type
+                                        src={getCircleCoverImageUrl(circle)}
                                         alt="Cover"
                                         className="bg-white object-cover"
                                         fill

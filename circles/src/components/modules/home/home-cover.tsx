@@ -5,6 +5,7 @@ import Image from "next/image"; // Keep Image import if needed elsewhere, or rem
 import { Circle, Media } from "@/models/models";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import ImageCarousel from "@/components/ui/image-carousel"; // Import the new carousel component
+import { getCircleCoverImages, getDefaultHeroUrl } from "@/lib/default-heroes";
 
 type HomeContentProps = {
     circle: Circle;
@@ -14,17 +15,8 @@ type HomeContentProps = {
 export default function HomeCover({ circle }: HomeContentProps) {
     const isMobile = useIsMobile();
 
-    // Prepare images for the carousel, providing a default if none exist
-    const carouselImages: Media[] =
-        circle.images && circle.images.length > 0
-            ? circle.images
-            : [
-                  {
-                      name: "Default Cover",
-                      type: "image/png",
-                      fileInfo: { url: "/images/default-cover.png" },
-                  },
-              ];
+    // Uploaded images, or the default hero for this profile type
+    const carouselImages: Media[] = getCircleCoverImages(circle);
 
     return (
         <>
@@ -47,6 +39,7 @@ export default function HomeCover({ circle }: HomeContentProps) {
                         options={{ loop: carouselImages.length > 1 }} // Enable loop only if multiple images
                         containerClassName="h-full" // Ensure carousel container fills the height
                         imageClassName="object-cover" // Ensure images cover the slide area
+                        fallbackUrl={getDefaultHeroUrl(circle)}
                     />
                 </div>
             </div>

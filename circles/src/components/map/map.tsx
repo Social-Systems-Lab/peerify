@@ -26,7 +26,8 @@ import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 import ContentPreview from "../layout/content-preview";
 import { Content, ContentPreviewData, Location, OfferMapPin, PostDisplay, EventDisplay } from "@/models/models";
-import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
+import { getOfferDefaultImageUrl, getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
+import { DEFAULT_HERO_URLS, FALLBACK_HERO_URL, getCircleCoverImageUrl, getDefaultHeroUrl } from "@/lib/default-heroes";
 import { fetchOfferMemberDetails } from "../modules/circles/use-offer-member-details";
 import { TbFocus2 } from "react-icons/tb";
 import Onboarding from "../onboarding/onboarding";
@@ -198,7 +199,23 @@ const getMarkerImageUrl = (content: Content, viewerIsAdmin: boolean): string | u
     if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return undefined;
     }
-    return item.picture?.url ?? item.images?.[0]?.fileInfo?.url;
+    // getCircleCoverImageUrl skips saved stock photos and falls back to the type's default hero
+    return item.picture?.url ?? getCircleCoverImageUrl(item);
+};
+
+// Hover-popup background when getMarkerImageUrl has nothing. Kept out of getMarkerImageUrl so
+// the marker face of a suppressed profile stays on initials rather than showing a picture.
+const getMarkerPopupFallbackImageUrl = (content: Content, viewerIsAdmin: boolean): string => {
+    if ((content as any)?.circleType === "post") {
+        return "/images/default-post-picture.png";
+    }
+    if (isEventDisplay(content)) {
+        return FALLBACK_HERO_URL;
+    }
+    if (isSuppressedUserProfile(content, viewerIsAdmin)) {
+        return DEFAULT_HERO_URLS.personal;
+    }
+    return getDefaultHeroUrl(content as any);
 };
 
 const getOptimizedImageUrl = (imageUrl: string | undefined, width: number, quality = 70): string | undefined => {
@@ -392,26 +409,24 @@ const createMarkerPopupHtml = (content: Content, viewerIsAdmin: boolean): string
     const isOffer = isOfferMapPin(content);
     // Venue-sourced offer pins (circleHandle present) have identity to show, so they get the same
     // photo-background/Open-button treatment as any other circle pin below. Individual-hosted
-    // offer pins stay on the icon-on-brand-color background, no photo stand-in, no Open button.
+    // offer pins show the offer's own photo or its type's default illustration, no Open button.
     const isAnonymousOffer = isOffer && !content.circleHandle;
     const imageUrl = isAnonymousOffer
         ? undefined
         : getOptimizedImageUrl(
-              getMarkerImageUrl(content, viewerIsAdmin) ??
-                  ((content as any)?.circleType === "post"
-                      ? "/images/default-post-picture.png"
-                      : "/images/default-user-cover.png"),
+              getMarkerImageUrl(content, viewerIsAdmin) ?? getMarkerPopupFallbackImageUrl(content, viewerIsAdmin),
               384,
               72,
-          ) ?? "/images/default-user-cover.png";
+          );
     // data-marker-popup-photo-slot: an anonymous individual-host offer has no photo to show here
     // yet — this pin never carries one (see OfferMapPin, models.ts; pin-level data intentionally
-    // excludes photos/description). openMarkerPopup fetches the offer's own details after this
-    // HTML is already on screen and swaps this slot's icon for the offer's first photo if one
-    // exists, leaving the icon as-is otherwise. Venue-sourced offer pins are untouched — they
-    // already show the venue's own picture here, not a per-offer photo.
+    // excludes photos/description). It starts on the offer type's default illustration;
+    // openMarkerPopup fetches the offer's own details after this HTML is already on screen and
+    // swaps in the offer's first photo if one exists, leaving the illustration as-is otherwise.
+    // Venue-sourced offer pins are untouched — they already show the venue's own picture here,
+    // not a per-offer photo.
     const backgroundHtml = isAnonymousOffer
-        ? `<div data-marker-popup-photo-slot="true" style="position:absolute;inset:0;background:${getMarkerTheme(content).background};display:flex;align-items:center;justify-content:center;color:${getMarkerTheme(content).color};">${getOfferTypeIconSvg(content.offerType, 72)}</div>`
+        ? `<div data-marker-popup-photo-slot="true" style="position:absolute;inset:0;background-color:${getMarkerTheme(content).background};background-image:url('${escapeHtml(getOfferDefaultImageUrl({ id: content._id, type: content.offerType }))}');background-size:cover;background-position:center;"></div>`
         : `<div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl!)}');background-size:cover;background-position:center;"></div>`;
     const openHref = getMarkerOpenHref(content);
     const openIcon = `<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>`;

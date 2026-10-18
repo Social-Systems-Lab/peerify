@@ -7,7 +7,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { Media, OfferMapPin } from "@/models/models";
 import { cn, getFullLocationName } from "@/lib/utils";
-import { getOfferDetailFields, getTourTeamOfferingIcon, getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
+import {
+    getOfferDefaultImageUrl,
+    getOfferDetailFields,
+    getTourTeamOfferingIcon,
+    getTourTeamOfferingLabel,
+} from "@/lib/data/tour-team-offerings";
 import { useOfferMemberDetails } from "./use-offer-member-details";
 import ImageCarousel from "@/components/ui/image-carousel";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -55,6 +60,7 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
     const detailFields = details
         ? getOfferDetailFields({ type: details.offerType, accommodationType: details.accommodationType, details: details.details })
         : [];
+    const defaultImageUrl = getOfferDefaultImageUrl({ id: pin._id, type: pin.offerType });
     const photoMedia: Media[] = (details?.photos ?? []).map((photo, index) => ({
         name: photo.originalName || `Offer photo ${index + 1}`,
         type: "image",
@@ -67,7 +73,7 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
                 same ImageCarousel at this same height) — not shown for a grouped venue marker,
                 which represents several distinct offers and keeps its existing icon-list layout
                 below, untouched. `details === undefined` (still loading) shows a same-sized
-                skeleton rather than flashing the icon fallback and then swapping to a photo. */}
+                skeleton rather than flashing the default illustration and then swapping to a photo. */}
             {!isGrouped && (
                 <div className="relative h-[270px] w-full shrink-0">
                     {details === undefined ? (
@@ -81,11 +87,11 @@ export default function CrewOfferMapPreview({ pin }: CrewOfferMapPreviewProps) {
                             showArrows={false}
                             showDots={photoMedia.length > 1}
                             dotsPosition="bottom-right"
+                            fallbackUrl={defaultImageUrl}
                         />
                     ) : (
-                        <div className="flex h-full w-full items-center justify-center bg-green-100 text-green-900">
-                            <Icon className="h-16 w-16" />
-                        </div>
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={defaultImageUrl} alt="" className="h-full w-full object-cover" />
                     )}
                 </div>
             )}
