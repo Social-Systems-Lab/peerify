@@ -45,6 +45,16 @@ export type RateLimitDoc = { _id: string; until: Date; expiresAt: Date; failures
 // One document per spent ALTCHA challenge (see altcha.ts); expiresAt (the challenge's own expiry)
 // drives a TTL index.
 export type UsedAltchaChallengeDoc = { _id: string; expiresAt: Date };
+// Staging only: one document per email captured instead of sent (EMAIL_CAPTURE_MODE, see
+// src/lib/email/captured-emails.ts). Nothing writes here with capture mode off, so prod never has the
+// collection; expiresAt drives a TTL index created on the first capture.
+export type CapturedEmailDoc = {
+    to: string;
+    templateAlias: string;
+    templateModel: Record<string, unknown>;
+    createdAt: Date;
+    expiresAt: Date;
+};
 
 // No fallback: a missing MONGODB_URI used to become admin:password@127.0.0.1, which only produced
 // "Authentication failed" noise against a server with auth on. The build (IS_BUILD=true) never
@@ -105,6 +115,7 @@ let UserRelationships: Collection<any>;
 let HumanityVerifications: Collection<HumanityVerification>;
 let RateLimits: Collection<RateLimitDoc>;
 let UsedAltchaChallenges: Collection<UsedAltchaChallengeDoc>;
+let CapturedEmails: Collection<CapturedEmailDoc>;
 
 // Only initialize the database connection if not in build mode
 if (process.env.IS_BUILD !== "true") {
@@ -162,6 +173,7 @@ if (process.env.IS_BUILD !== "true") {
     PlatformSettingsCollection = db.collection<PlatformSettings>("platformSettings");
     RateLimits = db.collection<RateLimitDoc>("rateLimits");
     UsedAltchaChallenges = db.collection<UsedAltchaChallengeDoc>("usedAltchaChallenges");
+    CapturedEmails = db.collection<CapturedEmailDoc>("capturedEmails");
 }
 export async function getDb() {
   if (!client) throw new Error("Mongo client not initialised (IS_BUILD=true?)");
@@ -217,4 +229,5 @@ export {
     PlatformSettingsCollection,
     RateLimits,
     UsedAltchaChallenges,
+    CapturedEmails,
 };

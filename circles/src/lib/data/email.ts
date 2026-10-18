@@ -1,20 +1,27 @@
 import { ServerClient, TemplatedMessage } from "postmark";
 import crypto from "crypto";
+import { checkEmailCaptureMode, type EmailCaptureCheck } from "@/lib/email/capture-mode";
+import { maskEmail } from "@/lib/utils/mask-email";
 
 const POSTMARK_API_TOKEN = process.env.POSTMARK_API_TOKEN;
 const POSTMARK_SENDER_EMAIL = process.env.POSTMARK_SENDER_EMAIL;
 const SOCIAL_SYSTEMS_LAB_URL = "https://www.socialsystems.io/";
 
-if (!POSTMARK_API_TOKEN) {
+// Staging's capture mode (EMAIL_CAPTURE_MODE=on): every email is stored for /admin/emails instead of
+// sent. Only that setting turns it on; a missing or failing Postmark never does.
+const CAPTURE_ON = checkEmailCaptureMode().mode === "on";
+
+if (!CAPTURE_ON && !POSTMARK_API_TOKEN) {
     console.warn("POSTMARK_API_TOKEN is not set. Email functionality will be disabled.");
 }
-if (!POSTMARK_SENDER_EMAIL) {
+if (!CAPTURE_ON && !POSTMARK_SENDER_EMAIL) {
     console.warn("POSTMARK_SENDER_EMAIL is not set. Email functionality will be disabled.");
 }
 
 // Initialize Postmark client
-// It's okay if token is undefined here; checks below will prevent API calls.
-const client = POSTMARK_API_TOKEN ? new ServerClient(POSTMARK_API_TOKEN) : null;
+// It's okay if token is undefined here; checks below will prevent API calls. In capture mode there is
+// no client at all, so nothing can reach Postmark even with a token set.
+const client = !CAPTURE_ON && POSTMARK_API_TOKEN ? new ServerClient(POSTMARK_API_TOKEN) : null;
 
 interface EmailOptions {
     to: string;
@@ -75,9 +82,16 @@ export const applyEmailTemplateDefaults = (templateModel: Record<string, any>): 
 
 // What a send actually did. Postmark API errors still throw from sendEmail (existing callers
 // rely on that); trySendEmail folds them into { ok: false, reason: "send_failed" } instead.
+// In capture mode a stored email is { ok: true, messageId: "captured:<id>" }; a failed store is
+// "capture_failed" (thrown by sendEmail, like send_failed) and a refused setting "capture_refused".
 export type SendEmailResult =
     | { ok: true; messageId: string }
-    | { ok: false; reason: "not_configured" | "send_failed"; message: string; code?: number };
+    | {
+          ok: false;
+          reason: "not_configured" | "send_failed" | "capture_failed" | "capture_refused";
+          message: string;
+          code?: number;
+      };
 
 type TemplateEmailClient = Pick<ServerClient, "sendEmailWithTemplate">;
 
@@ -87,9 +101,43 @@ const EMAIL_ADDRESS_PATTERN = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 // addresses before anything reaches a log line.
 export const redactEmailAddresses = (text: string): string => text.replace(EMAIL_ADDRESS_PATTERN, "<redacted>");
 
-// Exported for tests, which pass a fake client; the app uses sendEmail/trySendEmail below.
-export const createEmailSender = (emailClient: TemplateEmailClient | null, senderEmail: string | undefined) => {
+export type EmailCapture = {
+    // Checked again on every capture, so scripts that bypass the server's boot guard are covered.
+    check: () => EmailCaptureCheck;
+    // Stores the email and returns its id.
+    store: (email: { to: string; templateAlias: string; templateModel: Record<string, any> }) => Promise<string>;
+};
+
+// Exported for tests, which pass a fake client (and capture); the app uses sendEmail/trySendEmail below.
+export const createEmailSender = (
+    emailClient: TemplateEmailClient | null,
+    senderEmail: string | undefined,
+    capture: EmailCapture | null = null,
+) => {
+    // Capture mode: store, never send. Logs name the template and a masked address only, never the
+    // model (links, tokens, codes).
+    const captureEmail = async (options: EmailOptions, active: EmailCapture): Promise<SendEmailResult> => {
+        const { to, templateAlias, templateModel } = options;
+        const check = active.check();
+        if (check.mode !== "on") {
+            console.error(`Email not captured or sent (template ${templateAlias}): capture mode refused.`);
+            return { ok: false, reason: "capture_refused", message: "Email capture mode is not allowed here." };
+        }
+        try {
+            const id = await active.store({ to, templateAlias, templateModel: applyEmailTemplateDefaults(templateModel) });
+            console.log(`Email captured (template ${templateAlias}) for ${maskEmail(to)}`);
+            return { ok: true, messageId: `captured:${id}` };
+        } catch (error) {
+            const rawMessage = error instanceof Error ? error.message : String(error);
+            console.error(`Email capture failed (template ${templateAlias}): ${redactEmailAddresses(rawMessage)}`);
+            return { ok: false, reason: "capture_failed", message: rawMessage };
+        }
+    };
+
     const trySendEmail = async (options: EmailOptions): Promise<SendEmailResult> => {
+        if (capture) {
+            return captureEmail(options, capture);
+        }
         const { to, templateAlias, templateModel } = options;
         if (!emailClient) {
             console.error(`Email not sent (template ${templateAlias}): POSTMARK_API_TOKEN is not configured.`);
@@ -126,7 +174,7 @@ export const createEmailSender = (emailClient: TemplateEmailClient | null, sende
      */
     const sendEmail = async (options: EmailOptions): Promise<SendEmailResult> => {
         const result = await trySendEmail(options);
-        if (!result.ok && result.reason === "send_failed") {
+        if (!result.ok && (result.reason === "send_failed" || result.reason === "capture_failed")) {
             // Callers log this error, and Postmark messages can name the recipient.
             throw new Error(`Failed to send email: ${redactEmailAddresses(result.message)}`);
         }
@@ -136,7 +184,16 @@ export const createEmailSender = (emailClient: TemplateEmailClient | null, sende
     return { sendEmail, trySendEmail };
 };
 
-const defaultSender = createEmailSender(client, POSTMARK_SENDER_EMAIL);
+// The capture store is imported only in capture mode, so with capture off this file never loads it
+// (and never touches the capturedEmails collection).
+const defaultCapture: EmailCapture | null = CAPTURE_ON
+    ? {
+          check: () => checkEmailCaptureMode(),
+          store: async (email) => (await import("@/lib/email/captured-emails")).storeCapturedEmail(email),
+      }
+    : null;
+
+const defaultSender = createEmailSender(client, POSTMARK_SENDER_EMAIL, defaultCapture);
 
 export const sendEmail = defaultSender.sendEmail;
 
