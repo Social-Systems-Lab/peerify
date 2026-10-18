@@ -14,6 +14,17 @@ import { updateCircleField } from "../modules/home/actions"; // Keep for profile
 import { useToast } from "@/components/ui/use-toast";
 import Image from "next/image";
 import { MultiImageUploader, ImageItem } from "@/components/forms/controls/multi-image-uploader"; // Import MultiImageUploader
+import { getCustomCoverImages } from "@/lib/default-heroes";
+import { IMAGE_UPLOAD_FAILED_MESSAGE } from "@/lib/image-upload-limits";
+import { Media } from "@/models/models";
+
+// Only real uploads: saved stock/default covers never show as an existing image
+const toExistingImageItems = (images?: Media[]): ImageItem[] =>
+    getCustomCoverImages(images).map((media) => ({
+        id: media.fileInfo.url,
+        preview: media.fileInfo.url,
+        existingMediaUrl: media.fileInfo.url,
+    }));
 
 // Create a custom image upload component specifically for onboarding
 function OnboardingImageUpload({
@@ -106,17 +117,12 @@ function OnboardingImageUpload({
 
 export default function ProfileStep({ userData, setUserData, nextStep, prevStep }: OnboardingStepProps) {
     const [user, setUser] = useAtom(userAtom);
+    const { toast } = useToast();
     const [shortBio, setShortBio] = useState(user?.description || "");
     const [content, setContent] = useState(user?.content || "");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [profilePicture, setProfilePicture] = useState(user?.picture?.url || "/images/default-user-picture.png");
-    const [imagesState, setImagesState] = useState<ImageItem[]>(
-        user?.images?.map((media) => ({
-            id: media.fileInfo.url,
-            preview: media.fileInfo.url,
-            existingMediaUrl: media.fileInfo.url,
-        })) || [],
-    );
+    const [imagesState, setImagesState] = useState<ImageItem[]>(toExistingImageItems(user?.images));
 
     // Initialize local state values only once when component mounts
     useEffect(() => {
@@ -124,13 +130,7 @@ export default function ProfileStep({ userData, setUserData, nextStep, prevStep 
             setShortBio(user.description || "");
             setContent(user.content || "");
             setProfilePicture(user.picture?.url || "/images/default-user-picture.png");
-            setImagesState(
-                user.images?.map((media) => ({
-                    id: media.fileInfo.url,
-                    preview: media.fileInfo.url,
-                    existingMediaUrl: media.fileInfo.url,
-                })) || [],
-            );
+            setImagesState(toExistingImageItems(user.images));
 
             // Initialize userData picture as well, if it exists
             if (setUserData && userData) {
@@ -184,9 +184,21 @@ export default function ProfileStep({ userData, setUserData, nextStep, prevStep 
                 nextStep();
             } else {
                 console.error("Error saving profile:", result.message);
+                toast({
+                    title: "Error",
+                    description: result.message || "Failed to save profile",
+                    variant: "destructive",
+                });
             }
         } catch (error) {
             console.error("Error updating user profile:", error);
+            toast({
+                title: "Error",
+                description: imagesState.some((item) => item.file)
+                    ? IMAGE_UPLOAD_FAILED_MESSAGE
+                    : "Failed to save profile",
+                variant: "destructive",
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -260,7 +272,7 @@ export default function ProfileStep({ userData, setUserData, nextStep, prevStep 
                         </Label>
                         {/* Replace OnboardingImageUpload for cover with MultiImageUploader */}
                         <MultiImageUploader
-                            initialImages={user?.images || []}
+                            initialImages={getCustomCoverImages(user?.images)}
                             onChange={setImagesState} // Update local state
                             previewMode="compact" // Use compact mode for onboarding
                             enableReordering={true}

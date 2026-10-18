@@ -40,7 +40,9 @@ import { Circle, FileInfo, FormSubmitResponse, Location, Media, UserPrivate } fr
 import { ImageItem } from "@/components/forms/controls/multi-image-uploader"; // Import ImageItem
 import { revalidatePath } from "next/cache";
 import { features } from "@/lib/data/constants";
-import { isFile, saveFile, deleteFile } from "@/lib/data/storage"; // Added deleteFile
+import { isFile, saveFile, deleteFile, deleteUploadedFiles, getCircleFileUrls } from "@/lib/data/storage"; // Added deleteFile
+import { getImageUploadErrorMessage } from "@/lib/media/sanitize-image";
+import { isStockCoverUrl } from "@/lib/default-heroes";
 import { sanitizeSocialLinks } from "@/lib/utils/social-links";
 import { getVerificationReadiness } from "@/lib/verification-readiness";
 import {
@@ -57,6 +59,7 @@ import {
     ABOUT_IMAGE_UPLOAD_MAX_BYTES,
     ABOUT_IMAGE_UPLOAD_TOO_LARGE_MESSAGE,
     formatFileSizeMB,
+    UNSUPPORTED_IMAGE_MESSAGE,
 } from "@/lib/image-upload-limits";
 import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
 import { classifyLocationInput, toUsableLocation } from "@/lib/utils/event-location";
@@ -135,7 +138,7 @@ const validateAboutImageUpload = (file: any): string | null => {
     }
 
     if (typeof file.type === "string" && !file.type.startsWith("image/")) {
-        return "Only image uploads are supported.";
+        return UNSUPPORTED_IMAGE_MESSAGE;
     }
 
     if (typeof file.size === "number" && file.size > ABOUT_IMAGE_UPLOAD_MAX_BYTES) {
@@ -919,10 +922,19 @@ export async function saveAbout(values: {
             }
         }
 
+        // Files uploaded by this save, removed again if a later upload is rejected
+        const uploadedUrls: string[] = [];
+
         // Handle picture upload (keeping existing logic for profile picture)
         if (isFile(values.picture)) {
             // save the picture and get the file info
-            circleUpdateData.picture = await saveFile(values.picture, "picture", values._id, true);
+            try {
+                circleUpdateData.picture = await saveFile(values.picture, "picture", values._id, true);
+            } catch (uploadError) {
+                console.error("Failed to upload new picture:", uploadError);
+                return { success: false, message: getImageUploadErrorMessage(uploadError) };
+            }
+            uploadedUrls.push(circleUpdateData.picture.url);
             revalidatePath(circleUpdateData.picture.url);
         }
 
@@ -944,13 +956,21 @@ export async function saveAbout(values: {
                             fileInfo: savedFileInfo,
                         });
                         finalImageUrls.add(savedFileInfo.url);
+                        uploadedUrls.push(savedFileInfo.url);
                         revalidatePath(savedFileInfo.url);
                         console.log(`Uploaded successfully: ${savedFileInfo.url}`);
                     } catch (uploadError) {
+                        // Nothing is saved: a rejected image fails the whole save rather than
+                        // silently dropping it (and with it the person's existing cover)
                         console.error("Failed to upload new image:", uploadError);
-                        // Optionally return an error or skip this image
+                        await deleteUploadedFiles(uploadedUrls, getCircleFileUrls(existingCircle));
+                        return { success: false, message: getImageUploadErrorMessage(uploadError) };
                     }
                 } else if (imageItem.existingMediaUrl) {
+                    // Stock/default covers are never kept as uploads (see getCustomCoverImages)
+                    if (isStockCoverUrl(imageItem.existingMediaUrl)) {
+                        continue;
+                    }
                     // Existing image - find it in the original circle data to preserve metadata
                     const existingMedia = existingCircle.images?.find(
                         (m) => m.fileInfo.url === imageItem.existingMediaUrl,
@@ -972,21 +992,10 @@ export async function saveAbout(values: {
             }
         }
 
-        // Handle deletion of images removed from the array
+        // Images removed from the array; deleted only after the circle is saved, so a failed save
+        // never leaves the circle pointing at files that are gone
         const existingUrls = new Set(existingCircle.images?.map((m) => m.fileInfo.url) || []);
-        for (const urlToDelete of existingUrls) {
-            if (!finalImageUrls.has(urlToDelete)) {
-                try {
-                    console.log(`Deleting removed image: ${urlToDelete}`);
-                    await deleteFile(urlToDelete); // Assuming deleteFile takes the URL
-                    console.log(`Deleted successfully: ${urlToDelete}`);
-                    // No need to revalidate path for deleted files usually
-                } catch (deleteError) {
-                    console.error(`Failed to delete image ${urlToDelete}:`, deleteError);
-                    // Decide if this should be a critical error or just logged
-                }
-            }
-        }
+        const removedImageUrls = [...existingUrls].filter((url) => !finalImageUrls.has(url));
 
         circleUpdateData.images = finalMediaArray;
         // --- End Handle 'images' array ---
@@ -995,6 +1004,19 @@ export async function saveAbout(values: {
 
         // update the circle
         await updateCircle(circleUpdateData, userDid);
+
+        // Handle deletion of images removed from the array
+        for (const urlToDelete of removedImageUrls) {
+            try {
+                console.log(`Deleting removed image: ${urlToDelete}`);
+                await deleteFile(urlToDelete); // Assuming deleteFile takes the URL
+                console.log(`Deleted successfully: ${urlToDelete}`);
+                // No need to revalidate path for deleted files usually
+            } catch (deleteError) {
+                console.error(`Failed to delete image ${urlToDelete}:`, deleteError);
+                // Decide if this should be a critical error or just logged
+            }
+        }
 
         // clear page cache
         const updatedCircle = await getCircleById(String(values._id));

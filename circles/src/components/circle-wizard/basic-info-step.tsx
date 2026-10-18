@@ -14,6 +14,7 @@ import { generateSlug } from "@/lib/utils";
 import { features } from "@/lib/data/constants";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms"; // Corrected path
+import { getCustomCoverImages } from "@/lib/default-heroes";
 import {
     CreatableItemDetail, // Added
     creatableItemsList, // Added
@@ -225,12 +226,14 @@ export default function BasicInfoStep({
                     setCircleData((prev) => ({
                         ...prev,
                         _id: circle._id,
-                        images:
-                            circle.images?.map((media: { fileInfo: { url: string } }) => ({
-                                id: media.fileInfo.url,
-                                preview: media.fileInfo.url,
-                                existingMediaUrl: media.fileInfo.url,
-                            })) || prev.images,
+                        // Only real uploads: saved stock/default covers never show as an existing image
+                        images: circle.images
+                            ? getCustomCoverImages(circle.images).map((media) => ({
+                                  id: media.fileInfo.url,
+                                  preview: media.fileInfo.url,
+                                  existingMediaUrl: media.fileInfo.url,
+                              }))
+                            : prev.images,
                         parentCircleId: circle.parentCircleId,
                         circleLevel: circle.circleLevel || effectiveCircleLevel,
                     }));

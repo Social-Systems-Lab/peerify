@@ -12,6 +12,7 @@ import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from
 import { getAuthenticatedUserDid, getAuthorizedMembers, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { saveFile } from "@/lib/data/storage";
+import { getImageUploadErrorMessage } from "@/lib/media/sanitize-image";
 import { revalidatePath } from "next/cache";
 import { getUser, getUserById, getUserPrivate, addBookmark, removeBookmark, pinCircle, unpinCircle } from "@/lib/data/user";
 import {
@@ -425,6 +426,9 @@ export const unpinCircleAction = async (circleId: string): Promise<UserPrivate |
 const INLINE_PROFILE_TEXT_FIELDS = ["name", "description", "mission"] as const;
 const INLINE_PROFILE_FILE_FIELDS = ["picture"] as const;
 
+// Thrown when the server refuses an inline picture upload; its message is safe to show as is.
+class InlineImageUploadError extends Error {}
+
 const buildInlineProfileUpdate = async (circleId: string, formData: FormData): Promise<Partial<Circle>> => {
     const updateData: Partial<Circle> = { _id: circleId };
 
@@ -438,7 +442,13 @@ const buildInlineProfileUpdate = async (circleId: string, formData: FormData): P
     for (const field of INLINE_PROFILE_FILE_FIELDS) {
         const value = formData.get(field);
         if (value instanceof File) {
-            const fileInfo = await saveFile(value, field, circleId, true);
+            let fileInfo;
+            try {
+                fileInfo = await saveFile(value, field, circleId, true);
+            } catch (uploadError) {
+                console.error(`Failed to upload ${field}:`, uploadError);
+                throw new InlineImageUploadError(getImageUploadErrorMessage(uploadError));
+            }
             updateData[field] = fileInfo;
             revalidatePath(fileInfo.url);
         }
@@ -500,6 +510,9 @@ export const updateCircleField = async (circleId: string, formData: FormData): P
 
         return { success: true, message: updateMessage, circle };
     } catch (error) {
+        if (error instanceof InlineImageUploadError) {
+            return { success: false, message: error.message };
+        }
         return { success: false, message: `Failed to update circle. ${error}` };
     }
 };

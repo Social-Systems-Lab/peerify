@@ -13,6 +13,7 @@
 // - non-images (PDFs, other chat attachments) pass through unchanged.
 import path from "path";
 import sharp from "sharp";
+import { IMAGE_UPLOAD_FAILED_MESSAGE, UNSUPPORTED_IMAGE_MESSAGE } from "@/lib/image-upload-limits";
 
 export class UnsupportedImageError extends Error {
     constructor() {
@@ -20,6 +21,10 @@ export class UnsupportedImageError extends Error {
         this.name = "UnsupportedImageError";
     }
 }
+
+/** What to tell the person when saveFile() throws for one of their images. */
+export const getImageUploadErrorMessage = (error: unknown): string =>
+    error instanceof UnsupportedImageError ? UNSUPPORTED_IMAGE_MESSAGE : IMAGE_UPLOAD_FAILED_MESSAGE;
 
 export type SanitizedUpload = {
     buffer: Buffer;
