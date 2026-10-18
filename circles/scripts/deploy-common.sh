@@ -181,6 +181,7 @@ step_verify_environment() {
     local env_note=""
     if [ "$PM2_NAME" = "peerify" ]; then
         check_prod_legacy_dm_cutoff
+        check_prod_no_email_capture
         env_note=" LEGACY_DM_CUTOFF=$LEGACY_DM_CUTOFF_CHECKED"
     fi
 
@@ -220,6 +221,20 @@ PYEOF
         esac
     fi
     LEGACY_DM_CUTOFF_CHECKED="$raw"
+}
+
+# Prod only. EMAIL_CAPTURE_MODE is staging's "store email instead of sending it" switch. The app
+# refuses to start with it on and a prod URL (src/lib/email/capture-mode.ts), but that refusal would
+# only happen in step 7, after step 6 has already pointed 'current' at the new release: prod down. So
+# any value other than empty or "off" stops the deploy here, before anything is built or swapped.
+# The value isn't printed.
+check_prod_no_email_capture() {
+    local raw
+    raw="$(set -a; # shellcheck disable=SC1090
+        source "$ENV_FILE" >/dev/null 2>&1; printf '%s' "${EMAIL_CAPTURE_MODE:-}")"
+    if [ -n "$raw" ] && [ "$raw" != "off" ]; then
+        fail "EMAIL_CAPTURE_MODE is set in $ENV_FILE (${#raw} characters). It is a staging-only setting; remove the line (or set it to off) before deploying prod."
+    fi
 }
 
 step_build() {
