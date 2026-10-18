@@ -40,6 +40,46 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-18 — Default illustrations for profile heroes and offers, cover editors and rejected uploads, both live on production
+
+### What was there before (read-only investigation, 2026-10-18)
+- `getDefaultHeroImage` (`src/lib/default-heroes.ts`) picked one of 7 stock photos (`/peerify/*.jpg`, about 2 MB each) by hashing the handle. `createCircle`/`createNewUser` **saved** it into `circle.images`. It ignored the profile type entirely.
+- The Kamooni low-poly earth (`/images/default-cover.png`) was hard-coded as the fallback in about 8 components. It showed up whenever `images` was empty.
+- **Rejected uploads were silent.** In Settings → About, the wizard and the old onboarding, a `saveFile` failure (e.g. `UnsupportedImageError` for an SVG or HEIC) was caught and logged. The stock hero was then dropped from the kept list, so `images: []` was saved, and the action still reported success. The result was the earth cover and no error.
+- Offers without a photo showed a lucide icon on a tinted block. There was no default image.
+
+### Commits
+| Staging | main | What |
+|---|---|---|
+| `fbc4bf13` | `7b8c55a7` | Default hero chosen at **render time** by type: solo → waiting chair, band → soundcheck, DJ/producer → crates and lamp, venue/plain/unknown → café corner, personal → listener. Empty `images`, the 7 stock JPGs and `default-cover.png` count as "no custom hero", so existing records need no migration. Creation no longer saves a stock photo. The `default-cover.png` fallbacks, the map pin/popup fallbacks and the private-profile cover use the same logic. Offers without a photo get a default by `offering.type`: show space alternates between two images, hashed on the offering id, so a map pin and the profile tile match. 12 PNGs added under `public/peerify/illustrations/defaults/` |
+| `ad690b7d` | `563c10be` | Cover editors (Settings → About, wizard, old onboarding) start from `getCustomCoverImages`, and the saves drop stock URLs. A rejected image in those three saves, in pilot onboarding and in inline picture uploads fails the save with "This file type isn't supported. Please use JPG, PNG or WebP." (`UnsupportedImageError`) or "This image couldn't be uploaded. Please try again." (other failures). The same save's own earlier uploads are removed by `deleteUploadedFiles`, which skips any URL the circle still uses. Removed images are now deleted only **after** `updateCircle` succeeds (before, they were deleted first, so a failed write left dangling URLs). What the server accepts is unchanged |
+
+- **New helpers:**
+  - `default-heroes.ts`: `getDefaultHeroUrl`, `getCircleCoverImages`, `getCircleCoverImageUrl`, `getCustomCoverImages`, `isStockCoverUrl`, `DEFAULT_HERO_URLS`, `FALLBACK_HERO_URL`
+  - `tour-team-offerings.ts`: `getOfferDefaultImageUrl`
+  - `storage.ts`: `deleteUploadedFiles`, `getCircleFileUrls`
+  - `sanitize-image.ts`: `getImageUploadErrorMessage`
+  - `image-upload-limits.ts`: the two messages
+- **Illustrations:**
+  - Heroes are 2400×600 and offers 1200×800, 30–86 KB each.
+  - They're plain PNGs, kept byte-identical. 9 of the 12 carry a C2PA `caBX` Content Credentials chunk, which was kept on purpose.
+  - On mobile the hero box crops to the middle of the drawing; the drawings are centred.
+- **Tests:**
+  - `save-profile-authz.test.ts` grew from 4 to 7. New cases: a rejected `.svg` fails, doesn't write and only cleans up its own upload; a stock URL is dropped; deletion happens after the update.
+  - `save-presence-authz` 4/4, `auto-verify` 5/5, and the `sanitize-image` script passes.
+  - tsc and eslint are clean for both commits.
+- **Promotion:**
+  - Both commits followed the same route. A read-only check confirmed main = checkout = `/api/version`, and that the touched files were identical on main and the parent. Then a trial cherry-pick in a temporary worktree at `origin/main`: clean, byte-identical, tsc/eslint/tests OK. The cherry-pick, push, rollback file and deploy each had a yes, and Tim ran the deploys.
+  - `7b8c55a7`: prod live 2026-10-18 18:58 +02:00 (release `20261018-170054`), map checked on prod. Rollback file `prod-rollback-20261018-2.md` (target `757c3321`).
+  - `563c10be`: tested by Tim on Cleura staging (a rejected SVG shows the message and keeps the cover; a normal upload and removing an image work). **Prod live** about 20:46 +02:00 (release `20261018-184633`). Rollback file `prod-rollback-20261018-3.md` (target `7b8c55a7`).
+- **Cleanup**, each step with a yes: the `images` and `cover-editor` worktrees, local branches and GitHub branches are removed. The local source PNGs and zip on the old box are deleted.
+
+### Open; not done here
+- The old stock JPGs (`/peerify/*.jpg`) and `/images/default-cover.png` stay in `public/`. Stored records still reference them, and `peerify-landing-page.module.css` uses `everyone.jpg` as the landing page hero background. Stored stock URLs are cleared lazily on the next save of the profile; there's no migration.
+- `src/components/map/markers.tsx` still falls back to `/images/default-user-cover.png`, but nothing imports it (dead component).
+- `docs/RELEASE_NOTE_CURATED_DEFAULT_HERO_IMAGES.md` still describes the old save-at-creation behaviour.
+- The old-box staging image optimizer is still broken (two `sharp`s), so the `next/image` cards there may show no image. Cleura staging and prod are fine.
+
 ## 2026-10-17/18 — Login Task 0: wrong-password hotfix, then password-login and forgot-password hardening, both live on production
 
 ### Hotfix: a wrong password logged in about 1 time in 256 (found 2026-10-17)
