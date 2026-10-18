@@ -74,6 +74,33 @@ describe("checkEmailCaptureMode", () => {
     });
 });
 
+// With capture off, no URL setting may ever stop the app: whatever CIRCLES_URL and the other base URL
+// settings say (prod, unknown hosts, invalid values, missing), off means off and the guard does nothing.
+const OFF_VALUES: (string | undefined)[] = [undefined, "", "off"];
+const URL_SETUPS: Record<string, string | undefined>[] = [
+    {},
+    { CIRCLES_URL: "https://peerify.one" },
+    { CIRCLES_URL: "https://peerify.one", NEXT_PUBLIC_APP_URL: "https://peerify.one", NEXT_PUBLIC_SITE_URL: "https://peerify.one" },
+    { CIRCLES_URL: "not a url", APP_URL: "::::", SITE_URL: "javascript:alert(1)" },
+    { CIRCLES_URL: "https://evil.example", NEXT_PUBLIC_APP_URL: "https://cleura-staging.peerify.one" },
+    { NEXT_PUBLIC_APP_URL: "https://peerify.one" },
+    { CIRCLES_URL: "" },
+];
+
+describe("capture mode off never stops the app, whatever the URL settings", () => {
+    test("check is off, and the boot guard neither exits nor fails", () => {
+        for (const value of OFF_VALUES) {
+            for (const urls of URL_SETUPS) {
+                const env = { ...urls, EMAIL_CAPTURE_MODE: value };
+                expect(checkEmailCaptureMode(env)).toEqual({ mode: "off" });
+                const exits: number[] = [];
+                expect(enforceEmailCaptureModeAtBoot(env, (code) => exits.push(code))).toEqual({ mode: "off" });
+                expect(exits).toEqual([]);
+            }
+        }
+    });
+});
+
 describe("enforceEmailCaptureModeAtBoot", () => {
     const run = (env: Record<string, string>) => {
         const exits: number[] = [];
@@ -101,7 +128,12 @@ describe("instrumentation register()", () => {
     });
 
     const runRegister = async (env: Record<string, string | undefined>) => {
-        process.env = { ...saved, ...env } as NodeJS.ProcessEnv;
+        // undefined means "not set": the key is removed, never stored as the string "undefined".
+        const merged: Record<string, string | undefined> = { ...saved, ...env };
+        for (const key of Object.keys(merged)) {
+            if (merged[key] === undefined) delete merged[key];
+        }
+        process.env = merged as NodeJS.ProcessEnv;
         const exits: unknown[] = [];
         process.exit = ((code?: number) => {
             exits.push(code);
@@ -124,5 +156,23 @@ describe("instrumentation register()", () => {
 
     test("does nothing with capture mode unset (prod)", async () => {
         expect(await runRegister({ NEXT_RUNTIME: "nodejs", IS_BUILD: undefined, EMAIL_CAPTURE_MODE: undefined, CIRCLES_URL: "https://peerify.one" })).toEqual([]);
+    });
+
+    test("never exits with capture unset, empty or off, whatever the URL settings", async () => {
+        const allUrlNames = ["CIRCLES_URL", "NEXT_PUBLIC_APP_URL", "APP_URL", "SITE_URL", "NEXT_PUBLIC_SITE_URL"];
+        for (const value of OFF_VALUES) {
+            for (const urls of URL_SETUPS) {
+                // Clear every URL setting first, so only this setup's values are present.
+                const cleared = Object.fromEntries(allUrlNames.map((name) => [name, undefined]));
+                const exits = await runRegister({
+                    ...cleared,
+                    ...urls,
+                    NEXT_RUNTIME: "nodejs",
+                    IS_BUILD: undefined,
+                    EMAIL_CAPTURE_MODE: value,
+                });
+                expect(exits).toEqual([]);
+            }
+        }
     });
 });
