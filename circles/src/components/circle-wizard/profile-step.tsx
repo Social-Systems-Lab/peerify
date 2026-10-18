@@ -12,13 +12,16 @@ import { useToast } from "@/components/ui/use-toast";
 import Image from "next/image";
 import { MultiImageUploader, ImageItem } from "@/components/forms/controls/multi-image-uploader"; // Import MultiImageUploader
 import { Media } from "@/models/models";
+import { getCustomCoverImages } from "@/lib/default-heroes";
+import { IMAGE_UPLOAD_FAILED_MESSAGE } from "@/lib/image-upload-limits";
 
+// Only real uploads: saved stock/default covers never show as an existing image
 const toExistingImageItems = (images?: Media[]): ImageItem[] =>
-    images?.map((media) => ({
+    getCustomCoverImages(images).map((media) => ({
         id: media.fileInfo.url,
         preview: media.fileInfo.url,
         existingMediaUrl: media.fileInfo.url,
-    })) || [];
+    }));
 
 // Create a custom image upload component for the circle wizard (KEEPING FOR PROFILE PICTURE FOR NOW)
 function CircleImageUpload({
@@ -214,7 +217,13 @@ export default function ProfileStep({ circleData, setCircleData, nextStep, prevS
                 // Move to the next step
                 nextStep();
             } catch (error) {
-                setProfileError("An error occurred while processing profile information");
+                const hasPendingUploads =
+                    Boolean(circleData.pictureFile) || circleData.images?.some((item) => item.file);
+                setProfileError(
+                    hasPendingUploads
+                        ? IMAGE_UPLOAD_FAILED_MESSAGE
+                        : "An error occurred while processing profile information",
+                );
                 console.error("Profile error:", error);
             }
         });

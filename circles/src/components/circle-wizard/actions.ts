@@ -14,7 +14,9 @@ import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { generateLocalDidAndPublicKey } from "@/lib/auth/local-identity";
 import { getUser, getUserPrivate } from "@/lib/data/user"; // Corrected import for getUserPrivate
 import { features, getDefaultModules } from "@/lib/data/constants";
-import { isFile, saveFile, deleteFile } from "@/lib/data/storage";
+import { isFile, saveFile, deleteFile, deleteUploadedFiles, getCircleFileUrls } from "@/lib/data/storage";
+import { getImageUploadErrorMessage } from "@/lib/media/sanitize-image";
+import { isStockCoverUrl } from "@/lib/default-heroes";
 import { addMember } from "@/lib/data/member";
 import { revalidatePath } from "next/cache";
 import {
@@ -499,16 +501,24 @@ export async function saveProfileAction(
             throw new Error("Circle not found for profile update.");
         }
 
+        // Files uploaded by this save, removed again if a later upload is rejected
+        const uploadedUrls: string[] = [];
+
         // Handle profile picture upload
         if (isFile(picture)) {
             try {
                 updateData.picture = await saveFile(picture, "picture", circleId, true);
+                uploadedUrls.push(updateData.picture.url);
                 needUpdate = true;
                 revalidatePath(updateData.picture.url); // Revalidate picture path
             } catch (error) {
                 console.error("Failed to save profile picture:", error);
+                return { success: false, message: getImageUploadErrorMessage(error) };
             }
         }
+
+        // Images the person removed; deleted only after the circle is saved
+        let removedImageUrls: string[] = [];
 
         // --- Handle 'images' array ---
         if (images) {
@@ -527,12 +537,21 @@ export async function saveProfileAction(
                             fileInfo: savedFileInfo,
                         });
                         finalImageUrls.add(savedFileInfo.url);
+                        uploadedUrls.push(savedFileInfo.url);
                         imagesChanged = true;
                         revalidatePath(savedFileInfo.url); // Revalidate new image path
                     } catch (uploadError) {
+                        // Nothing is saved: a rejected image fails the whole save rather than
+                        // silently dropping it (and with it the existing cover)
                         console.error("Failed to upload new image:", uploadError);
+                        await deleteUploadedFiles(uploadedUrls, getCircleFileUrls(existingCircle));
+                        return { success: false, message: getImageUploadErrorMessage(uploadError) };
                     }
                 } else if (imageItem.existingMediaUrl) {
+                    // Stock/default covers are never kept as uploads (see getCustomCoverImages)
+                    if (isStockCoverUrl(imageItem.existingMediaUrl)) {
+                        continue;
+                    }
                     const existingMedia = existingCircle.images?.find(
                         (m) => m.fileInfo.url === imageItem.existingMediaUrl,
                     );
@@ -551,17 +570,10 @@ export async function saveProfileAction(
                 }
             }
 
-            // Handle deletion
             const existingUrls = new Set(existingCircle.images?.map((m) => m.fileInfo.url) || []);
-            for (const urlToDelete of existingUrls) {
-                if (!finalImageUrls.has(urlToDelete)) {
-                    try {
-                        await deleteFile(urlToDelete);
-                        imagesChanged = true;
-                    } catch (deleteError) {
-                        console.error(`Failed to delete image ${urlToDelete}:`, deleteError);
-                    }
-                }
+            removedImageUrls = [...existingUrls].filter((url) => !finalImageUrls.has(url));
+            if (removedImageUrls.length > 0) {
+                imagesChanged = true;
             }
 
             if (imagesChanged || finalMediaArray.length !== (existingCircle.images?.length || 0)) {
@@ -573,6 +585,15 @@ export async function saveProfileAction(
 
         if (needUpdate) {
             await updateCircle(updateData, userDid);
+        }
+
+        // Handle deletion, now that the circle no longer references the removed images
+        for (const urlToDelete of removedImageUrls) {
+            try {
+                await deleteFile(urlToDelete);
+            } catch (deleteError) {
+                console.error(`Failed to delete image ${urlToDelete}:`, deleteError);
+            }
         }
 
         const updatedCircle = await getCircleById(circleId); // Fetch potentially updated circle

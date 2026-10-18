@@ -12,7 +12,8 @@
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { getCircleById, getPilotArtistCircleReadiness, updateCircle } from "@/lib/data/circle";
-import { saveFile } from "@/lib/data/storage";
+import { deleteUploadedFiles, getCircleFileUrls, saveFile } from "@/lib/data/storage";
+import { getImageUploadErrorMessage } from "@/lib/media/sanitize-image";
 import { revalidatePath } from "next/cache";
 import { Circle, FormSubmitResponse, Location, Media } from "@/models/models";
 import type { ImageItem } from "@/components/forms/controls/multi-image-uploader";
@@ -74,16 +75,32 @@ export async function savePilotPictureAction(
     }
 
     const update: Partial<Circle> = { _id: circleId };
+    // Files uploaded by this save, removed again if a later upload is rejected
+    const uploadedUrls: string[] = [];
 
     if (picture) {
-        update.picture = await saveFile(picture, "picture", circleId, true);
+        try {
+            update.picture = await saveFile(picture, "picture", circleId, true);
+        } catch (uploadError) {
+            console.error("Failed to upload pilot picture:", uploadError);
+            return { success: false, message: getImageUploadErrorMessage(uploadError) };
+        }
+        uploadedUrls.push(update.picture.url);
     }
 
     if (images.length > 0) {
         const finalMedia: Media[] = [];
         for (const item of images) {
             if (item.file) {
-                const savedFileInfo = await saveFile(item.file, "image", circleId, true);
+                let savedFileInfo;
+                try {
+                    savedFileInfo = await saveFile(item.file, "image", circleId, true);
+                } catch (uploadError) {
+                    console.error("Failed to upload pilot cover image:", uploadError);
+                    await deleteUploadedFiles(uploadedUrls, getCircleFileUrls(existingCircle));
+                    return { success: false, message: getImageUploadErrorMessage(uploadError) };
+                }
+                uploadedUrls.push(savedFileInfo.url);
                 finalMedia.push({ name: item.file.name, type: item.file.type, fileInfo: savedFileInfo });
             } else if (item.existingMediaUrl) {
                 const existingMedia = existingCircle.images?.find((m) => m.fileInfo.url === item.existingMediaUrl);

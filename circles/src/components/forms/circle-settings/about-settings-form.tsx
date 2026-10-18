@@ -67,6 +67,7 @@ import {
     type PeerifyVenueProfile,
 } from "@/lib/peerify/artist-profile";
 import { ABOUT_IMAGE_UPLOAD_MAX_BYTES, ABOUT_IMAGE_UPLOAD_MAX_MB } from "@/lib/image-upload-limits";
+import { getCustomCoverImages } from "@/lib/default-heroes";
 
 type AboutSettingsFormValues = {
     _id: any;
@@ -519,14 +520,14 @@ export function AboutSettingsForm({
             crewWelcomeMessage: circle.crewWelcomeMessage || "",
             picture: (circle.picture as any) || undefined, // Keep current picture for preview/update
             // cover: undefined as any, // Remove cover
-            images:
-                circle.images?.map(
-                    (media): ImageItem => ({
-                        id: media.fileInfo.url, // Use URL as ID for existing
-                        preview: media.fileInfo.url,
-                        existingMediaUrl: media.fileInfo.url,
-                    }),
-                ) || [], // Initialize images state
+            // Only real uploads: saved stock/default covers never show as an existing image
+            images: getCustomCoverImages(circle.images).map(
+                (media): ImageItem => ({
+                    id: media.fileInfo.url, // Use URL as ID for existing
+                    preview: media.fileInfo.url,
+                    existingMediaUrl: media.fileInfo.url,
+                }),
+            ), // Initialize images state
             isPublic: circle.isPublic !== false, // Default to true if not set
             showAdminsPublicly: circle.showAdminsPublicly !== false, // Keep existing circles visible unless explicitly turned off
             // Opposite polarity from isPublic/showAdminsPublicly above: default OFF unless explicitly true.
@@ -2149,7 +2150,7 @@ export function AboutSettingsForm({
                                             : "Add images to showcase and represent your circle. Drag to reorder."}
                                     </p>
                                     <MultiImageUploader
-                                        initialImages={circle.images || []} // Pass original images
+                                        initialImages={getCustomCoverImages(circle.images)} // Real uploads only
                                         onChange={(items) => {
                                             form.clearErrors("images");
                                             field.onChange(items);

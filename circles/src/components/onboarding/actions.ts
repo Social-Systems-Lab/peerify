@@ -21,7 +21,9 @@ import {
 } from "@/models/models"; // Added Media, FileInfo
 import { ImageItem } from "@/components/forms/controls/multi-image-uploader"; // Import ImageItem
 import { revalidatePath } from "next/cache";
-import { isFile, saveFile, deleteFile } from "@/lib/data/storage"; // Added isFile, saveFile, deleteFile
+import { isFile, saveFile, deleteFile, deleteUploadedFiles, getCircleFileUrls } from "@/lib/data/storage"; // Added isFile, saveFile, deleteFile
+import { getImageUploadErrorMessage } from "@/lib/media/sanitize-image";
+import { isStockCoverUrl } from "@/lib/default-heroes";
 import { updateDonationIntent } from "@/lib/data/user";
 
 type SaveMissionActionResponse = {
@@ -406,13 +408,18 @@ export const saveProfileAction = async (
             content,
         };
 
+        // Files uploaded by this save, removed again if a later upload is rejected
+        const uploadedUrls: string[] = [];
+
         // Handle picture upload (keeping existing logic for profile picture)
         if (isFile(picture)) {
             try {
                 circle.picture = await saveFile(picture, "picture", circleId, true);
+                uploadedUrls.push(circle.picture.url);
                 revalidatePath(circle.picture.url);
             } catch (uploadError) {
                 console.error("Failed to upload profile picture:", uploadError);
+                return { success: false, message: getImageUploadErrorMessage(uploadError) };
             }
         }
 
@@ -420,6 +427,8 @@ export const saveProfileAction = async (
         const finalMediaArray: Media[] = [];
         const finalImageUrls = new Set<string>();
         const existingCircle = await getCircleById(circleId); // Fetch existing circle data
+        // Images the person removed; deleted only after the circle is saved
+        let removedImageUrls: string[] = [];
 
         if (images && existingCircle) {
             for (const imageItem of images) {
@@ -434,13 +443,22 @@ export const saveProfileAction = async (
                             fileInfo: savedFileInfo,
                         });
                         finalImageUrls.add(savedFileInfo.url);
+                        uploadedUrls.push(savedFileInfo.url);
                         revalidatePath(savedFileInfo.url);
                         console.log(`Uploaded successfully: ${savedFileInfo.url}`);
                     } catch (uploadError) {
+                        // Nothing is saved: a rejected image fails the whole save rather than
+                        // silently dropping it (and with it the existing cover)
                         console.error("Failed to upload new profile image:", uploadError);
+                        await deleteUploadedFiles(uploadedUrls, getCircleFileUrls(existingCircle));
+                        return { success: false, message: getImageUploadErrorMessage(uploadError) };
                     }
                 } else if (imageItem.existingMediaUrl) {
-                    // Existing image
+                    // Existing image. Stock/default covers are never kept as uploads (see
+                    // getCustomCoverImages)
+                    if (isStockCoverUrl(imageItem.existingMediaUrl)) {
+                        continue;
+                    }
                     const existingMedia = existingCircle.images?.find(
                         (m) => m.fileInfo.url === imageItem.existingMediaUrl,
                     );
@@ -459,19 +477,8 @@ export const saveProfileAction = async (
                 }
             }
 
-            // Handle deletion
             const existingUrls = new Set(existingCircle.images?.map((m) => m.fileInfo.url) || []);
-            for (const urlToDelete of existingUrls) {
-                if (!finalImageUrls.has(urlToDelete)) {
-                    try {
-                        console.log(`Deleting removed profile image: ${urlToDelete}`);
-                        await deleteFile(urlToDelete);
-                        console.log(`Deleted successfully: ${urlToDelete}`);
-                    } catch (deleteError) {
-                        console.error(`Failed to delete profile image ${urlToDelete}:`, deleteError);
-                    }
-                }
-            }
+            removedImageUrls = [...existingUrls].filter((url) => !finalImageUrls.has(url));
         }
         circle.images = finalMediaArray;
         // --- End Handle 'images' array ---
@@ -484,6 +491,17 @@ export const saveProfileAction = async (
         }
 
         await updateCircle(circle, userDid);
+
+        // Handle deletion, now that the circle no longer references the removed images
+        for (const urlToDelete of removedImageUrls) {
+            try {
+                console.log(`Deleting removed profile image: ${urlToDelete}`);
+                await deleteFile(urlToDelete);
+                console.log(`Deleted successfully: ${urlToDelete}`);
+            } catch (deleteError) {
+                console.error(`Failed to delete profile image ${urlToDelete}:`, deleteError);
+            }
+        }
 
         // Clear page cache so pages update
         let circlePath = await getCirclePath(circle);

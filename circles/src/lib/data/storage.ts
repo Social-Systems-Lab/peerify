@@ -291,3 +291,31 @@ export const deleteFile = async (fileUrl: string): Promise<void> => {
         throw error;
     }
 };
+
+// Removes files a save already uploaded when a later upload in the same save is rejected, so the
+// failed save leaves no orphaned objects behind. Best effort: failures are logged, not thrown.
+// Upload names carry a millisecond timestamp, so a new upload can't normally share a URL with a
+// file the circle already uses; any URL in `inUseUrls` is skipped anyway, so a live file is never
+// deleted even if the clock went backwards.
+export const deleteUploadedFiles = async (fileUrls: string[], inUseUrls: Iterable<string> = []): Promise<void> => {
+    const keep = new Set(inUseUrls);
+    for (const fileUrl of fileUrls) {
+        if (keep.has(fileUrl)) {
+            console.warn(`Not cleaning up ${fileUrl}: the circle still uses it`);
+            continue;
+        }
+        try {
+            await deleteFile(fileUrl);
+        } catch (error) {
+            console.error(`Failed to clean up upload ${fileUrl}:`, error);
+        }
+    }
+};
+
+/** Every file URL a circle currently references (picture and cover images). */
+type CircleFileRefs = { picture?: { url?: string }; images?: { fileInfo?: { url?: string } }[] };
+
+export const getCircleFileUrls = (circle?: CircleFileRefs | null): string[] =>
+    [circle?.picture?.url, ...(circle?.images ?? []).map((image) => image.fileInfo?.url)].filter(
+        (url): url is string => Boolean(url),
+    );
