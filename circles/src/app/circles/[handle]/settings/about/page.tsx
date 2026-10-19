@@ -81,7 +81,10 @@ export default async function AboutSettingsPage(props: PageProps) {
     // An invitation only stores the invitee's did (no Member doc exists until they accept), so
     // their name/handle/picture has to come from their own circle.
     const invitedCircles = pendingAdminInvitationDocs.length
-        ? await getCirclesByDids(pendingAdminInvitationDocs.map((invitation) => invitation.invitedUserDid))
+        ? await getCirclesByDids(
+              pendingAdminInvitationDocs.map((invitation) => invitation.invitedUserDid),
+              { identityOnly: true },
+          )
         : [];
     const pendingAdminInvitations: PendingAdminInvitationDisplay[] = pendingAdminInvitationDocs.map((invitation) => {
         const invitedCircle = invitedCircles.find((invitee) => invitee.did === invitation.invitedUserDid);

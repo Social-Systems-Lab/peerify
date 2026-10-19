@@ -2,7 +2,7 @@
 // Supports only what the tests' subjects use: equality (a null filter value also matches a missing
 // field; a scalar matches an array field that contains it, as in MongoDB), dotted paths, $in, $nin,
 // $ne, $exists, $not, $size, $gt/$gte/$lt/$lte, RegExp values, top-level $or/$and, find().toArray() and
-// find() with sort/limit, countDocuments, deleteMany,
+// find() with sort/limit, inclusion projections (dotted paths too), countDocuments, deleteMany,
 // and updateOne / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
 // between its match and its write).
 
@@ -86,6 +86,27 @@ export const matchesFilter = (doc: Doc, filter: Doc): boolean =>
         return matchesCondition(getPath(doc, key), condition);
     });
 
+// Inclusion projections only (what the code under test uses), dotted paths included; _id always kept.
+const applyProjection = (doc: Doc, projection?: Record<string, 0 | 1>): Doc => {
+    if (!projection) {
+        return { ...doc };
+    }
+    const picked: Doc = { _id: doc._id };
+    for (const key of Object.keys(projection)) {
+        const value = getPath(doc, key);
+        if (value === undefined) {
+            continue;
+        }
+        const parts = key.split(".");
+        let target = picked;
+        for (const part of parts.slice(0, -1)) {
+            target = target[part] ??= {};
+        }
+        target[parts[parts.length - 1]] = value;
+    }
+    return picked;
+};
+
 export const createFakeCollection = (initial: Doc[] = []) => {
     const docs: Doc[] = initial.map((d) => ({ ...d }));
     const queries: Doc[] = [];
@@ -99,25 +120,16 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             if (!found) {
                 return null;
             }
-            if (options?.projection) {
-                const picked: Doc = { _id: found._id };
-                for (const key of Object.keys(options.projection)) {
-                    if (key in found) {
-                        picked[key] = found[key];
-                    }
-                }
-                return picked;
-            }
-            return { ...found };
+            return applyProjection(found, options?.projection);
         },
-        find(filter: Doc) {
+        find(filter: Doc, options?: { projection?: Record<string, 0 | 1> }) {
             queries.push(filter);
             // Chainable like a driver cursor: sort/limit in any order, then toArray.
             const cursor = (sortSpec?: Record<string, 1 | -1>, max?: number) => ({
                 sort: (spec: Record<string, 1 | -1>) => cursor(spec, max),
                 limit: (n: number) => cursor(sortSpec, n),
                 toArray: async () => {
-                    const found = docs.filter((d) => matchesFilter(d, filter)).map((d) => ({ ...d }));
+                    const found = docs.filter((d) => matchesFilter(d, filter));
                     if (sortSpec) {
                         const keys = Object.entries(sortSpec);
                         found.sort((x, y) => {
@@ -130,7 +142,8 @@ export const createFakeCollection = (initial: Doc[] = []) => {
                             return 0;
                         });
                     }
-                    return max === undefined ? found : found.slice(0, max);
+                    const limited = max === undefined ? found : found.slice(0, max);
+                    return limited.map((d) => applyProjection(d, options?.projection));
                 },
             });
             return cursor();

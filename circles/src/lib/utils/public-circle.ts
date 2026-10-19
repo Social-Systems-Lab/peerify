@@ -62,6 +62,9 @@ const PUBLIC_CIRCLE_FIELDS = [
     "userGroups",
     // The music page marks the featured track with it.
     "featuredTrackId",
+    // A venue's default event feature tags (not personal data): the event form pre-fills a new
+    // event's tags from the host circle picked in global create (Tim, 2026-10-19).
+    "defaultEventTags",
 ] as const satisfies readonly (keyof Circle)[];
 
 const PUBLIC_LOCATION_FIELDS = ["city", "region", "country", "countryCode", "precision"] as const;

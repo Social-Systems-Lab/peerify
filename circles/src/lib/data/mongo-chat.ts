@@ -377,7 +377,7 @@ const mapConversationsToChatRoomDisplays = async (
     const participantDids = Array.from(
         new Set(conversations.flatMap((conversation) => conversation.participants || [])),
     );
-    const circles = participantDids.length ? await getCirclesByDids(participantDids) : [];
+    const circles = participantDids.length ? await getCirclesByDids(participantDids, { viewerDid: userDid }) : [];
     const circleByDid = new Map(circles.map((circle) => [circle.did, circle]));
 
     const circleIdsToLoad = Array.from(

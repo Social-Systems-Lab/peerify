@@ -14,7 +14,6 @@ import {
 } from "@/lib/data/chat";
 import { ChatConversations, ChatRoomMembers, Circles, Members } from "@/lib/data/db";
 import { features } from "@/lib/data/constants";
-import { getCirclesByDids } from "@/lib/data/circle";
 import {
     ensureConversationForCircle,
     listConversationMedia,
