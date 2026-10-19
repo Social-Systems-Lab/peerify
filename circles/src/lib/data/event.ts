@@ -24,7 +24,7 @@ import { notifyEventInvitation } from "./notifications";
 import { getUserPrivate } from "./user";
 import { isAuthorized } from "../auth/auth";
 import { features } from "./constants";
-import { getCircleById } from "./circle";
+import { getCircleById, resolveViewerIsAdmin } from "./circle";
 import { isAcceptedConnectionForUserDid } from "./relationships";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 
@@ -1391,6 +1391,46 @@ export const canAnonymousViewCircleEvents = async (circle: Circle): Promise<bool
 };
 
 /**
+ * Whether this viewer may see the circle's events at all: the same rule getEventAction and the
+ * event page use (logged out: canAnonymousViewCircleEvents; logged in: events.view). It doesn't
+ * look at single events: callers must still keep logged-out viewers away from private events, as
+ * getPublicEventsByCircleId does.
+ */
+export const canViewerSeeCircleEvents = async (circle: Circle, viewerDid?: string): Promise<boolean> => {
+    if (!viewerDid) return canAnonymousViewCircleEvents(circle);
+    if (!circle._id) return false;
+    return isAuthorized(viewerDid, circle._id.toString(), features.events.view);
+};
+
+/**
+ * The event location to hand this viewer outside the app's own pages (ICS export). The stored
+ * location as is when locationDisclosure is "public" (the default), or for the event's author, the
+ * host circle's event moderators and platform admins. Everyone else gets the public display from
+ * sanitizePeerifyPublicEventDisplay with street and coordinates removed, even an organiser-chosen
+ * public map point: an address line only ever names the area.
+ */
+export const getEventLocationForViewer = async (
+    event: Pick<EventDisplay, "location" | "metadata" | "createdBy" | "circleId">,
+    viewerDid?: string,
+): Promise<Location | undefined> => {
+    if (getPeerifyEventLocationDisclosure(event as EventDisplay) === "public") {
+        return event.location;
+    }
+    if (viewerDid) {
+        if (event.createdBy === viewerDid || (await resolveViewerIsAdmin(viewerDid))) {
+            return event.location;
+        }
+        if (event.circleId && (await isAuthorized(viewerDid, event.circleId, features.events.moderate))) {
+            return event.location;
+        }
+    }
+    const publicLocation = sanitizePeerifyPublicEventDisplay(event as EventDisplay).location;
+    if (!publicLocation) return undefined;
+    const { street: _street, lngLat: _lngLat, ...areaOnly } = publicLocation;
+    return areaOnly;
+};
+
+/**
  * Get open events across all circles for map display.
  * Filters by optional date range overlap or, if no range provided, to upcoming (endAt >= now).
  * Ensures events have either an exact location or a Peerify public-safe map location with lngLat.
@@ -1889,7 +1929,9 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
             { $sort: { startAt: 1 } },
         ]).toArray()) as EventDisplay[];
 
-        return events;
+        // This list reaches anonymous visitors (events panels): same public shape as the map —
+        // locationDisclosure applied, privateLocationNote and other private metadata dropped.
+        return events.map(sanitizePeerifyPublicEventDisplay);
     } catch (error) {
         console.error("Error getting open events for list:", error);
         throw error;

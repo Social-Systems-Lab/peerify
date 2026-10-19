@@ -29,7 +29,9 @@ import {
     getCircleById,
     getCirclesByIds,
     isCirclePublished,
+    resolveViewerIsAdmin,
 } from "@/lib/data/circle";
+import { toPublicCircleListItem } from "@/lib/utils/public-circle";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate, getPrivateUserByDid, updateUser } from "@/lib/data/user";
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
@@ -1355,12 +1357,20 @@ export async function getEventArtistsAction(
         const circle = await getCircleByHandle(circleHandle);
         if (!circle) return defaultResult;
 
-        const event = await getEventById(eventId, userDid || "");
+        // Logged out: only for an event the public may open, the same public path getEventAction
+        // uses (circle's events open to everyone, event open and not private).
+        let event: EventDisplay | null = null;
+        if (userDid) {
+            event = await getEventById(eventId, userDid);
+        } else if (await canAnonymousViewCircleEvents(circle)) {
+            event = await getPublicEventByIdForCircle(circle._id!.toString(), eventId);
+        }
         const artistCircleIds = event?.additionalArtistCircleIds || [];
         if (artistCircleIds.length === 0) return defaultResult;
 
         const artistCircles = await getCirclesByIds(artistCircleIds, userDid);
         const adminDelegatedIds = event?.artistAdminCircleIds || [];
+        const viewerIsPlatformAdmin = await resolveViewerIsAdmin(userDid);
 
         const bands = await Promise.all(
             artistCircleIds.map(async (circleId): Promise<EventArtistBand | null> => {
@@ -1369,7 +1379,9 @@ export async function getEventArtistsAction(
 
                 const currentUserIsAdmin = userDid ? await isCircleAdmin(userDid, circleId) : false;
                 return {
-                    circle: artistCircle,
+                    // Public list shape: no street, exact pin or private metadata unless the viewer
+                    // owns that artist circle or is a platform admin.
+                    circle: toPublicCircleListItem(artistCircle, { viewerDid: userDid, viewerIsPlatformAdmin }),
                     isAdminDelegated: adminDelegatedIds.includes(circleId),
                     currentUserIsAdmin,
                 };
@@ -1398,8 +1410,10 @@ export async function searchArtistCirclesAction(
         // with its own delegated admins) or circleType "user" (a solo artist using their personal
         // account), so search across all circle types and filter by identity afterward — mirrors
         // how map-explorer's search fetches broadly then filters client-side. Drafts are left out:
-        // their pages show "not found" to everyone but their own admins.
-        const circles = await getCirclesBySearchQuery(query, limit * 3);
+        // their pages show "not found" to everyone but their own admins. Results are already
+        // public-shaped for this viewer (getCirclesBySearchQuery).
+        const userDid = await getAuthenticatedUserDid();
+        const circles = await getCirclesBySearchQuery(query, limit * 3, undefined, userDid);
         return {
             circles: circles
                 .filter((circle) => isPeerifyArtistIdentity(circle) && isCirclePublished(circle))
@@ -1920,7 +1934,11 @@ export async function getCirclesBySearchQueryAction(
     const defaultResult: GetCirclesBySearchQueryActionResult = { circles: [] };
 
     try {
-        const circles = await getCirclesBySearchQuery(query, limit, circleType);
+        // Only the signed-in global-create picker uses this; it searches every circle by name.
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return defaultResult;
+
+        const circles = await getCirclesBySearchQuery(query, limit, circleType, userDid);
         return { circles };
     } catch (error) {
         console.error("Error in getCirclesBySearchQueryAction:", error);

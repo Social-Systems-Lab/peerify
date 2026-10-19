@@ -1,7 +1,8 @@
 // Minimal in-memory stand-in for a MongoDB collection, for tests that mock "@/lib/data/db".
 // Supports only what the tests' subjects use: equality (a null filter value also matches a missing
 // field; a scalar matches an array field that contains it, as in MongoDB), dotted paths, $in, $nin,
-// $ne, $exists, $gt/$gte/$lt/$lte, top-level $or/$and, find().toArray(), countDocuments, deleteMany,
+// $ne, $exists, $not, $size, $gt/$gte/$lt/$lte, RegExp values, top-level $or/$and, find().toArray() and
+// find() with sort/limit, countDocuments, deleteMany,
 // and updateOne / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
 // between its match and its write).
 
@@ -38,6 +39,9 @@ const matchesCondition = (value: unknown, condition: unknown): boolean => {
     if (condition === null) {
         return value === null || value === undefined;
     }
+    if (condition instanceof RegExp) {
+        return typeof value === "string" && condition.test(value);
+    }
     if (condition && typeof condition === "object" && !(condition instanceof Date) && !Array.isArray(condition)) {
         const ops = condition as Record<string, unknown>;
         const keys = Object.keys(ops);
@@ -53,6 +57,10 @@ const matchesCondition = (value: unknown, condition: unknown): boolean => {
                         return !(arg as unknown[]).some((candidate) => matchesCondition(value, candidate));
                     case "$exists":
                         return (value !== undefined) === Boolean(arg);
+                    case "$not":
+                        return !matchesCondition(value, arg);
+                    case "$size":
+                        return Array.isArray(value) && value.length === arg;
                     case "$gt":
                     case "$gte":
                     case "$lt":
@@ -104,7 +112,28 @@ export const createFakeCollection = (initial: Doc[] = []) => {
         },
         find(filter: Doc) {
             queries.push(filter);
-            return { toArray: async () => docs.filter((d) => matchesFilter(d, filter)).map((d) => ({ ...d })) };
+            // Chainable like a driver cursor: sort/limit in any order, then toArray.
+            const cursor = (sortSpec?: Record<string, 1 | -1>, max?: number) => ({
+                sort: (spec: Record<string, 1 | -1>) => cursor(spec, max),
+                limit: (n: number) => cursor(sortSpec, n),
+                toArray: async () => {
+                    const found = docs.filter((d) => matchesFilter(d, filter)).map((d) => ({ ...d }));
+                    if (sortSpec) {
+                        const keys = Object.entries(sortSpec);
+                        found.sort((x, y) => {
+                            for (const [key, dir] of keys) {
+                                const a = getPath(x, key) as any;
+                                const b = getPath(y, key) as any;
+                                if (a < b) return -dir;
+                                if (a > b) return dir;
+                            }
+                            return 0;
+                        });
+                    }
+                    return max === undefined ? found : found.slice(0, max);
+                },
+            });
+            return cursor();
         },
         async countDocuments(filter: Doc) {
             return docs.filter((d) => matchesFilter(d, filter)).length;
