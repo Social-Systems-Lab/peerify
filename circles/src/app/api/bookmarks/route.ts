@@ -17,7 +17,7 @@ export async function GET(): Promise<NextResponse<Circle[]>> {
       return NextResponse.json([]);
     }
 
-    const circles = await getCirclesByIds(ids, userDid);
+    const circles = await getCirclesByIds(ids, { viewerDid: userDid });
     return NextResponse.json(circles);
   } catch (error) {
     console.error("Failed to fetch bookmarked circles via API:", error);

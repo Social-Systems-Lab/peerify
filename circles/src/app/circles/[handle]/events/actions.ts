@@ -29,9 +29,7 @@ import {
     getCircleById,
     getCirclesByIds,
     isCirclePublished,
-    resolveViewerIsAdmin,
 } from "@/lib/data/circle";
-import { toPublicCircleListItem } from "@/lib/utils/public-circle";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate, getPrivateUserByDid, updateUser } from "@/lib/data/user";
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
@@ -1368,9 +1366,10 @@ export async function getEventArtistsAction(
         const artistCircleIds = event?.additionalArtistCircleIds || [];
         if (artistCircleIds.length === 0) return defaultResult;
 
-        const artistCircles = await getCirclesByIds(artistCircleIds, userDid);
+        // Public list shape: no street, exact pin or private metadata unless the viewer owns that
+        // artist circle or is a platform admin. Already shaped: redacting again would drop the pin.
+        const artistCircles = await getCirclesByIds(artistCircleIds, { viewerDid: userDid });
         const adminDelegatedIds = event?.artistAdminCircleIds || [];
-        const viewerIsPlatformAdmin = await resolveViewerIsAdmin(userDid);
 
         const bands = await Promise.all(
             artistCircleIds.map(async (circleId): Promise<EventArtistBand | null> => {
@@ -1379,9 +1378,7 @@ export async function getEventArtistsAction(
 
                 const currentUserIsAdmin = userDid ? await isCircleAdmin(userDid, circleId) : false;
                 return {
-                    // Public list shape: no street, exact pin or private metadata unless the viewer
-                    // owns that artist circle or is a platform admin.
-                    circle: toPublicCircleListItem(artistCircle, { viewerDid: userDid, viewerIsPlatformAdmin }),
+                    circle: artistCircle,
                     isAdminDelegated: adminDelegatedIds.includes(circleId),
                     currentUserIsAdmin,
                 };
@@ -1766,7 +1763,7 @@ export async function getInvitedUsersAction(
         const invitedDids = Array.from(new Set(invitations.map((inv: any) => inv.userDid).filter(Boolean)));
         if (invitedDids.length === 0) return defaultResult;
 
-        const users = await getCirclesByDids(invitedDids);
+        const users = await getCirclesByDids(invitedDids, { viewerDid: userDid });
         return { users };
     } catch (error) {
         console.error("Error in getInvitedUsersAction:", error);
@@ -1840,7 +1837,7 @@ export async function getCircleMembersAction(circleHandle: string): Promise<GetC
 
         const members = await getMembers(circle._id!.toString());
         const memberDids = members.map((m) => m.userDid);
-        const users = await getCirclesByDids(memberDids);
+        const users = await getCirclesByDids(memberDids, { viewerDid: userDid });
 
         // Filter to only users who themselves have permission to view events in this circle
         const eligibilityChecks = await Promise.all(

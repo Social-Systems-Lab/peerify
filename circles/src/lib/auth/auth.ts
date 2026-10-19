@@ -12,7 +12,7 @@ import { createSession, generateUserToken, verifyUserToken } from "./jwt";
 import { readAuthToken } from "./cookie";
 import { createNewUser, getUserById, getUserPrivate } from "../data/user";
 import { addMember, getMembers } from "../data/member";
-import { getCircleById, getCirclesByDids, getCirclesByIds, getDefaultCircle } from "../data/circle";
+import { getCircleById, getCirclesByDids, getDefaultCircle } from "../data/circle";
 import { generateSecureToken, hashToken, trySendEmail } from "../data/email";
 import { isVerifiedUser } from "./verification";
 import { buildEmailVerificationLink, EMAIL_VERIFICATION_TOKEN_TTL_MS } from "./verification-email";
@@ -413,7 +413,7 @@ export const getAuthorizedMembers = async (circle: string | Circle, feature: Fea
     }
 
     const memberDids = members.map((member) => member.userDid);
-    return await getCirclesByDids(memberDids);
+    return await getCirclesByDids(memberDids, { identityOnly: true });
 };
 
 export async function createUserSession(_user: UserPrivate, userDid: string): Promise<string> {

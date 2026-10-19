@@ -341,6 +341,7 @@ export async function getShiftViewerContextAction(
                             .filter((did): did is string => typeof did === "string" && did.length > 0),
                     ),
                 ),
+                { viewerDid: userDid },
             ),
         ]);
 

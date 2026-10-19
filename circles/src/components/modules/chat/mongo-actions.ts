@@ -447,7 +447,7 @@ export const fetchRecentMessagesAction = async (
         const peerifyBookingDisplayContext = await getPeerifyBookingDisplayContext(access.conversation);
 
         const senderDids = Array.from(new Set(docs.map((doc) => doc.senderDid)));
-        const senders = senderDids.length ? await getCirclesByDids(senderDids) : [];
+        const senders = senderDids.length ? await getCirclesByDids(senderDids, { viewerDid: userDid }) : [];
         const senderByDid = new Map(senders.map((circle) => [circle.did, circle]));
         for (const senderDid of senderDids) {
             if (!senderByDid.has(senderDid)) {
@@ -591,7 +591,7 @@ export const fetchMongoMessagesAction = async (
         const peerifyBookingDisplayContext = await getPeerifyBookingDisplayContext(access.conversation);
 
         const senderDids = Array.from(new Set(docs.map((doc) => doc.senderDid)));
-        const senders = senderDids.length ? await getCirclesByDids(senderDids) : [];
+        const senders = senderDids.length ? await getCirclesByDids(senderDids, { viewerDid: userDid }) : [];
         const senderByDid = new Map(senders.map((circle) => [circle.did, circle]));
         for (const senderDid of senderDids) {
             if (!senderByDid.has(senderDid)) {
@@ -1701,7 +1701,7 @@ export const fetchThreadRepliesAction = async (
 
         // Enrich with author info
         const senderDids = Array.from(new Set(docs.map((doc) => doc.senderDid)));
-        const senders = senderDids.length ? await getCirclesByDids(senderDids) : [];
+        const senders = senderDids.length ? await getCirclesByDids(senderDids, { viewerDid: userDid }) : [];
         const senderByDid = new Map(senders.map((circle) => [circle.did, circle]));
         const replyIds = Array.from(new Set(docs.map((doc) => doc.replyToMessageId).filter(Boolean) as string[]));
         const replyObjectIds = replyIds.map((id) => new ObjectId(id));
@@ -1824,7 +1824,7 @@ export const fetchTopicStartersAction = async (
         const peerifyBookingDisplayContext = await getPeerifyBookingDisplayContext(access.conversation);
 
         const senderDids = Array.from(new Set(docs.map((doc) => doc.senderDid)));
-        const senders = senderDids.length ? await getCirclesByDids(senderDids) : [];
+        const senders = senderDids.length ? await getCirclesByDids(senderDids, { viewerDid: userDid }) : [];
         const senderByDid = new Map(senders.map((circle) => [circle.did, circle]));
         for (const senderDid of senderDids) {
             if (!senderByDid.has(senderDid)) {

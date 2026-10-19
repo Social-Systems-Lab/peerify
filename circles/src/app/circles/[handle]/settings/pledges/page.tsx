@@ -36,7 +36,7 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
 
     const [messagedPledgerDids, activeCircles] = await Promise.all([
         userDid ? listMessagedRecipientDids(userDid, uniquePledgerDids) : Promise.resolve(new Set<string>()),
-        getCirclesByDids(uniquePledgerDids),
+        getCirclesByDids(uniquePledgerDids, { identityOnly: true }),
     ]);
     // A pledger's account may have been deleted and re-created since they pledged (same email,
     // new did/handle) — the pledge row still renders fine from its own denormalized snapshot,
