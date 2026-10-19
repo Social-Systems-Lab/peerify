@@ -21,7 +21,12 @@ import { ObjectId } from "mongodb";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
-import { getOfferPinLocation, redactCircleLocationForViewer, viewerBypassesLocationRedaction } from "../utils";
+import {
+    escapeRegex,
+    getOfferPinLocation,
+    redactCircleLocationForViewer,
+    viewerBypassesLocationRedaction,
+} from "../utils";
 import { toPublicCircleListItem, toPublicLocation } from "../utils/public-circle";
 import { deleteVbdCircle, deleteVbdPost, upsertVbdCircles } from "./vdb";
 import { createDefaultChatRooms, getChatRoomByHandle, updateChatRoom } from "./chat";
@@ -340,6 +345,8 @@ const OFFER_MAP_PIN_PROJECTION = {
     handle: 1,
     picture: 1,
     "metadata.peerify.identityType": 1,
+    // getOfferPinLocation's venue ceiling: no exact pin unless the venue's address is public.
+    "metadata.peerify.venueProfile.addressVisibility": 1,
 } as const;
 
 type OfferMapCircleRow = {
@@ -349,7 +356,7 @@ type OfferMapCircleRow = {
     name?: string;
     handle?: string;
     picture?: FileInfo;
-    metadata?: { peerify?: { identityType?: string } };
+    metadata?: { peerify?: { identityType?: string; venueProfile?: { addressVisibility?: string } } };
 };
 
 // Offer-pin location (getOfferPinLocation, lib/utils.ts) is decoupled entirely from the profile's own location.precision-gated
@@ -357,7 +364,8 @@ type OfferMapCircleRow = {
 // bypass, same value for everyone. Two cases:
 // - precision 4 confirmed by the owner (exactConfirmedAt, "Show my exact location publicly"):
 //   the real lngLat. Being precisely findable is the point of a venue listing, but it has to be
-//   an explicit choice: LocationPicker used to store 4 by default.
+//   an explicit choice: LocationPicker used to store 4 by default. A venue also needs
+//   addressVisibility "public", the same ceiling its own profile pin has.
 // - anything else: a circle's own precision choice governs OTHER surfaces but must never silently
 //   block Offers pins from rendering at all — that was a real bug (toggle on, count shows, no
 //   pin, no explanation why). Falls back to a coarse coordinate snapped to the public ~5 km grid
@@ -424,7 +432,7 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
         for (const offering of row.tourTeamOfferings ?? []) {
             pins.push({
                 _id: `${row._id}:${offering.id}`,
-                location: getOfferPinLocation(row.location),
+                location: getOfferPinLocation(row),
                 offerType: offering.type,
                 offerLabel: offering.type === "custom" ? offering.label : undefined,
                 ...(isVenue
@@ -998,19 +1006,35 @@ export const getCirclePath = async (circle: Partial<Circle>): Promise<string> =>
     return `/circles/${circle.handle}/`;
 };
 
-export const getCirclesBySearchQuery = async (query: string, limit: number = 10, circleType?: CircleType) => {
-    const regex = new RegExp(query, "i"); // case-insensitive search
-    const filter: any = { name: regex };
+// Name search for the pickers (global create, event artists). The query is matched literally,
+// never as a regex. Drafts only come back to their own owner (and platform admins), and every
+// result is shaped by toPublicCircleListItem: no street, exact pin or private metadata for anyone
+// else. Owners and platform admins get their circles unchanged, as before.
+export const getCirclesBySearchQuery = async (
+    query: string,
+    limit: number = 10,
+    circleType?: CircleType,
+    viewerDid?: string,
+): Promise<Circle[]> => {
+    const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
+    const conditions: any[] = [{ name: new RegExp(escapeRegex(query), "i") }];
     if (circleType) {
-        filter.circleType = circleType;
+        conditions.push({ circleType });
     }
-    const circles = await Circles.find(filter, { projection: SAFE_CIRCLE_PROJECTION }).limit(limit).toArray();
-    circles.forEach((circle: Circle) => {
-        if (circle._id) {
-            circle._id = circle._id.toString();
-        }
-    });
-    return circles as Circle[];
+    if (!viewerIsAdmin) {
+        conditions.push({
+            $or: [getPublishedCircleQuery(), ...(viewerDid ? [{ did: viewerDid }, { createdBy: viewerDid }] : [])],
+        });
+    }
+    const circles = await Circles.find({ $and: conditions }, { projection: SAFE_CIRCLE_PROJECTION })
+        .limit(limit)
+        .toArray();
+    return circles.map((circle: Circle) =>
+        toPublicCircleListItem(
+            { ...circle, _id: circle._id?.toString() },
+            { viewerDid, viewerIsPlatformAdmin: viewerIsAdmin },
+        ),
+    );
 };
 
 /**

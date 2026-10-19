@@ -102,6 +102,9 @@ export function safeModifyAccessRules(
     return updatedRules;
 }
 
+// User input is matched literally, never as a pattern: "." must not match every name.
+export const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 export function getFullLocationName(location?: Location): string {
     if (!location) {
         return "";
@@ -170,17 +173,27 @@ function toUnconfirmedExactPublicLocation(location: Location): Location {
 }
 
 // Offers map pins (lib/data/circle.ts) — see the comment above its caller there. The same for
-// every viewer: the real pin and street only when the owner confirmed "exact"; otherwise city
-// level at most, with the pin snapped to the public ~5 km grid so it still renders.
-export function getOfferPinLocation(location: Location | undefined): Location | undefined {
-    if (!location?.lngLat) {
+// every viewer: the real pin and street only when the owner confirmed "exact" and, for a venue,
+// its addressVisibility is "public" (the same ceiling redactCircleLocationForViewer applies to the
+// venue's profile pin); otherwise city level at most, with the pin snapped to the public ~5 km
+// grid so it still renders. The street is never kept on that path, with or without a pin.
+// Venue is decided by identityType alone, the same test getOfferMapPins uses to attach identity.
+export function getOfferPinLocation(circle: Pick<Circle, "location" | "metadata">): Location | undefined {
+    const location = circle.location;
+    if (!location) {
         return location;
     }
-    if (hasConfirmedExactLocation(location)) {
+    const isVenue = circle.metadata?.peerify?.identityType === "venue";
+    const venueAddressPublic = getPeerifyVenueProfile(circle).addressVisibility === "public";
+    if (hasConfirmedExactLocation(location) && (!isVenue || venueAddressPublic)) {
         return location;
     }
     const { street: _street, exactConfirmedAt: _confirmed, ...rest } = location;
-    return { ...rest, precision: Math.min(location.precision ?? 2, 2), lngLat: coarsenLngLat(location.lngLat) };
+    const precision = Math.min(location.precision ?? 2, 2);
+    if (!location.lngLat) {
+        return { ...rest, precision };
+    }
+    return { ...rest, precision, lngLat: coarsenLngLat(location.lngLat) };
 }
 
 // Pure: returns a new Location object (or the same reference when nothing changes), never

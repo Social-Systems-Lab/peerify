@@ -91,7 +91,7 @@ for (const [name, circle] of CASES) {
         );
         assertNotExact(`${label} / list item`, toPublicCircleListItem(circle, { viewerDid, viewerIsPlatformAdmin: false }));
     }
-    assertNotExact(`${name} / offers pin`, getOfferPinLocation(circle.location));
+    assertNotExact(`${name} / offers pin`, getOfferPinLocation(circle));
 }
 
 // Unconfirmed exact still gets a pin on lists and the Offers map (unless the venue ceiling hides it).
@@ -99,18 +99,38 @@ const artistItem = toPublicCircleListItem(CASES[1][1], { viewerDid: undefined, v
 assert.equal(artistItem.location?.precision, 2);
 assert.equal(artistItem.location?.city, "Amsterdam");
 assert.deepEqual(artistItem.location?.lngLat, { lng: 4.9, lat: 52.35 });
-assert.deepEqual(getOfferPinLocation(CASES[1][1].location)?.lngLat, { lng: 4.9, lat: 52.35 });
+assert.deepEqual(getOfferPinLocation(CASES[1][1])?.lngLat, { lng: 4.9, lat: 52.35 });
 
 // Confirmed exact is shown exactly (venue only when its address is public too).
 const confirmedArtist = circleOf("artist", "circle", true);
 const shown = toPublicCircleListItem(confirmedArtist, { viewerDid: undefined, viewerIsPlatformAdmin: false });
 assert.equal(shown.location?.street, STREET);
 assert.deepEqual(shown.location?.lngLat, EXACT);
-assert.deepEqual(getOfferPinLocation(confirmedArtist.location)?.lngLat, EXACT);
+assert.deepEqual(getOfferPinLocation(confirmedArtist)?.lngLat, EXACT);
 assertNotExact(
     "confirmed venue, address private / list item",
     toPublicCircleListItem(circleOf("venue", "circle", true, "private"), { viewerDid: undefined, viewerIsPlatformAdmin: false }),
 );
+// Offers map: a venue's confirmed "exact" only counts when its address is public, the same ceiling
+// as its profile pin. No addressVisibility stored means the default, "private".
+for (const visibility of ["private", "city_area", undefined]) {
+    const venue = circleOf("venue", "circle", true, visibility);
+    assertNotExact(`confirmed venue, address ${visibility ?? "unset"} / offers pin`, getOfferPinLocation(venue));
+    assert.ok(
+        getOfferPinLocation(venue)?.lngLat,
+        `confirmed venue, address ${visibility ?? "unset"}: still gets a grid pin`,
+    );
+}
+assert.deepEqual(getOfferPinLocation(circleOf("venue", "circle", true, "public"))?.lngLat, EXACT);
+assert.equal(getOfferPinLocation(circleOf("venue", "circle", true, "public"))?.street, STREET);
+
+// No coordinates: still no street (it used to come back unchanged).
+const streetOnly = {
+    ...circleOf(undefined, "user", false),
+    location: { ...exactLocation(false), precision: 3, lngLat: undefined },
+};
+assertNotExact("street-level location without lngLat / offers pin", getOfferPinLocation(streetOnly as Circle));
+
 // Profile pages never show street/pin, confirmed or not.
 assertNotExact(
     "confirmed artist / profile page",
