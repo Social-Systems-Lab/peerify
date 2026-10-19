@@ -190,40 +190,49 @@ const DISCOVERY_CIRCLE_PROJECTION = {
     enabledModules: 1,
 } as const;
 
-// viewerDid is optional for backward compatibility with internal callers that don't render
-// tourTeamOfferings at all, but every caller that returns these circles to an end user (pins,
-// bookmarks, the circles list) should pass it — Crew Offers have no visibility field of their
-// own (see tourTeamOfferingSchema) and must never reach a viewer who isn't that circle's own
-// owner, a platform admin, or going through the dedicated crew-scoped getCrewOfferings flow.
-// Bookmarking/pinning someone else's profile is not consent to see their Crew Offers.
-export const getCirclesByIds = async (ids: string[], viewerDid?: string): Promise<Circle[]> => {
-    let objectIds = ids.map((id) => new ObjectId(id));
-    let circles = await Circles.find({ _id: { $in: objectIds } }, { projection: SAFE_CIRCLE_PROJECTION }).toArray();
-    const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
-    circles.forEach((circle: Circle) => {
-        if (!(viewerIsAdmin || (!!viewerDid && circle.did === viewerDid))) {
-            circle.tourTeamOfferings = undefined;
-        }
-        if (circle._id) {
-            circle._id = circle._id.toString();
-        }
-    });
-    return circles;
+export type CircleReadOptions = {
+    // Who the result is for. Without it, every circle comes back in the anonymous shape.
+    viewerDid?: string;
+    // Name/avatar/link only (IDENTITY_CIRCLE_PROJECTION), for server-side lookups and embeds.
+    identityOnly?: boolean;
+    // The full SAFE_CIRCLE_PROJECTION document, street and exact pin included. Only for code that
+    // keeps the result on the server, or a viewer it has already checked manages that circle.
+    includePrivate?: boolean;
 };
 
-// identityOnly: for callers that only render who someone is (name/avatar/link) to viewers other
-// than that person — see IDENTITY_CIRCLE_PROJECTION. Defaults to SAFE_CIRCLE_PROJECTION so
-// existing callers are unchanged.
-export const getCirclesByDids = async (dids: string[], options?: { identityOnly?: boolean }): Promise<Circle[]> => {
-    const projection = options?.identityOnly ? IDENTITY_CIRCLE_PROJECTION : SAFE_CIRCLE_PROJECTION;
-    let circles = await Circles.find({ did: { $in: dids } }, { projection }).toArray();
-    circles.forEach((circle: Circle) => {
+// Safe by default: every circle comes back as toPublicCircleListItem shapes it for the viewer
+// (city level unless the owner confirmed "exact", venue addressVisibility ceiling, public
+// metadata only). The circle's owner and platform admins get the whole document. Crew Offers
+// (tourTeamOfferings) have no visibility field of their own (see tourTeamOfferingSchema) and only
+// reach the owner or a platform admin, includePrivate or not: bookmarking someone's profile or
+// chatting with them is not consent to see their Crew Offers (crew members use getCrewOfferings).
+const getCirclesForViewer = async (filter: Record<string, unknown>, options: CircleReadOptions): Promise<Circle[]> => {
+    const { viewerDid, identityOnly, includePrivate } = options;
+    const projection = identityOnly ? IDENTITY_CIRCLE_PROJECTION : SAFE_CIRCLE_PROJECTION;
+    const circles = (await Circles.find(filter, { projection }).toArray()) as Circle[];
+    const viewerIsPlatformAdmin = identityOnly ? false : await resolveViewerIsAdmin(viewerDid);
+    return circles.map((circle) => {
         if (circle._id) {
             circle._id = circle._id.toString();
         }
+        if (identityOnly) {
+            return circle;
+        }
+        if (!(viewerIsPlatformAdmin || (!!viewerDid && circle.did === viewerDid))) {
+            circle.tourTeamOfferings = undefined;
+        }
+        if (includePrivate) {
+            return circle;
+        }
+        return toPublicCircleListItem(circle, { viewerDid, viewerIsPlatformAdmin });
     });
-    return circles;
 };
+
+export const getCirclesByIds = async (ids: string[], options: CircleReadOptions = {}): Promise<Circle[]> =>
+    getCirclesForViewer({ _id: { $in: ids.map((id) => new ObjectId(id)) } }, options);
+
+export const getCirclesByDids = async (dids: string[], options: CircleReadOptions = {}): Promise<Circle[]> =>
+    getCirclesForViewer({ did: { $in: dids } }, options);
 
 export const getDefaultCircle = async (inServerConfig: ServerSettings | null = null): Promise<Circle> => {
     if (process.env.IS_BUILD === "true") {
@@ -597,10 +606,14 @@ export const getCirclesWithMetrics = async (
     if (userDid) {
         user = (await Circles.findOne({ did: userDid }, { projection: SAFE_CIRCLE_PROJECTION })) ?? undefined;
     }
+    const viewer = { viewerDid: userDid, viewerIsAdmin: await resolveViewerIsAdmin(userDid) };
 
-    // get metrics for each circle — from the stored location, before the ceiling below
+    // get metrics for each circle — from the location this viewer may see (the pin Explore shows
+    // them), never the stored one: distance, proximity and a "near" rank are sent unrounded, so
+    // from a few locations of your own they would give the hidden point away.
     for (const circle of circles) {
-        circle.metrics = await getMetrics(user, circle, currentDate, sort);
+        const visible = { ...circle, location: redactCircleLocationForViewer(circle, viewer) };
+        circle.metrics = await getMetrics(user, visible, currentDate, sort);
     }
 
     // sort circles by rank
@@ -610,7 +623,6 @@ export const getCirclesWithMetrics = async (
     // the public profile pages (toPublicCircle), everyone but the circle itself and platform admins
     // gets its location at city level at most — never street or lngLat, whatever precision is
     // stored. redactCircleLocationForViewer first, for the venue addressVisibility ceiling.
-    const viewer = { viewerDid: userDid, viewerIsAdmin: await resolveViewerIsAdmin(userDid) };
     circles = circles.map((circle) => {
         if (viewerBypassesLocationRedaction(circle.did, viewer)) return circle;
         // Allow-listed fields and public metadata only; location without street or pin.
@@ -641,7 +653,8 @@ export const getMetricsForCircles = async (
         user = (await Circles.findOne({ did: userDid }, { projection: SAFE_CIRCLE_PROJECTION })) ?? undefined;
     }
 
-    // get metrics for each circle
+    // get metrics for each circle. The circles must already be shaped for this viewer (getSwipeCircles,
+    // searchDiscoverableCircles, getCirclesByIds): distance is computed from whatever location they carry.
     for (const circle of circles) {
         circle.metrics = await getMetrics(user, circle, currentDate, sort);
     }

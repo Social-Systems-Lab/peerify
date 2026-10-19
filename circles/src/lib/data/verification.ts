@@ -1,7 +1,6 @@
 import { Circle, UserPrivate } from "@/models/models";
 import { sendNotifications } from "./notifications";
 import { getUserPrivate } from "./user";
-import { getCirclesByDids } from "./circle";
 
 export async function sendVerificationRequestNotification(user: Circle, admins: UserPrivate[]): Promise<void> {
     try {

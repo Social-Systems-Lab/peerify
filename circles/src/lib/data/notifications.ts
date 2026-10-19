@@ -2494,7 +2494,7 @@ export async function notifyGoalCompleted(goal: GoalDisplay, completer: Circle):
         }
 
         // Fetch UserPrivate details for all followers
-        const followerUsers = await getCirclesByDids(goal.followers);
+        const followerUsers = await getCirclesByDids(goal.followers, { identityOnly: true });
         const followerUserPrivates = (
             await Promise.all(followerUsers.map((u) => (u.did ? getUserPrivate(u.did) : Promise.resolve(null))))
         ).filter((up): up is UserPrivate => up !== null);
