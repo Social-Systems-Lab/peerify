@@ -2,6 +2,7 @@ import { Circle, CircleType, WithMetric } from "@/models/models";
 import { Circles } from "./db";
 import { getPublishedCircleQuery, isCirclePublished, SAFE_CIRCLE_PROJECTION } from "./circle";
 import { toPublicCircleListItem } from "../utils/public-circle";
+import { escapeRegex } from "../utils";
 
 const SEARCHABLE_TYPES: CircleType[] = ["circle", "project", "user"];
 const SEARCHABLE_FIELDS = [
@@ -32,8 +33,6 @@ type SearchCirclesOptions = {
     primaryGenres?: string[];
     viewerDid?: string;
 };
-
-const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const normalizeValue = (value?: string | null) => (value || "").trim().toLowerCase();
 

@@ -1,5 +1,7 @@
 import { Events } from "@/lib/data/db";
 import { getCircleByHandle, isCirclePublished } from "@/lib/data/circle";
+import { canViewerSeeCircleEvents, getEventLocationForViewer } from "@/lib/data/event";
+import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getPublicOrigin, ICS_UID_DOMAIN } from "@/lib/utils/public-origin";
 
 // Helpers for ICS formatting
@@ -78,13 +80,20 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string 
             return new Response("Circle not found", { status: 404 });
         }
 
-        // Only include published, upcoming events for this circle
+        // Same access as the circle's events tab: logged out only for circles whose events are public.
+        const userDid = await getAuthenticatedUserDid();
+        if (!(await canViewerSeeCircleEvents(circle, userDid))) {
+            return new Response("Circle not found", { status: 404 });
+        }
+
+        // Only include published, upcoming events for this circle; private ones only for signed-in viewers.
         const now = new Date();
         const circleIdStr = String(circle._id);
         const events = await Events.find({
             circleId: circleIdStr,
             stage: "open",
             endAt: { $gte: now },
+            ...(userDid ? {} : { visibility: { $ne: "private" } }),
         })
             .sort({ startAt: 1 })
             .limit(500)
@@ -138,10 +147,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string 
             if (ev.isVirtual) {
                 lines.push("LOCATION:Online");
             } else if (ev.location) {
-                const parts = [ev.location.street, ev.location.city, ev.location.region, ev.location.country].filter(
-                    Boolean,
-                );
-                lines.push(`LOCATION:${escapeICS(parts.join(", "))}`);
+                // Street only when the event's locationDisclosure allows it for this viewer.
+                const location = await getEventLocationForViewer(ev, userDid);
+                const parts = [location?.street, location?.city, location?.region, location?.country].filter(Boolean);
+                if (parts.length > 0) lines.push(`LOCATION:${escapeICS(parts.join(", "))}`);
             }
 
             lines.push("END:VEVENT");
@@ -157,7 +166,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string 
             headers: {
                 "Content-Type": "text/calendar; charset=utf-8",
                 "Content-Disposition": `inline; filename="${filename}"`,
-                "Cache-Control": "public, max-age=300, s-maxage=300",
+                // Depends on who is asking, so never in a shared cache.
+                "Cache-Control": "private, max-age=300",
             },
         });
     } catch (err) {

@@ -1,6 +1,8 @@
 import { ObjectId } from "mongodb";
 import { Events } from "@/lib/data/db";
 import { getCircleByHandle, isCirclePublished } from "@/lib/data/circle";
+import { canViewerSeeCircleEvents, getEventLocationForViewer } from "@/lib/data/event";
+import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getPublicOrigin, ICS_UID_DOMAIN } from "@/lib/utils/public-origin";
 import type { Event as EventModel, Location } from "@/models/models";
 
@@ -89,13 +91,23 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string;
             return new Response("Circle not found", { status: 404 });
         }
 
+        // Same access as the event page: logged out only for circles whose events are public.
+        const userDid = await getAuthenticatedUserDid();
+        if (!(await canViewerSeeCircleEvents(circle, userDid))) {
+            return new Response("Event not found", { status: 404 });
+        }
+
         const event = (await Events.findOne({ _id: new ObjectId(eventId) })) as EventModel | null;
         if (!event) {
             return new Response("Event not found", { status: 404 });
         }
 
-        // Ensure event belongs to the circle and is open
-        if (event.circleId !== String(circle._id) || event.stage !== "open") {
+        // Ensure event belongs to the circle and is open; private events are not public.
+        if (
+            event.circleId !== String(circle._id) ||
+            event.stage !== "open" ||
+            (!userDid && event.visibility === "private")
+        ) {
             return new Response("Event not accessible", { status: 404 });
         }
 
@@ -108,7 +120,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string;
         const uid = `event-${eventId}@${ICS_UID_DOMAIN}`;
         const summary = escapeICS(event.title);
         const description = escapeICS(event.description);
-        const locStr = event.isVirtual ? "Online" : locationToString(event.location);
+        // Street and coordinates only when the event's locationDisclosure allows it for this viewer.
+        const locStr = event.isVirtual ? "Online" : locationToString(await getEventLocationForViewer(event, userDid));
 
         const lines: string[] = [
             "BEGIN:VCALENDAR",
@@ -147,7 +160,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string;
             headers: {
                 "Content-Type": "text/calendar; charset=utf-8",
                 "Content-Disposition": `attachment; filename="${filename}"`,
-                "Cache-Control": "public, max-age=300, s-maxage=300",
+                // Depends on who is asking, so never in a shared cache.
+                "Cache-Control": "private, max-age=300",
             },
         });
     } catch (err) {
