@@ -52,6 +52,8 @@ const GENERIC_PHOTO_NUDGE = "Avoid faces and other identifying details.";
 // Step 2, not a real access control.
 const OFFER_PRIVACY_REMINDER =
     "This information is visible to any signed-in member. Avoid sharing anything you wouldn't want a stranger to know.";
+// Tim's wording, 2026-10-20.
+const OFFER_ADDRESS_HINT = "Don't include your address; share it privately once you've agreed.";
 
 type ModalOfferingType = (typeof OFFER_MODAL_TYPES)[number] | "custom";
 
@@ -401,7 +403,10 @@ export function CreateOfferModal({
 
                 {step === 2 && selectedType && (
                     <div className="space-y-4 py-2">
-                        <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">{OFFER_PRIVACY_REMINDER}</p>
+                        <div className="space-y-1 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+                            <p>{OFFER_PRIVACY_REMINDER}</p>
+                            <p className="font-medium">{OFFER_ADDRESS_HINT}</p>
+                        </div>
 
                         {isCustom && (
                             <div className="space-y-2">

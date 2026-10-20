@@ -1061,7 +1061,7 @@ export default function EventForm({
                         <LocationPicker value={location} onChange={(val) => setLocation(val)} compact />
                         <p className="mt-1 text-xs text-muted-foreground">
                             {locationDisclosure === "public"
-                                ? "Shown publicly when the event is open."
+                                ? "This address will be visible to everyone."
                                 : "Saved privately. Public visitors will see the public map area instead."}{" "}
                             For online events, toggle &quot;Virtual&quot; in More options below.
                         </p>
