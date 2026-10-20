@@ -49,6 +49,7 @@ import {
     applyEventHostChange,
     canAnonymousViewCircleEvents,
     shapeEventForViewer,
+    canManageEvent,
 } from "@/lib/data/event";
 import { getCirclesByDids } from "@/lib/data/circle";
 import { upsertRsvp, cancelRsvp, listAttendees } from "@/lib/data/eventRsvp";
@@ -1736,13 +1737,29 @@ export async function getAttendeesAction(circleHandle: string, eventId: string):
         const canView = await isAuthorized(userDid, circle._id as string, features.events.view);
         if (!canView) return defaultResult;
 
+        const scope = await getAttendeeListScope(circle, eventId, userDid);
+        if (!scope) return defaultResult;
+
         const users = await listAttendees(eventId, "going");
-        return { users };
+        return { users: scope === "all" ? users : users.filter((user) => user.did === userDid) };
     } catch (error) {
         console.error("Error in getAttendeesAction:", error);
         return defaultResult;
     }
 }
+
+// Attendee lists (Tim, 2026-10-20): the event's managers (canManageEvent) see everyone; anyone else
+// who may view the event sees only their own RSVP. null = the event doesn't exist for this viewer or
+// belongs to another circle than the one in the URL.
+const getAttendeeListScope = async (
+    circle: Circle,
+    eventId: string,
+    userDid: string,
+): Promise<"all" | "self" | null> => {
+    const event = await getEventById(eventId, userDid);
+    if (!event || event.circleId !== String(circle._id)) return null;
+    return (await canManageEvent(event, userDid)) ? "all" : "self";
+};
 
 type GetAttendeesWithDetailsActionResult = {
     attendees: { user: Circle; message?: string }[];
@@ -1764,8 +1781,11 @@ export async function getAttendeesWithDetailsAction(
         const canView = await isAuthorized(userDid, circle._id as string, features.events.view);
         if (!canView) return defaultResult;
 
+        const scope = await getAttendeeListScope(circle, eventId, userDid);
+        if (!scope) return defaultResult;
+
         const attendees = await listAttendeesWithDetails(eventId, "going");
-        return { attendees };
+        return { attendees: scope === "all" ? attendees : attendees.filter(({ user }) => user.did === userDid) };
     } catch (error) {
         console.error("Error in getAttendeesWithDetailsAction:", error);
         return defaultResult;

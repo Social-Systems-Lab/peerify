@@ -1,7 +1,7 @@
 import { EventRsvps, Circles } from "./db";
 import { ObjectId } from "mongodb";
 import { EventRsvp, Circle } from "@/models/models";
-import { SAFE_CIRCLE_PROJECTION } from "./circle";
+import { IDENTITY_CIRCLE_PROJECTION } from "./circle";
 
 /**
  * Get a user's RSVP for an event.
@@ -103,7 +103,8 @@ export const getEventAttendees = async (
 };
 
 /**
- * Optionally list attendees (Circles) for a given status.
+ * Optionally list attendees (Circles) for a given status. Identity fields only (name, handle,
+ * picture): the list goes to the browser (getAttendeesAction).
  */
 export const listAttendees = async (eventId: string, status: "going" | "interested" | "waitlist") => {
     try {
@@ -112,7 +113,7 @@ export const listAttendees = async (eventId: string, status: "going" | "interest
         if (dids.length === 0) return [];
 
         const users = await Circles.find({ did: { $in: dids }, circleType: "user" })
-            .project({ ...SAFE_CIRCLE_PROJECTION, _id: { $toString: "$_id" } as any })
+            .project({ ...IDENTITY_CIRCLE_PROJECTION, _id: { $toString: "$_id" } as any })
             .toArray();
 
         return users as unknown as Circle[];
@@ -125,7 +126,7 @@ export const listAttendees = async (eventId: string, status: "going" | "interest
 /**
  * List public attendees with optional messages for a given status.
  * Returns an array of { user: Circle; message?: string }.
- * Legacy RSVPs without isPublic are treated as public.
+ * Legacy RSVPs without isPublic are treated as public. Identity fields only.
  */
 export const listAttendeesWithDetails = async (
     eventId: string,
@@ -144,7 +145,7 @@ export const listAttendeesWithDetails = async (
         if (dids.length === 0) return [];
 
         const users = (await Circles.find({ did: { $in: dids }, circleType: "user" })
-            .project({ ...SAFE_CIRCLE_PROJECTION, _id: { $toString: "$_id" } as any })
+            .project({ ...IDENTITY_CIRCLE_PROJECTION, _id: { $toString: "$_id" } as any })
             .toArray()) as unknown as Circle[];
 
         const userByDid = new Map(users.map((u) => [u.did!, u]));
