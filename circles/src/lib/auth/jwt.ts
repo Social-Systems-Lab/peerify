@@ -12,8 +12,14 @@ const getJwtSecretBytes = (): Uint8Array => {
     return new TextEncoder().encode(JWT_SECRET);
 };
 
+// Session tokens (generateUserToken) carry a non-empty userDid and no audience. Other tokens signed
+// with the same key, such as audio tokens (aud "peerify-audio", no userDid), are not sessions:
+// reject them here so no caller can mistake one for a login.
 export const verifyUserToken = async (token: string): Promise<JWTPayload> => {
     const { payload } = await jwtVerify(token, getJwtSecretBytes());
+    if (typeof payload.userDid !== "string" || payload.userDid.length === 0 || payload.aud !== undefined) {
+        throw new Error("Not a session token");
+    }
     return payload;
 };
 
