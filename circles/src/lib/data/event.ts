@@ -26,6 +26,7 @@ import { isAuthorized } from "../auth/auth";
 import { features } from "./constants";
 import { getCircleById, resolveViewerIsAdmin } from "./circle";
 import { isAcceptedConnectionForUserDid } from "./relationships";
+import { isCircleAdminOfAny } from "./member";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 
 // Safe projection for event queries
@@ -1429,6 +1430,30 @@ export const getEventLocationForViewer = async (
     const { street: _street, lngLat: _lngLat, ...areaOnly } = publicLocation;
     return areaOnly;
 };
+
+/**
+ * The event's managers: its author, the host circle's event moderators, admins of a delegated
+ * artist circle (artistAdminCircleIds, full edit rights) and platform admins. The same people the
+ * event page lets edit the event.
+ */
+export const canManageEvent = async (
+    event: Pick<EventDisplay, "createdBy" | "circleId" | "artistAdminCircleIds">,
+    viewerDid?: string,
+): Promise<boolean> => {
+    if (!viewerDid) return false;
+    if (event.createdBy === viewerDid || (await resolveViewerIsAdmin(viewerDid))) return true;
+    if (event.circleId && (await isAuthorized(viewerDid, event.circleId, features.events.moderate))) return true;
+    return isCircleAdminOfAny(viewerDid, event.artistAdminCircleIds);
+};
+
+/**
+ * The event as a viewer-facing page or action may send it: unchanged for the event's managers;
+ * everyone else gets sanitizePeerifyPublicEventDisplay, so a hidden address (non-public
+ * locationDisclosure) and the private organiser note never reach them. getEventById itself stays
+ * unshaped for the server-side callers that write the event back.
+ */
+export const shapeEventForViewer = async <T extends EventDisplay>(event: T, viewerDid?: string): Promise<T> =>
+    (await canManageEvent(event, viewerDid)) ? event : (sanitizePeerifyPublicEventDisplay(event) as T);
 
 /**
  * Get open events across all circles for map display.

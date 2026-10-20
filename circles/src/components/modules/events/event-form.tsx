@@ -289,9 +289,17 @@ export default function EventForm({
         // Only seed defaults for fields still at their plain-public default — never override a
         // value the user already explicitly set (or that an existing event already had saved).
         if (venueDisclosure === "public") setVenueDisclosure("secret_after_acceptance");
-        if (locationDisclosure === "public") setLocationDisclosure("approximate");
+        // locationDisclosure stays "public": the hidden-address options are switched off for now.
         if (accessMode === "open_rsvp") setAccessMode("approval_required");
     };
+    // Pre-launch (Tim, 2026-10-20): only "public" can be chosen; the server rejects the others
+    // (createEventAction/updateEventAction). An existing event keeps showing the value it already
+    // has, so its form still matches what's saved.
+    const locationDisclosureOptions = LOCATION_DISCLOSURE_OPTIONS.filter(
+        (option) => option.value === "public" || option.value === peerifyMetadata?.locationDisclosure,
+    );
+    // Same for "private" visibility: offered only to an event that's already private.
+    const canChoosePrivateVisibility = event?.visibility === "private";
     const [privateLocationNote, setPrivateLocationNote] = useState<string>(peerifyMetadata?.privateLocationNote || "");
     const [publicMapLocation, setPublicMapLocation] = useState<Location | undefined>(
         peerifyMetadata?.publicMapLocation,
@@ -995,9 +1003,11 @@ export default function EventForm({
                             <ToggleGroupItem value="public" className="flex-1">
                                 Public
                             </ToggleGroupItem>
-                            <ToggleGroupItem value="private" className="flex-1">
-                                Private
-                            </ToggleGroupItem>
+                            {canChoosePrivateVisibility && (
+                                <ToggleGroupItem value="private" className="flex-1">
+                                    Private
+                                </ToggleGroupItem>
+                            )}
                         </ToggleGroup>
                     </div>
 
@@ -1143,7 +1153,7 @@ export default function EventForm({
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {LOCATION_DISCLOSURE_OPTIONS.map((option) => (
+                                    {locationDisclosureOptions.map((option) => (
                                         <SelectItem key={option.value} value={option.value}>
                                             {option.label}
                                         </SelectItem>

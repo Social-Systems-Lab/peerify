@@ -48,6 +48,7 @@ import {
     changeEventStage as changeEventStageDb,
     applyEventHostChange,
     canAnonymousViewCircleEvents,
+    shapeEventForViewer,
 } from "@/lib/data/event";
 import { getCirclesByDids } from "@/lib/data/circle";
 import { upsertRsvp, cancelRsvp, listAttendees } from "@/lib/data/eventRsvp";
@@ -333,6 +334,24 @@ const mergePeerifyEventMetadata = (
     };
 };
 
+// Pre-launch (Tim, 2026-10-20): events are public only. The other locationDisclosure values
+// (approximate, secret_after_acceptance, to_be_disclosed) and "private" visibility stay in the
+// schema and the code, hidden rather than removed, so existing events keep working. A create can't
+// choose them and an update can't switch to them; an existing event may keep the value it already
+// has, so editing it doesn't fail.
+const HIDDEN_EVENT_OPTION_MESSAGE = "Events can only be public, with a public address, for now.";
+const usesHiddenEventOptions = (
+    visibility: string | undefined,
+    locationDisclosure: string | undefined,
+    existing?: Pick<EventModel, "visibility" | "metadata">,
+): boolean => {
+    const existingDisclosure = existing?.metadata?.peerify?.locationDisclosure ?? "public";
+    if (locationDisclosure && locationDisclosure !== "public" && locationDisclosure !== existingDisclosure) {
+        return true;
+    }
+    return visibility === "private" && existing?.visibility !== "private";
+};
+
 const getEventInternalPreviewUrl = (circleHandle: string, eventId: string) => {
     const baseUrl = (process.env.CIRCLES_URL || "http://localhost:3000").replace(/\/+$/, "");
     return `${baseUrl}/circles/${circleHandle}/events/${eventId}?source=noticeboard`;
@@ -486,7 +505,15 @@ export async function getEventAction(circleHandle: string, eventId: string): Pro
         if (!canView) return null;
 
         const event = await getEventById(eventId, userDid);
-        return event;
+        if (!event) return null;
+        // The event must belong to this circle. An event can move to another host
+        // (changeEventHostAction; the page then redirects to the new handle), so a different
+        // host is allowed only if the viewer may also see that circle's events.
+        if (event.circleId !== String(circle._id)) {
+            const canViewHost = await isAuthorized(userDid, event.circleId, features.events.view);
+            if (!canViewHost) return null;
+        }
+        return shapeEventForViewer(event, userDid);
     } catch (error) {
         console.error("Error in getEventAction:", error);
         return null;
@@ -599,6 +626,9 @@ export async function createEventAction(
         }
 
         const metadata = parsePeerifyEventMetadata(data.peerifyEventMetadata)?.metadata;
+        if (usesHiddenEventOptions(data.visibility, metadata?.peerify?.locationDisclosure)) {
+            return { success: false, message: HIDDEN_EVENT_OPTION_MESSAGE };
+        }
 
         // Handle images
         const imageFiles = (data.images || []).filter(isFile);
@@ -739,6 +769,12 @@ export async function updateEventAction(
             return buildEventValidationErrorResponse(validated, "updateEventAction", formData.get("tags"));
         }
         const data = validated.data;
+        const parsedPeerifyMetadata = parsePeerifyEventMetadata(data.peerifyEventMetadata);
+        if (
+            usesHiddenEventOptions(data.visibility, parsedPeerifyMetadata?.metadata.peerify?.locationDisclosure, event)
+        ) {
+            return { success: false, message: HIDDEN_EVENT_OPTION_MESSAGE };
+        }
 
         // Only replaced when the form sends one; an empty or incomplete value clears it. Not
         // required here even for physical events: existing events without a location must stay
@@ -822,10 +858,7 @@ export async function updateEventAction(
 
         const startAt = data.startAt ? parseDate(data.startAt) : event.startAt;
         const endAt = data.endAt ? parseDate(data.endAt) : event.endAt;
-        const metadata = mergePeerifyEventMetadata(
-            event.metadata,
-            parsePeerifyEventMetadata(data.peerifyEventMetadata),
-        );
+        const metadata = mergePeerifyEventMetadata(event.metadata, parsedPeerifyMetadata);
 
         const updateData: Partial<EventModel> = {
             title: data.title,
@@ -1885,8 +1918,13 @@ export async function addEventCommentAction(eventId: string, data: Partial<Comme
  * Get event with comments (via its shadow post)
  */
 export async function getEventWithCommentsAction(eventId: string) {
-    const event = await getEventById(eventId, (await getAuthenticatedUserDid()) || "");
-    if (!event) throw new Error("Event not found");
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) throw new Error("Event not found");
+    const found = await getEventById(eventId, userDid);
+    if (!found || !(await isAuthorized(userDid, found.circleId, features.events.view))) {
+        throw new Error("Event not found");
+    }
+    const event = await shapeEventForViewer(found, userDid);
     if (!event.commentPostId) return { ...event, comments: [] };
 
     // Same read, gate and author shaping as the event page's CommentSection (login + view access,
