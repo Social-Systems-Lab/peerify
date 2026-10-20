@@ -93,7 +93,7 @@ export const FeedComponent = ({
 
     return (
         <div
-            className={`flex h-full min-h-screen w-full flex-1 items-start justify-center`}
+            className={`flex h-full min-h-app w-full flex-1 items-start justify-center`}
             style={containerStyle}
         >
             <div className="flex w-full flex-col">
@@ -252,7 +252,7 @@ export const AggregateFeedComponent = ({
           };
 
     return (
-        <div className={`flex h-full min-h-screen w-full flex-1 items-start justify-center`} style={containerStyle}>
+        <div className={`flex h-full min-h-app w-full flex-1 items-start justify-center`} style={containerStyle}>
             <div
                 className={`flex w-full flex-col ${
                     fullWidth ? "mx-auto max-w-[760px] px-4 sm:px-6 lg:px-8" : ""
