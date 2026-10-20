@@ -30,9 +30,10 @@ export async function checkAuth(): Promise<CheckAuthResponse> {
     try {
         if (token) {
             let payload = await verifyUserToken(token);
-            if (payload) {
+            // Only a session token with a userDid; getUserPrivate(undefined) would query { did: null }.
+            if (payload && typeof payload.userDid === "string" && payload.userDid) {
                 // user is authenticated
-                let user = await getUserPrivate(payload.userDid as string);
+                let user = await getUserPrivate(payload.userDid);
 
                 return { user, authenticated: true };
             }
