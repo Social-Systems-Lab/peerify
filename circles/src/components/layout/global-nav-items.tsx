@@ -117,10 +117,8 @@ export default function GlobalNavItems() {
                     onClick={() => {
                         if (!confirmLeaveIfDirty()) return;
                         if (isMobile) {
-                            if (pathname !== "/explore") {
-                                router.push("/explore");
-                            }
-                            setDrawerContent("noticeboard");
+                            // Full-screen list on its own route, like Discover (no map/drawer behind it)
+                            router.push("/feed");
                         } else {
                             setSidePanelMode("activity");
                             router.push("/explore?panel=activity");
@@ -130,7 +128,7 @@ export default function GlobalNavItems() {
                     <motion.div
                         className={`flex flex-shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg transition-colors md:w-[64px] md:pb-2 md:pt-2 ${hoverNavClassName} ${
                             (pathname === "/explore" && panelMode === "activity") ||
-                            (isMobile && drawerContent === "noticeboard" && pathname === "/explore")
+                            (isMobile && pathname === "/feed")
                                 ? activeNavClassName
                                 : inactiveNavClassName
                         }`}
