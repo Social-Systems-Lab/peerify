@@ -25,6 +25,7 @@ import {
 } from "@/lib/data/mongo-chat";
 import { ChatConversations, ChatMessageDocs, ChatRoomMembers, ChatRooms, Circles, Members } from "@/lib/data/db";
 import { getCircleByDid, getCircleByHandle, getCircleById, getCirclesByDids } from "@/lib/data/circle";
+import { toIdentityCircle } from "@/lib/utils/public-circle";
 import { getUserPrivate } from "@/lib/data/user";
 import { sendNotifications } from "@/lib/data/notifications";
 import { saveFile } from "@/lib/data/storage";
@@ -233,7 +234,8 @@ const getPeerifyBookingDisplayAuthor = (
         return fallbackAuthor;
     }
 
-    return context.artist;
+    // Shown as the message author in the browser: identity only, not the artist's whole circle.
+    return toIdentityCircle(context.artist);
 };
 
 const sendConversationMessageNotifications = async ({
@@ -452,7 +454,7 @@ export const fetchRecentMessagesAction = async (
         for (const senderDid of senderDids) {
             if (!senderByDid.has(senderDid)) {
                 const byHandle = await getCircleByHandle(senderDid);
-                if (byHandle?.did) senderByDid.set(senderDid, byHandle);
+                if (byHandle?.did) senderByDid.set(senderDid, toIdentityCircle(byHandle));
             }
         }
 
@@ -596,7 +598,7 @@ export const fetchMongoMessagesAction = async (
         for (const senderDid of senderDids) {
             if (!senderByDid.has(senderDid)) {
                 const byHandle = await getCircleByHandle(senderDid);
-                if (byHandle?.did) senderByDid.set(senderDid, byHandle);
+                if (byHandle?.did) senderByDid.set(senderDid, toIdentityCircle(byHandle));
             }
         }
 
@@ -1829,7 +1831,7 @@ export const fetchTopicStartersAction = async (
         for (const senderDid of senderDids) {
             if (!senderByDid.has(senderDid)) {
                 const byHandle = await getCircleByHandle(senderDid);
-                if (byHandle?.did) senderByDid.set(senderDid, byHandle);
+                if (byHandle?.did) senderByDid.set(senderDid, toIdentityCircle(byHandle));
             }
         }
 

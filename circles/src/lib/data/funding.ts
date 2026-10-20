@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { SAFE_CIRCLE_PROJECTION } from "@/lib/data/circle";
+import { IDENTITY_CIRCLE_PROJECTION } from "@/lib/data/circle";
 import { Circles, FundingAsks, Members } from "@/lib/data/db";
 import {
     fundingAskCategorySchema,
@@ -200,7 +200,7 @@ const hydrateFundingAskProfiles = async (asks: FundingAsk[], circle?: Circle): P
     );
 
     const profiles = dids.length
-        ? await Circles.find({ did: { $in: dids } }, { projection: SAFE_CIRCLE_PROJECTION }).toArray()
+        ? await Circles.find({ did: { $in: dids } }, { projection: IDENTITY_CIRCLE_PROJECTION }).toArray()
         : [];
 
     const profilesByDid = new Map(

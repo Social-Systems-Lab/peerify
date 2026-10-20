@@ -216,6 +216,16 @@ const PUBLIC_LIST_EXTRA_FIELDS = [
 ] as const;
 const PUBLIC_LIST_LOCATION_FIELDS = [...PUBLIC_LOCATION_FIELDS, "street", "lngLat"] as const;
 
+// Identity only: name, handle and picture, plus the ids and circleType the UI links and labels
+// with. For circles shown as a person or place behind something else (chat room, message sender),
+// where nothing else is rendered (Tim, 2026-10-20).
+const IDENTITY_CIRCLE_FIELDS = ["_id", "did", "handle", "name", "picture", "circleType"] as const;
+export function toIdentityCircle<T extends Circle>(circle: T): T {
+    const identity = pickPresent(circle as AnyRecord, IDENTITY_CIRCLE_FIELDS) as T;
+    if (identity._id !== undefined) identity._id = String(identity._id);
+    return identity;
+}
+
 // For circles in lists that reach anonymous visitors. Unlike toPublicCircle (profile pages, no
 // pin), these keep a map pin, so the location is redacted here (city or coarser unless the owner
 // confirmed "exact", venue addressVisibility ceiling) rather than dropped. Callers pass the

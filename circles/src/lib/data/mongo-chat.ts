@@ -3,6 +3,7 @@ import { ChatRoomDisplay, Circle } from "@/models/models";
 import { ChatAttachment, ChatConversation, ChatMessageDoc, ChatReaction, DmGrant } from "@/lib/chat/mongo-types";
 import { ChatConversations, ChatMessageDocs, ChatReadStates, ChatRoomMembers } from "./db";
 import { getCircleByHandle, getCircleById, getCirclesByDids } from "./circle";
+import { toIdentityCircle } from "@/lib/utils/public-circle";
 import { getKamooniSystemSender, SystemSenderIdentity } from "@/config/system-sender";
 import { WelcomeMessageConfig, WELCOME_MESSAGE } from "@/config/welcome-message";
 import { buildSystemMessageMetadata } from "@/lib/chat/system-messages";
@@ -387,7 +388,9 @@ const mapConversationsToChatRoomDisplays = async (
     for (const id of circleIdsToLoad) {
         const circle = await getCircleById(id);
         if (circle) {
-            circleById.set(id, circle);
+            // Sent to the browser as room.circle: identity only (the room list and header show
+            // name, handle, picture and type).
+            circleById.set(id, toIdentityCircle(circle));
         }
     }
 
