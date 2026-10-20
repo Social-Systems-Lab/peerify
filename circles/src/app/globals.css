@@ -43,6 +43,12 @@ body {
     overflow-x: hidden;
 }
 
+/* Full viewport height that tracks the iOS/Android browser toolbar collapsing; vh fallback first. */
+.min-h-app {
+    min-height: 100vh;
+    min-height: 100dvh;
+}
+
 .stable-scrollbar {
     scrollbar-gutter: stable both-edges;
 }

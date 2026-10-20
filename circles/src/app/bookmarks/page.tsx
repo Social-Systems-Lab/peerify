@@ -45,7 +45,7 @@ export default async function BookmarksPage() {
   const hasAny = pinned.length > 0 || remaining.length > 0;
 
   return (
-    <div className="mx-auto max-w-5xl p-6">
+    <div className="mx-auto max-w-5xl p-6 pb-24 md:pb-6">
       <h1 className="mb-1 text-2xl font-bold">Favorites</h1>
       <p className="mb-4 text-sm text-gray-600">Pinned profiles appear first and also count as saved profiles.</p>
 

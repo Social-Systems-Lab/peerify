@@ -15,7 +15,7 @@ import { UnreadCountCalculator } from "@/components/modules/chat/unread-count-ca
 import { BackgroundMessagePoller } from "@/components/modules/chat/background-message-poller";
 import { getServerSettings } from "@/lib/data/server-settings";
 import { SidePanel } from "@/components/layout/side-panel";
-import { Metadata } from "next";
+import { Metadata, Viewport } from "next";
 import { MapboxInitializer } from "@/components/map/map-initializer";
 import { FeedPostDialog } from "@/components/global-create/feed-post-dialog"; // Import FeedPostDialog
 import { appConfig } from "@/config/app";
@@ -25,6 +25,14 @@ export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 export const revalidate = 0;
 const enableReactScan = false;
+
+// viewport-fit=cover lets env(safe-area-inset-*) report the real insets on iPhone, which the mobile
+// bottom nav (global-nav.tsx) uses for its bottom padding.
+export const viewport: Viewport = {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
+};
 
 // Self-hosted (see fonts.css). The Latin subsets are preloaded, as next/font did.
 const PRELOADED_FONTS = [
@@ -52,10 +60,10 @@ const RootLayout = async ({ children }: RootLayoutProps) => {
                 <Provider>
                     {process.env.NODE_ENV === "development" && enableReactScan && <ReactScan />}
                     <main>
-                        <div className="relative flex min-h-screen w-full flex-col overflow-hidden md:flex-row">
+                        <div className="relative flex min-h-app w-full flex-col overflow-hidden md:flex-row">
                             <GlobalNav />
                             <SidePanel />
-                            <div className="relative min-h-screen w-full overflow-x-hidden">
+                            <div className="relative min-h-app w-full overflow-x-hidden">
                                 {children}
                             </div>
                         </div>
