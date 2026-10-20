@@ -142,6 +142,70 @@ describe("createEventAction", () => {
     });
 });
 
+// Follow-up (2026-10-20): the rest of the "Venue & location privacy" section is hidden too, so
+// venueDisclosure and accessMode only take their public defaults on create and update.
+const privacy = (fields: Record<string, string>) =>
+    JSON.stringify({ locationDisclosure: "public", venueDisclosure: "public", accessMode: "open_rsvp", ...fields });
+
+describe("venue / host display and access mode", () => {
+    test("create rejects a hidden venue display or a non-open access mode", async () => {
+        sessionDid = AUTHOR;
+        const cases: Record<string, string>[] = [
+            { venueDisclosure: "secret_after_acceptance" },
+            { venueDisclosure: "venue_to_be_disclosed" },
+            { venueDisclosure: "one_off_location" },
+            { accessMode: "approval_required" },
+            { accessMode: "invite_only" },
+            { accessMode: "ticket_required" },
+        ];
+        for (const fields of cases) {
+            const result = await createEventAction("host", form({ peerifyEventMetadata: privacy(fields) }));
+            expect({ fields, result }).toEqual({ fields, result: { success: false, message: HIDDEN } });
+        }
+    });
+
+    test("create with the public defaults isn't rejected by the check", async () => {
+        sessionDid = AUTHOR;
+        const result = await createEventAction("host", form({ peerifyEventMetadata: privacy({}) }));
+        expect(result.message).not.toBe(HIDDEN);
+    });
+
+    test("update can't switch a public event to a hidden venue display or another access mode", async () => {
+        fakeDb.setAggregateResult("Events", [storedEvent({ metadata: { peerify: { locationDisclosure: "public" } } })]);
+        sessionDid = AUTHOR;
+        const cases: Record<string, string>[] = [
+            { venueDisclosure: "secret_after_acceptance" },
+            { accessMode: "approval_required" },
+        ];
+        for (const fields of cases) {
+            const result = await updateEventAction("host", EVENT_ID, form({ peerifyEventMetadata: privacy(fields) }));
+            expect({ fields, result }).toEqual({ fields, result: { success: false, message: HIDDEN } });
+        }
+    });
+
+    test("an existing event keeps its saved venue display and access mode", async () => {
+        fakeDb.setAggregateResult("Events", [
+            storedEvent({
+                metadata: {
+                    peerify: {
+                        locationDisclosure: "approximate",
+                        venueDisclosure: "secret_after_acceptance",
+                        accessMode: "approval_required",
+                    },
+                },
+            }),
+        ]);
+        sessionDid = AUTHOR;
+        const saved = privacy({
+            locationDisclosure: "approximate",
+            venueDisclosure: "secret_after_acceptance",
+            accessMode: "approval_required",
+        });
+        const result = await updateEventAction("host", EVENT_ID, form({ peerifyEventMetadata: saved }));
+        expect(result.message).not.toBe(HIDDEN);
+    });
+});
+
 describe("updateEventAction", () => {
     test("can't switch a public event to a hidden disclosure or to private", async () => {
         fakeDb.setAggregateResult("Events", [storedEvent({ metadata: { peerify: { locationDisclosure: "public" } } })]);
