@@ -31,6 +31,7 @@ import {
     createCommunityFeed,
     createCrewFeed,
     getShareablePostPreview,
+    getInternalPreviewForViewer,
 } from "@/lib/data/feed";
 import { saveFile, isFile } from "@/lib/data/storage";
 import { resolveActingAuthor, canActAsAuthor } from "@/lib/data/acting-identity";
@@ -44,9 +45,6 @@ import {
     getFeedViewFeature,
 } from "@/lib/data/constants";
 import { sdgs } from "@/lib/data/sdgs";
-import { getProposalById } from "@/lib/data/proposal";
-import { getIssueById } from "@/lib/data/issue";
-import { getFundingAskById } from "@/lib/data/funding";
 import {
     Media,
     ProposalDisplay,
@@ -64,7 +62,7 @@ import {
     FileInfo, // Added FileInfo
 } from "@/models/models";
 import { revalidatePath } from "next/cache";
-import { getCircleById, getCirclePath, getCircleByHandle } from "@/lib/data/circle"; // Added getCircleByHandle
+import { getCircleById, getCirclePath } from "@/lib/data/circle";
 import { getPreviewFromContent } from "link-preview-js";
 import { safeFetchHtml } from "@/lib/net/safe-fetch";
 import { getUserByDid, getUserById, getUserPrivate, getVerificationStatus } from "@/lib/data/user";
@@ -273,81 +271,24 @@ export async function getInternalLinkPreviewData(url: string): Promise<InternalL
         const fundingMatch = pathname.match(fundingRegex);
         const circleMatch = pathname.match(circleRegex);
 
-        if (postMatch) {
-            const [, handle, postId] = postMatch;
-            const circle = await getCircleByHandle(handle);
-            if (!circle) return { error: "Circle not found" };
-            const authorized = await isAuthorized(userDid, circle._id.toString(), features.feed.view);
-            if (!authorized) return { error: "Unauthorized" };
-            const post = await getPost(postId); // Assuming getPost fetches PostDisplay or similar
-            if (!post) return { error: "Post not found" };
-            // Ensure getPost returns PostDisplay or adapt as needed
-            // This might require a new function like getPostDisplay(postId, userDid)
-            // For now, assuming getPost is sufficient and we manually add author etc. if needed
-            const author = await getUserByDid(post.createdBy);
-            const feed = await getFeed(post.feedId);
-            const { sdgs: sdgIds, ...restOfPost } = post;
-            const populatedSdgs = sdgIds ? sdgs.filter((sdg) => sdgIds.includes(sdg._id)) : [];
+        // Every target goes through the feed's preview gate (getInternalPreviewForViewer): the
+        // viewer must be allowed to see it under the target's own rules (its own circle, not the
+        // one in the URL), and only the fields the preview cards render come back.
+        const preview = async (type: "circle" | "post" | "proposal" | "issue" | "funding", id: string) => {
+            const data = await getInternalPreviewForViewer(type, id, userDid);
+            return data ? ({ type, data } as InternalLinkPreviewResult) : { error: "Not found" };
+        };
 
-            const postDisplay: PostDisplay = {
-                ...restOfPost,
-                author: author!, // Assuming author is found
-                circleType: "post",
-                circle: circle,
-                feed: feed!, // Assuming feed is found
-                sdgs: populatedSdgs,
-            };
-            return { type: "post", data: postDisplay };
+        if (postMatch) {
+            return preview("post", postMatch[2]);
         } else if (proposalMatch) {
-            const [, handle, proposalId] = proposalMatch;
-            const circle = await getCircleByHandle(handle);
-            if (!circle) return { error: "Circle not found" };
-            // Assuming proposals module has a 'view' feature
-            const authorized = await isAuthorized(
-                userDid,
-                circle._id.toString(),
-                features.proposals.view, // Use correct feature path
-            );
-            if (!authorized) return { error: "Unauthorized" };
-            const proposal = await getProposalById(proposalId); // Correct function call
-            if (!proposal) return { error: "Proposal not found" };
-            // Add author/circle if getProposalById doesn't return ProposalDisplay (it should based on the file content)
-            // if (!proposal.author) proposal.author = (await getUserByDid(proposal.createdBy))!; // Likely not needed anymore
-            if (!proposal.circle) proposal.circle = circle;
-            return { type: "proposal", data: proposal };
+            return preview("proposal", proposalMatch[2]);
         } else if (issueMatch) {
-            const [, handle, issueId] = issueMatch;
-            const circle = await getCircleByHandle(handle);
-            if (!circle) return { error: "Circle not found" };
-            // Assuming issues module has a 'view' feature
-            const authorized = await isAuthorized(
-                userDid,
-                circle._id.toString(),
-                features.issues.view, // Use correct feature path
-            );
-            if (!authorized) return { error: "Unauthorized" };
-            const issue = await getIssueById(issueId); // Correct function call
-            if (!issue) return { error: "Issue not found" };
-            // Add author/assignee/circle if getIssueById doesn't return IssueDisplay (it should based on the file content)
-            // if (!issue.author) issue.author = (await getUserByDid(issue.createdBy))!; // Likely not needed anymore
-            // if (issue.assignedTo && !issue.assignee) issue.assignee = await getUserByDid(issue.assignedTo); // Likely not needed anymore
-            if (!issue.circle) issue.circle = circle;
-            return { type: "issue", data: issue };
+            return preview("issue", issueMatch[2]);
         } else if (fundingMatch) {
-            const [, handle, askId] = fundingMatch;
-            const circle = await getCircleByHandle(handle);
-            if (!circle) return { error: "Circle not found" };
-            const ask = await getFundingAskById(circle, askId, userDid);
-            if (!ask) return { error: "Funding request not found" };
-            return { type: "funding", data: ask };
+            return preview("funding", fundingMatch[2]);
         } else if (circleMatch) {
-            const [, handle] = circleMatch;
-            const circle = await getCircleByHandle(handle);
-            if (!circle) return { error: "Circle not found" };
-            // Basic authorization check for viewing a circle profile
-            const authorized = await isAuthorized(userDid, circle._id.toString(), features.communities.view); // Corrected feature path
-            if (!authorized && !circle.isPublic) return { error: "Unauthorized" }; // Allow public circles
-            return { type: "circle", data: circle };
+            return preview("circle", circleMatch[1]);
         } else {
             return { error: "Invalid internal link" };
         }
