@@ -3,7 +3,7 @@
 // field; a scalar matches an array field that contains it, as in MongoDB), dotted paths, $in, $nin,
 // $ne, $exists, $not, $size, $gt/$gte/$lt/$lte, RegExp values, top-level $or/$and, find().toArray() and
 // find() with sort/limit/project, inclusion projections (dotted paths too), countDocuments, deleteMany,
-// and updateOne / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
+// and updateOne ($set, $addToSet, $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
 // between its match and its write).
 
 type Doc = Record<string, any>;
@@ -170,7 +170,7 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             }
             return { deletedCount };
         },
-        async updateOne(filter: Doc, update: { $set?: Doc }) {
+        async updateOne(filter: Doc, update: { $set?: Doc; $addToSet?: Doc; $pull?: Doc }) {
             const found = docs.find((d) => matchesFilter(d, filter));
             if (!found) {
                 return { matchedCount: 0, modifiedCount: 0 };
@@ -181,6 +181,14 @@ export const createFakeCollection = (initial: Doc[] = []) => {
                     throw new Error(`fake-collection: explicit undefined written to ${key}`);
                 }
                 found[key] = value;
+            }
+            // Top-level array fields and single values only.
+            for (const [key, value] of Object.entries(update.$addToSet ?? {})) {
+                const list: unknown[] = Array.isArray(found[key]) ? found[key] : [];
+                found[key] = list.some((item) => valueEquals(item, value)) ? list : [...list, value];
+            }
+            for (const [key, value] of Object.entries(update.$pull ?? {})) {
+                if (Array.isArray(found[key])) found[key] = found[key].filter((item: unknown) => !valueEquals(item, value));
             }
             return { matchedCount: 1, modifiedCount: 1 };
         },

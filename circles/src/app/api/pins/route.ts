@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getUserPrivate } from "@/lib/data/user";
 import { getCirclesByIds } from "@/lib/data/circle";
-import { pinCircle, unpinCircle } from "@/lib/data/user";
+import { unpinCircle } from "@/lib/data/user";
+import { pinCircleAction } from "@/components/modules/home/actions";
 import { Circle, UserPrivate } from "@/models/models";
 
 /**
@@ -51,8 +52,12 @@ export async function POST(req: NextRequest): Promise<NextResponse<{ user?: User
       return NextResponse.json({ error: "circleId required" }, { status: 400 });
     }
 
-    await pinCircle(userDid, circleId);
-    const user = (await getUserPrivate(userDid)) as UserPrivate;
+    // Same gate as the in-app pin (pinCircleAction): no pinning or bookmarking an unpublished circle,
+    // or a personal profile the viewer may not see.
+    const user = await pinCircleAction(circleId);
+    if (!user) {
+      return NextResponse.json({ error: "not found" }, { status: 404 });
+    }
     return NextResponse.json({ user });
   } catch (error) {
     console.error("POST /api/pins failed:", error);

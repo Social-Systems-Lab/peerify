@@ -295,6 +295,26 @@ export const cancelFollowRequest = async (circle: Circle): Promise<CircleActionR
 };
 
 /**
+ * Whether the signed-in viewer may bookmark or pin this circle (pinning also bookmarks). Only a
+ * published circle (Tim, 2026-10-20: block unpublished ones); a personal profile the owner hasn't
+ * made searchable only for viewers who may open its preview. Mirrors
+ * isDiscoverableCircle/isSuppressedPersonalProfile (search.ts / content-preview.tsx): admins,
+ * followers or accepted contacts, the same bypass getProfilePreviewAccessAction computes for the
+ * preview card. Non-user circles (communities/venues) have no such restriction.
+ */
+const canBookmarkCircle = async (circleId: string): Promise<boolean> => {
+    const targetCircle = await getCircleById(circleId);
+    if (!targetCircle || !isCirclePublished(targetCircle)) {
+        return false;
+    }
+    if (targetCircle.circleType === "user" && (targetCircle as any)?.searchable !== true) {
+        const { hasAccess } = await getProfilePreviewAccessAction(circleId, targetCircle.did as string);
+        return hasAccess;
+    }
+    return true;
+};
+
+/**
  * Toggle bookmark for a circle. Returns the updated UserPrivate on success.
  */
 export const toggleBookmarkAction = async (circleId: string): Promise<UserPrivate | undefined> => {
@@ -311,26 +331,14 @@ export const toggleBookmarkAction = async (circleId: string): Promise<UserPrivat
             return undefined;
         }
 
-        // Server-side visibility check, mirroring isDiscoverableCircle/isSuppressedPersonalProfile
-        // (search.ts / content-preview.tsx) rather than a new rule: a personal profile the owner
-        // hasn't made searchable is only visible to admins, followers, or accepted contacts — same
-        // bypass getProfilePreviewAccessAction already computes for the preview card itself. Non-user
-        // circles (communities/venues) have no such restriction, matching isDiscoverableCircle.
-        const targetCircle = await getCircleById(circleId);
-        if (!targetCircle || !isCirclePublished(targetCircle)) {
-            return undefined;
-        }
-        if (targetCircle.circleType === "user" && (targetCircle as any)?.searchable !== true) {
-            const { hasAccess } = await getProfilePreviewAccessAction(circleId, targetCircle.did as string);
-            if (!hasAccess) {
-                return undefined;
-            }
-        }
-
-        // Get current user and toggle bookmark based on current state
+        // Get current user and toggle bookmark based on current state. Removing is always allowed;
+        // adding only for a circle this viewer may see (canBookmarkCircle).
         const current = (await getUserPrivate(userDid)) as UserPrivate;
         const currentList = current.bookmarkedCircles ?? [];
         const isBookmarked = currentList.includes(circleId);
+        if (!isBookmarked && !(await canBookmarkCircle(circleId))) {
+            return undefined;
+        }
 
         if (isBookmarked) {
             await removeBookmark(userDid, circleId);
@@ -386,6 +394,7 @@ export const pinCircleAction = async (circleId: string): Promise<UserPrivate | u
         const payload = await verifyUserToken(token);
         const userDid = payload.userDid as string;
         if (!userDid) return undefined;
+        if (!(await canBookmarkCircle(circleId))) return undefined;
 
         await pinCircle(userDid, circleId);
         const updated = (await getUserPrivate(userDid)) as UserPrivate;
