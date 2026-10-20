@@ -13,13 +13,14 @@ import { Challenges, ChatRoomMembers, Circles, Members } from "./db";
 import { ObjectId } from "mongodb";
 import { signRegisterUserChallenge } from "../auth/auth";
 import { getUserPendingMembershipRequests } from "./membership-requests";
-import { defaultUserGroupsForUser, getDefaultAccessRules, getDefaultModules } from "./constants";
+import { defaultUserGroupsForUser, features, getDefaultAccessRules, getDefaultModules } from "./constants";
 import { SAFE_CIRCLE_PROJECTION, getCircleById } from "./circle"; // Added getCircleById import
 import { getEnabledModules } from "../auth/client-auth";
 import { getGroupedUserNotificationSettings } from "@/lib/actions/notificationSettings";
 import { VerificationRequest } from "@/models/models";
 import { db } from "./db";
 import { isVerifiedUser } from "@/lib/auth/verification";
+import { toPublicCircle } from "@/lib/utils/public-circle";
 import { ACTIVE_VERIFICATION_REQUEST_STATUSES } from "./verification-workflow";
 
 export const getVerificationStatus = async (userDid: string): Promise<"verified" | "pending" | "unverified"> => {
@@ -144,6 +145,40 @@ export const getUserByHandle = async (handle: string): Promise<Circle> => {
     return user;
 };
 
+// Whether the user manages a circle they've joined: the same rule as
+// isAuthorized(userDid, circleId, features.settings.edit_about), worked out from the membership row
+// and the circle's accessRules already loaded here instead of three DB reads per membership. Owner or
+// creator, platform admins, and verified members in a group the circle allows to edit its About.
+const managesMembershipCircle = (user: UserPrivate, membership: Membership): boolean => {
+    const circle = membership.circle;
+    if (!circle) return false;
+    if (user.isAdmin === true) return true;
+    if (!!user.did && (circle.did === user.did || circle.createdBy === user.did)) return true;
+    // edit_about needsToBeVerified.
+    if (!isVerifiedUser(user)) return false;
+    const allowed: string[] =
+        circle.accessRules?.settings?.edit_about ?? features.settings.edit_about.defaultUserGroups ?? [];
+    if (allowed.includes("everyone")) return true;
+    return allowed.some((group) => (membership.userGroups ?? []).includes(group));
+};
+
+// Memberships reach the browser with the user (checkAuth on every page load, and every action that
+// returns UserPrivate). A joined circle's stored location and full metadata go only to that
+// circle's managers; for everyone else the circle goes through toPublicCircle (round 2: city-level
+// location, public metadata and fields). The forms that need a managed circle's full data (event
+// pre-fill) fetch it server-side through getSelectableCirclesAction (Tim, 2026-10-20).
+const shapeMembershipForUser = (user: UserPrivate, membership: Membership): Membership => {
+    if (!membership.circle || managesMembershipCircle(user, membership)) return membership;
+    return {
+        ...membership,
+        circle: toPublicCircle(membership.circle, {
+            viewerDid: user.did,
+            viewerIsPlatformAdmin: false,
+            viewerCanManage: false,
+        }),
+    };
+};
+
 // gets the user including private information that should only be returned to the user
 export const getUserPrivate = async (userDid: string): Promise<UserPrivate> => {
     let user = (await Circles.findOne({ did: userDid })) as UserPrivate;
@@ -216,7 +251,7 @@ export const getUserPrivate = async (userDid: string): Promise<UserPrivate> => {
             },
         },
     ]).toArray();
-    user.memberships = memberships as Membership[];
+    user.memberships = (memberships as Membership[]).map((membership) => shapeMembershipForUser(user, membership));
 
     // add pending membership requests
     let pendingRequests = await getUserPendingMembershipRequests(userDid);
