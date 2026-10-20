@@ -2106,6 +2106,21 @@ async function fetchAndAttachInternalPreviewData(posts: PostDisplay[], viewerDid
     });
 }
 
+/**
+ * One internal preview, for the composer's link preview (getInternalLinkPreviewData): the same
+ * viewer gate and allow-listed fields as the previews embedded in feed posts. null when the target
+ * doesn't exist or this viewer may not see it. Circles are looked up by handle, the rest by id.
+ */
+export async function getInternalPreviewForViewer(
+    type: NonNullable<PostDisplay["internalPreviewType"]>,
+    id: string,
+    viewerDid: string | undefined,
+): Promise<PreviewData | null> {
+    const probe = { internalPreviewType: type, internalPreviewId: id } as PostDisplay;
+    await fetchAndAttachInternalPreviewData([probe], viewerDid);
+    return probe.internalPreviewData ?? null;
+}
+
 async function fetchAndAttachSharedPostData(posts: PostDisplay[], userDid?: string): Promise<void> {
     const postsWithShares = posts.filter((post) => post.sharedPostId);
     if (postsWithShares.length === 0) {
