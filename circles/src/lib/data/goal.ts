@@ -2,7 +2,7 @@
 import { Goals, Circles, RankedLists, Feeds, Posts } from "./db"; // Added Feeds, Posts
 import { ObjectId } from "mongodb";
 import { Goal, GoalDisplay, GoalStage, RankedList, Post } from "@/models/models"; // Added Post type
-import { SAFE_CIRCLE_PROJECTION } from "./circle";
+import { IDENTITY_CIRCLE_PROJECTION } from "./circle";
 import { getMemberIdsByUserGroup } from "./member";
 // RANKING_STALENESS_DAYS is now in ranking.ts
 import { createPost } from "./feed"; // Import createPost from feed.ts
@@ -95,7 +95,7 @@ export const getGoalsByCircleId = async (
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" }, // Convert circle _id to string
                             },
                         },
@@ -188,7 +188,7 @@ export const getActiveGoalsByCircleId = async (circleId: string): Promise<GoalDi
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -257,7 +257,7 @@ export const getCompletedGoalsByCircleId = async (circleId: string, userDid: str
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -327,7 +327,7 @@ export const getGoalById = async (goalId: string, userDid?: string): Promise<Goa
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" }, // convert ObjectId -> string
                             },
                         },

@@ -2,7 +2,7 @@
 import { Issues, Circles, Members, Reactions, Feeds, Posts } from "./db"; // Added Feeds, Posts
 import { ObjectId } from "mongodb";
 import { Issue, IssueDisplay, IssueStage, Circle, Member, Post } from "@/models/models"; // Added Post type
-import { getCircleById, SAFE_CIRCLE_PROJECTION } from "./circle";
+import { getCircleById, IDENTITY_CIRCLE_PROJECTION } from "./circle";
 import { createPost } from "./feed"; // Import createPost from feed.ts
 import { upsertVbdIssues } from "./vdb";
 // No longer need getUserByDid if we use $lookup consistently
@@ -85,7 +85,7 @@ export const getIssuesByCircleId = async (
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" }, // Convert circle _id to string
                             },
                         },
@@ -118,7 +118,7 @@ export const getIssuesByCircleId = async (
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" }, // Convert circle _id to string
                             },
                         },
@@ -188,7 +188,7 @@ export const getActiveIssuesByCircleId = async (circleId: string): Promise<Issue
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -217,7 +217,7 @@ export const getActiveIssuesByCircleId = async (circleId: string): Promise<Issue
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
@@ -288,7 +288,7 @@ export const getIssueById = async (issueId: string, userDid?: string): Promise<I
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" }, // convert ObjectId -> string
                             },
                         },
@@ -318,7 +318,7 @@ export const getIssueById = async (issueId: string, userDid?: string): Promise<I
                         },
                         {
                             $project: {
-                                ...SAFE_CIRCLE_PROJECTION,
+                                ...IDENTITY_CIRCLE_PROJECTION,
                                 _id: { $toString: "$_id" },
                             },
                         },
