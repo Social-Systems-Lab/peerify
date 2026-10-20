@@ -21,6 +21,12 @@ import { SdgPanel } from "../search/SdgPanel";
 import { sdgs } from "@/lib/data/sdgs";
 import { ChevronDown } from "lucide-react";
 
+// Pre-launch (Tim, 2026-10-20): the Feed's sort tabs (Top / Near / New / Activity / Resonates) are
+// hidden, so the Feed always uses its default sort ("new", or ?sort= if a URL still carries one).
+// Only the aggregate Feed (nav Feed panel/drawer, /foryou); circle feeds keep their tabs. Flip this
+// to show them again.
+const SHOW_FEED_SORT_TABS = false;
+
 export type FeedComponentProps = {
     circle: Circle;
     posts: PostDisplay[];
@@ -258,19 +264,21 @@ export const AggregateFeedComponent = ({
                         <CreateNewPost circle={user as Circle} feed={userFeed} />
                     </div>
                 )}
-                <div className="flex flex-col gap-2">
-                    <div className="flex w-full justify-center">
-                        <div className="w-full md:w-auto">
-                            <ListFilter
-                                defaultValue={defaultSort}
-                                onFilterChange={handleFilterChange}
-                                onSdgChange={handleSdgSelectionChange}
-                                selectedSdgs={selectedSdgs}
-                                showSdgFilter={false}
-                            />
+                {SHOW_FEED_SORT_TABS && (
+                    <div className="flex flex-col gap-2">
+                        <div className="flex w-full justify-center">
+                            <div className="w-full md:w-auto">
+                                <ListFilter
+                                    defaultValue={defaultSort}
+                                    onFilterChange={handleFilterChange}
+                                    onSdgChange={handleSdgSelectionChange}
+                                    selectedSdgs={selectedSdgs}
+                                    showSdgFilter={false}
+                                />
+                            </div>
                         </div>
                     </div>
-                </div>
+                )}
 
                 <PostList posts={posts} isAggregateFeed={true} compact={compact} />
             </div>
