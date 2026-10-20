@@ -41,6 +41,7 @@ import {
     triggerMapOpenAtom,
     zoomContentAtom,
     sidePanelModeAtom,
+    drawerContentAtom,
 } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import {
@@ -95,7 +96,7 @@ import RichText from "./RichText";
 import UserBadge from "../users/user-badge";
 import { motion } from "framer-motion";
 import { ListFilter } from "@/components/utils/list-filter";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Indicators, { ProximityIndicator, SimilarityScore } from "@/components/utils/indicators";
 import Image from "next/image"; // Import Next Image
 import { Card, CardContent } from "@/components/ui/card"; // Import Card components
@@ -401,6 +402,8 @@ export const PostItem = ({
     const [, setZoomContent] = useAtom(zoomContentAtom);
     const [, setTriggerOpen] = useAtom(triggerMapOpenAtom);
     const [sidePanelMode] = useAtom(sidePanelModeAtom);
+    const [, setDrawerContent] = useAtom(drawerContentAtom);
+    const pathname = usePathname();
 
     const getDistanceString = (distance: number) => {
         if (distance < 1) {
@@ -424,6 +427,15 @@ export const PostItem = ({
     };
 
     const handleMapPinClick = () => {
+        // The mobile /feed page has no map behind it: open Explore focused on this post. The map
+        // uses the same (already privacy-shaped) post location it would have used in the drawer.
+        if (pathname === "/feed") {
+            setDrawerContent("explore");
+            setZoomContent(post);
+            router.push("/explore");
+            return;
+        }
+
         const isFeedPost = (post as any)?.circleType === "post";
         if (sidePanelMode === "activity" && isFeedPost) {
             setFeedPanelDocked((prev) => !prev);
