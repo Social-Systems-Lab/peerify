@@ -335,20 +335,30 @@ const mergePeerifyEventMetadata = (
     };
 };
 
-// Pre-launch (Tim, 2026-10-20): events are public only. The other locationDisclosure values
-// (approximate, secret_after_acceptance, to_be_disclosed) and "private" visibility stay in the
-// schema and the code, hidden rather than removed, so existing events keep working. A create can't
-// choose them and an update can't switch to them; an existing event may keep the value it already
+// Pre-launch (Tim, 2026-10-20): events are public only. Every non-default value of the event
+// form's "Venue & location privacy" settings (locationDisclosure, venueDisclosure, accessMode) and
+// "private" visibility stay in the schema and the code, hidden rather than removed
+// (SHOW_EVENT_PRIVACY_SECTION in event-form.tsx), so existing events keep working. A create can't
+// choose them and an update can't switch to them; an existing event may keep the values it already
 // has, so editing it doesn't fail.
 const HIDDEN_EVENT_OPTION_MESSAGE = "Events can only be public, with a public address, for now.";
+const PUBLIC_EVENT_PRIVACY_DEFAULTS = {
+    locationDisclosure: "public",
+    venueDisclosure: "public",
+    accessMode: "open_rsvp",
+} as const;
 const usesHiddenEventOptions = (
     visibility: string | undefined,
-    locationDisclosure: string | undefined,
+    peerify: Partial<Record<keyof typeof PUBLIC_EVENT_PRIVACY_DEFAULTS, string>> | undefined,
     existing?: Pick<EventModel, "visibility" | "metadata">,
 ): boolean => {
-    const existingDisclosure = existing?.metadata?.peerify?.locationDisclosure ?? "public";
-    if (locationDisclosure && locationDisclosure !== "public" && locationDisclosure !== existingDisclosure) {
-        return true;
+    for (const [field, defaultValue] of Object.entries(PUBLIC_EVENT_PRIVACY_DEFAULTS)) {
+        const key = field as keyof typeof PUBLIC_EVENT_PRIVACY_DEFAULTS;
+        const value = peerify?.[key];
+        const existingValue = existing?.metadata?.peerify?.[key] ?? defaultValue;
+        if (value && value !== defaultValue && value !== existingValue) {
+            return true;
+        }
     }
     return visibility === "private" && existing?.visibility !== "private";
 };
@@ -627,7 +637,7 @@ export async function createEventAction(
         }
 
         const metadata = parsePeerifyEventMetadata(data.peerifyEventMetadata)?.metadata;
-        if (usesHiddenEventOptions(data.visibility, metadata?.peerify?.locationDisclosure)) {
+        if (usesHiddenEventOptions(data.visibility, metadata?.peerify)) {
             return { success: false, message: HIDDEN_EVENT_OPTION_MESSAGE };
         }
 
@@ -771,9 +781,7 @@ export async function updateEventAction(
         }
         const data = validated.data;
         const parsedPeerifyMetadata = parsePeerifyEventMetadata(data.peerifyEventMetadata);
-        if (
-            usesHiddenEventOptions(data.visibility, parsedPeerifyMetadata?.metadata.peerify?.locationDisclosure, event)
-        ) {
+        if (usesHiddenEventOptions(data.visibility, parsedPeerifyMetadata?.metadata.peerify, event)) {
             return { success: false, message: HIDDEN_EVENT_OPTION_MESSAGE };
         }
 
