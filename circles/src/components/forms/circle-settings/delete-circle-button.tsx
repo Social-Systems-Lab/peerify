@@ -88,6 +88,13 @@ export function DeleteCircleButton({ circle }: DeleteCircleButtonProps) {
                     description: result.message,
                 });
 
+                // The session is gone with the account: reload from scratch so no client state
+                // (user atom, cached pages) survives it.
+                if (result.data?.accountDeleted) {
+                    window.location.assign(result.data.redirectTo ?? "/");
+                    return;
+                }
+
                 // Update user atom by removing the membership for this circle
                 if (user && user.memberships) {
                     // Option 1: Update the user atom directly by filtering out the deleted circle
@@ -185,6 +192,12 @@ export function DeleteCircleButton({ circle }: DeleteCircleButtonProps) {
                                     {deletionStats.isUser && (
                                         <li>
                                             <strong>User account</strong> and associated files
+                                        </li>
+                                    )}
+                                    {deletionStats.isUser && (
+                                        <li>
+                                            Everything you posted or sent anywhere: posts, comments, messages,
+                                            events and uploads
                                         </li>
                                     )}
                                 </ul>
