@@ -8,7 +8,7 @@ This policy explains what personal data Peerify (peerify.one) collects, why, who
 
 The controller is **Social Systems Lab International AB (svb)**, org.nr 559264-4289, c/o Sevenius & Co AB, Illerstigen 8, 170 71 Solna, Sweden — a non-profit company fully owned by the Social Systems Foundation.
 
-Contact: **hello@socialsystems.io**
+Contact: **hello@peerify.net**
 
 ## What we collect
 
@@ -48,13 +48,13 @@ We don't share your data with anyone else unless the law requires it.
 
 ## How long we keep it
 
-- **Account and profile data:** as long as your account exists. To delete your account, write to hello@socialsystems.io and we'll delete your data within 30 days, except where the law requires us to keep it.
+- **Account and profile data:** as long as your account exists. You can delete your account yourself under Settings → General (or write to hello@peerify.net). Your profile is removed immediately, and the rest of your personal data — posts, comments, messages, events, uploaded files and notifications — within 30 days, except where the law requires us to keep it.
 - **Server logs:** 14 days.
 - **Backups:** encrypted and kept for up to 30 days.
 
 ## Your rights
 
-You can ask us to **see** the data we hold about you, **correct** it, **delete** it, **restrict** or **object** to its use, or receive it in a **portable** format. Write to hello@socialsystems.io and we'll answer within a month.
+You can ask us to **see** the data we hold about you, **correct** it, **delete** it, **restrict** or **object** to its use, or receive it in a **portable** format. Write to hello@peerify.net and we'll answer within a month.
 
 If you're unhappy with how we handle your data, you can complain to the Swedish data protection authority, **IMY** (imy.se).
 
