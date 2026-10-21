@@ -6,7 +6,7 @@ These terms are the agreement between you and us when you use Peerify (peerify.o
 
 ## 1. Who we are
 
-Peerify is run by **Social Systems Lab International AB (svb)**, org.nr 559264-4289, c/o Sevenius & Co AB, Illerstigen 8, 170 71 Solna, Sweden — a non-profit company fully owned by the Social Systems Foundation. Contact: **hello@****p****eer****if****y****.****net**.
+Peerify is run by **Social Systems Lab International AB (svb)**, org.nr 559264-4289, c/o Sevenius & Co AB, Illerstigen 8, 170 71 Solna, Sweden — a non-profit company fully owned by the Social Systems Foundation. Contact: **hello@peerify.net**.
 
 ## 2. Who can use Peerify
 
