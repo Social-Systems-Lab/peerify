@@ -8,88 +8,6 @@ import { userAtom } from "@/lib/data/atoms";
 import { saveTermsAgreementAction } from "./actions";
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import RichText from "@/components/modules/feeds/RichText";
-
-// Dummy markdown content for Terms of Service
-const TERMS_OF_SERVICE_CONTENT = `
-# TERMS OF SERVICE (TOS) SUMMARY
-
-- **Platform Purpose**: Peerify is a community-driven music platform for artists, fans, hosts, and supporters to discover each other, build trust, and organise real events.  
-- **Acceptance**: By using Peerify, you agree to these Terms of Service.  
-- **User Responsibilities**: You’re responsible for all content you post and must follow all applicable laws.  
-- **Content Ownership**: You own your content but grant Peerify the right to display and distribute it.  
-- **Privacy & Data**: We respect your privacy and handle your data according to our Privacy Policy.  
-- **Liability**: Peerify is provided “as is” with no warranties. We aren’t liable for user-generated content or data loss.  
-- **Termination**: We can suspend or terminate accounts that violate these Terms.  
-- **Contact**: Questions? Reach us at hello@socialsystems.io.
-# 
----
-
-# TERMS OF SERVICE
-**Last Updated: [June 18, 2025]**
-
-## 1. Introduction
-Welcome to Peerify! Peerify is a community-driven music platform for artists, fans, hosts, and supporters. It helps people discover each other, organise events, build trusted local scenes, and support live music in practical ways. The platform is still in development, and your participation helps us refine and improve it before the full launch.
-
-By accessing or using Peerify (the “Platform”), you acknowledge that you have read, understood, and agree to be bound by these Terms of Service (“Terms”). If you do not agree to these Terms in their entirety, please do not use Peerify.
-
-## 2. Acceptance of Terms
-By creating an account or otherwise using Peerify, you affirm that you are at least the age of majority in your place of residence. If you are using Peerify on behalf of an organization, you represent and warrant that you have the authority to bind that organization to these Terms.
-
-## 3. Description of Services
-- **Music Community Building**: You can create or join Circles—public or private spaces for artists, listeners, hosts, and collaborators.  
-- **Events and Support**: Peerify may provide tools for discovery, bookings, profile verification, event coordination, support pledges, and other collaborative features.  
-- **Innovation & Development**: As an evolving platform, new features may be added, modified, or removed at our discretion.
-
-## 4. User Accounts
-- **Registration**: To fully utilize Peerify, you must create a user account. You agree to provide accurate and current information.  
-- **Account Security**: You are responsible for safeguarding your account credentials and for any activities under your account. If you suspect unauthorized use, notify us immediately at hello@socialsystems.io.  
-- **Account Termination**: We reserve the right to suspend or terminate any account that violates these Terms or for any other reason at our discretion.
-
-## 5. Ownership of Content
-- **User-Generated Content**: You retain full ownership of all content (text, images, videos, etc.) that you upload or post (“User Content”).  
-- **License to Peerify**: By posting User Content on the Platform, you grant Peerify a non-exclusive, royalty-free, worldwide license to host, display, and distribute your content solely for providing our services.  
-- **Content Removal**: If you delete User Content or close your account, we will make reasonable efforts to remove it from the Platform. However, copies or references may remain in cached or archived pages, or if other users have made references to your content.
-
-## 6. User Conduct
-You agree that you will not:  
-- Use the Platform for any unlawful or unauthorized purpose.  
-- Create posts that are hateful, defamatory, obscene, or otherwise objectionable.
-- Interfere with or disrupt the security or performance of Peerify.  
-- Use any automated system to scrape data or content from the Platform without our express written permission.
-
-We reserve the right to remove content or restrict user accounts at our sole discretion for conduct we deem harmful.
-
-## 7. Content Exposure
-Peerify hosts a variety of content from diverse users. While we strive to maintain a respectful environment, you may encounter content you find offensive or objectionable. Such content is the responsibility of the user who posted it, and Peerify disclaims liability for user-generated content.
-
-## 8. Availability of Service
-Peerify is provided “as is” and “as available.” We do not guarantee uninterrupted or error-free operation. We may suspend or discontinue any feature or service, in whole or in part, at any time, without notice or liability.
-
-## 9. Loss of Data
-Peerify is not responsible for the loss of any data. We encourage you to maintain your own backups of important content or data.
-
-## 10. Disclaimer of Warranties
-To the fullest extent permitted by law, Peerify disclaims all warranties, whether express or implied, including but not limited to implied warranties of merchantability, fitness for a particular purpose, non-infringement, and correctness of content.
-
-## 11. Limitation of Liability
-Under no circumstances shall Peerify or its affiliates be liable for any indirect, incidental, special, consequential, or exemplary damages arising from or relating to your use of the Platform. Some jurisdictions do not allow the exclusion of certain warranties or the limitation or exclusion of liability for incidental or consequential damages. In such jurisdictions, our liability is limited to the greatest extent permitted by law.
-
-## 12. Indemnification
-You agree to indemnify and hold harmless Peerify, its founders, partners, and affiliates from any claims, losses, damages, or legal fees arising out of your use of the Platform, your User Content, or any breach of these Terms.
-
-## 13. Changes to Terms
-We may revise these Terms from time to time. If we make material changes, we will notify you via email or through a prominent notice on the Platform. Your continued use of Peerify after any revisions indicates your acceptance of the updated Terms.
-
-## 14. Governing Law and Dispute Resolution
-These Terms shall be governed by and construed in accordance with the laws of [Your Jurisdiction]. Any dispute arising out of or relating to these Terms or your use of the Platform shall be resolved in the courts located in [Your Jurisdiction], unless otherwise required by applicable law.
-
-## 15. Contact Us
-If you have any questions, concerns, or comments about our Terms of Service, please reach out to us at:  
-**Email**: hello@socialsystems.io
-
-Thank you for using Peerify!
-`;
 
 function TermsStep({ nextStep }: OnboardingStepProps) {
     const [user, setUser] = useAtom(userAtom);
@@ -148,7 +66,20 @@ function TermsStep({ nextStep }: OnboardingStepProps) {
                     value="terms"
                     className="formatted max-h-[300px] overflow-y-auto rounded-md border bg-white p-4"
                 >
-                    <RichText content={TERMS_OF_SERVICE_CONTENT} />
+                    {/* The terms themselves are the public /terms page (src/content/terms.md). A plain anchor,
+                        because RichText only opens external links in a new tab. */}
+                    <p>
+                        Read our{" "}
+                        <a
+                            href="/terms"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-blue-600 underline"
+                        >
+                            Terms of Service
+                        </a>{" "}
+                        (opens in a new tab).
+                    </p>
                 </TabsContent>
                 <TabsContent
                     value="privacy"

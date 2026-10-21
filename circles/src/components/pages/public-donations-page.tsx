@@ -126,6 +126,7 @@ export default function PublicDonationsPage() {
                                 <a href="https://www.socialsystems.io/foundation/">Foundation</a>
                                 <a href="https://www.socialsystems.io/contact/">Contact</a>
                                 <a href="/privacy">Privacy</a>
+                                <a href="/terms">Terms</a>
                             </div>
                         </div>
                     </div>

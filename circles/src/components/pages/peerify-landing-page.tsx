@@ -384,6 +384,7 @@ export default function PeerifyLandingPage() {
                     <Link href="/explore">Explore map</Link>
                     <Link href="/discover">Discover</Link>
                     <Link href="/privacy">Privacy</Link>
+                    <Link href="/terms">Terms</Link>
                     <a href="https://peerify.net" target="_blank" rel="noopener noreferrer">peerify.net</a>
                 </nav>
                 <p className={"footerNote"}>

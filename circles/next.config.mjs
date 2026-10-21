@@ -23,8 +23,11 @@ const nextConfig = {
     // on where the checkout lives. With this, it is always .next/standalone/server.js.
     outputFileTracingRoot: path.dirname(fileURLToPath(import.meta.url)),
     allowedDevOrigins,
-    // /privacy reads its markdown with fs at request time; make sure standalone ships it.
-    outputFileTracingIncludes: { "/privacy": ["./src/content/privacy-policy.md"] },
+    // /privacy and /terms read their markdown with fs at request time; make sure standalone ships it.
+    outputFileTracingIncludes: {
+        "/privacy": ["./src/content/privacy-policy.md"],
+        "/terms": ["./src/content/terms.md"],
+    },
     images: {
         remotePatterns: [
             {
