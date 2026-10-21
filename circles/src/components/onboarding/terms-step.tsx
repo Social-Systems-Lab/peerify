@@ -91,57 +91,6 @@ If you have any questions, concerns, or comments about our Terms of Service, ple
 Thank you for using Peerify!
 `;
 
-// Dummy markdown content for Privacy Policy
-const PRIVACY_POLICY_CONTENT = `
-# PRIVACY POLICY
-**Last Updated: [June 18, 2025]**
-
-Peerify (“we,” “us,” or “our”) respects your privacy and is committed to protecting the personal information you share with us. This Privacy Policy outlines what information we collect, how we use it, and the choices you have regarding your information.
-
-## 1. Information We Collect
-1. **Account Information**: When you register, we may collect your name, email address, location, and any other information you voluntarily provide.  
-2. **User-Generated Content**: Content you create, upload, or share, including text, images, or videos.  
-3. **Usage Data**: We may automatically collect information about how you interact with the Platform, such as IP address, browser type, device information, and pages visited.  
-4. **Cookies & Similar Technologies**: We use cookies and similar technologies to enhance your experience, remember your preferences, and gather usage data.
-
-## 2. How We Use Your Information
-- **To Provide and Improve Services**: We use your information to operate, maintain, and enhance the features and functionality of Peerify.  
-- **Communication**: We may send you Platform-related updates, respond to your inquiries, or notify you of changes to our policies.  
-- **Analytics**: Usage data helps us understand user behavior, improve user experience, and develop new features.  
-- **AI & Recommendations**: We may use AI technologies (e.g., OpenAI embeddings) from your information to improve discovery, profile recommendations, event matching, and other features.  
-- **Legal Compliance**: We may use your information to comply with applicable laws, regulations, or legal requests.
-
-## 3. Sharing and Disclosure of Information
-- **Within Peerify**: Our team may access your information only as necessary to provide and improve our services.  
-- **Third-Party Service Providers**: We may share your information with trusted vendors who help us operate our Platform (e.g., hosting, analytics). These providers are obligated to protect your information and may not use it for other purposes.  
-- **Legal Requirements**: We may disclose your information if required to do so by law or when we believe disclosure is necessary to protect our rights or comply with a judicial proceeding, court order, or legal process.
-
-## 4. Data Retention
-We retain your personal information for as long as needed to provide our services or as otherwise required by law. User-Generated Content may be retained in backups or archives even after you delete it from public view.
-
-## 5. Your Rights and Choices
-- **Access and Correction**: You may request access to or correction of the personal information we hold about you.  
-- **Deletion**: You may request that we delete your personal information, though we may retain certain data for legal or legitimate business purposes.  
-- **Cookies**: You can usually modify your browser settings to decline cookies, but some Platform features may not function properly if you do so.  
-- **Opt-Out**: You can opt-out of non-essential communications from us by following the unsubscribe instructions or contacting us directly.
-
-## 6. Security Measures
-We use reasonable safeguards to protect your information from unauthorized access or disclosure. However, no method of transmission over the internet or electronic storage is 100% secure. We encourage you to take steps to protect your personal information, such as using strong passwords.
-
-## 7. International Data Transfers
-If you access Peerify from outside of [Your Primary Jurisdiction], your data may be transferred across international borders. By using the Platform, you consent to the processing and transfer of your information in and to [Your Primary Jurisdiction] and other countries, subject to this Privacy Policy.
-
-## 8. Children’s Privacy
-Peerify is not directed at individuals under the age of 13 (or the age of majority in your jurisdiction). If we learn that we have collected personal information from a child under these ages, we will take steps to delete such information as soon as possible.
-
-## 9. Changes to This Privacy Policy
-We may update this Privacy Policy from time to time. If we make material changes, we will notify you via email or through a prominent notice on the Platform. Your continued use of Peerify after any such changes indicates your acceptance of the updated policy.
-
-## 10. Contact Us
-For questions or concerns about this Privacy Policy or how we handle your personal information, please contact us at:  
-**Email**: hello@socialsystems.io
-`;
-
 function TermsStep({ nextStep }: OnboardingStepProps) {
     const [user, setUser] = useAtom(userAtom);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -205,7 +154,20 @@ function TermsStep({ nextStep }: OnboardingStepProps) {
                     value="privacy"
                     className="formatted max-h-[300px] overflow-y-auto rounded-md border bg-white p-4"
                 >
-                    <RichText content={PRIVACY_POLICY_CONTENT} />
+                    {/* The policy itself is the public /privacy page (src/content/privacy-policy.md). A plain
+                        anchor, because RichText only opens external links in a new tab. */}
+                    <p>
+                        Read our{" "}
+                        <a
+                            href="/privacy"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-blue-600 underline"
+                        >
+                            Privacy Policy
+                        </a>{" "}
+                        (opens in a new tab).
+                    </p>
                 </TabsContent>
             </Tabs>
 

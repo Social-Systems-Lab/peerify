@@ -383,6 +383,7 @@ export default function PeerifyLandingPage() {
                     <Link href="/signup/pilot">For artists</Link>
                     <Link href="/explore">Explore map</Link>
                     <Link href="/discover">Discover</Link>
+                    <Link href="/privacy">Privacy</Link>
                     <a href="https://peerify.net" target="_blank" rel="noopener noreferrer">peerify.net</a>
                 </nav>
                 <p className={"footerNote"}>
