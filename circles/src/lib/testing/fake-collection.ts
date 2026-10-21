@@ -3,7 +3,7 @@
 // field; a scalar matches an array field that contains it, as in MongoDB), dotted paths, $in, $nin,
 // $ne, $exists, $not, $size, $gt/$gte/$lt/$lte, RegExp values, top-level $or/$and, find().toArray() and
 // find() with sort/limit/project, inclusion projections (dotted paths too), countDocuments, deleteMany,
-// and updateOne ($set, $addToSet, $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
+// and updateOne ($set, $unset, $addToSet, $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
 // between its match and its write).
 
 type Doc = Record<string, any>;
@@ -26,10 +26,19 @@ const isOperatorObject = (condition: unknown): boolean =>
     Object.keys(condition).length > 0 &&
     Object.keys(condition).every((k) => k.startsWith("$"));
 
+// A dotted path through an array reads that field of every element, as in MongoDB
+// ("reactions.userDid" on [{userDid: a}, {userDid: b}] is [a, b]).
 const getPath = (doc: Doc, key: string): unknown =>
-    key
-        .split(".")
-        .reduce<unknown>((value, part) => (value && typeof value === "object" ? (value as Doc)[part] : undefined), doc);
+    key.split(".").reduce<unknown>((value, part) => {
+        if (Array.isArray(value) && !/^\d+$/.test(part)) {
+            return value.flatMap((element) =>
+                element && typeof element === "object" && (element as Doc)[part] !== undefined
+                    ? [(element as Doc)[part]]
+                    : [],
+            );
+        }
+        return value && typeof value === "object" ? (value as Doc)[part] : undefined;
+    }, doc);
 
 const matchesCondition = (value: unknown, condition: unknown): boolean => {
     // A scalar condition matches an array field if any element matches (MongoDB semantics).
@@ -170,7 +179,7 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             }
             return { deletedCount };
         },
-        async updateOne(filter: Doc, update: { $set?: Doc; $addToSet?: Doc; $pull?: Doc }) {
+        async updateOne(filter: Doc, update: { $set?: Doc; $unset?: Doc; $addToSet?: Doc; $pull?: Doc }) {
             const found = docs.find((d) => matchesFilter(d, filter));
             if (!found) {
                 return { matchedCount: 0, modifiedCount: 0 };
@@ -181,6 +190,10 @@ export const createFakeCollection = (initial: Doc[] = []) => {
                     throw new Error(`fake-collection: explicit undefined written to ${key}`);
                 }
                 found[key] = value;
+            }
+            // Top-level fields only.
+            for (const key of Object.keys(update.$unset ?? {})) {
+                delete found[key];
             }
             // Top-level array fields and single values only.
             for (const [key, value] of Object.entries(update.$addToSet ?? {})) {

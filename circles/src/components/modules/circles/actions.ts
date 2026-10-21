@@ -8,6 +8,19 @@ import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { Feeds, Members, Posts } from "@/lib/data/db";
 import { getSoleAdminCircles } from "@/lib/data/member";
 import { features } from "@/lib/data/constants";
+import { eraseAccount, planAccountErasure } from "@/lib/data/account-erasure";
+import { getAuthCookieNamesForClearing } from "@/lib/auth/cookie";
+import { cookies } from "next/headers";
+
+// A personal profile's own artist circles (auto-created at signup, no other members) are erased
+// with the account (account-erasure.ts), so being their only admin doesn't block deleting it.
+const getBlockingSoleAdminCircles = async (circle: { _id?: unknown; did?: string; circleType?: string }) => {
+    if (!circle.did) return [];
+    const soleAdminCircles = await getSoleAdminCircles(circle.did, String(circle._id));
+    if (circle.circleType !== "user" || soleAdminCircles.length === 0) return soleAdminCircles;
+    const { ownCircleIds } = await planAccountErasure(circle.did);
+    return soleAdminCircles.filter((c) => !ownCircleIds.includes(String(c._id)));
+};
 
 /**
  * Get statistics about what will be deleted when a circle is deleted
@@ -69,7 +82,7 @@ export async function getCircleDeletionStatsAction(circleId: string) {
         // proactively, as soon as the delete dialog opens — not just as a failure message after
         // someone types the confirmation name — since this stats fetch already runs at exactly
         // that moment (see DeleteCircleButton).
-        const soleAdminCircles = circle.did ? await getSoleAdminCircles(circle.did, circleId) : [];
+        const soleAdminCircles = await getBlockingSoleAdminCircles(circle);
 
         return {
             success: true,
@@ -148,7 +161,7 @@ export async function deleteCircleAction(circleId: string, confirmationName: str
         // ever starts, using the same countAdmins-based rule via the shared getSoleAdminCircles
         // helper (excludeCircleId skips the circle being deleted itself).
         if (circle.did) {
-            const soleAdminCircles = await getSoleAdminCircles(circle.did, circleId);
+            const soleAdminCircles = await getBlockingSoleAdminCircles(circle);
             if (soleAdminCircles.length > 0) {
                 const circleNames = soleAdminCircles.map((c) => c.name || c.handle || "an unnamed circle").join(", ");
                 return {
@@ -166,6 +179,28 @@ export async function deleteCircleAction(circleId: string, confirmationName: str
             return {
                 success: false,
                 message: "Confirmation name does not match circle name",
+            };
+        }
+
+        // A personal profile is the account: erase everything the person created or that is about
+        // them (account-erasure.ts), then end their session. Other circles keep the circle delete.
+        if (circle.circleType === "user" && circle.did) {
+            await eraseAccount(circle.did);
+            const cookieStore = await cookies();
+            for (const cookieName of getAuthCookieNamesForClearing()) {
+                cookieStore.set(cookieName, "", {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === "production",
+                    sameSite: "lax",
+                    path: "/",
+                    maxAge: 0,
+                });
+            }
+            revalidatePath("/");
+            return {
+                success: true,
+                message: "Your account and everything in it has been deleted.",
+                data: { redirectTo: "/", accountDeleted: true },
             };
         }
 

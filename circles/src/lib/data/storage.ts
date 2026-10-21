@@ -263,6 +263,57 @@ export const removePrivateObject = async (key: string): Promise<void> => {
     await minioClient.removeObject(privateBucketName, key);
 };
 
+// ---------------------------------------------------------------------------
+// Bulk listing/removal, used by account erasure (account-erasure.ts).
+// "public" is the circles bucket behind /storage/, "private" the audio bucket above.
+// ---------------------------------------------------------------------------
+
+export type StorageBucket = "public" | "private";
+
+const resolveBucket = async (bucket: StorageBucket): Promise<string> => {
+    if (bucket === "private") {
+        await ensurePrivateBucket();
+        return privateBucketName;
+    }
+    return bucketName;
+};
+
+// A prefix must name a whole "directory": non-empty, ending in "/", and not just "/". So "" can
+// never list or empty a whole bucket, and "abc/" can't also match the objects of a circle "abcd".
+const assertDirectoryPrefix = (prefix: string) => {
+    if (typeof prefix !== "string" || prefix.length < 2 || !prefix.endsWith("/") || prefix.startsWith("/")) {
+        throw new Error(`Refusing storage prefix "${prefix}": it must look like "<id>/"`);
+    }
+};
+
+export const listObjectKeysByPrefix = async (bucket: StorageBucket, prefix: string): Promise<string[]> => {
+    assertDirectoryPrefix(prefix);
+    const name = await resolveBucket(bucket);
+    const keys: string[] = [];
+    for await (const obj of minioClient.listObjectsV2(name, prefix, true)) {
+        if (obj.name) keys.push(obj.name);
+    }
+    return keys;
+};
+
+// Removes exactly these keys (missing ones are no error in S3/MinIO). Returns how many were asked for.
+export const removeObjectKeys = async (bucket: StorageBucket, keys: string[]): Promise<number> => {
+    const unique = [...new Set(keys.filter((k) => typeof k === "string" && k.length > 0))];
+    if (unique.length === 0) return 0;
+    const name = await resolveBucket(bucket);
+    const failed: string[] = [];
+    for (let i = 0; i < unique.length; i += 1000) {
+        const results = await minioClient.removeObjects(name, unique.slice(i, i + 1000));
+        for (const result of results ?? []) {
+            if (result?.Error) failed.push(`${result.Error.Key ?? "?"}: ${result.Error.Code ?? "error"}`);
+        }
+    }
+    if (failed.length > 0) {
+        throw new Error(`Failed to remove ${failed.length} object(s) from ${bucket} storage: ${failed.slice(0, 5).join(", ")}`);
+    }
+    return unique.length;
+};
+
 // Function to delete a file from MinIO based on its URL
 export const deleteFile = async (fileUrl: string): Promise<void> => {
     try {

@@ -61,7 +61,7 @@ export const VERIFICATION_ENFORCED_AT = new Date("2026-10-14T12:00:00Z");
 // chat list loads). Their messages come from the system sender (or the welcome template's sender),
 // which is not a participant. Such a conversation is purged with the account; one with any other
 // participant counts as activity. A message the account sent anywhere always counts as activity.
-const isAutomaticConversation = (participants: unknown, did: string): boolean => {
+export const isAutomaticConversation = (participants: unknown, did: string): boolean => {
     const systemDid = getKamooniSystemSender().did;
     return (
         Array.isArray(participants) &&
@@ -306,14 +306,27 @@ export async function applyPurgePlan(plan: PurgePlan): Promise<PurgeResult> {
         }
     }
 
-    let userDirRemoved = false;
-    if (plan.userDirExists && path.dirname(plan.userDir) === USERS_DIR && path.basename(plan.userDir) === plan.did) {
-        fs.rmSync(plan.userDir, { recursive: true, force: true });
-        userDirRemoved = !fs.existsSync(plan.userDir);
-    }
+    const userDirRemoved = plan.userDirExists ? removeUserKeyDir(plan.did) : false;
+    const recounted = await recountMemberCounters(plan.recountCircleIds);
 
+    return { deleted, recounted, vdbErrors, userDirRemoved };
+}
+
+// Shared with account erasure (account-erasure.ts).
+
+// Removes USERS_DIR/<did> (the account's key directory). Only ever that exact directory: the
+// resolved path must sit directly in USERS_DIR and be named after the did. True if it is gone.
+export function removeUserKeyDir(did: string): boolean {
+    const userDir = path.join(USERS_DIR, did);
+    if (path.dirname(userDir) !== USERS_DIR || path.basename(userDir) !== did) return false;
+    if (fs.existsSync(userDir)) fs.rmSync(userDir, { recursive: true, force: true });
+    return !fs.existsSync(userDir);
+}
+
+// Sets each circle's stored `members` counter to its actual member rows.
+export async function recountMemberCounters(circleIds: string[]): Promise<PurgeResult["recounted"]> {
     const recounted: PurgeResult["recounted"] = [];
-    for (const circleId of plan.recountCircleIds) {
+    for (const circleId of circleIds) {
         if (!ObjectId.isValid(circleId)) continue;
         const circle = (await Circles.findOne(
             { _id: new ObjectId(circleId) },
@@ -324,6 +337,5 @@ export async function applyPurgePlan(plan: PurgePlan): Promise<PurgeResult> {
         await Circles.updateOne({ _id: new ObjectId(circleId) }, { $set: { members: after } });
         recounted.push({ circleId, before: typeof circle.members === "number" ? circle.members : null, after });
     }
-
-    return { deleted, recounted, vdbErrors, userDirRemoved };
+    return recounted;
 }
