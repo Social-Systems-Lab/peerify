@@ -787,12 +787,12 @@ export const getIdentityTypeForActFormat = (
     }
 };
 
-// Act format, then "What you do", then the free-text "describe your act" tags.
+// Act format, then "What you do", then the free-text "describe your act" tags. The format badge
+// shows only when the artist chose one: the identityType fallback is for filtering, not display.
 export const getPeerifyArtistTypeBadges = (circle?: Partial<Circle> | null): string[] => {
     const artistProfile = getPeerifyArtistProfile(circle);
-    const actFormat = getPeerifyActFormat(circle);
     return [
-        ...(actFormat ? [PEERIFY_ACT_FORMAT_LABELS[actFormat]] : []),
+        ...(artistProfile.actFormat ? [PEERIFY_ACT_FORMAT_LABELS[artistProfile.actFormat]] : []),
         ...artistProfile.actOffers.map((offer) => PEERIFY_ACT_OFFER_LABELS[offer]),
         ...artistProfile.artistTypeOtherLabels,
     ];
