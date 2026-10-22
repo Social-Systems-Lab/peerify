@@ -15,7 +15,16 @@ import {
     SearchFiltersValue,
     CategoryFilterCarousel,
     GenreFilterChips,
+    ActOfferFilterRow,
 } from "@/components/modules/search/search-filters";
+import {
+    PEERIFY_ACT_FORMAT_LABELS,
+    PEERIFY_ACT_FORMATS,
+    PEERIFY_ACT_OFFER_LABELS,
+    PEERIFY_ACT_OFFERS,
+    type PeerifyActFormat,
+    type PeerifyActOffer,
+} from "@/lib/peerify/artist-profile";
 import { getDiscoverResultsAction, DiscoverResults } from "./actions";
 import ArtistCard from "./artist-card";
 import { DEFAULT_DISCOVER_FILTERS } from "./constants";
@@ -65,6 +74,13 @@ const sanitizePersistedDiscoverFilters = (value: unknown): SearchFiltersValue | 
         selectedOfferTypes: [],
         dateRange: sanitizeDateRange(raw.dateRange),
         physicalOnly: raw.physicalOnly === true,
+        // Missing in filters saved before act filters existed: same version, read as none.
+        selectedActFormats: sanitizeStringArray(raw.selectedActFormats).filter((v) =>
+            (PEERIFY_ACT_FORMATS as string[]).includes(v),
+        ),
+        selectedActOffers: sanitizeStringArray(raw.selectedActOffers).filter((v) =>
+            (PEERIFY_ACT_OFFERS as string[]).includes(v),
+        ),
         searchQuery: typeof raw.searchQuery === "string" ? raw.searchQuery : "",
     };
 };
@@ -94,6 +110,8 @@ const isDefaultDiscoverFilters = (value: SearchFiltersValue): boolean =>
     sameCategorySet(value.selectedOfferTypes, DEFAULT_DISCOVER_FILTERS.selectedOfferTypes) &&
     sameDateRange(value.dateRange, DEFAULT_DISCOVER_FILTERS.dateRange) &&
     value.physicalOnly === DEFAULT_DISCOVER_FILTERS.physicalOnly &&
+    sameCategorySet(value.selectedActFormats, DEFAULT_DISCOVER_FILTERS.selectedActFormats) &&
+    sameCategorySet(value.selectedActOffers, DEFAULT_DISCOVER_FILTERS.selectedActOffers) &&
     value.searchQuery === DEFAULT_DISCOVER_FILTERS.searchQuery;
 
 const describeFilters = (value: SearchFiltersValue): string => {
@@ -108,6 +126,12 @@ const describeFilters = (value: SearchFiltersValue): string => {
     }
     if (value.selectedGenres.length > 0) {
         parts.push(value.selectedGenres.join(", "));
+    }
+    if (value.selectedActFormats.length > 0) {
+        parts.push(value.selectedActFormats.map((v) => PEERIFY_ACT_FORMAT_LABELS[v as PeerifyActFormat]).join(", "));
+    }
+    if (value.selectedActOffers.length > 0) {
+        parts.push(value.selectedActOffers.map((v) => PEERIFY_ACT_OFFER_LABELS[v as PeerifyActOffer]).join(", "));
     }
     if (value.dateRange?.from || value.dateRange?.to) {
         const from = value.dateRange.from ? format(value.dateRange.from, "MMM d") : "";
@@ -199,6 +223,8 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
                 query: value.searchQuery,
                 selectedCategories: value.selectedCategories,
                 primaryGenres: value.selectedGenres,
+                actFormats: value.selectedActFormats,
+                actOffers: value.selectedActOffers,
                 dateRange: value.dateRange
                     ? { from: value.dateRange.from?.toISOString(), to: value.dateRange.to?.toISOString() }
                     : undefined,
@@ -230,6 +256,8 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
         isMounted,
         filtersValue.selectedCategories,
         filtersValue.selectedGenres,
+        filtersValue.selectedActFormats,
+        filtersValue.selectedActOffers,
         filtersValue.dateRange?.from,
         filtersValue.dateRange?.to,
         filtersValue.searchQuery,
@@ -295,6 +323,14 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
                     categoryOptions={DISCOVER_CATEGORY_OPTIONS}
                 />
             </div>
+
+            {/* What you do: artists only, so hidden while the view is Events only. */}
+            {showArtists && (
+                <ActOfferFilterRow
+                    selectedActOffers={filtersValue.selectedActOffers}
+                    onChange={(next) => handleFiltersChange({ ...filtersValue, selectedActOffers: next })}
+                />
+            )}
 
             {/* Hidden while narrowed to Artists-only — there's no point showing a choice of one.
                 Reappears the moment the selection includes Events, whether from Advanced Filters'

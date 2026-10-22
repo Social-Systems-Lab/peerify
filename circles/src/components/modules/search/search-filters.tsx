@@ -24,7 +24,12 @@ import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { tourTeamOfferingTypes } from "@/models/models";
-import { PRIMARY_GENRE_OPTIONS } from "@/lib/peerify/artist-profile";
+import {
+    PEERIFY_ACT_FORMAT_OPTIONS,
+    PEERIFY_ACT_OFFER_OPTIONS,
+    PRIMARY_GENRE_OPTIONS,
+} from "@/lib/peerify/artist-profile";
+import { PEERIFY_ACT_OFFER_ICONS } from "@/lib/peerify/act-offer-icons";
 import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 import CategoryFilter, { CategoryFilterProps } from "./category-filter";
 
@@ -52,6 +57,10 @@ export type SearchFiltersValue = {
     selectedOfferTypes: OfferTypeFilterOption[];
     dateRange: DateRange | undefined;
     physicalOnly: boolean;
+    // Artist profiles only (matchesActFilters): venues, events and offer pins are never narrowed.
+    // Act format lives in the modal below; "What you do" in ActOfferFilterRow under the search bar.
+    selectedActFormats: string[];
+    selectedActOffers: string[];
     // Not read or written by anything in this file — included because it's part of the same
     // conceptual filter shape a caller (e.g. a future discovery screen) will want to persist or
     // pass around together. The free-text search box itself stays owned by the caller.
@@ -72,6 +81,11 @@ export type SearchFiltersCategoryCounts = {
 // (2-3 selected) — counts, so Clear all doesn't appear just from ordinary pill-tapping.
 export const isCategoryFilterActive = (selectedCategories: string[]) => selectedCategories.length !== 1;
 
+// Whether artist profiles are part of the current view ("All" included): the act filters only
+// show then.
+export const includesArtistsCategory = (selectedCategories: string[]) =>
+    selectedCategories.length === 0 || selectedCategories.includes("users");
+
 export const getActiveSearchFilterCount = (value: SearchFiltersValue): number => {
     let count = 0;
     if (value.dateRange?.from || value.dateRange?.to) count += 1;
@@ -79,6 +93,7 @@ export const getActiveSearchFilterCount = (value: SearchFiltersValue): number =>
     if (value.physicalOnly) count += 1;
     if (isCategoryFilterActive(value.selectedCategories)) count += 1;
     if (value.selectedOfferTypes.length > 0) count += 1;
+    if (value.selectedActFormats.length > 0) count += 1;
     return count;
 };
 
@@ -232,6 +247,51 @@ export const OfferTypeFilterChips: React.FC<{
     );
 };
 
+// ---- "What you do" icon row (under the search bar) ----
+// Charcoal pills, mustard when selected (the brand ink and MUSTARD from peerify-contact-dialog).
+// Scrolls sideways on narrow screens. Callers render it only while artists are in view
+// (includesArtistsCategory).
+
+export const ActOfferFilterRow: React.FC<{
+    selectedActOffers: string[];
+    onChange: (next: string[]) => void;
+    className?: string;
+}> = ({ selectedActOffers, onChange, className }) => (
+    <div
+        role="group"
+        aria-label="Filter artists by what they do"
+        className={cn("no-scrollbar -mx-1 flex max-w-full gap-2 overflow-x-auto px-1 py-0.5", className)}
+    >
+        {PEERIFY_ACT_OFFER_OPTIONS.map((option) => {
+            const Icon = PEERIFY_ACT_OFFER_ICONS[option.value];
+            const selected = selectedActOffers.includes(option.value);
+            return (
+                <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() =>
+                        onChange(
+                            selected
+                                ? selectedActOffers.filter((v) => v !== option.value)
+                                : [...selectedActOffers, option.value],
+                        )
+                    }
+                    className={cn(
+                        "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium shadow-sm transition-colors",
+                        selected
+                            ? "bg-[#e8720c] text-[#181512] hover:bg-[#ff8c2a]"
+                            : "bg-[#181512] text-white hover:bg-[#2b2621]",
+                    )}
+                >
+                    <Icon className="h-4 w-4" aria-hidden />
+                    {option.label}
+                </button>
+            );
+        })}
+    </div>
+);
+
 // ---- Advanced Filters trigger + modal ----
 
 export type SearchFiltersProps = {
@@ -370,6 +430,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
             // disappears again immediately after clicking it, not just for the other three filters.
             selectedCategories: ["users"],
             selectedOfferTypes: [],
+            selectedActFormats: [],
         });
     }, [value, onChange]);
 
@@ -482,6 +543,41 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                         </SelectContent>
                     </Select>
                     <GenreFilterChips selectedGenres={value.selectedGenres} onRemove={removeSelectedGenre} />
+                </div>
+            )}
+
+            {includesArtistsCategory(value.selectedCategories) && (
+                <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="text-sm font-semibold text-gray-900">Act format</div>
+                    <div className="flex flex-wrap gap-2">
+                        {PEERIFY_ACT_FORMAT_OPTIONS.map((option) => {
+                            const selected = value.selectedActFormats.includes(option.value);
+                            return (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    aria-pressed={selected}
+                                    onClick={() =>
+                                        onChange({
+                                            ...value,
+                                            selectedActFormats: selected
+                                                ? value.selectedActFormats.filter((v) => v !== option.value)
+                                                : [...value.selectedActFormats, option.value],
+                                        })
+                                    }
+                                    className={cn(
+                                        "flex items-center gap-1 rounded-full border px-3 py-1.5 text-sm transition-colors",
+                                        selected
+                                            ? "border-[#181512] bg-[#181512] text-white"
+                                            : "border-gray-200 text-gray-900 hover:bg-gray-50",
+                                    )}
+                                >
+                                    {selected && <Check className="h-3.5 w-3.5" />}
+                                    {option.label}
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
 

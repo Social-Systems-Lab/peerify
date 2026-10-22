@@ -2,6 +2,7 @@
 
 import { getMetricsForCircles } from "@/lib/data/circle";
 import { searchDiscoverableCircles } from "@/lib/data/search";
+import type { PeerifyActFilters } from "@/lib/peerify/artist-profile";
 import { Circle, WithMetric } from "@/models/models";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 
@@ -14,6 +15,9 @@ export async function searchContentAction(
     query: string,
     _selectedCategories: string[],
     primaryGenres?: string[],
+    // Only narrows a search that's already running (query or genres); Explore applies act filters
+    // client-side when it isn't searching.
+    actFilters?: PeerifyActFilters,
 ): Promise<WithMetric<Circle>[]> {
     if (!query && (!primaryGenres || primaryGenres.length === 0)) {
         return [];
@@ -25,6 +29,7 @@ export async function searchContentAction(
             query,
             limit: 24,
             primaryGenres,
+            actFilters,
             viewerDid: userDid,
         });
 

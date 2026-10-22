@@ -43,6 +43,8 @@ import SearchFilters, {
     RESULT_TYPE_OPTIONS,
     OfferTypeFilterOption,
     getActiveSearchFilterCount,
+    ActOfferFilterRow,
+    includesArtistsCategory,
 } from "../search/search-filters";
 import Indicators from "@/components/utils/indicators";
 import ResizingDrawer from "@/components/ui/resizing-drawer"; // Correct import name
@@ -51,7 +53,12 @@ import { getOpenEventsForMapAction, getOfferMapPinsAction } from "./map-explorer
 import { EventDisplay } from "@/models/models";
 import ActivityPanel from "@/components/layout/activity-panel";
 import MobileEventsPanel from "@/components/modules/events/mobile-events-panel";
-import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
+import {
+    hasActFilters,
+    isPeerifyArtistIdentity,
+    isPeerifyVenueIdentity,
+    matchesActFilters,
+} from "@/lib/peerify/artist-profile";
 import { getCircleCoverImageUrl } from "@/lib/default-heroes";
 
 // mapItemToContent helper remains the same
@@ -334,14 +341,44 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // needed since nothing needs to be told to re-fetch.
     const [selectedOfferTypes, setSelectedOfferTypes] = useState<OfferTypeFilterOption[]>([]);
 
+    // Act format (modal) and What you do (row under the search bar): artist profiles only. Applied
+    // client-side through filterCirclesByCategory on both data paths, and also sent with a running
+    // search (searchContentAction) so its result limit doesn't cut matching artists. Like genre, a
+    // change re-runs an active search; when nothing is searched it's client-side only.
+    const [selectedActFormats, setSelectedActFormats] = useState<string[]>([]);
+    const [selectedActOffers, setSelectedActOffers] = useState<string[]>([]);
+    const actFilters = useMemo(
+        () => ({ actFormats: selectedActFormats, actOffers: selectedActOffers }),
+        [selectedActFormats, selectedActOffers],
+    );
+    const actFilterChangedRef = useRef(false);
+
     // Bridges SearchFilters' clean value/onChange contract into this screen's existing
     // individual useState hooks (kept separate rather than folded into one object, since dozens
     // of other effects/memos below already depend on each of these independently) plus the
     // atom-driven side effects (router.push, sidePanelMode, etc.) SearchFilters itself must never
     // touch directly.
     const filtersValue: SearchFiltersValue = useMemo(
-        () => ({ selectedCategories, selectedGenres, selectedOfferTypes, dateRange, physicalOnly, searchQuery }),
-        [selectedCategories, selectedGenres, selectedOfferTypes, dateRange, physicalOnly, searchQuery],
+        () => ({
+            selectedCategories,
+            selectedGenres,
+            selectedOfferTypes,
+            dateRange,
+            physicalOnly,
+            selectedActFormats,
+            selectedActOffers,
+            searchQuery,
+        }),
+        [
+            selectedCategories,
+            selectedGenres,
+            selectedOfferTypes,
+            dateRange,
+            physicalOnly,
+            selectedActFormats,
+            selectedActOffers,
+            searchQuery,
+        ],
     );
     const handleFiltersChange = useCallback(
         (next: SearchFiltersValue) => {
@@ -352,13 +389,18 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             if (next.selectedGenres !== selectedGenres) {
                 genrePillChangedRef.current = true;
             }
+            if (next.selectedActFormats !== selectedActFormats || next.selectedActOffers !== selectedActOffers) {
+                actFilterChangedRef.current = true;
+            }
             setSelectedCategories(next.selectedCategories);
             setSelectedGenres(next.selectedGenres);
             setSelectedOfferTypes(next.selectedOfferTypes);
             setDateRange(next.dateRange);
             setPhysicalOnly(next.physicalOnly);
+            setSelectedActFormats(next.selectedActFormats);
+            setSelectedActOffers(next.selectedActOffers);
         },
-        [selectedGenres],
+        [selectedGenres, selectedActFormats, selectedActOffers],
     );
 
     const withinDateRange = useCallback(
@@ -400,7 +442,11 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // --- Memos ---
     const snapPoints = useMemo(() => [100, windowHeight * 0.4, windowHeight * 0.8, windowHeight], [windowHeight]);
 
-    const filterCirclesByCategory = useCallback((circles: WithMetric<Circle>[], categories: string[]) => {
+    const filterCirclesByCategory = useCallback((allCircles: WithMetric<Circle>[], categories: string[]) => {
+        // Act filters first: they drop non-matching artists and leave every other circle alone.
+        const circles = hasActFilters(actFilters)
+            ? allCircles.filter((circle) => matchesActFilters(circle, actFilters))
+            : allCircles;
         // Empty array means "All" — unfiltered, same as the old null/falsy category.
         if (categories.length === 0) return circles;
         // No circle document represents an event — events live in a separate dataset
@@ -418,7 +464,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                       : false,
             ),
         );
-    }, []);
+    }, [actFilters]);
 
     const displayedSwipeCircles = useMemo(() => {
         // ... (no changes) ...
@@ -484,10 +530,10 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         };
         countsDatasetCircles?.forEach((result) => {
             if (isPeerifyVenueIdentity(result)) counts.communities++;
-            else if (isPeerifyArtistIdentity(result)) counts.users++;
+            else if (isPeerifyArtistIdentity(result) && matchesActFilters(result, actFilters)) counts.users++;
         });
         return counts;
-    }, [countsDatasetCircles, filteredEventsForMap.length, offerMapPins, selectedOfferTypes]);
+    }, [countsDatasetCircles, filteredEventsForMap.length, offerMapPins, selectedOfferTypes, actFilters]);
 
     // Used only by this screen's own search-bar "Clear search" button visibility below — the
     // Advanced Filters trigger badge/count now lives inside SearchFilters itself, computed the
@@ -661,6 +707,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 searchQuery,
                 searchCategoriesForBackend,
                 selectedGenres.length > 0 ? selectedGenres : undefined,
+                actFilters,
             );
             setAllSearchResults(results);
 
@@ -675,7 +722,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             const counts = { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length };
             results.forEach((r: any) => {
                 if (isPeerifyVenueIdentity(r)) counts.communities++;
-                else if (isPeerifyArtistIdentity(r)) counts.users++;
+                else if (isPeerifyArtistIdentity(r) && matchesActFilters(r, actFilters)) counts.users++;
             });
 
             setSearchPanelState({
@@ -713,6 +760,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     }, [
         searchQuery,
         selectedGenres,
+        actFilters,
         setDisplayedContent,
         allDiscoverableCircles,
         selectedCategories,
@@ -737,6 +785,16 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         debouncedGenreSearch({ preserveActiveCategory: true });
     }, [selectedGenres, debouncedGenreSearch]);
 
+    // An act filter change re-runs a search that's already showing; otherwise the client-side
+    // filter in filterCirclesByCategory is all it needs.
+    useEffect(() => {
+        if (!actFilterChangedRef.current) return;
+        actFilterChangedRef.current = false;
+        if (hasSearched) {
+            debouncedGenreSearch({ preserveActiveCategory: true });
+        }
+    }, [selectedActFormats, selectedActOffers, hasSearched, debouncedGenreSearch]);
+
     const handleClearSearch = useCallback(() => {
         setSearchQuery("");
         setAllSearchResults([]);
@@ -744,6 +802,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setSelectedCategories([]);
         setDateRange(undefined);
         setSelectedGenres([]);
+        setSelectedActFormats([]);
+        setSelectedActOffers([]);
         setShowAdvancedFilters(false);
         setOpenAdvancedSection("");
         const resetMapData = filterCirclesByCategory(allDiscoverableCircles, [])
@@ -1223,7 +1283,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     onOpenSectionChange={setOpenAdvancedSection}
                                     isMobile={isMobile}
                                 />
-                                {searchQuery || activeAdvancedFilterCount > 0 ? (
+                                {searchQuery || activeAdvancedFilterCount > 0 || selectedActOffers.length > 0 ? (
                                     <Button
                                         onClick={handleClearSearch}
                                         size="sm"
@@ -1273,6 +1333,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                 }}
                             />
                         </div>
+
+                        {includesArtistsCategory(selectedCategories) && (
+                            <ActOfferFilterRow
+                                selectedActOffers={selectedActOffers}
+                                onChange={(next) => handleFiltersChange({ ...filtersValue, selectedActOffers: next })}
+                            />
+                        )}
 
                         <GenreFilterChips
                             selectedGenres={selectedGenres}

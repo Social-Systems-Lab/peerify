@@ -28,6 +28,9 @@ export type DiscoverQueryInput = {
     // is ever given here.
     selectedCategories: string[];
     primaryGenres: string[];
+    // Artists only; never applied to events.
+    actFormats?: string[];
+    actOffers?: string[];
     dateRange?: { from?: string; to?: string };
 };
 
@@ -47,7 +50,13 @@ export async function getDiscoverResultsAction(input: DiscoverQueryInput): Promi
         const primaryGenres = input.primaryGenres.length > 0 ? input.primaryGenres : undefined;
 
         const artistsPromise = includeArtists
-            ? searchDiscoverableCircles({ query: input.query, limit: 40, primaryGenres, viewerDid: userDid })
+            ? searchDiscoverableCircles({
+                  query: input.query,
+                  limit: 40,
+                  primaryGenres,
+                  actFilters: { actFormats: input.actFormats, actOffers: input.actOffers },
+                  viewerDid: userDid,
+              })
             : Promise.resolve([] as WithMetric<Circle>[]);
 
         const range =
