@@ -56,7 +56,10 @@ import {
     isPeerifyArtistIdentity,
     isPeerifyManagedIdentity,
     isPeerifyVenueIdentity,
-    PEERIFY_ARTIST_TYPE_OPTIONS,
+    getPeerifyActFormat,
+    PEERIFY_ACT_FORMAT_OPTIONS,
+    PEERIFY_ACT_OFFER_LABELS,
+    PEERIFY_ACT_OFFERS,
     PEERIFY_BOOKING_ENQUIRIES_ENABLED,
     PEERIFY_CURRENCY_OPTIONS,
     PEERIFY_EVENT_TYPE_OPTIONS,
@@ -146,7 +149,8 @@ const buildArtistProfileFormDefaults = (circle: Circle): AboutSettingsFormValues
     const artistProfile = getPeerifyArtistProfile(circle);
 
     return {
-        actFormat: artistProfile.actFormat ?? "",
+        // Pre-selects the format identityType implies when none was chosen yet; saving stores it.
+        actFormat: getPeerifyActFormat(circle) ?? "",
         actOffers: artistProfile.actOffers,
         artistTypes: artistProfile.artistTypes,
         artistTypeOtherLabels: artistProfile.artistTypeOtherLabels || [],
@@ -558,7 +562,6 @@ export function AboutSettingsForm({
     const representsOrganization = form.watch("representsOrganization");
     const peerifyArtistIntent = form.watch("peerifyArtistIntent");
     const primaryGenres = form.watch("primaryGenres");
-    const artistTypes = form.watch("peerifyArtistProfile.artistTypes");
     const bookingEnabled = form.watch("peerifyArtistProfile.bookingEnabled");
     const venueBookingEnabled = form.watch("peerifyVenueProfile.bookingEnquiriesEnabled");
     const venueAddressVisibility = form.watch("peerifyVenueProfile.addressVisibility");
@@ -570,10 +573,9 @@ export function AboutSettingsForm({
             const peerifyArtistProfile: PeerifyArtistProfile = {
                 ...(data.peerifyArtistProfile.actFormat ? { actFormat: data.peerifyArtistProfile.actFormat } : {}),
                 actOffers: data.peerifyArtistProfile.actOffers,
+                // No longer edited here (act format replaced the checkboxes); passed through as stored.
                 artistTypes: data.peerifyArtistProfile.artistTypes,
-                artistTypeOtherLabels: data.peerifyArtistProfile.artistTypes.includes("Other")
-                    ? data.peerifyArtistProfile.artistTypeOtherLabels
-                    : [],
+                artistTypeOtherLabels: data.peerifyArtistProfile.artistTypeOtherLabels,
                 baseCity: data.peerifyArtistProfile.baseCity?.trim() || "",
                 genres: parseDelimitedList(data.peerifyArtistProfile.genresText),
                 primaryGenres: (data.primaryGenres || []).slice(0, PRIMARY_GENRE_MAX_SELECTIONS),
@@ -1111,38 +1113,72 @@ export function AboutSettingsForm({
                             {peerifyArtistIntent || isPeerifyManagedArtistCircle ? (
                                 <>
                                     <Controller
-                                        name="peerifyArtistProfile.artistTypes"
+                                        name="peerifyArtistProfile.actFormat"
+                                        control={form.control}
+                                        render={({ field }) => (
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <Label>Act format</Label>
+                                                    <p className="mt-1 text-sm text-muted-foreground">
+                                                        How this act performs. Also sets the default picture.
+                                                    </p>
+                                                </div>
+                                                <div className="grid gap-3 sm:grid-cols-3">
+                                                    {PEERIFY_ACT_FORMAT_OPTIONS.map((option) => (
+                                                        <button
+                                                            key={option.value}
+                                                            type="button"
+                                                            aria-pressed={field.value === option.value}
+                                                            onClick={() => field.onChange(option.value)}
+                                                            className={cn(
+                                                                "rounded-lg border p-3 text-left text-sm font-medium transition-colors",
+                                                                field.value === option.value
+                                                                    ? "border-primary bg-primary/5"
+                                                                    : "hover:border-primary/40",
+                                                            )}
+                                                        >
+                                                            {option.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    />
+
+                                    <Controller
+                                        name="peerifyArtistProfile.actOffers"
                                         control={form.control}
                                         render={({ field }) => (
                                             <CheckboxGroup
-                                                label="Artist types"
-                                                description="Pick the formats that best describe this act."
-                                                options={PEERIFY_ARTIST_TYPE_OPTIONS}
+                                                label="What you do"
+                                                description="Pick everything this act offers. Fans and hosts can filter by these."
+                                                options={PEERIFY_ACT_OFFERS}
                                                 values={field.value || []}
                                                 onChange={field.onChange}
+                                                getOptionLabel={(option) =>
+                                                    PEERIFY_ACT_OFFER_LABELS[option as keyof typeof PEERIFY_ACT_OFFER_LABELS]
+                                                }
                                             />
                                         )}
                                     />
 
-                                    {(artistTypes || []).includes("Other") ? (
-                                        <Controller
-                                            name="peerifyArtistProfile.artistTypeOtherLabels"
-                                            control={form.control}
-                                            render={({ field }) => (
-                                                <DynamicTagsField
-                                                    field={{
-                                                        name: "peerifyArtistProfile.artistTypeOtherLabels",
-                                                        type: "tags",
-                                                        label: "Other (describe your act)",
-                                                        description:
-                                                            "Add one or more labels — press Enter after each (e.g. Comedian, Poet).",
-                                                    }}
-                                                    formField={field}
-                                                    control={form.control as unknown as Control}
-                                                />
-                                            )}
-                                        />
-                                    ) : null}
+                                    <Controller
+                                        name="peerifyArtistProfile.artistTypeOtherLabels"
+                                        control={form.control}
+                                        render={({ field }) => (
+                                            <DynamicTagsField
+                                                field={{
+                                                    name: "peerifyArtistProfile.artistTypeOtherLabels",
+                                                    type: "tags",
+                                                    label: "Describe your act (optional)",
+                                                    description:
+                                                        "Add one or more labels — press Enter after each (e.g. Comedian, Poet).",
+                                                }}
+                                                formField={field}
+                                                control={form.control as unknown as Control}
+                                            />
+                                        )}
+                                    />
 
                                     <Controller
                                         name="primaryGenres"

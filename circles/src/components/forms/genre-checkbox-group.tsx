@@ -11,6 +11,7 @@ export const CheckboxGroup = ({
     values,
     onChange,
     maxSelections,
+    getOptionLabel,
 }: {
     label: string;
     labelClassName?: string;
@@ -19,6 +20,8 @@ export const CheckboxGroup = ({
     values: string[];
     onChange: (values: string[]) => void;
     maxSelections?: number;
+    // For options stored as slugs (e.g. "What you do"); defaults to showing the value itself.
+    getOptionLabel?: (option: string) => string;
 }) => {
     const limitReached = typeof maxSelections === "number" && values.length >= maxSelections;
 
@@ -50,7 +53,7 @@ export const CheckboxGroup = ({
                                     onChange(values.filter((value) => value !== option));
                                 }}
                             />
-                            <span>{option}</span>
+                            <span>{getOptionLabel ? getOptionLabel(option) : option}</span>
                         </label>
                     );
                 })}

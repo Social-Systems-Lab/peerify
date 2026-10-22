@@ -8,9 +8,12 @@ import { getUserPrivateAction } from "@/components/modules/home/actions";
 import { Circle, Media, Track, UserPrivate } from "@/models/models";
 import { hasAcceptedGuidelines, type VerificationReadiness } from "@/lib/verification-readiness";
 import {
+    getIdentityTypeForActFormat,
+    getPeerifyActFormat,
+    getPeerifyDefaultAvatarUrl,
     PEERIFY_DEFAULT_ARTIST_AVATAR_URL,
     PEERIFY_DEFAULT_BAND_AVATAR_URL,
-    PeerifyArtistIdentityType,
+    type PeerifyActFormat,
 } from "@/lib/peerify/artist-profile";
 import { getCustomCoverImages } from "@/lib/default-heroes";
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
@@ -94,10 +97,7 @@ type PilotOnboardingFlowProps = {
     initialStep?: "photo" | "artist-solo-band";
 };
 
-const getInitialArtistIdentityType = (circle: Circle | null): Extract<PeerifyArtistIdentityType, "artist" | "band"> => {
-    const metadata = circle?.metadata as { peerify?: { identityType?: string } } | undefined;
-    return metadata?.peerify?.identityType === "band" ? "band" : "artist";
-};
+const getInitialArtistActFormat = (circle: Circle | null): PeerifyActFormat => getPeerifyActFormat(circle) ?? "solo";
 
 export function PilotOnboardingFlow({
     personalCircle,
@@ -110,7 +110,7 @@ export function PilotOnboardingFlow({
     const [, setUser] = useAtom(userAtom);
     const role: "fan" | "artist" = artistCircle ? "artist" : "fan";
     const [step, setStep] = useState<StepName>(initialStep ?? "photo");
-    const [artistIdentityType, setArtistIdentityType] = useState(getInitialArtistIdentityType(artistCircle));
+    const [artistActFormat, setArtistActFormat] = useState(getInitialArtistActFormat(artistCircle));
 
     // Which phase `step` currently belongs to, and that phase's own step count — null for the
     // explainer/completion screens, which render unnumbered (see stepLabel/progress below).
@@ -160,7 +160,7 @@ export function PilotOnboardingFlow({
     // ones would show stale (often blank) data instead of what was actually just saved.
     // router.refresh() re-runs the page's server component and pushes fresh props back down
     // (same technique SongsStep/TrackUploadForm already uses for its own track list), while
-    // this component's own state (step, artistIdentityType) survives the refresh untouched.
+    // this component's own state (step, artistActFormat) survives the refresh untouched.
     // Also refreshes userAtom (see refreshUser above) for the same reason, on every phase-scoped
     // step transition — centralized here rather than threaded through each frame's own onSaved,
     // since every real save already funnels through this one function.
@@ -401,9 +401,9 @@ export function PilotOnboardingFlow({
             >
                 <ArtistTypeStep
                     circleId={String(artistCircle._id)}
-                    initialType={artistIdentityType}
-                    onSaved={(type) => {
-                        setArtistIdentityType(type);
+                    initialFormat={artistActFormat}
+                    onSaved={(actFormat) => {
+                        setArtistActFormat(actFormat);
                         advanceStep("artist-photo");
                     }}
                 />
@@ -416,9 +416,7 @@ export function PilotOnboardingFlow({
         const artistInitialPictureUrl =
             currentPictureUrl && !ARTIST_STOCK_AVATAR_URLS.has(currentPictureUrl)
                 ? currentPictureUrl
-                : artistIdentityType === "band"
-                  ? PEERIFY_DEFAULT_BAND_AVATAR_URL
-                  : PEERIFY_DEFAULT_ARTIST_AVATAR_URL;
+                : getPeerifyDefaultAvatarUrl(getIdentityTypeForActFormat(artistActFormat));
 
         return (
             <OnboardingCardShell
