@@ -44,6 +44,7 @@ import EventDetail from "../modules/events/event-detail"; // Added EventDetail i
 import CrewOfferMapPreview from "../modules/circles/crew-offer-map-preview";
 import { Lock, MapPin, Quote } from "lucide-react";
 import { CirclePicture } from "../modules/circles/circle-picture";
+import { useIsMobile } from "../utils/use-is-mobile";
 import { getInterestLabel } from "@/lib/data/interests";
 import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 import { sdgs } from "@/lib/data/sdgs";
@@ -109,6 +110,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
     const [, setImageGallery] = useAtom(imageGalleryAtom); // Keep for profile picture click
     const [, setContentPreview] = useAtom(contentPreviewAtom);
     const [user] = useAtom(userAtom); // Keep user state here for CirclePreview specific logic if needed
+    const isMobile = useIsMobile();
     const [isPledgeDialogOpen, setIsPledgeDialogOpen] = React.useState(false);
     const [isJoinCrewDialogOpen, setIsJoinCrewDialogOpen] = React.useState(false);
     // Deliberately NOT derived from user.memberships — that's the client-side userAtom, populated
@@ -239,6 +241,19 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
           ]
         : getCircleCoverImages(circle);
 
+    // Follow + Bookmark sit beside the 124px avatar, which leaves too little room at phone width
+    // (Follow ended up against the avatar on Discover's expanded card), so there they move into the
+    // centered column under the name instead.
+    const followActionsInFlow = isMobile === true;
+    const followActions = (
+        <>
+            {/* Invite hidden in this quick-preview panel — not relevant to discovery; InviteButton still used elsewhere (e.g. full artist page) */}
+            {/* <InviteButton circle={circle as Circle} renderCompact={true} /> */}
+            {!suppressed && user && <FollowButton circle={circle as Circle} renderCompact={true} />}
+            {!suppressed && user && <BookmarkButton circle={circle as Circle} renderCompact={true} iconOnly={true} />}
+        </>
+    );
+
     return (
         <>
             {/* Replace static Image with ImageCarousel */}
@@ -277,14 +292,9 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             </Button>
                         </div>
                     )}
-                    <div className="absolute bottom-[-45px] right-2 flex flex-row gap-1">
-                        {/* Invite hidden in this quick-preview panel — not relevant to discovery; InviteButton still used elsewhere (e.g. full artist page) */}
-                        {/* <InviteButton circle={circle as Circle} renderCompact={true} /> */}
-                        {!suppressed && user && <FollowButton circle={circle as Circle} renderCompact={true} />}
-                        {!suppressed && user && (
-                            <BookmarkButton circle={circle as Circle} renderCompact={true} iconOnly={true} />
-                        )}
-                    </div>
+                    {!followActionsInFlow && (
+                        <div className="absolute bottom-[-45px] right-2 flex flex-row gap-1">{followActions}</div>
+                    )}
 
                     <div className="absolute top-[-60px]">
                         <div className="relative h-[124px] w-[124px]">
@@ -338,6 +348,9 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                     <div className="pt-2">
                         <SocialLinks circle={circle} />
                     </div>
+                    {followActionsInFlow && !suppressed && user && (
+                        <div className="flex flex-row justify-center gap-2 pt-3">{followActions}</div>
+                    )}
                 </div>
                 {/* Content below image - now inside the scrollable container */}
                 <div className="relative flex flex-1 flex-col p-4 pt-2">
