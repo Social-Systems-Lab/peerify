@@ -46,6 +46,7 @@ import { isStockCoverUrl } from "@/lib/default-heroes";
 import { sanitizeSocialLinks } from "@/lib/utils/social-links";
 import { getVerificationReadiness } from "@/lib/verification-readiness";
 import {
+    getIdentityTypeForActFormat,
     getPeerifyIdentityType,
     getPeerifyMetadata,
     isPeerifyManagedIdentity,
@@ -900,6 +901,14 @@ export async function saveAbout(values: {
             } else {
                 const normalizedArtistProfile = normalizePeerifyArtistProfile(values.peerifyArtistProfile);
                 existingPeerify.artistProfile = normalizedArtistProfile;
+                // The default hero, avatar and label key off identityType: keep it in step with
+                // the chosen act format (Settings is the only place it can change after signup).
+                if (normalizedArtistProfile.actFormat) {
+                    existingPeerify.identityType = getIdentityTypeForActFormat(
+                        normalizedArtistProfile.actFormat,
+                        getPeerifyIdentityType(existingCircle),
+                    );
+                }
                 circleUpdateData.primaryGenres =
                     normalizedArtistProfile.primaryGenres.length > 0 ? normalizedArtistProfile.primaryGenres : undefined;
                 circleUpdateData.primaryGenreOther = normalizedArtistProfile.primaryGenreOther || undefined;

@@ -43,6 +43,7 @@ import {
     formatPrimaryGenreLabel,
     formatVenueTagLabel,
     getPeerifyArtistProfile,
+    getPeerifyArtistTypeBadges,
     getPeerifyIdentityAvatarUrl,
     getPeerifyVenueProfile,
     isPeerifyArtistIdentity,
@@ -693,6 +694,12 @@ export default function HomeContent({
                                         {peerifyArtistProfile.genres.slice(0, 4).map((genre) => (
                                             <Badge key={genre} className="rounded-full px-3 py-1">
                                                 {genre}
+                                            </Badge>
+                                        ))}
+                                        {/* Act format, What you do, describe-your-act tags. */}
+                                        {getPeerifyArtistTypeBadges(circle).map((label) => (
+                                            <Badge key={`type-${label}`} variant="outline" className="rounded-full px-3 py-1">
+                                                {label}
                                             </Badge>
                                         ))}
                                     </div>

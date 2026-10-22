@@ -5,35 +5,28 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
-import { saveArtistIdentityTypeAction } from "@/app/onboarding/pilot/actions";
-
-type ArtistIdentityType = "artist" | "band";
-
-const OPTIONS: { value: ArtistIdentityType; label: string }[] = [
-    { value: "artist", label: "Solo artist" },
-    { value: "band", label: "Band / collective" },
-];
+import { saveArtistActFormatAction } from "@/app/onboarding/pilot/actions";
+import { PEERIFY_ACT_FORMAT_OPTIONS, type PeerifyActFormat } from "@/lib/peerify/artist-profile";
 
 type ArtistTypeStepProps = {
     circleId: string;
-    initialType: ArtistIdentityType;
-    onSaved: (type: ArtistIdentityType) => void;
+    initialFormat: PeerifyActFormat;
+    onSaved: (actFormat: PeerifyActFormat) => void;
 };
 
-// Frame A2. No skip — this determines the default avatar shown in Frame A3, so it must be
-// answered before moving on. Writes metadata.peerify.identityType, which the existing
-// getPeerifyDefaultAvatarUrl()/getPeerifyIdentityAvatarUrl() helpers and
-// PEERIFY_MANAGED_IDENTITY_TYPE_LABELS already key off — createPilotArtistCircle always
-// defaults new artist circles to "artist", so this is the only place "band" ever gets set.
-export function ArtistTypeStep({ circleId, initialType, onSaved }: ArtistTypeStepProps) {
+// Frame A2. No skip — the format decides the default avatar shown in Frame A3, so it must be
+// answered before moving on. saveArtistActFormatAction writes artistProfile.actFormat and the
+// identityType it implies (getIdentityTypeForActFormat), which the default avatar, hero and
+// label key off. createPilotArtistCircle defaults new artist circles to identityType "artist".
+export function ArtistTypeStep({ circleId, initialFormat, onSaved }: ArtistTypeStepProps) {
     const { toast } = useToast();
-    const [selected, setSelected] = useState<ArtistIdentityType>(initialType);
+    const [selected, setSelected] = useState<PeerifyActFormat>(initialFormat);
     const [isSaving, setIsSaving] = useState(false);
 
     const handleContinue = async () => {
         setIsSaving(true);
         try {
-            const result = await saveArtistIdentityTypeAction(circleId, selected);
+            const result = await saveArtistActFormatAction(circleId, selected);
             if (!result.success) {
                 toast({ title: "Couldn't save", description: result.message, variant: "destructive" });
                 return;
@@ -47,7 +40,7 @@ export function ArtistTypeStep({ circleId, initialType, onSaved }: ArtistTypeSte
     return (
         <div className="space-y-6">
             <div className="grid gap-3 sm:grid-cols-2">
-                {OPTIONS.map((option) => (
+                {PEERIFY_ACT_FORMAT_OPTIONS.map((option) => (
                     <button
                         key={option.value}
                         type="button"

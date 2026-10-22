@@ -18,10 +18,12 @@ import { revalidatePath } from "next/cache";
 import { Circle, FormSubmitResponse, Location, Media } from "@/models/models";
 import type { ImageItem } from "@/components/forms/controls/multi-image-uploader";
 import {
-    isPeerifyIdentityTypeSelectable,
+    getIdentityTypeForActFormat,
+    getPeerifyIdentityType,
     normalizePeerifyArtistProfile,
+    PEERIFY_ACT_FORMATS,
     PEERIFY_ARTIST_IDENTITY_TYPES,
-    PeerifyArtistIdentityType,
+    type PeerifyActFormat,
 } from "@/lib/peerify/artist-profile";
 import type { VerificationReadiness } from "@/lib/verification-readiness";
 
@@ -156,15 +158,12 @@ export async function savePilotLocationAction(
     return { success: true, message: "Location saved." };
 }
 
-// Frame A2 — solo vs band. Sets metadata.peerify.identityType, which
-// getPeerifyDefaultAvatarUrl()/getPeerifyIdentityAvatarUrl() already use to pick the right
-// default avatar, and PEERIFY_MANAGED_IDENTITY_TYPE_LABELS already uses to label the circle
-// elsewhere — no new field needed, this just sets an existing one that createPilotArtistCircle
-// always defaults to "artist".
-export async function saveArtistIdentityTypeAction(
-    circleId: string,
-    identityType: Extract<PeerifyArtistIdentityType, "artist" | "band">,
-): Promise<FormSubmitResponse> {
+// Frame A2: act format (Solo, Duo, Band, DJ / Producer, Ensemble). Writes
+// artistProfile.actFormat, plus the identityType that format implies
+// (getIdentityTypeForActFormat), which the default avatar, hero and
+// PEERIFY_MANAGED_IDENTITY_TYPE_LABELS key off. createPilotArtistCircle defaults new artist
+// circles to identityType "artist" with no act format.
+export async function saveArtistActFormatAction(circleId: string, actFormat: PeerifyActFormat): Promise<FormSubmitResponse> {
     const auth = await authorizeEdit(circleId);
     if ("error" in auth) return auth.error;
 
@@ -173,12 +172,18 @@ export async function saveArtistIdentityTypeAction(
         return { success: false, message: "Profile not found." };
     }
 
-    if (!PEERIFY_ARTIST_IDENTITY_TYPES.includes(identityType) || !isPeerifyIdentityTypeSelectable(identityType)) {
-        return { success: false, message: "Invalid artist type." };
+    if (!PEERIFY_ACT_FORMATS.includes(actFormat)) {
+        return { success: false, message: "Invalid act format." };
+    }
+
+    const identityType = getIdentityTypeForActFormat(actFormat, getPeerifyIdentityType(existingCircle));
+    if (!PEERIFY_ARTIST_IDENTITY_TYPES.includes(identityType)) {
+        return { success: false, message: "Invalid act format." };
     }
 
     const { metadata, peerify } = clonePeerifyMetadata(existingCircle);
     peerify.identityType = identityType;
+    peerify.artistProfile = { ...normalizePeerifyArtistProfile(peerify.artistProfile), actFormat };
     metadata.peerify = peerify;
 
     await updateCircle({ _id: circleId, metadata }, auth.userDid);
