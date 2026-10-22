@@ -103,7 +103,7 @@ describe("saveAbout (Settings › About)", () => {
         fakeDb.reset({ Circles: [artistCircle("artist", { artistTypes: ["Solo artist"] })] });
         const result = await save({
             actFormat: "ensemble",
-            actOffers: ["lessons_workshops", "original_music"],
+            actOffers: ["lessons_workshops", "covers_tributes"],
             artistTypes: ["Solo artist"],
             artistTypeOtherLabels: ["Choir"],
         });
@@ -111,7 +111,7 @@ describe("saveAbout (Settings › About)", () => {
         const circle = await stored();
         expect(circle.metadata.peerify.identityType).toBe("band");
         expect(circle.metadata.peerify.artistProfile.actFormat).toBe("ensemble");
-        expect(circle.metadata.peerify.artistProfile.actOffers).toEqual(["original_music", "lessons_workshops"]);
+        expect(circle.metadata.peerify.artistProfile.actOffers).toEqual(["covers_tributes", "lessons_workshops"]);
         expect(circle.metadata.peerify.artistProfile.artistTypeOtherLabels).toEqual(["Choir"]);
         // Legacy field left as stored.
         expect(circle.metadata.peerify.artistProfile.artistTypes).toEqual(["Solo artist"]);

@@ -100,15 +100,22 @@ describe("normalizePeerifyArtistProfile", () => {
     test("keeps valid act fields, drops unknown ones, orders offers by option order", () => {
         const profile = normalizePeerifyArtistProfile({
             actFormat: "duo",
-            actOffers: ["session_musician", "bogus", "original_music", "session_musician"],
+            actOffers: ["session_musician", "bogus", "covers_tributes", "session_musician"],
         });
         expect(profile.actFormat).toBe("duo");
-        expect(profile.actOffers).toEqual(["original_music", "session_musician"]);
+        expect(profile.actOffers).toEqual(["covers_tributes", "session_musician"]);
     });
 
     test("slugs removed from the list (2026-10-22) are dropped on read", () => {
         const profile = normalizePeerifyArtistProfile({
-            actOffers: ["songwriting", "production_engineering", "comedy_spoken_word", "comedy", "lessons_workshops"],
+            actOffers: [
+                "songwriting",
+                "production_engineering",
+                "comedy_spoken_word",
+                "original_music",
+                "comedy",
+                "lessons_workshops",
+            ],
         });
         expect(profile.actOffers).toEqual(["lessons_workshops", "comedy"]);
         const c = circle("old", managed("artist", { actOffers: ["songwriting", "spoken_word"] }));
