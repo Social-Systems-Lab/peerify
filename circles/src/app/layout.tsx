@@ -71,7 +71,12 @@ const RootLayout = async ({ children }: RootLayoutProps) => {
                             (peerify-landing-page.css .peerify-home) so the account menu still floats
                             over the marketing homepage for a logged-in user — the landing page's own
                             overlay is left untouched so it still covers GlobalNav/SidePanel as intended. */}
-                        <div className="fixed right-6 top-4 z-[10000]">
+                        {/* 1rem below the top safe area: with viewport-fit=cover (see viewport above),
+                            a home-screen install would otherwise put it under the iPhone status bar. */}
+                        <div
+                            className="fixed right-6 z-[10000]"
+                            style={{ top: "calc(env(safe-area-inset-top, 0px) + 1rem)" }}
+                        >
                             <ProfileMenu />
                         </div>
                         <Toaster />
