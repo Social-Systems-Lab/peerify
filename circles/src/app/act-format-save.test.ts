@@ -68,14 +68,14 @@ describe("saveArtistActFormatAction (onboarding A2)", () => {
 
     for (const [actFormat, before, after, hero] of cases) {
         test(`${actFormat} on a ${before}: identityType ${after}`, async () => {
-            fakeDb.reset({ Circles: [artistCircle(before, { actOffers: ["songwriting"], primaryGenres: ["Folk"] })] });
+            fakeDb.reset({ Circles: [artistCircle(before, { actOffers: ["session_musician"], primaryGenres: ["Folk"] })] });
             const result = await saveArtistActFormatAction(ARTIST_ID, actFormat as any);
             expect(result.success).toBe(true);
             const circle = await stored();
             expect(circle.metadata.peerify.identityType).toBe(after);
             expect(circle.metadata.peerify.artistProfile.actFormat).toBe(actFormat);
             // The rest of the profile is kept.
-            expect(circle.metadata.peerify.artistProfile.actOffers).toEqual(["songwriting"]);
+            expect(circle.metadata.peerify.artistProfile.actOffers).toEqual(["session_musician"]);
             expect(circle.metadata.peerify.artistProfile.primaryGenres).toEqual(["Folk"]);
             expect(getDefaultHeroUrl(circle)).toBe(hero);
         });

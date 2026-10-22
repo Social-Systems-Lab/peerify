@@ -41,7 +41,7 @@ const CIRCLES: Circle[] = [
     circle("band-default", managed("band")),
     circle("dj-default", managed("dj")),
     circle("producer-default", managed("producer")),
-    circle("chosen-duo", managed("artist", { actFormat: "duo", actOffers: ["covers_tributes", "songwriting"] })),
+    circle("chosen-duo", managed("artist", { actFormat: "duo", actOffers: ["covers_tributes", "session_musician"] })),
     circle("chosen-ensemble", managed("band", { actFormat: "ensemble" })),
     // Chosen format wins over identityType.
     circle("chosen-solo-on-band", managed("band", { actFormat: "solo", actOffers: ["lessons_workshops"] })),
@@ -100,10 +100,21 @@ describe("normalizePeerifyArtistProfile", () => {
     test("keeps valid act fields, drops unknown ones, orders offers by option order", () => {
         const profile = normalizePeerifyArtistProfile({
             actFormat: "duo",
-            actOffers: ["songwriting", "bogus", "original_music", "songwriting"],
+            actOffers: ["session_musician", "bogus", "original_music", "session_musician"],
         });
         expect(profile.actFormat).toBe("duo");
-        expect(profile.actOffers).toEqual(["original_music", "songwriting"]);
+        expect(profile.actOffers).toEqual(["original_music", "session_musician"]);
+    });
+
+    test("slugs removed from the list (2026-10-22) are dropped on read", () => {
+        const profile = normalizePeerifyArtistProfile({
+            actOffers: ["songwriting", "production_engineering", "comedy_spoken_word", "comedy", "lessons_workshops"],
+        });
+        expect(profile.actOffers).toEqual(["lessons_workshops", "comedy"]);
+        const c = circle("old", managed("artist", { actOffers: ["songwriting", "spoken_word"] }));
+        expect(getPeerifyArtistTypeBadges(c)).toEqual(["Spoken word"]);
+        expect(matchesActFilters(c, { actOffers: ["songwriting"] })).toBe(true); // unknown filter value = no filter
+        expect(matchesActFilters(c, { actOffers: ["comedy"] })).toBe(false);
     });
 
     test("an invalid or missing format is left unset, so the fallback applies", () => {
@@ -118,12 +129,12 @@ describe("badges", () => {
             "b",
             managed("artist", {
                 actFormat: "duo",
-                actOffers: ["songwriting", "covers_tributes"],
+                actOffers: ["session_musician", "covers_tributes", "composing_film_games_theatre"],
                 artistTypes: ["Band"],
                 artistTypeOtherLabels: ["Comedian"],
             }),
         );
-        expect(getPeerifyArtistTypeBadges(c)).toEqual(["Duo", "Covers and tributes", "Songwriting", "Comedian"]);
+        expect(getPeerifyArtistTypeBadges(c)).toEqual(["Duo", "Covers and tributes", "Session musician", "Composing", "Comedian"]);
         // No format chosen: no format badge, even though the filter treats it as a band.
         expect(getPeerifyArtistTypeBadges(CIRCLES[1])).toEqual([]);
         expect(getPeerifyArtistTypeBadges(CIRCLES[0])).toEqual([]);
@@ -173,15 +184,15 @@ describe("public allow-list", () => {
     test("a logged-out viewer gets actFormat and actOffers", () => {
         const c = circle(
             "pub",
-            managed("artist", { actFormat: "duo", actOffers: ["songwriting"], lookingFor: ["Fans"] }),
+            managed("artist", { actFormat: "duo", actOffers: ["spoken_word"], lookingFor: ["Fans"] }),
         );
         const publicCircle = toPublicCircleListItem(c, { viewerDid: undefined, viewerIsPlatformAdmin: false });
         const artistProfile = (publicCircle.metadata as any)?.peerify?.artistProfile;
         expect(artistProfile.actFormat).toBe("duo");
-        expect(artistProfile.actOffers).toEqual(["songwriting"]);
+        expect(artistProfile.actOffers).toEqual(["spoken_word"]);
         // Still private.
         expect(artistProfile.lookingFor).toBeUndefined();
         // So the client-side filter works for that viewer too.
-        expect(matchesActFilters(publicCircle, { actFormats: ["duo"], actOffers: ["songwriting"] })).toBe(true);
+        expect(matchesActFilters(publicCircle, { actFormats: ["duo"], actOffers: ["spoken_word"] })).toBe(true);
     });
 });
