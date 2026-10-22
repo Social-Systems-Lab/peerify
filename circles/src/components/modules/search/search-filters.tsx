@@ -251,47 +251,56 @@ export const OfferTypeFilterChips: React.FC<{
 // ---- "What you do" icon row (under the search bar) ----
 // Charcoal pills, mustard when selected (the brand ink and MUSTARD from peerify-contact-dialog).
 // Scrolls sideways on narrow screens. Callers render it only while artists are in view
-// (includesArtistsCategory).
+// (includesArtistsCategory). Shows only the values some visible artist has (availableActOffers,
+// see getAvailableActOffers), plus any already selected so they can be turned off; nothing at
+// all when that leaves no pills, so the row fills in as artists tag themselves.
 
 export const ActOfferFilterRow: React.FC<{
     selectedActOffers: string[];
+    availableActOffers: string[];
     onChange: (next: string[]) => void;
     className?: string;
-}> = ({ selectedActOffers, onChange, className }) => (
-    <div
-        role="group"
-        aria-label="Filter artists by what they do"
-        className={cn("no-scrollbar -mx-1 flex max-w-full gap-2 overflow-x-auto px-1 py-0.5", className)}
-    >
-        {PEERIFY_ACT_OFFER_OPTIONS.map((option) => {
-            const Icon = PEERIFY_ACT_OFFER_ICONS[option.value];
-            const selected = selectedActOffers.includes(option.value);
-            return (
-                <button
-                    key={option.value}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() =>
-                        onChange(
+}> = ({ selectedActOffers, availableActOffers, onChange, className }) => {
+    const options = PEERIFY_ACT_OFFER_OPTIONS.filter(
+        (option) => availableActOffers.includes(option.value) || selectedActOffers.includes(option.value),
+    );
+    if (options.length === 0) return null;
+    return (
+        <div
+            role="group"
+            aria-label="Filter artists by what they do"
+            className={cn("no-scrollbar -mx-1 flex max-w-full gap-2 overflow-x-auto px-1 py-0.5", className)}
+        >
+            {options.map((option) => {
+                const Icon = PEERIFY_ACT_OFFER_ICONS[option.value];
+                const selected = selectedActOffers.includes(option.value);
+                return (
+                    <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() =>
+                            onChange(
+                                selected
+                                    ? selectedActOffers.filter((v) => v !== option.value)
+                                    : [...selectedActOffers, option.value],
+                            )
+                        }
+                        className={cn(
+                            "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium shadow-sm transition-colors",
                             selected
-                                ? selectedActOffers.filter((v) => v !== option.value)
-                                : [...selectedActOffers, option.value],
-                        )
-                    }
-                    className={cn(
-                        "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium shadow-sm transition-colors",
-                        selected
-                            ? "bg-[#e8720c] text-[#181512] hover:bg-[#ff8c2a]"
-                            : "bg-[#181512] text-white hover:bg-[#2b2621]",
-                    )}
-                >
-                    <Icon className="h-4 w-4" aria-hidden />
-                    {option.label}
-                </button>
-            );
-        })}
-    </div>
-);
+                                ? "bg-[#e8720c] text-[#181512] hover:bg-[#ff8c2a]"
+                                : "bg-[#181512] text-white hover:bg-[#2b2621]",
+                        )}
+                    >
+                        <Icon className="h-4 w-4" aria-hidden />
+                        {option.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+};
 
 // ---- Advanced Filters trigger + modal ----
 

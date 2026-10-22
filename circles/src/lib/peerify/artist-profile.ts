@@ -847,6 +847,24 @@ export const matchesActFilters = (circle: Partial<Circle> | null | undefined, fi
     return true;
 };
 
+/**
+ * The "What you do" values at least one of these circles' artists has, after every other filter
+ * but What you do itself (so ticking a pill never hides the others: the filter is any-of). Only
+ * artists that pass the act format filter count; non-artists are ignored. Option order.
+ */
+export const getAvailableActOffers = (
+    circles: (Partial<Circle> | null | undefined)[],
+    filters?: PeerifyActFilters,
+): PeerifyActOffer[] => {
+    const formatOnly = { actFormats: filters?.actFormats };
+    const found = new Set<PeerifyActOffer>();
+    for (const circle of circles) {
+        if (!isPeerifyArtistIdentity(circle) || !matchesActFilters(circle, formatOnly)) continue;
+        getPeerifyActOffers(circle).forEach((offer) => found.add(offer));
+    }
+    return PEERIFY_ACT_OFFERS.filter((offer) => found.has(offer));
+};
+
 const ARTIST_PROFILE_PATH = "metadata.peerify.artistProfile";
 const ARTIST_IDENTITY_MONGO_QUERY = {
     $or: [

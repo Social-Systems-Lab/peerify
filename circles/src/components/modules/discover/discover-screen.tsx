@@ -328,6 +328,7 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
             {showArtists && (
                 <ActOfferFilterRow
                     selectedActOffers={filtersValue.selectedActOffers}
+                    availableActOffers={results.availableActOffers}
                     onChange={(next) => handleFiltersChange({ ...filtersValue, selectedActOffers: next })}
                 />
             )}

@@ -9,6 +9,7 @@ import { matchesFilter } from "@/lib/testing/fake-collection";
 import { toPublicCircleListItem } from "@/lib/utils/public-circle";
 import {
     buildActFilterMongoQuery,
+    getAvailableActOffers,
     getIdentityTypeForActFormat,
     getPeerifyActFormat,
     getPeerifyArtistTypeBadges,
@@ -203,3 +204,27 @@ describe("public allow-list", () => {
         expect(matchesActFilters(publicCircle, { actFormats: ["duo"], actOffers: ["spoken_word"] })).toBe(true);
     });
 });
+
+describe("getAvailableActOffers (the pills the What you do row shows)", () => {
+    test("values the artists have, in option order; non-artists and removed values ignored", () => {
+        const circles = [
+            ...CIRCLES,
+            // A venue with a stray artistProfile must not add a pill.
+            circle("venue-tagged", managed("venue", { actOffers: ["comedy"] })),
+            circle("old-only", managed("artist", { actOffers: ["songwriting"] })),
+        ];
+        expect(getAvailableActOffers(circles)).toEqual(["covers_tributes", "dj_sets", "session_musician", "lessons_workshops"]);
+    });
+
+    test("ignores the What you do filter itself, honours act format", () => {
+        // Ticking Covers doesn't hide the other pills.
+        expect(getAvailableActOffers(CIRCLES, { actOffers: ["covers_tributes"] })).toEqual(
+            getAvailableActOffers(CIRCLES),
+        );
+        // Only duos: just what the duo has.
+        expect(getAvailableActOffers(CIRCLES, { actFormats: ["duo"] })).toEqual(["covers_tributes", "session_musician"]);
+        // Nobody has anything: empty, so the row hides.
+        expect(getAvailableActOffers([CIRCLES[0], CIRCLES[1]])).toEqual([]);
+    });
+});
+
