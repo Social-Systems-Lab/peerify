@@ -94,6 +94,7 @@ export const getActiveSearchFilterCount = (value: SearchFiltersValue): number =>
     if (isCategoryFilterActive(value.selectedCategories)) count += 1;
     if (value.selectedOfferTypes.length > 0) count += 1;
     if (value.selectedActFormats.length > 0) count += 1;
+    if (value.selectedActOffers.length > 0) count += 1;
     return count;
 };
 
@@ -431,6 +432,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
             selectedCategories: ["users"],
             selectedOfferTypes: [],
             selectedActFormats: [],
+            selectedActOffers: [],
         });
     }, [value, onChange]);
 
