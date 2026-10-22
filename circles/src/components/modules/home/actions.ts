@@ -155,7 +155,7 @@ export const followCircle = async (circle: Circle, answers?: Record<string, stri
 
 // Client-callable equivalent of the authorizedToEdit prop home.tsx computes server-side for the
 // full profile page — CirclePreview (the map/search popup card) is a client component with no
-// such prop, so it needs its own fresh check to gate Pledge Interest/Join Crew the same way. A
+// such prop, so it needs its own fresh check to gate Pledge/Join Crew the same way. A
 // logged-out or non-admin viewer gets false, never an error, so the card can just hide the
 // buttons rather than branch on a failure case.
 export const getViewerIsCircleAdminAction = async (circleId: string): Promise<{ isAdmin: boolean }> => {
