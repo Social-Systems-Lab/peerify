@@ -1283,7 +1283,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     onOpenSectionChange={setOpenAdvancedSection}
                                     isMobile={isMobile}
                                 />
-                                {searchQuery || activeAdvancedFilterCount > 0 || selectedActOffers.length > 0 ? (
+                                {searchQuery || activeAdvancedFilterCount > 0 ? (
                                     <Button
                                         onClick={handleClearSearch}
                                         size="sm"
