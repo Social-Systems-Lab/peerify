@@ -180,21 +180,23 @@ export type PeerifyActFormat = (typeof PEERIFY_ACT_FORMAT_OPTIONS)[number]["valu
 export const PEERIFY_ACT_FORMATS = PEERIFY_ACT_FORMAT_OPTIONS.map((option) => option.value) as PeerifyActFormat[];
 
 // "What you do": any number per artist. Stored in artistProfile.actOffers as these slugs, so a
-// label can be reworded without touching stored data. Not "offers": that name already means
-// tourTeamOfferings (map Offers category, offer pins).
+// label can be reworded without touching stored data (Lessons, Composing and Sound healing kept
+// their slugs when their labels were shortened, 2026-10-22). Not "offers": that name already means
+// tourTeamOfferings (map Offers category, offer pins). A slug removed from this list
+// (songwriting, production_engineering, comedy_spoken_word: split into comedy + spoken_word) is
+// dropped on read by normalizeActOffers, so it never shows as a badge or matches a filter.
 export const PEERIFY_ACT_OFFER_OPTIONS = [
     { value: "original_music", label: "Original music" },
     { value: "covers_tributes", label: "Covers and tributes" },
     { value: "dj_sets", label: "DJ sets" },
-    { value: "songwriting", label: "Songwriting" },
     { value: "session_musician", label: "Session musician" },
-    { value: "lessons_workshops", label: "Lessons and workshops" },
-    { value: "weddings_private_events", label: "Weddings and private events" },
+    { value: "lessons_workshops", label: "Lessons" },
+    { value: "composing_film_games_theatre", label: "Composing" },
     { value: "childrens_music", label: "Children's music" },
-    { value: "sound_healing_meditation", label: "Sound healing and meditation" },
-    { value: "comedy_spoken_word", label: "Comedy and spoken word" },
-    { value: "composing_film_games_theatre", label: "Composing for film, games and theatre" },
-    { value: "production_engineering", label: "Production and engineering" },
+    { value: "sound_healing_meditation", label: "Sound healing" },
+    { value: "comedy", label: "Comedy" },
+    { value: "spoken_word", label: "Spoken word" },
+    { value: "weddings_private_events", label: "Weddings and private events" },
 ] as const;
 export type PeerifyActOffer = (typeof PEERIFY_ACT_OFFER_OPTIONS)[number]["value"];
 export const PEERIFY_ACT_OFFERS = PEERIFY_ACT_OFFER_OPTIONS.map((option) => option.value) as PeerifyActOffer[];
