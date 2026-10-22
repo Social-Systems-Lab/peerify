@@ -136,9 +136,10 @@ const ProfileMenuBar = () => {
     const currentVisibleIdentity = useActingIdentity();
     const setActingIdentity = useSetActingIdentity();
 
-    // Mobile Explore only: tapping the avatar fans the mail/clipboard/bell icons out
-    // to its left instead of opening the identity-switcher popover (see isMobileExplore
-    // below — those icons are hidden by default only on this page).
+    // Mobile (every page, 2026-10-22; Explore only before): tapping the avatar fans the
+    // mail/clipboard/bell icons out to its left instead of opening the identity-switcher
+    // popover. Collapsed, the fixed corner overlay is one avatar instead of four buttons, so it
+    // covers far less of the hero or card text underneath.
     const [mobileIconsExpanded, setMobileIconsExpanded] = useState(false);
     const mobileFanRef = useRef<HTMLDivElement>(null);
 
@@ -174,13 +175,15 @@ const ProfileMenuBar = () => {
         }
     }, [mobileExploreSearchFocused]);
 
+    // Collapse on navigation and on crossing the mobile breakpoint; the Explore search-focus
+    // flag only means something on mobile Explore.
     useEffect(() => {
+        setMobileIconsExpanded(false);
+        setProfileSwitcherOpen(false);
         if (!(isMobile && pathname === "/explore")) {
-            setMobileIconsExpanded(false);
-            setProfileSwitcherOpen(false);
             setMobileExploreSearchFocused(false);
         }
-    }, [isMobile, pathname]);
+    }, [isMobile, pathname, setMobileExploreSearchFocused]);
 
     // Fixes hydration errors
     const [isMounted, setIsMounted] = useState(false);
@@ -334,15 +337,16 @@ const ProfileMenuBar = () => {
     // menu's icon buttons pick up the new palette, via globals.css's ".pilot-chrome" rules.
     const isPilotRoute = isPilotChromePath(pathname);
 
-    // Rendered either portaled into the mobile Explore search bar's trailing-end slot
+    // On mobile Explore, rendered either portaled into the search bar's trailing-end slot
     // (the normal case) or in place here — which lands it in the fixed top-right
     // corner, same as before this feature — whenever that slot isn't currently mounted
     // (e.g. the swipe-cards view, where the search bar doesn't render at all; see
     // map-explorer.tsx). NOT used while the UserToolbox panel is open on mobile — see
     // the render site below, which suppresses this entirely in that state instead of
     // falling back to it, since the panel already shows its own avatar/name and this
-    // fixed-position copy only collided with the panel's "Sign out" button.
-    const mobileExploreFanOut = user && (
+    // fixed-position copy only collided with the panel's "Sign out" button. On every other
+    // mobile page it's always rendered in place, in the fixed corner (same toolbox rule).
+    const mobileFanOut = user && (
         <div ref={mobileFanRef} className="flex items-center gap-1">
             <AnimatePresence>
                 {mobileIconsExpanded && (
@@ -506,7 +510,7 @@ const ProfileMenuBar = () => {
 
                     {authInfo.authStatus === "authenticated" && user && (
                         <>
-                            {!isMobileExplore && (
+                            {!isMobile && (
                                 <>
                                     <Button
                                         variant="ghost"
@@ -542,12 +546,14 @@ const ProfileMenuBar = () => {
                                 (mobileExploreAvatarSlot
                                     ? mobileExploreSearchFocused
                                         ? null
-                                        : createPortal(mobileExploreFanOut, mobileExploreAvatarSlot)
+                                        : createPortal(mobileFanOut, mobileExploreAvatarSlot)
                                     : sidePanelContentVisible === "toolbox"
                                       ? null
-                                      : mobileExploreFanOut)}
+                                      : mobileFanOut)}
 
-                            {!isMobileExplore && (
+                            {isMobile && !isMobileExplore && sidePanelContentVisible !== "toolbox" && mobileFanOut}
+
+                            {!isMobile && (
                                 <Popover>
                                     <PopoverTrigger asChild>
                                         <Button className="relative h-auto w-auto rounded-full p-0" variant="ghost">
