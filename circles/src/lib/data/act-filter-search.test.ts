@@ -49,7 +49,7 @@ beforeEach(() => {
         Circles: [
             artist("solo-default", "artist"),
             artist("band-default", "band"),
-            artist("duo-teacher", "artist", { actFormat: "duo", actOffers: ["lessons_workshops", "original_music"] }),
+            artist("duo-teacher", "artist", { actFormat: "duo", actOffers: ["lessons_workshops", "covers_tributes"] }),
             artist("covers-band", "band", { actOffers: ["covers_tributes"] }),
             artist("draft-duo", "artist", { actFormat: "duo" }),
             venue("venue-1"),
@@ -101,7 +101,7 @@ describe("searchDiscoverableCircles with act filters", () => {
         const [result] = await searchDiscoverableCircles({ actFilters: { actOffers: ["lessons_workshops"] } });
         const artistProfile = (result.metadata as any).peerify.artistProfile;
         expect(artistProfile.actFormat).toBe("duo");
-        expect(artistProfile.actOffers).toEqual(["lessons_workshops", "original_music"]);
+        expect(artistProfile.actOffers).toEqual(["lessons_workshops", "covers_tributes"]);
     });
 });
 
@@ -112,7 +112,7 @@ describe("getDiscoverResultsAction", () => {
             selectedCategories: ["users"],
             primaryGenres: [],
             actFormats: ["duo"],
-            actOffers: ["original_music"],
+            actOffers: ["covers_tributes"],
         });
         expect(ids(results.artists)).toEqual(["duo-teacher"]);
     });

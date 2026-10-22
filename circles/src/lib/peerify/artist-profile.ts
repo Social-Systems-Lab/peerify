@@ -183,10 +183,10 @@ export const PEERIFY_ACT_FORMATS = PEERIFY_ACT_FORMAT_OPTIONS.map((option) => op
 // label can be reworded without touching stored data (Lessons, Composing and Sound healing kept
 // their slugs when their labels were shortened, 2026-10-22). Not "offers": that name already means
 // tourTeamOfferings (map Offers category, offer pins). A slug removed from this list
-// (songwriting, production_engineering, comedy_spoken_word: split into comedy + spoken_word) is
+// (songwriting, production_engineering, comedy_spoken_word: split into comedy + spoken_word;
+// original_music, removed after the prod launch, 2026-10-22) is
 // dropped on read by normalizeActOffers, so it never shows as a badge or matches a filter.
 export const PEERIFY_ACT_OFFER_OPTIONS = [
-    { value: "original_music", label: "Original music" },
     { value: "covers_tributes", label: "Covers and tributes" },
     { value: "dj_sets", label: "DJ sets" },
     { value: "session_musician", label: "Session musician" },
