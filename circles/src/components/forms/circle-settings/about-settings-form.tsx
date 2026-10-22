@@ -63,6 +63,8 @@ import {
     PRIMARY_GENRE_OPTIONS,
     PRIMARY_GENRE_MAX_SELECTIONS,
     VENUE_TAG_OPTIONS,
+    type PeerifyActFormat,
+    type PeerifyActOffer,
     type PeerifyArtistProfile,
     type PeerifyVenueProfile,
 } from "@/lib/peerify/artist-profile";
@@ -94,6 +96,9 @@ type AboutSettingsFormValues = {
     primaryGenreOther?: string;
     defaultEventTags?: EventTagsValue;
     peerifyArtistProfile: {
+        // "" = not chosen yet (the fallback from identityType applies).
+        actFormat: PeerifyActFormat | "";
+        actOffers: PeerifyActOffer[];
         artistTypes: string[];
         artistTypeOtherLabels: string[];
         genresText: string;
@@ -141,6 +146,8 @@ const buildArtistProfileFormDefaults = (circle: Circle): AboutSettingsFormValues
     const artistProfile = getPeerifyArtistProfile(circle);
 
     return {
+        actFormat: artistProfile.actFormat ?? "",
+        actOffers: artistProfile.actOffers,
         artistTypes: artistProfile.artistTypes,
         artistTypeOtherLabels: artistProfile.artistTypeOtherLabels || [],
         genresText: artistProfile.genres.join(", "),
@@ -561,6 +568,8 @@ export function AboutSettingsForm({
         setIsSubmitting(true);
         try {
             const peerifyArtistProfile: PeerifyArtistProfile = {
+                ...(data.peerifyArtistProfile.actFormat ? { actFormat: data.peerifyArtistProfile.actFormat } : {}),
+                actOffers: data.peerifyArtistProfile.actOffers,
                 artistTypes: data.peerifyArtistProfile.artistTypes,
                 artistTypeOtherLabels: data.peerifyArtistProfile.artistTypes.includes("Other")
                     ? data.peerifyArtistProfile.artistTypeOtherLabels

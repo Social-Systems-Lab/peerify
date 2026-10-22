@@ -1,7 +1,7 @@
 // Minimal in-memory stand-in for a MongoDB collection, for tests that mock "@/lib/data/db".
 // Supports only what the tests' subjects use: equality (a null filter value also matches a missing
 // field; a scalar matches an array field that contains it, as in MongoDB), dotted paths, $in, $nin,
-// $ne, $exists, $not, $size, $gt/$gte/$lt/$lte, RegExp values, top-level $or/$and, find().toArray() and
+// $ne, $exists, $not, $size, $gt/$gte/$lt/$lte, RegExp values, top-level $or/$and/$nor, find().toArray() and
 // find() with sort/limit/project, inclusion projections (dotted paths too), countDocuments, deleteMany,
 // and updateOne ($set, $unset, $addToSet, $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
 // between its match and its write).
@@ -92,6 +92,7 @@ export const matchesFilter = (doc: Doc, filter: Doc): boolean =>
     Object.entries(filter).every(([key, condition]) => {
         if (key === "$or") return (condition as Doc[]).some((sub) => matchesFilter(doc, sub));
         if (key === "$and") return (condition as Doc[]).every((sub) => matchesFilter(doc, sub));
+        if (key === "$nor") return !(condition as Doc[]).some((sub) => matchesFilter(doc, sub));
         return matchesCondition(getPath(doc, key), condition);
     });
 

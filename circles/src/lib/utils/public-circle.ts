@@ -70,6 +70,9 @@ const PUBLIC_CIRCLE_FIELDS = [
 const PUBLIC_LOCATION_FIELDS = ["city", "region", "country", "countryCode", "precision"] as const;
 const PUBLIC_PEERIFY_FIELDS = ["intent", "managedIdentity", "identityType"] as const;
 const PUBLIC_ARTIST_PROFILE_FIELDS = [
+    // Discover/Explore filter on these client-side too, so they must reach every viewer.
+    "actFormat",
+    "actOffers",
     "baseCity",
     "primaryGenres",
     "primaryGenreOther",

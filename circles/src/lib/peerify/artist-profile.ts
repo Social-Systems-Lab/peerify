@@ -41,6 +41,10 @@ export type PeerifyMusicLinkKey =
     | "website";
 
 export type PeerifyArtistProfile = {
+    // Undefined until the artist picks one; read it through getPeerifyActFormat, which falls back
+    // to identityType.
+    actFormat?: PeerifyActFormat;
+    actOffers: PeerifyActOffer[];
     artistTypes: string[];
     // Custom labels entered when "Other" is checked in artistTypes. General-purpose multi-tag
     // input, not a migration-only artifact — a new signup can add more than one (e.g. a
@@ -158,7 +162,49 @@ export type PeerifyBookingEnquiryInput = {
     message?: string;
 };
 
+// Legacy: the old Settings "Artist types" checkboxes. No longer offered (act format replaced them,
+// 2026-10-22); kept so stored values still normalise. Nothing reads artistTypes for display now.
 export const PEERIFY_ARTIST_TYPE_OPTIONS = ["Solo artist", "Band", "DJ", "Other"] as const;
+
+// Act format: one per artist. Stored in artistProfile.actFormat. An artist who never chose one
+// reads as the format their identityType implies (getPeerifyActFormat), so existing profiles
+// filter correctly without a migration. Duo and Ensemble only ever come from an explicit choice.
+export const PEERIFY_ACT_FORMAT_OPTIONS = [
+    { value: "solo", label: "Solo" },
+    { value: "duo", label: "Duo" },
+    { value: "band", label: "Band" },
+    { value: "dj_producer", label: "DJ / Producer" },
+    { value: "ensemble", label: "Ensemble" },
+] as const;
+export type PeerifyActFormat = (typeof PEERIFY_ACT_FORMAT_OPTIONS)[number]["value"];
+export const PEERIFY_ACT_FORMATS = PEERIFY_ACT_FORMAT_OPTIONS.map((option) => option.value) as PeerifyActFormat[];
+
+// "What you do": any number per artist. Stored in artistProfile.actOffers as these slugs, so a
+// label can be reworded without touching stored data. Not "offers": that name already means
+// tourTeamOfferings (map Offers category, offer pins).
+export const PEERIFY_ACT_OFFER_OPTIONS = [
+    { value: "original_music", label: "Original music" },
+    { value: "covers_tributes", label: "Covers and tributes" },
+    { value: "dj_sets", label: "DJ sets" },
+    { value: "songwriting", label: "Songwriting" },
+    { value: "session_musician", label: "Session musician" },
+    { value: "lessons_workshops", label: "Lessons and workshops" },
+    { value: "weddings_private_events", label: "Weddings and private events" },
+    { value: "childrens_music", label: "Children's music" },
+    { value: "sound_healing_meditation", label: "Sound healing and meditation" },
+    { value: "comedy_spoken_word", label: "Comedy and spoken word" },
+    { value: "composing_film_games_theatre", label: "Composing for film, games and theatre" },
+    { value: "production_engineering", label: "Production and engineering" },
+] as const;
+export type PeerifyActOffer = (typeof PEERIFY_ACT_OFFER_OPTIONS)[number]["value"];
+export const PEERIFY_ACT_OFFERS = PEERIFY_ACT_OFFER_OPTIONS.map((option) => option.value) as PeerifyActOffer[];
+
+export const PEERIFY_ACT_FORMAT_LABELS = Object.fromEntries(
+    PEERIFY_ACT_FORMAT_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<PeerifyActFormat, string>;
+export const PEERIFY_ACT_OFFER_LABELS = Object.fromEntries(
+    PEERIFY_ACT_OFFER_OPTIONS.map((option) => [option.value, option.label]),
+) as Record<PeerifyActOffer, string>;
 
 export const PRIMARY_GENRE_OPTIONS = [
     "Acoustic",
@@ -345,6 +391,7 @@ export const PEERIFY_MUSIC_LINK_LABELS: Record<PeerifyMusicLinkKey, string> = {
 };
 
 const DEFAULT_ARTIST_PROFILE: PeerifyArtistProfile = {
+    actOffers: [],
     artistTypes: [],
     artistTypeOtherLabels: [],
     baseCity: "",
@@ -445,6 +492,18 @@ const normalizePrimaryGenres = (value: unknown): string[] => {
     return Array.from(new Set(nextValues)).slice(0, PRIMARY_GENRE_MAX_SELECTIONS);
 };
 
+const normalizeActFormat = (value: unknown): PeerifyActFormat | undefined => {
+    const nextValue = asString(value);
+    return (PEERIFY_ACT_FORMATS as string[]).includes(nextValue) ? (nextValue as PeerifyActFormat) : undefined;
+};
+
+// Unknown values are dropped (unlike artistTypes, which kept any string), and the order is the
+// option order, so the badges and the filter row always list them the same way.
+const normalizeActOffers = (value: unknown): PeerifyActOffer[] => {
+    const nextValues = new Set(asStringArray(value));
+    return PEERIFY_ACT_OFFERS.filter((offer) => nextValues.has(offer));
+};
+
 const normalizeArtistTypeOtherLabels = (value: unknown): string[] => {
     const nextValues = asStringArray(value)
         .map((label) => label.trim())
@@ -507,7 +566,11 @@ export const normalizePeerifyArtistProfile = (value: unknown): PeerifyArtistProf
 
     const input = value as Record<string, unknown>;
 
+    const actFormat = normalizeActFormat(input.actFormat);
+
     return {
+        ...(actFormat ? { actFormat } : {}),
+        actOffers: normalizeActOffers(input.actOffers),
         artistTypes: asStringArray(input.artistTypes),
         artistTypeOtherLabels: normalizeArtistTypeOtherLabels(input.artistTypeOtherLabels),
         baseCity: asString(input.baseCity),
@@ -679,22 +742,166 @@ export const getPeerifyArtistIdentityLabel = (circle?: Partial<Circle> | null): 
     return identityType ? PEERIFY_MANAGED_IDENTITY_TYPE_LABELS[identityType] : "Artist";
 };
 
-export const getPeerifyArtistTypeBadges = (circle?: Partial<Circle> | null): string[] => {
-    const artistProfile = getPeerifyArtistProfile(circle);
-    // "Other" isn't itself a meaningful badge — swap it for the custom labels entered alongside
-    // it (there can be more than one, see artistTypeOtherLabels).
-    const artistTypes = artistProfile.artistTypes.flatMap((type) =>
-        type === "Other" ? artistProfile.artistTypeOtherLabels : [type],
-    );
-    if (artistTypes.length > 0) {
-        return artistTypes;
+// The act format an artist's identityType implies, for artists who haven't picked one. Mirrors
+// getDefaultHeroUrl: an intent-only artist (no artist identityType) reads as solo.
+const ACT_FORMAT_BY_IDENTITY_TYPE: Record<PeerifyArtistIdentityType, PeerifyActFormat> = {
+    artist: "solo",
+    band: "band",
+    dj: "dj_producer",
+    producer: "dj_producer",
+};
+
+export const getPeerifyActFormat = (circle?: Partial<Circle> | null): PeerifyActFormat | undefined => {
+    const peerifyMetadata = getPeerifyMetadata(circle);
+    if (peerifyMetadata.artistProfile?.actFormat) {
+        return peerifyMetadata.artistProfile.actFormat;
     }
 
-    const identityType = getPeerifyIdentityType(circle);
-    return identityType ? [PEERIFY_MANAGED_IDENTITY_TYPE_LABELS[identityType]] : [];
+    const identityType = peerifyMetadata.identityType;
+    if (identityType && identityType !== "venue") {
+        return ACT_FORMAT_BY_IDENTITY_TYPE[identityType];
+    }
+
+    return peerifyMetadata.intent === "artist" ? "solo" : undefined;
+};
+
+export const getPeerifyActOffers = (circle?: Partial<Circle> | null): PeerifyActOffer[] =>
+    getPeerifyArtistProfile(circle).actOffers;
+
+// The identityType to store alongside a chosen act format, so the default hero, avatar and label
+// (which all key off identityType) follow the format. A producer stays a producer when the format
+// is DJ / Producer.
+export const getIdentityTypeForActFormat = (
+    actFormat: PeerifyActFormat,
+    currentIdentityType?: PeerifyIdentityType,
+): PeerifyArtistIdentityType => {
+    switch (actFormat) {
+        case "solo":
+        case "duo":
+            return "artist";
+        case "band":
+        case "ensemble":
+            return "band";
+        case "dj_producer":
+            return currentIdentityType === "producer" ? "producer" : "dj";
+    }
+};
+
+// Act format, then "What you do", then the free-text "describe your act" tags.
+export const getPeerifyArtistTypeBadges = (circle?: Partial<Circle> | null): string[] => {
+    const artistProfile = getPeerifyArtistProfile(circle);
+    const actFormat = getPeerifyActFormat(circle);
+    return [
+        ...(actFormat ? [PEERIFY_ACT_FORMAT_LABELS[actFormat]] : []),
+        ...artistProfile.actOffers.map((offer) => PEERIFY_ACT_OFFER_LABELS[offer]),
+        ...artistProfile.artistTypeOtherLabels,
+    ];
+};
+
+// ---- Act filters (Discover, Explore) ----
+// Artist profiles only: a circle that isn't an artist always passes, so venues, events and offer
+// pins are never narrowed by these. Any-of within each list; both lists must match when both are set.
+
+export type PeerifyActFilters = {
+    actFormats?: string[];
+    actOffers?: string[];
+};
+
+const cleanActFilters = (filters?: PeerifyActFilters) => ({
+    actFormats: (filters?.actFormats ?? []).filter((v): v is PeerifyActFormat =>
+        (PEERIFY_ACT_FORMATS as string[]).includes(v),
+    ),
+    actOffers: (filters?.actOffers ?? []).filter((v): v is PeerifyActOffer => (PEERIFY_ACT_OFFERS as string[]).includes(v)),
+});
+
+export const hasActFilters = (filters?: PeerifyActFilters): boolean => {
+    const { actFormats, actOffers } = cleanActFilters(filters);
+    return actFormats.length > 0 || actOffers.length > 0;
+};
+
+export const matchesActFilters = (circle: Partial<Circle> | null | undefined, filters?: PeerifyActFilters): boolean => {
+    const { actFormats, actOffers } = cleanActFilters(filters);
+    if (actFormats.length === 0 && actOffers.length === 0) {
+        return true;
+    }
+    if (!isPeerifyArtistIdentity(circle)) {
+        return true;
+    }
+
+    if (actFormats.length > 0) {
+        const actFormat = getPeerifyActFormat(circle);
+        if (!actFormat || !actFormats.includes(actFormat)) {
+            return false;
+        }
+    }
+
+    if (actOffers.length > 0) {
+        const circleOffers = getPeerifyActOffers(circle);
+        if (!actOffers.some((offer) => circleOffers.includes(offer))) {
+            return false;
+        }
+    }
+
+    return true;
+};
+
+const ARTIST_PROFILE_PATH = "metadata.peerify.artistProfile";
+const ARTIST_IDENTITY_MONGO_QUERY = {
+    $or: [
+        { "metadata.peerify.intent": "artist" },
+        {
+            "metadata.peerify.managedIdentity": true,
+            "metadata.peerify.identityType": { $in: [...PEERIFY_ARTIST_IDENTITY_TYPES] },
+        },
+    ],
+};
+
+/**
+ * The Mongo form of matchesActFilters, for searchDiscoverableCircles: undefined when no act filter
+ * is set. Keep the two in step (act-filters.test.ts runs both over the same circles). The format
+ * part mirrors getPeerifyActFormat's fallback: an artist with no valid actFormat matches through
+ * its identityType ($nin also matches a missing field).
+ */
+export const buildActFilterMongoQuery = (filters?: PeerifyActFilters): Record<string, unknown> | undefined => {
+    const { actFormats, actOffers } = cleanActFilters(filters);
+    if (actFormats.length === 0 && actOffers.length === 0) {
+        return undefined;
+    }
+
+    const artistClauses: Record<string, unknown>[] = [];
+
+    if (actFormats.length > 0) {
+        const noChosenFormat = { [`${ARTIST_PROFILE_PATH}.actFormat`]: { $nin: PEERIFY_ACT_FORMATS } };
+        const impliedIdentityTypes = PEERIFY_ARTIST_IDENTITY_TYPES.filter((identityType) =>
+            actFormats.includes(ACT_FORMAT_BY_IDENTITY_TYPE[identityType]),
+        );
+        const formatClauses: Record<string, unknown>[] = [
+            { [`${ARTIST_PROFILE_PATH}.actFormat`]: { $in: actFormats } },
+        ];
+        if (impliedIdentityTypes.length > 0) {
+            formatClauses.push({ ...noChosenFormat, "metadata.peerify.identityType": { $in: impliedIdentityTypes } });
+        }
+        if (actFormats.includes("solo")) {
+            formatClauses.push({
+                ...noChosenFormat,
+                "metadata.peerify.identityType": { $nin: [...PEERIFY_ARTIST_IDENTITY_TYPES] },
+                "metadata.peerify.intent": "artist",
+            });
+        }
+        artistClauses.push({ $or: formatClauses });
+    }
+
+    if (actOffers.length > 0) {
+        artistClauses.push({ [`${ARTIST_PROFILE_PATH}.actOffers`]: { $in: actOffers } });
+    }
+
+    return { $or: [{ $nor: [ARTIST_IDENTITY_MONGO_QUERY] }, { $and: artistClauses }] };
 };
 
 export const hasPeerifyArtistProfileContent = (profile: PeerifyArtistProfile): boolean =>
+    Boolean(profile.actFormat) ||
+    profile.actOffers.length > 0 ||
+    profile.artistTypeOtherLabels.length > 0 ||
     profile.artistTypes.length > 0 ||
     profile.genres.length > 0 ||
     profile.primaryGenres.length > 0 ||
