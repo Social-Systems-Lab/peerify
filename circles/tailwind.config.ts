@@ -139,6 +139,15 @@ const config = {
                         boxShadow: "0 0 0 0 rgba(0, 0, 0, 0)",
                     },
                 },
+                // Indeterminate loading bar: a short segment sliding across its track.
+                "loading-bar": {
+                    "0%": {
+                        transform: "translateX(-100%)",
+                    },
+                    "100%": {
+                        transform: "translateX(250%)",
+                    },
+                },
                 ripple: {
                     "0%": {
                         opacity: "1",
@@ -158,6 +167,7 @@ const config = {
                 wiggle: "wiggle 4s ease-in-out infinite",
                 float: "float 3s ease-in-out infinite",
                 "pulse-slow": "pulse 3s ease-in-out infinite",
+                "loading-bar": "loading-bar 1.1s ease-in-out infinite",
                 ripple: "ripple 4s cubic-bezier(0.65, 0, 0.34, 1) infinite",
                 "ripple-delay": "ripple 4s cubic-bezier(0.65, 0, 0.34, 1) infinite 1.5s",
                 "ripple-delay-2": "ripple 4s cubic-bezier(0.65, 0, 0.34, 1) infinite 3s",

@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { Search, X, SlidersHorizontal } from "lucide-react";
 import { userAtom } from "@/lib/data/atoms";
+import { cn } from "@/lib/utils";
 import { useDebounce } from "@/components/utils/use-debounce";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { EventDisplay } from "@/models/models";
@@ -390,49 +391,62 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
                 </div>
             )}
 
-            {isLoading && <div className="py-2 text-center text-sm text-gray-500">Updating results…</div>}
+            {/* While results update, the previous ones stay visible but faded, under a thin loading
+                bar. The bar's track is always there (empty when idle), so nothing shifts. */}
+            <div
+                className="-mb-2 h-0.5 w-full overflow-hidden rounded-full"
+                role="progressbar"
+                aria-label="Updating results"
+                aria-hidden={!isLoading}
+            >
+                {isLoading && (
+                    <div className="h-full w-2/5 animate-loading-bar rounded-full bg-[#e8720c] motion-reduce:w-full motion-reduce:animate-none motion-reduce:opacity-60" />
+                )}
+            </div>
 
-            {showArtists && (
-                <section className="flex flex-col gap-2">
-                    <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Artists</h2>
-                    {results.artists.length === 0 && !isLoading ? (
-                        <NoMatchingArtistsNotice
-                            onClear={
-                                hasArtistFilters
-                                    ? () =>
-                                          handleFiltersChange({
-                                              ...filtersValue,
-                                              selectedGenres: [],
-                                              selectedActFormats: [],
-                                              selectedActOffers: [],
-                                          })
-                                    : undefined
-                            }
-                        />
-                    ) : (
-                        <div className="flex flex-col gap-2">
-                            {results.artists.map((artist) => (
-                                <ArtistCard key={artist._id as string} artist={artist} />
-                            ))}
-                        </div>
-                    )}
-                </section>
-            )}
+            <div aria-busy={isLoading} className={cn("flex flex-col gap-4 transition-opacity", isLoading && "opacity-50")}>
+                {showArtists && (
+                    <section className="flex flex-col gap-2">
+                        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Artists</h2>
+                        {results.artists.length === 0 ? (
+                            <NoMatchingArtistsNotice
+                                onClear={
+                                    hasArtistFilters
+                                        ? () =>
+                                              handleFiltersChange({
+                                                  ...filtersValue,
+                                                  selectedGenres: [],
+                                                  selectedActFormats: [],
+                                                  selectedActOffers: [],
+                                              })
+                                        : undefined
+                                }
+                            />
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                {results.artists.map((artist) => (
+                                    <ArtistCard key={artist._id as string} artist={artist} />
+                                ))}
+                            </div>
+                        )}
+                    </section>
+                )}
 
-            {showEvents && (
-                <section className="flex flex-col gap-2">
-                    <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Events</h2>
-                    {visibleEvents.length === 0 && !isLoading ? (
-                        <p className="py-4 text-center text-sm text-gray-500">No upcoming events match these filters yet.</p>
-                    ) : (
-                        <div className="flex flex-col gap-2">
-                            {visibleEvents.map((event) => (
-                                <DiscoverEventRow key={event._id as string} event={event} />
-                            ))}
-                        </div>
-                    )}
-                </section>
-            )}
+                {showEvents && (
+                    <section className="flex flex-col gap-2">
+                        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Events</h2>
+                        {visibleEvents.length === 0 ? (
+                            <p className="py-4 text-center text-sm text-gray-500">No upcoming events match these filters yet.</p>
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                {visibleEvents.map((event) => (
+                                    <DiscoverEventRow key={event._id as string} event={event} />
+                                ))}
+                            </div>
+                        )}
+                    </section>
+                )}
+            </div>
         </div>
     );
 }
