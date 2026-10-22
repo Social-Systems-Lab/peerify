@@ -14,5 +14,7 @@ export const DEFAULT_DISCOVER_FILTERS: SearchFiltersValue = {
     selectedOfferTypes: [],
     dateRange: undefined,
     physicalOnly: false,
+    selectedActFormats: [],
+    selectedActOffers: [],
     searchQuery: "",
 };

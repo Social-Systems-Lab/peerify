@@ -3,6 +3,7 @@ import { Circles } from "./db";
 import { getPublishedCircleQuery, isCirclePublished, SAFE_CIRCLE_PROJECTION } from "./circle";
 import { toPublicCircleListItem } from "../utils/public-circle";
 import { escapeRegex } from "../utils";
+import { buildActFilterMongoQuery, type PeerifyActFilters } from "../peerify/artist-profile";
 
 const SEARCHABLE_TYPES: CircleType[] = ["circle", "project", "user"];
 const SEARCHABLE_FIELDS = [
@@ -31,6 +32,8 @@ type SearchCirclesOptions = {
     limit?: number;
     circleTypes?: CircleType[];
     primaryGenres?: string[];
+    // Act format / What you do: narrows artist profiles only, other circles pass.
+    actFilters?: PeerifyActFilters;
     viewerDid?: string;
 };
 
@@ -144,6 +147,7 @@ const buildCandidateQuery = (
     circleTypes: CircleType[],
     primaryGenres: string[],
     viewerIsAdmin: boolean,
+    actFilters?: PeerifyActFilters,
 ) => {
     const discoverableTypeClauses: Record<string, unknown>[] = [];
     const nonUserTypes = circleTypes.filter((type) => type !== "user");
@@ -171,6 +175,12 @@ const buildCandidateQuery = (
         clauses.push({ primaryGenres: { $in: primaryGenres } });
     }
 
+    // In the query, not after it: the candidate limit below would otherwise cut matching artists.
+    const actFilterQuery = buildActFilterMongoQuery(actFilters);
+    if (actFilterQuery) {
+        clauses.push(actFilterQuery);
+    }
+
     if (query) {
         const tokens = [query, ...tokenizeQuery(query)].filter(Boolean);
         const regexes = tokens.map((token) => new RegExp(escapeRegex(token), "i"));
@@ -187,6 +197,7 @@ export const searchDiscoverableCircles = async ({
     limit = 20,
     circleTypes = SEARCHABLE_TYPES,
     primaryGenres = [],
+    actFilters,
     viewerDid,
 }: SearchCirclesOptions): Promise<WithMetric<Circle>[]> => {
     // Trusted lookup, not a caller-supplied flag — see isDiscoverableCircle's comment above and
@@ -201,7 +212,13 @@ export const searchDiscoverableCircles = async ({
     const normalizedTypes = circleTypes.length > 0 ? circleTypes : SEARCHABLE_TYPES;
     const normalizedGenres = primaryGenres.filter(Boolean);
     const candidateLimit = Math.max(limit * 6, 120);
-    const candidateQuery = buildCandidateQuery(normalizedQuery, normalizedTypes, normalizedGenres, viewerIsAdmin);
+    const candidateQuery = buildCandidateQuery(
+        normalizedQuery,
+        normalizedTypes,
+        normalizedGenres,
+        viewerIsAdmin,
+        actFilters,
+    );
 
     const circles = (await Circles.find(candidateQuery, { projection: SAFE_CIRCLE_PROJECTION }).limit(candidateLimit).toArray()) as Circle[];
     const tokens = tokenizeQuery(normalizedQuery);
