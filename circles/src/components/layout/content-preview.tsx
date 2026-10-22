@@ -131,7 +131,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
             isCurrent = false;
         };
     }, [circle, user?.did]);
-    // Same admin check the full artist page's Pledge Interest/Join Crew gating uses (see
+    // Same admin check the full artist page's Pledge/Join Crew gating uses (see
     // home-content.tsx's authorizedToEdit) — this card is a client component with no such prop,
     // so it fetches it fresh via getViewerIsCircleAdminAction instead.
     const [isViewerCircleAdmin, setIsViewerCircleAdmin] = React.useState(false);

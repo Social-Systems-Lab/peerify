@@ -631,7 +631,7 @@ export default function HomeContent({
                                                 className="bg-[#FE801B] text-white hover:bg-[#e57316]"
                                                 onClick={() => openPeerifyArtistEnquiry("pledge")}
                                             >
-                                                Pledge Interest
+                                                Pledge
                                             </Button>
                                         ) : null}
                                         {showPledgesDashboardButton ? (

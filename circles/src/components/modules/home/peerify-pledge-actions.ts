@@ -35,7 +35,7 @@ export async function createPeerifyPledgeAction({
         return { success: false, message: "This profile is not accepting structured pledges yet" };
     }
 
-    // Same check the Pledge Interest button's own visibility is gated on (see home-content.tsx's
+    // Same check the Pledge button's own visibility is gated on (see home-content.tsx's
     // authorizedToEdit) — enforced here too, not just via the hidden button, so a direct call
     // can't have this artist's own admin pledge to themselves and pollute their Pledge Dashboard.
     const isArtistAdmin = await isAuthorized(userDid, artist._id, features.settings.edit_about);
