@@ -124,7 +124,9 @@ describe("badges", () => {
             }),
         );
         expect(getPeerifyArtistTypeBadges(c)).toEqual(["Duo", "Covers and tributes", "Songwriting", "Comedian"]);
-        expect(getPeerifyArtistTypeBadges(CIRCLES[1])).toEqual(["Band"]);
+        // No format chosen: no format badge, even though the filter treats it as a band.
+        expect(getPeerifyArtistTypeBadges(CIRCLES[1])).toEqual([]);
+        expect(getPeerifyArtistTypeBadges(CIRCLES[0])).toEqual([]);
     });
 });
 
