@@ -16,6 +16,7 @@ import {
     CategoryFilterCarousel,
     GenreFilterChips,
     ActOfferFilterRow,
+    NoMatchingArtistsNotice,
 } from "@/components/modules/search/search-filters";
 import {
     PEERIFY_ACT_FORMAT_LABELS,
@@ -286,6 +287,10 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
     // restore effect replaces the pre-hydration default. There's nothing here to get out of sync
     // with that restore; it's the same source of truth, not a second one.
     const isArtistsOnly = isArtistsOnlySelection(filtersValue.selectedCategories);
+    const hasArtistFilters =
+        filtersValue.selectedGenres.length > 0 ||
+        filtersValue.selectedActFormats.length > 0 ||
+        filtersValue.selectedActOffers.length > 0;
 
     return (
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 pb-24 pt-4 md:pt-8">
@@ -391,7 +396,19 @@ export default function DiscoverScreen({ initialResults }: DiscoverScreenProps) 
                 <section className="flex flex-col gap-2">
                     <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Artists</h2>
                     {results.artists.length === 0 && !isLoading ? (
-                        <p className="py-4 text-center text-sm text-gray-500">No artists match these filters yet.</p>
+                        <NoMatchingArtistsNotice
+                            onClear={
+                                hasArtistFilters
+                                    ? () =>
+                                          handleFiltersChange({
+                                              ...filtersValue,
+                                              selectedGenres: [],
+                                              selectedActFormats: [],
+                                              selectedActOffers: [],
+                                          })
+                                    : undefined
+                            }
+                        />
                     ) : (
                         <div className="flex flex-col gap-2">
                             {results.artists.map((artist) => (
