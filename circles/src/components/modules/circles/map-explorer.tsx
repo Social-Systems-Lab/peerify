@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import { CirclePicture } from "./circle-picture";
 import { completeSwipeOnboardingAction } from "./swipe-actions";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
-import { searchContentAction } from "../search/actions";
+import { getAvailableActOffersAction, searchContentAction } from "../search/actions";
 import SearchFilters, {
     SearchFiltersValue,
     CategoryFilterCarousel,
@@ -54,6 +54,7 @@ import { EventDisplay } from "@/models/models";
 import ActivityPanel from "@/components/layout/activity-panel";
 import MobileEventsPanel from "@/components/modules/events/mobile-events-panel";
 import {
+    getAvailableActOffers,
     hasActFilters,
     isPeerifyArtistIdentity,
     isPeerifyVenueIdentity,
@@ -352,6 +353,10 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         [selectedActFormats, selectedActOffers],
     );
     const actFilterChangedRef = useRef(false);
+    // The pills the What you do row shows (see ActOfferFilterRow). While searching, the server
+    // works them out for the whole search (results are capped); otherwise they come from the
+    // artists already loaded (availableActOffers below).
+    const [searchAvailableActOffers, setSearchAvailableActOffers] = useState<string[]>([]);
 
     // Bridges SearchFilters' clean value/onChange contract into this screen's existing
     // individual useState hooks (kept separate rather than folded into one object, since dozens
@@ -582,6 +587,18 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         }
     }, [hasSearched, filteredSearchResults, allDiscoverableCircles, selectedCategories, filterCirclesByCategory]);
 
+    // Pills for the What you do row: values some visible artist has, ignoring the What you do
+    // filter itself (getAvailableActOffers). Not searching: from the loaded circles, within the
+    // date range like the map and drawer. Searching: from the server (searchAvailableActOffers).
+    const availableActOffers = useMemo(() => {
+        if (hasSearched) return searchAvailableActOffers;
+        const visibleCircles =
+            dateRange?.from || dateRange?.to
+                ? allDiscoverableCircles.filter((c) => withinDateRange((c as any).createdAt))
+                : allDiscoverableCircles;
+        return getAvailableActOffers(visibleCircles, actFilters);
+    }, [hasSearched, searchAvailableActOffers, allDiscoverableCircles, dateRange, withinDateRange, actFilters]);
+
     const drawerListData = useMemo(() => {
         let list = baseCircles;
         if (dateRange?.from || dateRange?.to) {
@@ -703,13 +720,21 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setContentPreview(undefined); // Clear preview on new search
 
         try {
-            const results = await searchContentAction(
-                searchQuery,
-                searchCategoriesForBackend,
-                selectedGenres.length > 0 ? selectedGenres : undefined,
-                actFilters,
-            );
+            const [results, availableActOffers] = await Promise.all([
+                searchContentAction(
+                    searchQuery,
+                    searchCategoriesForBackend,
+                    selectedGenres.length > 0 ? selectedGenres : undefined,
+                    actFilters,
+                ),
+                getAvailableActOffersAction(
+                    searchQuery,
+                    selectedGenres.length > 0 ? selectedGenres : undefined,
+                    actFilters.actFormats,
+                ),
+            ]);
             setAllSearchResults(results);
+            setSearchAvailableActOffers(availableActOffers);
 
             // Compute filtered list and counts for left panel now. Mirrors searchDisplayItems'
             // rule (circle types via filterCirclesByCategory, events included whenever selected
@@ -1337,6 +1362,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                         {includesArtistsCategory(selectedCategories) && (
                             <ActOfferFilterRow
                                 selectedActOffers={selectedActOffers}
+                                availableActOffers={availableActOffers}
                                 onChange={(next) => handleFiltersChange({ ...filtersValue, selectedActOffers: next })}
                             />
                         )}

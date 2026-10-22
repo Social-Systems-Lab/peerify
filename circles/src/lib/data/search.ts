@@ -3,7 +3,12 @@ import { Circles } from "./db";
 import { getPublishedCircleQuery, isCirclePublished, SAFE_CIRCLE_PROJECTION } from "./circle";
 import { toPublicCircleListItem } from "../utils/public-circle";
 import { escapeRegex } from "../utils";
-import { buildActFilterMongoQuery, type PeerifyActFilters } from "../peerify/artist-profile";
+import {
+    buildActFilterMongoQuery,
+    getAvailableActOffers,
+    type PeerifyActFilters,
+    type PeerifyActOffer,
+} from "../peerify/artist-profile";
 
 const SEARCHABLE_TYPES: CircleType[] = ["circle", "project", "user"];
 const SEARCHABLE_FIELDS = [
@@ -192,6 +197,63 @@ const buildCandidateQuery = (
     return clauses.length === 1 ? clauses[0] : { $and: clauses };
 };
 
+// Trusted lookup, not a caller-supplied flag — see isDiscoverableCircle's comment above and
+// getSwipeCircles in circle.ts, which resolves its own admin bypass the same way.
+const getViewerIsAdmin = async (viewerDid?: string): Promise<boolean> => {
+    if (!viewerDid) return false;
+    const viewer = await Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } });
+    return viewer?.isAdmin === true;
+};
+
+// Enough fields for isPeerifyArtistIdentity, the act filters and the discoverability checks.
+const ACT_OFFER_AVAILABILITY_PROJECTION = {
+    circleType: 1,
+    searchable: 1,
+    publishStatus: 1,
+    "metadata.peerify.intent": 1,
+    "metadata.peerify.managedIdentity": 1,
+    "metadata.peerify.identityType": 1,
+    "metadata.peerify.artistProfile.actFormat": 1,
+    "metadata.peerify.artistProfile.actOffers": 1,
+} as const;
+
+// A safety cap, far above today's artist count; past it, a rare value could be left out of the row.
+const ACT_OFFER_AVAILABILITY_LIMIT = 2000;
+
+/**
+ * Which "What you do" values the artists matching this search have (getAvailableActOffers):
+ * same candidate query as searchDiscoverableCircles, minus the What you do filter itself and
+ * without its result limit, so the filter row offers every value that would find someone.
+ * Returns values only, never circles.
+ */
+export const getAvailableActOffersForSearch = async ({
+    query = "",
+    circleTypes = SEARCHABLE_TYPES,
+    primaryGenres = [],
+    actFilters,
+    viewerDid,
+}: Omit<SearchCirclesOptions, "limit">): Promise<PeerifyActOffer[]> => {
+    const viewerIsAdmin = await getViewerIsAdmin(viewerDid);
+    const normalizedTypes = circleTypes.length > 0 ? circleTypes : SEARCHABLE_TYPES;
+    const candidateQuery = buildCandidateQuery(
+        normalizeValue(query),
+        normalizedTypes,
+        primaryGenres.filter(Boolean),
+        viewerIsAdmin,
+        { actFormats: actFilters?.actFormats },
+    );
+    const circles = (await Circles.find(candidateQuery, { projection: ACT_OFFER_AVAILABILITY_PROJECTION })
+        .limit(ACT_OFFER_AVAILABILITY_LIMIT)
+        .toArray()) as Circle[];
+    const visible = circles.filter(
+        (circle) =>
+            isCirclePublished(circle) &&
+            isDiscoverableCircle(circle, viewerIsAdmin) &&
+            matchesCircleTypes(circle, normalizedTypes),
+    );
+    return getAvailableActOffers(visible, actFilters);
+};
+
 export const searchDiscoverableCircles = async ({
     query = "",
     limit = 20,
@@ -200,13 +262,7 @@ export const searchDiscoverableCircles = async ({
     actFilters,
     viewerDid,
 }: SearchCirclesOptions): Promise<WithMetric<Circle>[]> => {
-    // Trusted lookup, not a caller-supplied flag — see isDiscoverableCircle's comment above and
-    // getSwipeCircles in circle.ts, which resolves its own admin bypass the same way.
-    let viewerIsAdmin = false;
-    if (viewerDid) {
-        const viewer = await Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } });
-        viewerIsAdmin = viewer?.isAdmin === true;
-    }
+    const viewerIsAdmin = await getViewerIsAdmin(viewerDid);
 
     const normalizedQuery = normalizeValue(query);
     const normalizedTypes = circleTypes.length > 0 ? circleTypes : SEARCHABLE_TYPES;

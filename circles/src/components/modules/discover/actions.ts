@@ -1,7 +1,7 @@
 "use server";
 
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
-import { searchDiscoverableCircles } from "@/lib/data/search";
+import { getAvailableActOffersForSearch, searchDiscoverableCircles } from "@/lib/data/search";
 import { getMetricsForCircles } from "@/lib/data/circle";
 import { getOpenEventsForMap } from "@/lib/data/event";
 import { getCircleIdsWithTracks } from "@/lib/data/track";
@@ -18,6 +18,9 @@ export type DiscoverArtist = WithMetric<Circle> & { hasPlayableTracks?: boolean 
 export type DiscoverResults = {
     artists: DiscoverArtist[];
     events: EventDisplay[];
+    // "What you do" values the artists matching everything but What you do have: the pills the
+    // filter row shows (see getAvailableActOffersForSearch).
+    availableActOffers: string[];
 };
 
 export type DiscoverQueryInput = {
@@ -70,7 +73,20 @@ export async function getDiscoverResultsAction(input: DiscoverQueryInput): Promi
             ? getOpenEventsForMap(userDid || "", range as any, primaryGenres)
             : Promise.resolve([] as EventDisplay[]);
 
-        const [candidateCircles, events] = await Promise.all([artistsPromise, eventsPromise]);
+        const availableActOffersPromise = includeArtists
+            ? getAvailableActOffersForSearch({
+                  query: input.query,
+                  primaryGenres,
+                  actFilters: { actFormats: input.actFormats },
+                  viewerDid: userDid,
+              })
+            : Promise.resolve([] as string[]);
+
+        const [candidateCircles, events, availableActOffers] = await Promise.all([
+            artistsPromise,
+            eventsPromise,
+            availableActOffersPromise,
+        ]);
         const artists: DiscoverArtist[] = candidateCircles.filter((circle) => isPeerifyArtistIdentity(circle));
 
         if (userDid && artists.length > 0) {
@@ -86,9 +102,9 @@ export async function getDiscoverResultsAction(input: DiscoverQueryInput): Promi
             console.error("getDiscoverResultsAction hasPlayableTracks lookup failed:", error);
         }
 
-        return { artists, events: events || [] };
+        return { artists, events: events || [], availableActOffers };
     } catch (error) {
         console.error("getDiscoverResultsAction error:", error);
-        return { artists: [], events: [] };
+        return { artists: [], events: [], availableActOffers: [] };
     }
 }

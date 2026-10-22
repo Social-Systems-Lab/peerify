@@ -20,7 +20,7 @@ mock.module("@/lib/auth/auth", () => ({
 const realTrack = await import("./track");
 mock.module("./track", () => ({ ...realTrack, getCircleIdsWithTracks: async () => new Set<string>() }));
 
-const { searchDiscoverableCircles } = await import("./search");
+const { getAvailableActOffersForSearch, searchDiscoverableCircles } = await import("./search");
 const { getDiscoverResultsAction } = await import("@/components/modules/discover/actions");
 
 const artist = (id: string, identityType: string, artistProfile: Record<string, unknown> = {}) => ({
@@ -122,3 +122,32 @@ describe("getDiscoverResultsAction", () => {
         expect(ids(results.artists)).toEqual(["band-default", "covers-band", "duo-teacher", "solo-default"].sort());
     });
 });
+
+describe("getAvailableActOffersForSearch", () => {
+    test("published, discoverable artists only; What you do filter ignored, format honoured", async () => {
+        // draft-duo (unpublished) has no offers anyway; add one that only it has.
+        fakeDb.col("Circles").docs.find((c: any) => c._id === "draft-duo")!.metadata.peerify.artistProfile.actOffers = [
+            "comedy",
+        ];
+        expect(await getAvailableActOffersForSearch({})).toEqual(["covers_tributes", "lessons_workshops"]);
+        expect(
+            await getAvailableActOffersForSearch({ actFilters: { actOffers: ["covers_tributes"] } }),
+        ).toEqual(["covers_tributes", "lessons_workshops"]);
+        expect(await getAvailableActOffersForSearch({ actFilters: { actFormats: ["band"] } })).toEqual([
+            "covers_tributes",
+        ]);
+        expect(await getAvailableActOffersForSearch({ query: "solo-default" })).toEqual([]);
+    });
+
+    test("Discover returns them with the results", async () => {
+        const results = await getDiscoverResultsAction({
+            query: "",
+            selectedCategories: ["users"],
+            primaryGenres: [],
+            actOffers: ["lessons_workshops"],
+        });
+        expect(ids(results.artists)).toEqual(["duo-teacher"]);
+        expect(results.availableActOffers).toEqual(["covers_tributes", "lessons_workshops"]);
+    });
+});
+
