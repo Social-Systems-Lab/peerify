@@ -191,6 +191,30 @@ export async function saveArtistActFormatAction(circleId: string, actFormat: Pee
     return { success: true, message: "Saved." };
 }
 
+// Frame A2b: "What you do" (artistProfile.actOffers), right after the format step. Unknown
+// values are dropped by the normaliser; an empty list clears it. identityType is not touched.
+export async function saveArtistActOffersAction(circleId: string, actOffers: string[]): Promise<FormSubmitResponse> {
+    const auth = await authorizeEdit(circleId);
+    if ("error" in auth) return auth.error;
+
+    const existingCircle = await getCircleById(circleId);
+    if (!existingCircle) {
+        return { success: false, message: "Profile not found." };
+    }
+
+    const { metadata, peerify } = clonePeerifyMetadata(existingCircle);
+    const artistProfile = normalizePeerifyArtistProfile(peerify.artistProfile);
+    peerify.artistProfile = {
+        ...artistProfile,
+        actOffers: normalizePeerifyArtistProfile({ actOffers }).actOffers,
+    };
+    metadata.peerify = peerify;
+
+    await updateCircle({ _id: circleId, metadata }, auth.userDid);
+    revalidateCircle(existingCircle);
+    return { success: true, message: "Saved." };
+}
+
 // Frame F2 (fan) / A5 (artist) — reuses the artist genre taxonomy
 // (PRIMARY_GENRE_OPTIONS/PRIMARY_GENRE_MAX_SELECTIONS) for both. Mirrors saveAbout()'s
 // dual-write for artist circles (top-level primaryGenres + metadata.peerify.artistProfile) so

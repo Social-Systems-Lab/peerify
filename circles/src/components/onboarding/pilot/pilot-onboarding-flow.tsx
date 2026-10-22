@@ -10,6 +10,7 @@ import { hasAcceptedGuidelines, type VerificationReadiness } from "@/lib/verific
 import {
     getIdentityTypeForActFormat,
     getPeerifyActFormat,
+    getPeerifyActOffers,
     getPeerifyDefaultAvatarUrl,
     PEERIFY_DEFAULT_ARTIST_AVATAR_URL,
     PEERIFY_DEFAULT_BAND_AVATAR_URL,
@@ -29,6 +30,7 @@ import { OffersExplainerStep } from "./frames/fan/offers-explainer-step";
 import { OffersStep } from "./frames/fan/offers-step";
 import { FanDoneStep } from "./frames/fan/fan-done-step";
 import { ArtistTypeStep } from "./frames/artist/artist-type-step";
+import { WhatYouDoStep } from "./frames/artist/what-you-do-step";
 import { SongsStep } from "./frames/artist/songs-step";
 import { ArtistReadyStep } from "./frames/artist/artist-ready-step";
 
@@ -60,10 +62,11 @@ const PERSONAL_STEPS = ["photo", "about", "location", "guidelines"] as const;
 // 4-step denominator early rather than the counter shrinking after the fact — same convention
 // the old single counter already used for the fan "yes" branch being the longest path.
 const FAN_PHASE_STEPS = ["fan-genres", "fan-contribution", "fan-offers-explainer", "fan-offers"] as const;
-// Frames A2-A5 — "Artist profile", 6 real steps (artist-ready is the completion screen, not
-// counted here).
+// Frames A2-A5 — "Artist profile", 7 real steps (artist-ready is the completion screen, not
+// counted here). A2b (artist-what-you-do) follows the format step.
 const ARTIST_PHASE_STEPS = [
     "artist-solo-band",
+    "artist-what-you-do",
     "artist-photo",
     "artist-about",
     "artist-songs",
@@ -404,8 +407,28 @@ export function PilotOnboardingFlow({
                     initialFormat={artistActFormat}
                     onSaved={(actFormat) => {
                         setArtistActFormat(actFormat);
-                        advanceStep("artist-photo");
+                        advanceStep("artist-what-you-do");
                     }}
+                />
+            </OnboardingCardShell>
+        );
+    }
+
+    if (step === "artist-what-you-do" && artistCircle) {
+        return (
+            <OnboardingCardShell
+                title="What do you do?"
+                subtitle="Pick everything that fits. Fans and hosts can filter artists by these."
+                stepLabel={stepLabel}
+                progress={progress}
+                onBack={goBack}
+                canGoBack={canGoBack}
+            >
+                <WhatYouDoStep
+                    circleId={String(artistCircle._id)}
+                    initialActOffers={getPeerifyActOffers(artistCircle)}
+                    onContinue={() => advanceStep("artist-photo")}
+                    onSkip={() => setStep("artist-photo")}
                 />
             </OnboardingCardShell>
         );

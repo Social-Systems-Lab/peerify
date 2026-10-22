@@ -33,7 +33,7 @@ mock.module("@/lib/data/circle", () => ({
     },
 }));
 
-const { saveArtistActFormatAction } = await import("./onboarding/pilot/actions");
+const { saveArtistActFormatAction, saveArtistActOffersAction } = await import("./onboarding/pilot/actions");
 const { saveAbout } = await import("./circles/[handle]/settings/about/actions");
 const { getDefaultHeroUrl, DEFAULT_HERO_URLS } = await import("@/lib/default-heroes");
 const { normalizePeerifyArtistProfile } = await import("@/lib/peerify/artist-profile");
@@ -145,3 +145,30 @@ describe("saveAbout (Settings › About)", () => {
         expect((await stored()).metadata.peerify.identityType).toBe("venue");
     });
 });
+
+describe("saveArtistActOffersAction (onboarding A2b, What you do)", () => {
+    test("stores the valid values in option order; format, identityType and the rest are kept", async () => {
+        fakeDb.reset({
+            Circles: [artistCircle("band", { actFormat: "ensemble", primaryGenres: ["Folk"], actOffers: ["comedy"] })],
+        });
+        const result = await saveArtistActOffersAction(ARTIST_ID, ["spoken_word", "bogus", "original_music", "dj_sets"]);
+        expect(result.success).toBe(true);
+        const circle = await stored();
+        expect(circle.metadata.peerify.artistProfile.actOffers).toEqual(["dj_sets", "spoken_word"]);
+        expect(circle.metadata.peerify.artistProfile.actFormat).toBe("ensemble");
+        expect(circle.metadata.peerify.artistProfile.primaryGenres).toEqual(["Folk"]);
+        expect(circle.metadata.peerify.identityType).toBe("band");
+    });
+
+    test("an empty list clears; a stranger is refused", async () => {
+        fakeDb.reset({ Circles: [artistCircle("artist", { actOffers: ["comedy"] })] });
+        expect((await saveArtistActOffersAction(ARTIST_ID, [])).success).toBe(true);
+        expect((await stored()).metadata.peerify.artistProfile.actOffers).toEqual([]);
+
+        fakeDb.reset({ Circles: [artistCircle("artist", { actOffers: ["comedy"] })] });
+        sessionDid = "did:test:stranger";
+        expect((await saveArtistActOffersAction(ARTIST_ID, ["dj_sets"])).success).toBe(false);
+        expect((await stored()).metadata.peerify.artistProfile.actOffers).toEqual(["comedy"]);
+    });
+});
+
