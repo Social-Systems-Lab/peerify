@@ -45,6 +45,7 @@ import SearchFilters, {
     getActiveSearchFilterCount,
     ActOfferFilterRow,
     includesArtistsCategory,
+    NoMatchingArtistsNotice,
 } from "../search/search-filters";
 import Indicators from "@/components/utils/indicators";
 import ResizingDrawer from "@/components/ui/resizing-drawer"; // Correct import name
@@ -1366,6 +1367,25 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                 onChange={(next) => handleFiltersChange({ ...filtersValue, selectedActOffers: next })}
                             />
                         )}
+
+                        {/* Artist filters set, artists in view, and nobody left: say so instead of an
+                            empty map (venues and events, if shown, are unaffected). */}
+                        {includesArtistsCategory(selectedCategories) &&
+                            !isSearching &&
+                            (hasActFilters(actFilters) || selectedGenres.length > 0) &&
+                            drawerSections.artists.length === 0 && (
+                                <NoMatchingArtistsNotice
+                                    className="self-start"
+                                    onClear={() =>
+                                        handleFiltersChange({
+                                            ...filtersValue,
+                                            selectedGenres: [],
+                                            selectedActFormats: [],
+                                            selectedActOffers: [],
+                                        })
+                                    }
+                                />
+                            )}
 
                         <GenreFilterChips
                             selectedGenres={selectedGenres}

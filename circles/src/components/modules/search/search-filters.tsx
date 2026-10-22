@@ -302,6 +302,35 @@ export const ActOfferFilterRow: React.FC<{
     );
 };
 
+// ---- No matching artists ----
+// Shown instead of a blank artist list (Discover) or an empty map (Explore) when the artist
+// filters leave nobody. onClear, when given, resets the artist filters (genre, act format,
+// What you do).
+
+export const NoMatchingArtistsNotice: React.FC<{ onClear?: () => void; className?: string }> = ({
+    onClear,
+    className,
+}) => (
+    <div
+        role="status"
+        className={cn(
+            "flex items-center justify-between gap-3 rounded-xl bg-white/95 px-4 py-2.5 text-sm text-gray-600 shadow-sm ring-1 ring-black/5",
+            className,
+        )}
+    >
+        <span>No artists match these filters.</span>
+        {onClear && (
+            <button
+                type="button"
+                onClick={onClear}
+                className="shrink-0 font-medium text-gray-900 underline underline-offset-2"
+            >
+                Clear filters
+            </button>
+        )}
+    </div>
+);
+
 // ---- Advanced Filters trigger + modal ----
 
 export type SearchFiltersProps = {
