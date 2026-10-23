@@ -5,7 +5,6 @@ import { useSearchParams } from "next/navigation";
 import { verifyEmailAction } from "./actions";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { ResendVerificationEmail } from "@/components/auth/resend-verification-email";
 
 function VerifyEmailContent() {
     const searchParams = useSearchParams();
@@ -15,6 +14,7 @@ function VerifyEmailContent() {
     const [error, setError] = useState(false);
     const [continueHref, setContinueHref] = useState("/");
     const [isResolved, setIsResolved] = useState(false);
+    const [isExpired, setIsExpired] = useState(false);
     const processedTokenRef = useRef<string | null>(null);
 
     useEffect(() => {
@@ -28,7 +28,17 @@ function VerifyEmailContent() {
             processedTokenRef.current = token;
             verifyEmailAction(token)
                 .then((response) => {
-                    if (response.success) {
+                    if (response.expired) {
+                        // Not an error the visitor caused: a new link is on its way (or was sent
+                        // recently). Nobody is logged in, so the way on is the new email or login.
+                        setTitle("Link expired");
+                        setMessage(response.message);
+                        setDetail(null);
+                        setContinueHref("/login");
+                        setError(false);
+                        setIsExpired(true);
+                        setIsResolved(true);
+                    } else if (response.success) {
                         setTitle("Email verified");
                         setMessage(response.message || "Email verified");
                         setDetail(
@@ -74,7 +84,13 @@ function VerifyEmailContent() {
         <div className="flex min-h-screen flex-col items-center justify-center bg-gray-100 dark:bg-gray-900">
             <div className="w-full max-w-md rounded-lg bg-white p-8 shadow-md dark:bg-gray-800">
                 <h1 className="mb-6 text-center text-2xl font-semibold text-gray-900 dark:text-white">{title}</h1>
-                <p className={`text-center ${error ? "text-red-500" : "text-green-500"}`}>{message}</p>
+                <p
+                    className={`text-center ${
+                        isExpired ? "text-gray-700 dark:text-gray-300" : error ? "text-red-500" : "text-green-500"
+                    }`}
+                >
+                    {message}
+                </p>
                 {detail && (
                     <p className="mt-4 text-center text-sm text-gray-600 dark:text-gray-400">
                         {detail}
@@ -84,18 +100,9 @@ function VerifyEmailContent() {
                     <div className="mt-6 text-center">
                         <Button asChild>
                             <Link href={continueHref}>
-                                {error ? "Continue for now" : "Continue to profile setup"}
+                                {isExpired ? "Go to log in" : error ? "Continue for now" : "Continue to profile setup"}
                             </Link>
                         </Button>
-                    </div>
-                )}
-                {error && message.includes("expired") && (
-                    <div className="mt-4 text-center">
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Need a new link? Resend the email below. The new link replaces the old one and is valid for
-                            24 hours.
-                        </p>
-                        <ResendVerificationEmail showAddress className="mt-4" />
                     </div>
                 )}
             </div>
