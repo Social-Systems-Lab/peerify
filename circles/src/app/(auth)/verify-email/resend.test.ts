@@ -17,6 +17,7 @@ process.env.CIRCLES_URL = "https://staging.example.test";
 let circles: FakeCollection = createFakeCollection();
 let sessionDid: string | undefined;
 let sessionThrows = false;
+const sessionsCreated: string[] = [];
 
 mock.module("@/lib/data/db", () => ({
     Circles: {
@@ -37,7 +38,10 @@ mock.module("@/lib/auth/auth", () => ({
         }
         return sessionDid;
     },
-    createUserSession: async () => "session",
+    createUserSession: async (_user: unknown, did: string) => {
+        sessionsCreated.push(did);
+        return "session";
+    },
 }));
 mock.module("@/lib/data/user", () => ({ getUserPrivate: async () => ({}) }));
 mock.module("@/lib/data/circle", () => ({
@@ -301,3 +305,46 @@ describe("getVerificationResendStatusAction", () => {
         expect(await getVerificationResendStatusAction()).toEqual({ status: "already_verified" });
     });
 });
+
+describe("verifyEmailAction with an expired link", () => {
+    const expire = (user: Record<string, unknown>) => {
+        user.emailVerificationTokenExpiry = secondsAgo(60);
+    };
+
+    test("sends a fresh email instead of logging in; the new link verifies", async () => {
+        const user = seedUser();
+        expire(user);
+        sessionsCreated.length = 0;
+
+        const result = await verifyEmailAction(OLD_TOKEN);
+        expect(result.success).toBe(false);
+        expect(result.expired).toBe(true);
+        expect(result.message).toContain("emailed you a new one");
+        // No session from an expired link.
+        expect(sessionsCreated).toEqual([]);
+        expect(postmark.sent).toHaveLength(1);
+        expect(postmark.sent[0].to).toBe(STORED_EMAIL);
+
+        const newToken = tokenFromLastEmail();
+        expect(newToken).not.toBe(OLD_TOKEN);
+        expect(user.isEmailVerified).toBe(false);
+        expect((await verifyEmailAction(newToken)).success).toBe(true);
+        expect(circles.docs[0].isEmailVerified).toBe(true);
+        expect(sessionsCreated).toEqual(["did-owner"]);
+    });
+
+    test("inside the resend cooldown nothing is sent and the visitor is pointed at the newest email", async () => {
+        const user = seedUser({ emailVerificationLastSentAt: secondsAgo(10) });
+        expire(user);
+        sessionsCreated.length = 0;
+
+        const result = await verifyEmailAction(OLD_TOKEN);
+        expect(result.expired).toBe(true);
+        expect(result.message).toContain("newer one was sent recently");
+        expect(postmark.sent).toHaveLength(0);
+        expect(sessionsCreated).toEqual([]);
+        // The expired token is cleared either way.
+        expect(user.emailVerificationToken).toBe(null);
+    });
+});
+

@@ -14,6 +14,8 @@ interface VerifyEmailResponse {
     success: boolean;
     message: string;
     redirectPath?: string;
+    // The link had expired: no session, and a fresh email was sent if the limits allowed it.
+    expired?: boolean;
 }
 
 // Artist-path pilot signups auto-provision a public artist circle alongside the personal
@@ -25,7 +27,7 @@ interface VerifyEmailResponse {
 // artist circle has been published (manually, via the "Publish circle" button once
 // isPilotArtistCircleReadyToPublish is true — see src/lib/data/circle.ts), there's no more
 // onboarding to walk them through, so a later email-verification click (e.g. an
-// already-consumed/expired link) just lands them on their personal profile's Home tab like
+// already-consumed link) just lands them on their personal profile's Home tab like
 // anyone else. Fan-path signups have no auto-provisioned
 // artist circle at all, so this is a no-op for them and they land on their personal
 // profile's Home tab exactly as before.
@@ -86,8 +88,9 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
         }
 
         if (user.emailVerificationTokenExpiry && new Date() > user.emailVerificationTokenExpiry) {
-            // Clear the expired token. The page offers a resend (resendVerificationEmailAction),
-            // which the session created below authorizes.
+            // An expired link no longer logs in (it used to, so the page could offer a session-based
+            // Resend): it sends a fresh verification email instead, under the usual resend limits.
+            // The new link replaces this one; clicking it verifies and logs in as normal.
             await Circles.updateOne(
                 { _id: user._id },
                 {
@@ -97,14 +100,21 @@ export async function verifyEmailAction(token: string): Promise<VerifyEmailRespo
                     },
                 },
             );
-            if (user.did) {
-                const privateUser = await getUserPrivate(user.did);
-                await createUserSession(privateUser, user.did);
-            }
+            const resend = await sendVerificationEmailToSubject(user);
+            console.log(
+                `Expired verification link for user ${user.did}: new email ${
+                    resend.status === "rate_limited" ? `not sent (${resend.reason})` : resend.status
+                }`,
+            );
             return {
                 success: false,
+                expired: true,
                 message:
-                    "This email verification link has expired. Use the Resend email button below to get a new one.",
+                    resend.status === "sent"
+                        ? "This link has expired, so we've emailed you a new one. Check your inbox (and spam folder)."
+                        : resend.status === "rate_limited"
+                          ? "This link has expired. A newer one was sent recently: please use the latest email in your inbox."
+                          : "This link has expired and we couldn't send a new one. Request a login link from the login page instead.",
             };
         }
         if (!user.did) {
