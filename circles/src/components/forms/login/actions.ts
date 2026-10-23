@@ -8,6 +8,7 @@ import { getUserPrivate } from "@/lib/data/user";
 import { trySendEmail, generateSecureToken, hashToken, redactEmailAddresses } from "@/lib/data/email";
 import { resolveResetBaseUrl } from "@/app/(auth)/forgot-password/actions";
 import { verifyAltchaPayload } from "@/lib/auth/altcha";
+import { sendVerificationEmailToSubject } from "@/lib/auth/send-verification-email";
 import { evaluateSendLimit, type SendLimitConfig } from "@/lib/auth/send-limits";
 import { checkFailureDelay, claimMinimumWait, clearFailures, rateLimitKey, recordFailure } from "@/lib/data/rate-limit";
 import { getClientIp } from "@/lib/utils/client-ip";
@@ -134,7 +135,7 @@ interface RequestLoginLinkResponse {
 // The same reply whether the address is unknown, unverified, verified, or over its per-account
 // limit, so the form never reveals whether an account exists or is verified.
 const LOGIN_LINK_GENERIC_MESSAGE =
-    "If a verified account uses that email address, a login link is on its way. Not verified yet? Use the link in your signup email.";
+    "If an account uses that email address, a login link is on its way. If you haven't confirmed your email yet, it's a confirmation link that also logs you in.";
 
 const LOGIN_LINK_SEND_LIMIT: SendLimitConfig = {
     cooldownSeconds: 60,
@@ -154,9 +155,12 @@ const LOGIN_LINK_IP_WAIT_SECONDS = 20;
 // passwordResetToken) and consumed by consumeLoginLink (src/lib/auth/actions.ts), which only
 // establishes a session rather than rotating password credentials.
 //
-// Only accounts with a verified email get a link: bots sign up with strangers' addresses and
-// then used this form to mail them again. ALTCHA, a per-IP minimum wait and a per-account
-// cooldown + daily cap (state on the user doc, like the verification resend) limit the rest.
+// Only accounts with a verified email get a login link: bots sign up with strangers' addresses and
+// then used this form to mail them again. An unverified account gets its signup verification email
+// again instead (sendVerificationEmailToSubject), under that email's own resend limits, so an
+// unconfirmed address never has more than one mail budget. Clicking it verifies the address and
+// logs in (verifyEmailAction). ALTCHA, a per-IP minimum wait and a per-account cooldown + daily
+// cap (state on the user doc) limit the rest. The response is the same in every case.
 export const requestLoginLinkAction = async (email: string, altcha?: string): Promise<RequestLoginLinkResponse> => {
     const trimmedEmail = typeof email === "string" ? email.trim() : "";
     const validation = requestLoginLinkSchema.safeParse({ email: trimmedEmail });
@@ -189,7 +193,12 @@ export const requestLoginLinkAction = async (email: string, altcha?: string): Pr
             return { success: true, message: LOGIN_LINK_GENERIC_MESSAGE };
         }
         if (user.isEmailVerified !== true) {
-            console.log(`Login link not sent for user ${user.did}: email not verified`);
+            const result = await sendVerificationEmailToSubject(user);
+            console.log(
+                `Login link for unverified user ${user.did}: verification email ${
+                    result.status === "rate_limited" ? `not sent (${result.reason})` : result.status
+                }`,
+            );
             return { success: true, message: LOGIN_LINK_GENERIC_MESSAGE };
         }
 

@@ -228,8 +228,9 @@ export function LoginForm(): React.ReactElement {
                 <form onSubmit={handleSendLoginLink} className="space-y-4">
                     {loginLinkSent ? (
                         <p className="text-center text-sm text-muted-foreground">
-                            If a verified account uses that email address, a login link is on its way. Check your
-                            inbox (and spam folder). Not verified yet? Use the link in your signup email.
+                            If an account uses that email address, a login link is on its way. Check your inbox (and
+                            spam folder). If you haven&apos;t confirmed your email yet, it&apos;s a confirmation link that
+                            also logs you in.
                         </p>
                     ) : (
                         <>
