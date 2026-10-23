@@ -64,6 +64,8 @@ export async function getEntitiesByType(type: "circle" | "user" | "project") {
                     members: 1,
                     isAdmin: 1,
                     isVerified: 1,
+                    // Email confirmation, a separate thing from isVerified (Users tab labels).
+                    isEmailVerified: 1,
                     isMember: 1,
                     manualMember: 1,
                     subscription: 1,
