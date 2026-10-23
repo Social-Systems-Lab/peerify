@@ -43,6 +43,17 @@ import { useSetAtom } from "jotai";
 import { contentPreviewAtom } from "@/lib/data/atoms";
 import { getUserByDidAction } from "../actions";
 
+// isVerified (member verification) and isEmailVerified (the signup email link was clicked) are
+// separate: an admin verifying an account doesn't confirm its email, and login links / password
+// resets go to confirmed addresses only. So the tab shows both, and says who verified the member
+// (verifiedBy: an admin's did, "system:auto-verified" or "system:payment").
+const getVerifiedLabel = (verifiedBy?: string): string => {
+    if (!verifiedBy) return "Verified";
+    if (verifiedBy === "system:auto-verified") return "Verified · auto";
+    if (verifiedBy === "system:payment") return "Verified · payment";
+    return "Verified · admin";
+};
+
 export default function UsersTab() {
     const [users, setUsers] = useState<Circle[]>([]);
     const [loading, setLoading] = useState(true);
@@ -197,7 +208,7 @@ export default function UsersTab() {
         startVerifyAccountTransition(async () => {
             const result = await verifyAccount(user._id);
             toast({ title: result.success ? "Success" : "Error", description: result.message, variant: result.success ? "default" : "destructive" });
-            if (result.success) setUsers(users.map((u) => u._id === user._id ? { ...u, accountStatus: "active", isVerified: true, verificationStatus: "verified" } : u));
+            if (result.success) setUsers(users.map((u) => u._id === user._id ? { ...u, accountStatus: "active", isVerified: true, verificationStatus: "verified", verifiedBy: "admin", verifiedAt: new Date() } : u));
         });
     };
 
@@ -226,8 +237,10 @@ export default function UsersTab() {
             user.email?.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesStatus =
             statusFilter === "all" ||
-            (user as any).accountStatus === statusFilter ||
-            (statusFilter === "no_status" && !(user as any).accountStatus);
+            (statusFilter === "email_unconfirmed"
+                ? Boolean(user.email) && user.isEmailVerified !== true
+                : (user as any).accountStatus === statusFilter ||
+                  (statusFilter === "no_status" && !(user as any).accountStatus));
         return matchesSearch && matchesStatus;
     });
 
@@ -296,6 +309,7 @@ export default function UsersTab() {
                         <option value="active">Active</option>
                         <option value="rejected">Rejected</option>
                         <option value="no_status">No status (legacy)</option>
+                        <option value="email_unconfirmed">Email not confirmed</option>
                     </select>
                 </div>
                 <Button variant="outline" size="sm" onClick={fetchUsers} disabled={loading}>
@@ -364,8 +378,27 @@ export default function UsersTab() {
                                                     <span className="rounded-full bg-red-100 px-2 py-1 text-xs text-red-800">Rejected</span>
                                                 )}
                                                 {user.isVerified && (
-                                                    <span className="rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800">Verified</span>
+                                                    <span
+                                                        className="rounded-full bg-blue-100 px-2 py-1 text-xs text-blue-800"
+                                                        title={
+                                                            user.verifiedAt
+                                                                ? `Verified ${new Date(user.verifiedAt).toLocaleDateString()}`
+                                                                : undefined
+                                                        }
+                                                    >
+                                                        {getVerifiedLabel(user.verifiedBy)}
+                                                    </span>
                                                 )}
+                                                {user.email &&
+                                                    (user.isEmailVerified === true ? (
+                                                        <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs text-emerald-800">
+                                                            Email confirmed
+                                                        </span>
+                                                    ) : (
+                                                        <span className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-600">
+                                                            Email not confirmed
+                                                        </span>
+                                                    ))}
                                                 {user.manualMember && (
                                                     <span className="rounded-full bg-teal-100 px-2 py-1 text-xs text-teal-800">Manual</span>
                                                 )}
