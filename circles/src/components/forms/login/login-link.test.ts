@@ -55,7 +55,7 @@ const { requestLoginLinkAction: requestWithAltcha } = await import("./actions");
 const requestLoginLinkAction = (email: string) => requestWithAltcha(email, ALTCHA_OK);
 
 const GENERIC =
-    "If a verified account uses that email address, a login link is on its way. Not verified yet? Use the link in your signup email.";
+    "If an account uses that email address, a login link is on its way. If you haven't confirmed your email yet, it's a confirmation link that also logs you in.";
 const secondsAgo = (s: number) => new Date(Date.now() - s * 1000);
 
 describe("requestLoginLinkAction email lookup", () => {
@@ -124,11 +124,32 @@ describe("requestLoginLinkAction limits", () => {
         ]);
     });
 
-    test("an unverified account gets the generic response and no email", async () => {
+    test("an unverified account gets its verification email instead of a login link", async () => {
         const result = await requestLoginLinkAction("bot-victim@example.test");
         expect(result).toEqual({ success: true, message: GENERIC });
-        expect(postmark.sent).toHaveLength(0);
+        expect(postmark.sent).toHaveLength(1);
+        expect(postmark.sent[0].to).toBe("bot-victim@example.test");
+        expect(String(postmark.sent[0].templateModel.actionUrl)).toContain("/verify-email?token=");
         expect(circles.docs[1].loginLinkToken).toBe(undefined);
+        expect(typeof circles.docs[1].emailVerificationToken).toBe("string");
+        expect(circles.docs[1].emailVerificationSendCount24h).toBe(1);
+    });
+
+    test("for an unverified account the verification resend limits apply, not the login-link ones", async () => {
+        // Inside the verification cooldown (60 s): nothing is sent, same response.
+        circles.docs[1].emailVerificationLastSentAt = secondsAgo(10);
+        circles.docs[1].emailVerificationSendWindowStart = secondsAgo(10);
+        circles.docs[1].emailVerificationSendCount24h = 1;
+        expect(await requestLoginLinkAction("bot-victim@example.test")).toEqual({ success: true, message: GENERIC });
+        expect(postmark.sent).toHaveLength(0);
+
+        // Daily cap (5) already used through the signup/resend path: nothing either.
+        circles.docs[1].emailVerificationLastSentAt = secondsAgo(3600);
+        circles.docs[1].emailVerificationSendWindowStart = secondsAgo(7200);
+        circles.docs[1].emailVerificationSendCount24h = 5;
+        expect(await requestLoginLinkAction("bot-victim@example.test")).toEqual({ success: true, message: GENERIC });
+        expect(postmark.sent).toHaveLength(0);
+        expect(circles.docs[1].loginLinkLastSentAt).toBe(undefined);
     });
 
     test("without a solved ALTCHA nothing is looked up or sent", async () => {
