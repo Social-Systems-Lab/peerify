@@ -171,8 +171,8 @@ export default function PeerifyHostsPage() {
             <section className={"manifesto-section hostsListening"}>
                 <h2 className={"sLabel"}>The listening rule</h2>
                 <p className={"quoteBlock"}>
-                    Peerify shows are for audiences who came to hear the artist. That’s why we welcome a café
-                    after closing, but not background music for diners.
+                    Peerify shows are for audiences who came to listen. A café after closing, yes. A restaurant
+                    during the dinner rush, no. Our artists are not background music for diners.
                 </p>
                 <Image src={HOSTS_ART.listening.src} alt={HOSTS_ART.listening.alt} width={1600} height={140} unoptimized className={"manifestoLights"} />
             </section>
