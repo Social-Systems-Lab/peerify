@@ -176,7 +176,9 @@ export default function PeerifyLandingPage() {
                 <div className={"inner"}>
                     <p className={"sLabel"} style={{ color: "#e8720c" }}>Growing Peerify</p>
                     <h2 className={"serif serifLight"}>The roles you can play.</h2>
-                    <div className={SHOW_VENUE_SIGNUP ? "rolesGrid" : "rolesGrid rolesGrid--twoUp"}>
+                    {/* Three cards: artists, fans, hosts (host pilot → /hosts). The old venue card below
+                        stays behind SHOW_VENUE_SIGNUP; turning it on would make four. */}
+                    <div className={"rolesGrid"}>
 
                         <div className={"roleCard"}>
                             <div className={"roleImageWrap"}>
@@ -227,6 +229,23 @@ export default function PeerifyLandingPage() {
                             </div>
                         </div>
 
+                        <div className={"roleCard"}>
+                            <div className={"roleImageWrap"}>
+                                <Image src="/peerify/illustrations/role-host.svg" alt="A host carrying an amp into a room under string lights" fill unoptimized className={"roleImg"} />
+                            </div>
+                            <div className={"roleBody"}>
+                                <p className={"roleType"}>For Hosts</p>
+                                <h3>Living rooms, gardens &amp; cafés after closing</h3>
+                                <ul>
+                                    <li>Offer a space where people come to really listen</li>
+                                    <li>Shape the evening with the artist and their crew</li>
+                                    <li>Share in the takings if you want to</li>
+                                    <li>Bring live music to your neighbourhood</li>
+                                </ul>
+                                <Link href="/hosts" className={"roleCta"}>Join the host pilot &rarr;</Link>
+                            </div>
+                        </div>
+
                         {SHOW_VENUE_SIGNUP && (
                             <div className={"roleCard"}>
                                 <div className={"roleImageWrap"}>
@@ -248,28 +267,6 @@ export default function PeerifyLandingPage() {
                             </div>
                         )}
 
-                    </div>
-                </div>
-            </section>
-
-            {/* ── FOR HOSTS ── */}
-            <section className={"hostsSection reveal"} id="hosts">
-                <div className={"inner"}>
-                    <div className={"twoCol"}>
-                        <div className={"photoFrame"}>
-                            <Image src="/peerify/illustrations/role-host.svg" alt="A host carrying an amp into a room under string lights" fill unoptimized className={"photoImg"} />
-                        </div>
-                        <div className={"textCol"}>
-                            <p className={"sLabel"}>For hosts</p>
-                            <h2 className={"serif hostsHeading"}>Open your living room, garden, café or community space for an intimate, trusted show.</h2>
-                            <ul className={"hostsList"}>
-                                <li>Offer a space where people come to really listen</li>
-                                <li>Shape the evening together with the artist and their crew</li>
-                                <li>Share in the takings if you want to</li>
-                                <li>Bring live music to your neighbourhood</li>
-                            </ul>
-                            <Link href="/hosts" className={"btnOrange"}>Join the host pilot</Link>
-                        </div>
                     </div>
                 </div>
             </section>

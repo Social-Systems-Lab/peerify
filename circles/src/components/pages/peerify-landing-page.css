@@ -259,14 +259,6 @@
     gap: 24px;
     margin-top: 48px;
 }
-/* Fewer cards than the grid was designed for (e.g. venue role hidden pending its
-   own signup flow) — fall back to two even columns instead of leaving a gap. */
-.peerify-home .rolesGrid--twoUp {
-    grid-template-columns: repeat(2, 1fr);
-    max-width: 760px;
-    margin-left: auto;
-    margin-right: auto;
-}
 .peerify-home .roleCard {
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.09);
@@ -323,25 +315,6 @@
     transition: border-color 0.2s;
 }
 .peerify-home .roleCta:hover { border-bottom-color: #e8720c; }
-
-/* ── FOR HOSTS ── */
-/* Reuses the idea section's .twoCol/.textCol/.photoFrame; drawing on the left here for variety. */
-.peerify-home .hostsSection { background: #0a0a0a; padding: 96px 72px; }
-.peerify-home .hostsHeading { font-size: clamp(24px, 2.6vw, 34px); }
-.peerify-home .hostsList { list-style: none; padding: 0; margin: 0 0 28px; }
-.peerify-home .hostsList li {
-    font-size: 15px;
-    font-weight: 300;
-    color: #aaa;
-    line-height: 1.6;
-    padding: 8px 0;
-    border-bottom: 0.5px solid rgba(255,255,255,0.06);
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-}
-.peerify-home .hostsList li::before { content: "—"; color: #e8720c; font-size: 12px; flex-shrink: 0; }
-.peerify-home .hostsList li:last-child { border-bottom: none; }
 
 /* ── HOW IT WORKS ── */
 .peerify-home .howSection { background: #111; padding: 96px 72px; }
@@ -527,7 +500,7 @@
 
 /* ── TABLET (769–1024px) ── */
 @media (min-width: 769px) and (max-width: 1024px) {
-    .heroInner, .ideaSection, .featuresSection, .rolesSection, .hostsSection, .howSection,
+    .heroInner, .ideaSection, .featuresSection, .rolesSection, .howSection,
     .peerify-home .manifestoSection, .peerify-home .ctaSection, .peerify-home .footer { padding-left: 40px; padding-right: 40px; }
     .peerify-home .trustSection { padding: 56px 40px; }
     .peerify-home .featuresGrid { grid-template-columns: repeat(2, 1fr); }
@@ -547,7 +520,7 @@
     .peerify-home .btnOrange, .peerify-home .btnGhost { width: 100%; text-align: center; padding: 15px 24px; }
 
     .peerify-home .ideaSection, .peerify-home .featuresSection, .peerify-home .howSection { padding: 64px 24px; }
-    .peerify-home .rolesSection, .peerify-home .hostsSection { padding: 64px 24px; }
+    .peerify-home .rolesSection { padding: 64px 24px; }
     .peerify-home .trustSection { padding: 48px 24px; }
     .peerify-home .ctaSection { padding: 64px 24px; }
     .peerify-home .manifestoSection { padding: 64px 24px; }
