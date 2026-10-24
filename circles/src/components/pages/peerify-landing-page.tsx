@@ -2,13 +2,14 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAtom } from "jotai"
 import { userAtom } from "@/lib/data/atoms"
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes"
 import PeerifyContactDialog from "@/components/pages/contact/peerify-contact-dialog"
 import PeerifyFooter from "@/components/pages/peerify-footer"
+import PeerifyReveal from "@/components/pages/peerify-reveal"
 import { CreatePeerifyArtistDialog } from "@/components/global-create/create-peerify-artist-dialog"
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -97,17 +98,9 @@ export default function PeerifyLandingPage() {
         }
     }
 
-    useEffect(() => {
-        const observer = new IntersectionObserver(
-            (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("visible") }),
-            { threshold: 0.1 }
-        )
-        document.querySelectorAll(`.${"reveal"}`).forEach((el) => observer.observe(el))
-        return () => observer.disconnect()
-    }, [])
-
     return (
         <div className="peerify-home page">
+            <PeerifyReveal />
 
             {/* ── HERO ── */}
             <section className={"hero"}>
