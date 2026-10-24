@@ -93,7 +93,7 @@ const STEPS: { art: HostsArt | null; text: string }[] = [
     },
     {
         art: HOSTS_ART.step3,
-        text: "You and the artist agree the terms. You might take a share of the ticket takings, pay the artist a fixed fee and run the door yourself, sell food and drinks, or simply host for the love of it. All of these are fine.",
+        text: "You and the artist agree the terms. You might take a share of the ticket takings, pay the artist a fixed fee and run the door yourself, sell food and drinks, or simply host for the love of it. It’s all good.",
     },
     {
         art: HOSTS_ART.step4,
