@@ -403,6 +403,7 @@ export default function PeerifyLandingPage() {
                 </div>
                 <nav className={"footerLinks"}>
                     <Link href="/signup/pilot">For artists</Link>
+                    <Link href="/hosts">For hosts</Link>
                     <Link href="/explore">Explore map</Link>
                     <Link href="/discover">Discover</Link>
                     <Link href="/privacy">Privacy</Link>
