@@ -61,3 +61,15 @@ describe("Admin Dashboard: Captured emails tab", () => {
         expect(html).toContain("Open captured emails");
     });
 });
+
+describe("Admin Dashboard: Spaces tab", () => {
+    test("always listed, also with capture mode off", () => {
+        expect(render({})).toContain("Spaces");
+    });
+
+    test("opened: it links to /admin/spaces", () => {
+        const html = render({ initialTab: "spaces" });
+        expect(html).toContain('href="/admin/spaces"');
+        expect(html).toContain("Open spaces");
+    });
+});

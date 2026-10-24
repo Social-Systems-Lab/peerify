@@ -1,8 +1,10 @@
 // Pop-up and private spaces (collection "spaces"; see the Spaces comment in models.ts). Every read
 // and write here is scoped in the query itself: an owner function filters on { _id, ownerDid } (and
 // type, on update), so another person's id simply matches nothing, and there is no lookup by _id
-// alone. Input always arrives through parseSpaceInput
-// (lib/spaces/space-rules.ts), which already rounded a private space's location.
+// alone. The only unscoped read is listAllSpacesForAdmin, which its one caller
+// (lib/spaces/spaces-admin.ts) gates on the viewer being a platform admin. Input always arrives
+// through parseSpaceInput (lib/spaces/space-rules.ts), which already rounded a private space's
+// location.
 //
 // No discovery path (circle queries, search, map feeds, the vector index) reads this collection.
 
@@ -147,4 +149,30 @@ export const deleteSpaceForOwner = async (ownerDid: string, spaceId: string): Pr
     if (!_id) return false;
     const result = await Spaces.deleteOne({ _id, ownerDid });
     return result.deletedCount === 1;
+};
+
+export type AdminSpaceRow = SpaceView & {
+    owner: { name?: string; handle?: string; email?: string } | null;
+};
+
+// Platform admins only: the caller must have checked. Newest first, each with its owner's name,
+// handle and email (admin-only, never logged).
+export const listAllSpacesForAdmin = async (): Promise<AdminSpaceRow[]> => {
+    const docs = (await Spaces.find({}, { projection: SPACE_PROJECTION }).sort({ createdAt: -1 }).toArray()) as SpaceDoc[];
+    const ownerDids = Array.from(new Set(docs.map((doc) => doc.ownerDid)));
+    const owners =
+        ownerDids.length > 0
+            ? await Circles.find(
+                  { did: { $in: ownerDids }, circleType: "user" },
+                  { projection: { did: 1, name: 1, handle: 1, email: 1 } },
+              ).toArray()
+            : [];
+    const ownerByDid = new Map(owners.map((owner) => [owner.did, owner]));
+    return docs.map((doc) => {
+        const owner = ownerByDid.get(doc.ownerDid);
+        return {
+            ...toSpaceView(doc),
+            owner: owner ? { name: owner.name, handle: owner.handle, email: owner.email } : null,
+        };
+    });
 };

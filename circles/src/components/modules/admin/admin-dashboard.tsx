@@ -46,6 +46,7 @@ const ADMIN_TABS = new Set([
     "verification-requests",
     "super-admins",
     "system-messages",
+    "spaces",
 ]);
 
 // Only exists while capture mode is on; a ?tab=captured-emails link otherwise opens the default tab.
@@ -177,8 +178,28 @@ export default function AdminDashboard({
                 <TabsTrigger value="verification-requests">Verification Requests</TabsTrigger>
                 <TabsTrigger value="super-admins">Super Admins</TabsTrigger>
                 <TabsTrigger value="system-messages">System Messages</TabsTrigger>
+                <TabsTrigger value="spaces">Spaces</TabsTrigger>
                 {showCapturedEmails ? <TabsTrigger value={CAPTURED_EMAILS_TAB}>Captured emails</TabsTrigger> : null}
             </TabsList>
+
+            {/* Like Captured emails: the list lives on its own page (/admin/spaces), loaded only when
+                opened, with its own admin check. */}
+            <TabsContent value="spaces" className="space-y-4">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Spaces</CardTitle>
+                        <CardDescription>
+                            Pop-up and home or private spaces people have added, with their owners. Private spaces
+                            hold only a rough area. Nothing here is public.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button asChild>
+                            <a href="/admin/spaces">Open spaces</a>
+                        </Button>
+                    </CardContent>
+                </Card>
+            </TabsContent>
 
             {showCapturedEmails ? (
                 <TabsContent value={CAPTURED_EMAILS_TAB} className="space-y-4">
