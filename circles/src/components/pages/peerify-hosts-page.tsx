@@ -194,9 +194,9 @@ export default function PeerifyHostsPage() {
                 <div className={"cta-inner"}>
                     <h2>Join the host pilot</h2>
                     <p className={"cta-intro"}>
-                        We’re looking for our first hosts.{" "}
-                        <a href={HOST_PILOT_MAILTO} className={"hostsJoinLink"}>Email us at hello@peerify.net</a>{" "}
-                        with the subject “Host pilot” and tell us a little about your space.
+                        We’re looking for our first hosts. Email us at{" "}
+                        <a href={HOST_PILOT_MAILTO} className={"hostsJoinLink"}>hello@peerify.net</a> with the subject
+                        “Host pilot” and tell us a little about your space.
                     </p>
                 </div>
             </section>
