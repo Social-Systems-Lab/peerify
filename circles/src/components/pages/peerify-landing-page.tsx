@@ -8,6 +8,7 @@ import { useAtom } from "jotai"
 import { userAtom } from "@/lib/data/atoms"
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes"
 import PeerifyContactDialog from "@/components/pages/contact/peerify-contact-dialog"
+import PeerifyFooter from "@/components/pages/peerify-footer"
 import { CreatePeerifyArtistDialog } from "@/components/global-create/create-peerify-artist-dialog"
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -393,25 +394,7 @@ export default function PeerifyLandingPage() {
             </section>
 
             {/* ── FOOTER ── */}
-            <footer className={"footer"}>
-                <div className={"footerLogo"}>
-                    <Image src="/peerify/logo-mark.png" alt="Peerify mark" width={28} height={28} />
-                    <div className={"footerLogoText"}>Peer<span>ify</span></div>
-                </div>
-                <nav className={"footerLinks"}>
-                    <Link href="/signup/pilot">For artists</Link>
-                    <Link href="/hosts">For hosts</Link>
-                    <Link href="/explore">Explore map</Link>
-                    <Link href="/discover">Discover</Link>
-                    <Link href="/privacy">Privacy</Link>
-                    <Link href="/terms">Terms</Link>
-                    <a href="https://peerify.net" target="_blank" rel="noopener noreferrer">peerify.net</a>
-                </nav>
-                <p className={"footerNote"}>
-                    A non-profit project by Social Systems Foundation.<br />
-                    &copy; {new Date().getFullYear()} Peerify
-                </p>
-            </footer>
+            <PeerifyFooter />
 
             <CreatePeerifyArtistDialog
                 isOpen={isArtistDialogOpen}
