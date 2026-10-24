@@ -38,27 +38,22 @@ const HOSTS_ART = {
     step1: {
         src: `${ART}/hosts/step-1-tell-us.svg`,
         alt: "A clipboard checklist with two items ticked",
-        standInFor: "Hand-drawn: telling Peerify about your space (240×150)",
     },
     step2: {
         src: `${ART}/hosts/step-2-connect.svg`,
         alt: "A house, a plus sign and a map pin with a music note",
-        standInFor: "Hand-drawn: host and touring artist being connected (240×150)",
     },
     step3: {
         src: `${ART}/hosts/step-3-terms.svg`,
         alt: "Stacks of coins beside a jar labelled 1000",
-        standInFor: "Hand-drawn: host and artist agreeing the terms (240×150)",
     },
     step4: {
         src: `${ART}/hosts/step-4-show.svg`,
         alt: "String lights over a guitar, a mic stand and an amp",
-        standInFor: "Hand-drawn: the show, with the artist and local crew (240×150)",
     },
     step5: {
         src: `${ART}/hosts/step-5-reviews.svg`,
         alt: "A profile card with four hearts",
-        standInFor: "Hand-drawn: everyone reviewing everyone after the show (240×150)",
     },
     listening: { src: `${ART}/manifesto-lights.svg`, alt: "" },
 } satisfies Record<string, HostsArt>
