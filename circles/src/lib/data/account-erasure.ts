@@ -76,6 +76,7 @@ export const ERASURE_COLLECTIONS = [
     "attachCircleRequests",
     "peerify_pledges",
     "capturedEmails",
+    "spaces",
     "feeds",
     "circles",
 ] as const;
@@ -590,6 +591,8 @@ export async function planAccountErasure(did: string): Promise<ErasurePlan> {
     }
     del("peerify_pledges", await findAll("peerify_pledges", { $or: [{ pledgerDid: inDids }, { artistCircleId: inOwn }] }));
     if (email) del("capturedEmails", await findAll("capturedEmails", { to: email }));
+    // Pop-up and private spaces (lib/data/space.ts): the person's own, deleted outright.
+    del("spaces", await findAll("spaces", { ownerDid: inDids }));
 
     // --- Other circles that point at them -------------------------------------------------------
     for (const c of await findAll("circles", {

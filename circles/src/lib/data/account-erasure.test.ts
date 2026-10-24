@@ -56,6 +56,7 @@ const NAMES = [
     "detachCircleRequests",
     "attachCircleRequests",
     "peerify_pledges",
+    "spaces",
 ] as const;
 type Name = (typeof NAMES)[number];
 let cols = {} as Record<Name, FakeCollection>;
@@ -294,6 +295,11 @@ function seed() {
     d.attachCircleRequests.docs.push({ _id: id("attach"), circleId: s(CO_ID), requestedByDid: B, approvedByDid: A });
     d.peerify_pledges.docs.push({ _id: oid(), pledgerDid: A, pledgerName: "Alice", artistCircleId: s(CO_ID) });
     d.capturedEmails.docs.push({ _id: oid(), to: EMAIL, templateModel: { name: "Alice" } }, { _id: id("bobMail"), to: "bob@example.test" });
+    d.spaces.docs.push(
+        { _id: oid(), ownerDid: A, type: "private", location: { precision: 2, city: "Lund", lngLat: { lng: 13.2, lat: 55.7 } }, notesForPeerify: "Alice's home" },
+        { _id: oid(), ownerDid: A, type: "popup", name: "Alice's café" },
+        { _id: id("bobSpace"), ownerDid: B, type: "popup", name: "Bob's café" },
+    );
 
     for (const key of [
         `${s(A_ID)}/picture1700.png`,
@@ -369,6 +375,11 @@ describe("eraseAccount", () => {
         expect(vdbDeleted).toContain(`post:${s(id("aPost"))}`);
     });
 
+    test("her spaces are deleted outright; Bob's stays", async () => {
+        await eraseAccount(A);
+        expect(cols.spaces.docs.map((d) => d.ownerDid)).toEqual([B]);
+    });
+
     test("other people's content is kept, cleaned of references to her, with counters recounted", async () => {
         await eraseAccount(A);
 
@@ -385,6 +396,7 @@ describe("eraseAccount", () => {
             ["userRelationships", "bcRel"],
             ["verificationMessages", "cVerifMsg"],
             ["capturedEmails", "bobMail"],
+            ["spaces", "bobSpace"],
             ["comments", "cTrackComment"],
             ["posts", "cPost"],
         ] as [Name, string][]) {
