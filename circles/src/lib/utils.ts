@@ -155,14 +155,18 @@ export function hasConfirmedExactLocation(location: Location | undefined): boole
     return location?.precision === 4 && !!location.exactConfirmedAt;
 }
 
-const snapToGrid = (value: number) =>
-    Math.round(Math.round(value / PUBLIC_COARSE_PIN_GRID_DEGREES) * PUBLIC_COARSE_PIN_GRID_DEGREES * 1e6) / 1e6;
+const snapToGrid = (value: number, gridDegrees: number) =>
+    Math.round(Math.round(value / gridDegrees) * gridDegrees * 1e6) / 1e6;
 
-export function coarsenLngLat(lngLat: Location["lngLat"]): Location["lngLat"] {
+// gridDegrees: the public pin grid unless a caller needs a coarser one (private spaces use 0.1°).
+export function coarsenLngLat(
+    lngLat: Location["lngLat"],
+    gridDegrees: number = PUBLIC_COARSE_PIN_GRID_DEGREES,
+): Location["lngLat"] {
     if (!lngLat || typeof lngLat.lng !== "number" || typeof lngLat.lat !== "number") {
         return undefined;
     }
-    return { lng: snapToGrid(lngLat.lng), lat: snapToGrid(lngLat.lat) };
+    return { lng: snapToGrid(lngLat.lng, gridDegrees), lat: snapToGrid(lngLat.lat, gridDegrees) };
 }
 
 // An unconfirmed "exact" location as the public sees it: city level, no street, coarse pin.

@@ -34,6 +34,7 @@ import {
     PushSubscriptionDoc,
     HumanityVerification,
     PlatformSettings,
+    SpaceDoc,
 } from "@/models/models";
 import { AggregateRank } from "./ranking";
 import { ChatConversation, ChatMessageDoc, ChatReadState, MessageEmailReminder } from "@/lib/chat/mongo-types";
@@ -116,6 +117,7 @@ let HumanityVerifications: Collection<HumanityVerification>;
 let RateLimits: Collection<RateLimitDoc>;
 let UsedAltchaChallenges: Collection<UsedAltchaChallengeDoc>;
 let CapturedEmails: Collection<CapturedEmailDoc>;
+let Spaces: Collection<SpaceDoc>;
 
 // Only initialize the database connection if not in build mode
 if (process.env.IS_BUILD !== "true") {
@@ -174,6 +176,9 @@ if (process.env.IS_BUILD !== "true") {
     RateLimits = db.collection<RateLimitDoc>("rateLimits");
     UsedAltchaChallenges = db.collection<UsedAltchaChallengeDoc>("usedAltchaChallenges");
     CapturedEmails = db.collection<CapturedEmailDoc>("capturedEmails");
+    // Pop-up and private spaces (see lib/data/space.ts); every read is by owner or by a platform admin.
+    Spaces = db.collection<SpaceDoc>("spaces");
+    Spaces?.createIndex({ ownerDid: 1 });
 }
 export async function getDb() {
   if (!client) throw new Error("Mongo client not initialised (IS_BUILD=true?)");
@@ -230,4 +235,5 @@ export {
     RateLimits,
     UsedAltchaChallenges,
     CapturedEmails,
+    Spaces,
 };

@@ -746,6 +746,72 @@ export const eventTagsSchema = z.object({
 
 export type EventTags = z.infer<typeof eventTagsSchema>;
 
+// Spaces (collection "spaces", lib/data/space.ts): places a person offers for shows that aren't venue
+// circles. "popup" is a business or room that hosts now and then (a café after closing, a shop), so
+// its location is kept as entered; "private" is a home or other private place, and only its rough
+// area is ever stored (lib/spaces/space-rules.ts rounds the location before anything is saved).
+// Nothing public reads this collection: a space is seen only by its owner and platform admins.
+// Setting and step-free access reuse the event tags' vocabularies (indoor/outdoor, accessible/
+// stairs involved/not specified) so the words match what hosts already see on events.
+export const SPACE_TYPES = ["popup", "private"] as const;
+export const SPACE_DEAL_PREFERENCES = ["takings_share", "fixed_fee", "food_drinks", "none"] as const;
+export const SPACE_AMPLIFICATION_OPTIONS = ["acoustic_only", "amplified_ok"] as const;
+export const SPACE_NAME_MAX_LENGTH = 80;
+export const SPACE_TEXT_MAX_LENGTH = 500;
+export const SPACE_SHORT_TEXT_MAX_LENGTH = 100;
+export const SPACE_NOTES_MAX_LENGTH = 1000;
+export const SPACE_CAPACITY_MAX = 5000;
+
+const spaceCommonInputFields = {
+    capacity: z.number().int().positive().max(SPACE_CAPACITY_MAX),
+    // Several may be picked; "none" stands alone (checked in parseSpaceInput).
+    dealPreferences: z.array(z.enum(SPACE_DEAL_PREFERENCES)).min(1),
+    listeningRuleAccepted: z.literal(true),
+    hostResponsibilityAccepted: z.literal(true),
+};
+
+export const popupSpaceInputSchema = z.object({
+    type: z.literal("popup"),
+    name: z.string().trim().min(1).max(SPACE_NAME_MAX_LENGTH),
+    location: locationSchema,
+    showTimes: z.string().trim().min(1).max(SPACE_TEXT_MAX_LENGTH),
+    noiseLimits: z.string().trim().max(SPACE_TEXT_MAX_LENGTH).optional(),
+    powerAvailable: z.boolean(),
+    paAvailable: z.boolean(),
+    ...spaceCommonInputFields,
+});
+
+export const privateSpaceInputSchema = z.object({
+    type: z.literal("private"),
+    location: locationSchema,
+    setting: z.array(eventTagSettingSchema).min(1),
+    amplification: z.enum(SPACE_AMPLIFICATION_OPTIONS),
+    noiseCurfew: z.string().trim().max(SPACE_SHORT_TEXT_MAX_LENGTH).optional(),
+    stepFreeAccess: eventTagAccessibilitySchema,
+    // Read by platform admins only; the form asks people not to put an address here.
+    notesForPeerify: z.string().trim().max(SPACE_NOTES_MAX_LENGTH).optional(),
+    ...spaceCommonInputFields,
+});
+
+// What a client may send. Anything else (ownerDid, _id, dates) is dropped by zod's default strip.
+export const spaceInputSchema = z.discriminatedUnion("type", [popupSpaceInputSchema, privateSpaceInputSchema]);
+export type SpaceInput = z.infer<typeof spaceInputSchema>;
+export type SpaceType = SpaceInput["type"];
+export type SpaceDealPreference = (typeof SPACE_DEAL_PREFERENCES)[number];
+
+type StoredSpaceFields<T> = Omit<T, "listeningRuleAccepted" | "hostResponsibilityAccepted"> & {
+    _id?: any;
+    ownerDid: string;
+    // When the owner ticked the two checkboxes; kept from the first save.
+    listeningRuleAcceptedAt: Date;
+    hostResponsibilityAcceptedAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
+};
+export type SpaceDoc =
+    | StoredSpaceFields<z.infer<typeof popupSpaceInputSchema>>
+    | StoredSpaceFields<z.infer<typeof privateSpaceInputSchema>>;
+
 export const circleSchema = z.object({
     _id: z.any().optional(),
     did: didSchema.optional(),

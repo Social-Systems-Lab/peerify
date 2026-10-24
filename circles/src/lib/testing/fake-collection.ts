@@ -2,9 +2,12 @@
 // Supports only what the tests' subjects use: equality (a null filter value also matches a missing
 // field; a scalar matches an array field that contains it, as in MongoDB), dotted paths, $in, $nin,
 // $ne, $exists, $not, $size, $gt/$gte/$lt/$lte, RegExp values, top-level $or/$and/$nor, find().toArray() and
-// find() with sort/limit/project, inclusion projections (dotted paths too), countDocuments, deleteMany,
+// find() with sort/limit/project, inclusion projections (dotted paths too), countDocuments, insertOne
+// (adds an ObjectId _id when there is none), deleteOne, deleteMany,
 // and updateOne ($set, $unset, $addToSet, $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
 // between its match and its write).
+
+import { ObjectId } from "mongodb";
 
 type Doc = Record<string, any>;
 
@@ -169,6 +172,25 @@ export const createFakeCollection = (initial: Doc[] = []) => {
         },
         async countDocuments(filter: Doc) {
             return docs.filter((d) => matchesFilter(d, filter)).length;
+        },
+        async insertOne(doc: Doc) {
+            const stored = { ...doc, _id: doc._id ?? new ObjectId() };
+            for (const [key, value] of Object.entries(stored)) {
+                if (value === undefined) {
+                    throw new Error(`fake-collection: explicit undefined written to ${key}`);
+                }
+            }
+            docs.push(stored);
+            return { acknowledged: true, insertedId: stored._id };
+        },
+        async deleteOne(filter: Doc) {
+            queries.push(filter);
+            const index = docs.findIndex((d) => matchesFilter(d, filter));
+            if (index === -1) {
+                return { deletedCount: 0 };
+            }
+            docs.splice(index, 1);
+            return { deletedCount: 1 };
         },
         async deleteMany(filter: Doc) {
             let deletedCount = 0;
