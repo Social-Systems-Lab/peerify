@@ -10,8 +10,9 @@ import { ObjectId } from "mongodb";
 import { Circles, Spaces } from "./db";
 import { SpaceDoc, SpaceInput, SpaceType } from "@/models/models";
 import { canPerformRestrictedAction } from "@/lib/auth/verification";
+import { SPACES_PER_PERSON_MAX } from "@/lib/spaces/space-rules";
 
-export const SPACES_PER_PERSON_MAX = 10;
+export { SPACES_PER_PERSON_MAX };
 
 // Allow-list of stored fields. The same for owner and admin views: owners see everything they
 // entered, including notesForPeerify.
@@ -44,8 +45,11 @@ const OPTIONAL_FIELDS: Record<SpaceType, string[]> = {
     private: ["noiseCurfew", "notesForPeerify"],
 };
 
+// Omit that keeps the popup/private union, so code can still narrow on `type`.
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
 // What the browser gets: ids and dates as strings.
-export type SpaceView = Omit<
+export type SpaceView = DistributiveOmit<
     SpaceDoc,
     "_id" | "listeningRuleAcceptedAt" | "hostResponsibilityAcceptedAt" | "createdAt" | "updatedAt"
 > & {

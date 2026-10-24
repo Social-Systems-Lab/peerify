@@ -9,6 +9,9 @@
 import { Location, SpaceInput, spaceInputSchema } from "@/models/models";
 import { coarsenLngLat } from "@/lib/utils";
 
+// Spaces one person may have (Tim, 2026-10-24). Checked by createSpaceForOwner (lib/data/space.ts).
+export const SPACES_PER_PERSON_MAX = 10;
+
 // About 11 km north–south and about 6 km east–west in southern Sweden (Tim, 2026-10-24): twice
 // the public pin grid (PUBLIC_COARSE_PIN_GRID_DEGREES), since a home is more sensitive than a
 // profile's city.
