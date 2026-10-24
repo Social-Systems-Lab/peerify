@@ -1,6 +1,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import PeerifyFooter from "@/components/pages/peerify-footer"
+import PeerifyReveal from "@/components/pages/peerify-reveal"
 
 // Public /hosts page: the host pilot, in the landing page's dark style. Uses the landing page's
 // classes (peerify-landing-page.css) plus a few of its own (peerify-hosts-page.css).
@@ -108,6 +109,8 @@ const STEPS: { art: HostsArt | null; text: string }[] = [
 export default function PeerifyHostsPage() {
     return (
         <div className="peerify-home page">
+            {/* Fills each step number as its row scrolls into view (see peerify-hosts-page.css). */}
+            <PeerifyReveal selector=".hostsStep" threshold={0.6} />
             <header className={"hostsTopBar"}>
                 <Link href="/" className={"logoLockup"} aria-label="Peerify home">
                     <Image src="/peerify/logo-mark.png" alt="" width={34} height={34} priority />
