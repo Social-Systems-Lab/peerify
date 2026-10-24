@@ -110,7 +110,8 @@ export function SpacesSettings({ initialSpaces }: { initialSpaces: SpaceView[] }
 
             {spaces.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                    You haven&apos;t added a space yet. A venue gets its own public venue profile instead.
+                    You haven&apos;t added a space yet. A venue gets its own public venue profile instead: use Create →
+                    Add a space → Venue.
                 </p>
             ) : (
                 <div className="space-y-4">

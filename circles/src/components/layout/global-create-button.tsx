@@ -27,6 +27,9 @@ import { CreateCommunityDialog } from "@/components/global-create/create-communi
 import { CreateProjectDialog } from "@/components/global-create/create-project-dialog";
 import { CreatePeerifyArtistDialog } from "@/components/global-create/create-peerify-artist-dialog";
 import { CreatePeerifyVenueDialog } from "@/components/global-create/create-peerify-venue-dialog";
+import { AddSpaceDialog, SpaceKind } from "@/components/global-create/add-space-dialog";
+import { SpaceFormDialog } from "@/components/spaces/space-form-dialog";
+import type { SpaceType } from "@/models/models";
 
 export function GlobalCreateButton() {
     const router = useRouter(); // Initialize router
@@ -70,6 +73,27 @@ export function GlobalCreateButton() {
     const [isCreateProjectOpen, setCreateProjectOpen] = useState(false);
     const [isCreatePeerifyArtistOpen, setCreatePeerifyArtistOpen] = useState(false);
     const [isCreatePeerifyVenueOpen, setCreatePeerifyVenueOpen] = useState(false);
+    const [isAddSpaceOpen, setAddSpaceOpen] = useState(false);
+    const [spaceFormType, setSpaceFormType] = useState<SpaceType | null>(null);
+
+    // Add a space → Venue opens the existing venue identity dialog; the other two open the space form.
+    const handleSpaceKindChosen = (kind: SpaceKind) => {
+        setAddSpaceOpen(false);
+        if (kind === "venue") {
+            setCreatePeerifyVenueOpen(true);
+        } else {
+            setSpaceFormType(kind);
+        }
+    };
+
+    // A new pop-up or private space shows up on the owner's own Settings → Spaces page.
+    const handleSpaceSaved = () => {
+        setSpaceFormType(null);
+        if (user?.handle) {
+            router.push(`/circles/${user.handle}/settings/spaces`);
+            router.refresh();
+        }
+    };
 
     const handleItemCreatedSuccess = (
         itemKey: CreatableItemKey,
@@ -91,6 +115,7 @@ export function GlobalCreateButton() {
             const pathSegmentMap: Record<CreatableItemKey, string | null> = {
                 artist_identity: null,
                 venue_identity: null,
+                space: null,
                 post: "post", // Or the correct path for posts if different
                 task: "tasks",
                 goal: "goals",
@@ -197,7 +222,7 @@ export function GlobalCreateButton() {
                         onCloseMainDialog={() => setIsMainDialogOpen(false)}
                         onSelectItemType={handleSelectItemType}
                         setCreatePeerifyArtistOpen={setCreatePeerifyArtistOpen}
-                        setCreatePeerifyVenueOpen={setCreatePeerifyVenueOpen}
+                        setAddSpaceOpen={setAddSpaceOpen}
                         setCreateCommunityOpen={setCreateCommunityOpen}
                         setCreateProjectOpen={setCreateProjectOpen}
                     />
@@ -249,11 +274,21 @@ export function GlobalCreateButton() {
                 onOpenChange={setCreatePeerifyArtistOpen}
                 onSuccess={(data) => handleItemCreatedSuccess("artist_identity", data)}
             />
+            <AddSpaceDialog isOpen={isAddSpaceOpen} onOpenChange={setAddSpaceOpen} onChoose={handleSpaceKindChosen} />
             <CreatePeerifyVenueDialog
                 isOpen={isCreatePeerifyVenueOpen}
                 onOpenChange={setCreatePeerifyVenueOpen}
                 onSuccess={(data) => handleItemCreatedSuccess("venue_identity", data)}
             />
+            {spaceFormType ? (
+                <SpaceFormDialog
+                    key={spaceFormType}
+                    type={spaceFormType}
+                    isOpen={true}
+                    onOpenChange={(open) => !open && setSpaceFormType(null)}
+                    onSaved={handleSpaceSaved}
+                />
+            ) : null}
             <CreateProjectDialog
                 isOpen={isCreateProjectOpen}
                 onOpenChange={setCreateProjectOpen}
