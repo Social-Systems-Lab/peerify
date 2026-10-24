@@ -252,6 +252,28 @@ export default function PeerifyLandingPage() {
                 </div>
             </section>
 
+            {/* ── FOR HOSTS ── */}
+            <section className={"hostsSection reveal"} id="hosts">
+                <div className={"inner"}>
+                    <div className={"twoCol"}>
+                        <div className={"photoFrame"}>
+                            <Image src="/peerify/illustrations/role-host.svg" alt="A host carrying an amp into a room under string lights" fill unoptimized className={"photoImg"} />
+                        </div>
+                        <div className={"textCol"}>
+                            <p className={"sLabel"}>For hosts</p>
+                            <h2 className={"serif hostsHeading"}>Open your living room, garden, café or community space for an intimate, trusted show.</h2>
+                            <ul className={"hostsList"}>
+                                <li>Offer a space where people come to really listen</li>
+                                <li>Shape the evening together with the artist and their crew</li>
+                                <li>Share in the takings if you want to</li>
+                                <li>Bring live music to your neighbourhood</li>
+                            </ul>
+                            <Link href="/hosts" className={"btnOrange"}>Join the host pilot</Link>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* ── HOW IT WORKS ── */}
             <section className={"howSection reveal"} id="how">
                 <div className={"inner"}>
