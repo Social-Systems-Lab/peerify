@@ -63,6 +63,18 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **Found, not fixed:** "Playfair Display" is named in `peerify-landing-page.css` but never loaded (no font file, no `@font-face`), so all landing headings fall back to the visitor's system serif. Also `/welcome`, `/holding` and `/donations` still set "… | Peerify" by hand and show the suffix twice.
 - **/hosts redesign:** proposal only (dark landing style, drawings per section), waiting for Tim.
 
+### Round 3: heading font, shared footer, /hosts redesign (same day)
+| Staging | What |
+|---|---|
+| `62f3f915` | **Playfair Display loaded.** The landing CSS (and the contact dialog) have named it since the June baseline `dd1f9a67`, but it was never loaded (already noted in the 2026-08 rebrand entries), so every landing heading used the visitor's system serif. **Prod is affected the same way** (`origin/main` has the same CSS). Self-hosted in `fonts.css` like the other fonts: Google's v40 subsets, upright + italic, `public/fonts/v1/playfair-display/` with `OFL.txt`. `check-release-fonts.py` passes (36 font urls). Not preloaded |
+| `3c730eac` | Landing footer moved into `PeerifyFooter` (`peerify-footer.tsx`), no visual change |
+| `9880914c` | `/hosts` redesigned in the landing page's dark style (`.peerify-home` overlay, so the app nav is covered; logo top bar links to `/`). Copy moved from `hosts.md` into `peerify-hosts-page.tsx` unchanged (all 18 lines checked against the old file); `hosts.md` and its tracing entry removed. Own CSS in `peerify-hosts-page.css`. No scroll-reveal (it needs client JS) |
+
+- **Drawings (all in `HOSTS_ART`):** intro `feature-door.svg`; Venues `defaults/hero-band-soundcheck.png` (**stand-in**: a small venue with stage, sound and lights); Pop-up `defaults/hero-venue-cafe-corner.png`; Home `defaults/offer-show-garden.png`; steps 1 `feature-map.svg`, 2 `feature-crew.svg`, 3 `defaults/offer-meal-extra-plate.png` (**stand-in**: host and artist agreeing the terms), 4 `step-3-host.svg`, 5 **text only** (needs: everyone reviewing everyone); listening rule `manifesto-lights.svg`.
+- Default PNGs (dark on cream) are shown with `filter: invert(1) hue-rotate(190deg) contrast(1.3); mix-blend-mode: lighten`: paper goes to black, lines near-white, orange lands at about rgb(223,109,0). 4:1 strips are cropped to their middle in 2:1 frames.
+- Checked with a static render of the real component (esbuild, next/image + next/link stubbed) in headless Chromium at 1440 and 390 px: no broken images, no horizontal overflow. **Not checked in the running app.**
+- **Still open:** the landing body font "Raleway" is also never loaded (system sans-serif instead); `/welcome`, `/holding`, `/donations` doubled titles.
+
 ---
 
 ## 2026-10-18 — Default illustrations for profile heroes and offers, cover editors and rejected uploads, both live on production
