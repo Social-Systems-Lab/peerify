@@ -355,6 +355,8 @@
     font-size: 15px;
     font-weight: 800;
     letter-spacing: 1px;
+    /* Raleway's default figures are old-style (short 0, descending 4), which sit unevenly in the circle. */
+    font-variant-numeric: lining-nums;
     transition: transform 0.2s, background 0.2s, color 0.2s;
 }
 .peerify-home .step:hover .stepN { transform: scale(1.18); background: #e8720c; color: #0f0d0b; }
