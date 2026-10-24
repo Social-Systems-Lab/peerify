@@ -51,13 +51,12 @@
     padding: 20px 28px;
 }
 .peerify-home .hostsStep .stepN { margin-bottom: 0; }
-/* Each number fills as its row scrolls into view (PeerifyReveal adds .visible): the landing page's step
-   hover colours, with a single pop to the same 1.18 scale. Without JS the numbers stay outlined, which
-   is still readable. Reduced motion: shown filled from the start, no pop and no transition. */
-.peerify-home .hostsStep.visible .stepN { background: #e8720c; color: #0f0d0b; animation: hostsStepPop 0.45s ease-out; }
-@keyframes hostsStepPop { 50% { transform: scale(1.18); } }
+/* The rows also carry the landing page's .step class, so its .step:hover rules highlight the number
+   under the pointer, exactly as on the landing page (CSS only: works without JS). Reduced motion keeps
+   the colour change but drops the lift and the scale. */
 @media (prefers-reduced-motion: reduce) {
-    .peerify-home .hostsStep .stepN { background: #e8720c; color: #0f0d0b; transition: none; animation: none; }
+    .peerify-home .hostsStep.step:hover,
+    .peerify-home .hostsStep.step:hover .stepN { transform: none; }
 }
 .peerify-home .hostsStepArt { aspect-ratio: 4 / 3; }
 .peerify-home .hostsStep p { font-size: 16px; font-weight: 300; line-height: 1.75; color: #bbb; margin: 0; }
