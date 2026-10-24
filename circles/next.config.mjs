@@ -27,6 +27,7 @@ const nextConfig = {
     outputFileTracingIncludes: {
         "/privacy": ["./src/content/privacy-policy.md"],
         "/terms": ["./src/content/terms.md"],
+        "/hosts": ["./src/content/hosts.md"],
     },
     images: {
         remotePatterns: [
