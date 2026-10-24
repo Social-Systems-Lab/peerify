@@ -40,6 +40,37 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-24 — Spaces step 1: pop-up and private spaces (owner + admin only) — on local staging, not pushed
+
+Decisions (Tim, 2026-10-24): venues stay venue circles; pop-up and home/private spaces get their own `spaces` collection. "Show space" (`hosting_show`) offers will be replaced by spaces later and were **not touched**. Nothing public in this round: no map pins, search, profile display or feed.
+
+### Commits
+| Staging | What |
+|---|---|
+| `dc889951` | Collection `spaces`, zod input schemas (`models.ts`), `lib/spaces/space-rules.ts` (`parseSpaceInput`, `toAreaOnlyLocation`), owner-scoped data layer `lib/data/space.ts`. `coarsenLngLat` takes an optional grid (default unchanged at 0.05°). The fake DB gains `Spaces`, `insertOne` and `deleteOne` |
+| `b5d9b641` | Settings → Spaces (`/circles/<own handle>/settings/spaces`): list, add, edit, delete. Server actions in `settings/spaces/actions.ts`; `SpaceFormDialog` and `SpacesSettings` in `components/spaces` |
+| `357044cd` | Create menu: "Venue Identity" → **"Add a space"**, which opens a chooser: Venue (the existing venue dialog, unchanged) / Pop-up space / Home or private space |
+| `1a229915` | Admin: a "Spaces" tab on `/admin`, linking to `/admin/spaces` (modelled on Captured emails) |
+| `e8a0f7b2` | Account erasure deletes the person's spaces; the orphan script checks `spaces.ownerDid` |
+
+### Rules
+- **Private location**: rebuilt on every save as City precision (2), with country/region/city names and the point snapped to a **0.1° grid** (~11 km N–S, ~6 km E–W here). There's no street and no `exactConfirmedAt`. The form rounds as soon as a point is picked, and the server rounds again (`parseSpaceInput`, the only way input is stored). The picker starts at City, so its search offers places, not addresses. Pop-up spaces keep the exact location as entered.
+- **Access**: every owner read and write filters on `{ _id, ownerDid }` in the query (update also on `type`, so the type can't change). The owner is always the session DID; a client-sent `ownerDid`/`_id` is dropped by zod.
+  - Adding a space needs a verified account (same gate as venue identities). The limit is **10 spaces per person**, checked before the insert.
+  - Settings → Spaces 404s for anyone but the profile's own person, platform admins included.
+  - `/admin/spaces` 404s unless the session's user row has `isAdmin`. It shows the owner's name, handle and **email**. Emails are never logged; action errors log the error name only.
+- **Fields**:
+  - Both types: capacity, deal preferences (several allowed; "none" stands alone), and the listening rule and host responsibility checkboxes, stored as `…AcceptedAt` dates and kept from the first save.
+  - Pop-up: name, show times (free text), noise limits, power, PA.
+  - Private: setting (the event tag's indoor/outdoor), acoustic/amplified, noise curfew, step-free access (the Accessibility tag's accessible / stairs involved / not specified), notes for Peerify (shown to admins).
+  - No photos. Checkbox and chooser wording comes from /hosts.
+- **Isolation**: all `spaces` reads and writes are in `lib/data/space.ts` (plus the erasure list). Circle queries, search, map feeds, events and the vector index don't read it.
+
+### Tests
+New: `space.test.ts` (21), `spaces-owner.test.ts` (11), `admin-spaces.test.tsx` (4). Added to existing: 2 tests in `captured-emails-tab.test.tsx`, plus spaces seeds and 1 new test in `account-erasure.test.ts`. The privacy tests read the raw stored documents. Each key check was mutation-tested: without the owner filter, without the rounding, without the page or admin guard, and without the erasure line, the tests fail. Full suite run file by file: 49 of 50 pass; `participation-readiness.test.ts` was already failing and is unchanged. tsc and eslint clean. `bun run build` clean; `/admin/spaces` and `/circles/[handle]/settings/spaces` are dynamic routes.
+
+**Not verified in a browser.** Tim's click-through checklist is in the outbox (`SPACES-STEP1-CHECKLIST-20261024.md`).
+
 ## 2026-10-24 — "For hosts" landing section and public /hosts page — on local staging, not pushed
 
 ### Commits
