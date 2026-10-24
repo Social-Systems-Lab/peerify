@@ -1,0 +1,84 @@
+/* peerify-hosts-page.css - /hosts only. Builds on peerify-landing-page.css, which must load first. */
+
+/* ── Top bar: logo back to the landing page (the dark page covers the app's own nav) ── */
+.peerify-home .hostsTopBar { background: #0a0a0a; padding: 28px 72px 0; }
+.peerify-home .hostsTopBar .logoLockup { display: inline-flex; margin-bottom: 0; text-decoration: none; }
+
+/* ── Drawings ── */
+.peerify-home .hostsArt { position: relative; overflow: hidden; }
+.peerify-home .hostsArt img { object-fit: contain; }
+.peerify-home .hostsArt--crop img { object-fit: cover; }
+/* Dark-on-cream default PNGs → light-on-dark. Contrast pushes the inverted paper to black, and
+   "lighten" blending then shows the card through it, so only the lines remain. 190deg (not 180)
+   because hue-rotate is approximate: it lands closest to the brand orange after the invert. */
+.peerify-home .hostsArt--paper img { filter: invert(1) hue-rotate(190deg) contrast(1.3); mix-blend-mode: lighten; }
+
+/* ── Intro ── */
+.peerify-home .hostsIntro { padding-top: 56px; }
+.peerify-home .hostsIntro h1.serif { font-size: clamp(36px, 5vw, 64px); }
+
+/* ── Three kinds of spaces ── */
+/* Wider frames than the role cards: two of the drawings are 4:1 strips. */
+.peerify-home .hostsSpaces .roleImageWrap { aspect-ratio: 2 / 1; }
+.peerify-home .hostsSpaces .rolesGrid { margin-top: 32px; }
+.peerify-home .hostsSpaceText { font-size: 15px; font-weight: 300; line-height: 1.75; color: #aaa; margin: 0; }
+.peerify-home .hostsSpaceText strong {
+    display: block;
+    font-family: "Playfair Display", serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: #f5f5f5;
+    margin-bottom: 8px;
+}
+
+/* ── Pilot steps: one row each (five don't fit the landing page's four-column grid) ── */
+.peerify-home .hostsSteps {
+    list-style: none;
+    padding: 0;
+    margin: 40px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 900px;
+}
+.peerify-home .hostsStep {
+    display: grid;
+    grid-template-columns: 160px 54px 1fr;
+    gap: 28px;
+    align-items: center;
+    background: #1e1a14;
+    border-radius: 8px;
+    padding: 20px 28px;
+}
+.peerify-home .hostsStep .stepN { margin-bottom: 0; }
+.peerify-home .hostsStepArt { aspect-ratio: 4 / 3; }
+.peerify-home .hostsStep p { font-size: 16px; font-weight: 300; line-height: 1.75; color: #bbb; margin: 0; }
+
+/* ── Listening rule ── */
+.peerify-home .hostsListening .sLabel { margin-bottom: 24px; }
+.peerify-home .hostsListening .quoteBlock { font-size: clamp(22px, 2.8vw, 34px); }
+
+/* ── What Peerify does ── */
+.peerify-home .hostsNote { max-width: 760px; margin: 0 auto; }
+.peerify-home .hostsNote h2 { font-size: 18px; font-weight: 700; color: #f5f5f5; margin-bottom: 12px; }
+.peerify-home .hostsNote p { font-size: 15px; line-height: 1.75; margin: 0; }
+
+/* ── Join ── */
+.peerify-home .hostsJoinLink { color: #fff; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.peerify-home .hostsJoinLink:hover { color: #111; }
+
+/* ── TABLET (769–1024px) ── */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .peerify-home .hostsTopBar { padding-left: 40px; padding-right: 40px; }
+    .peerify-home .hostsStep { grid-template-columns: 120px 54px 1fr; gap: 20px; }
+}
+
+/* ── MOBILE (≤768px) ── */
+@media (max-width: 768px) {
+    .peerify-home .hostsTopBar { padding: 24px 24px 0; }
+    .peerify-home .hostsIntro { padding-top: 40px; }
+    /* Drawing on its own row above the number and text; text-only rows just drop the empty cell. */
+    .peerify-home .hostsStep { grid-template-columns: 54px 1fr; gap: 16px 18px; padding: 20px; }
+    .peerify-home .hostsStepArt { grid-column: 1 / -1; width: 100%; max-width: 240px; }
+    .peerify-home .hostsStep--textOnly > div:first-child { display: none; }
+}
