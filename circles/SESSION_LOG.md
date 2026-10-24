@@ -40,6 +40,21 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-24 — "For hosts" landing section and public /hosts page — on local staging, not pushed
+
+### Commits
+| Staging | What |
+|---|---|
+| `09557009` | Landing page: new "For hosts" section between "The roles you can play" and "How it works". Uses `role-host.svg` and the idea section's `.twoCol`/`.textCol`/`.photoFrame` layout. "Join the host pilot" button → `/hosts`. New CSS: `.hostsSection`, `.hostsHeading`, `.hostsList` |
+| `b30fd48c` | Public `/hosts` page (tab title "Host a show · Peerify"), same pattern as `/privacy` and `/terms`: text in `src/content/hosts.md`, rendered with `RichText`, traced via `outputFileTracingIncludes` in `next.config.mjs`. Contact link is `mailto:hello@peerify.net?subject=Host%20pilot`. Logged-out access needs nothing extra: middleware skips the access check for single-segment paths |
+| `4915b539` | Landing page footer: "For hosts" → `/hosts`, after "For artists" |
+
+- **Left exactly as they were:** `SHOW_VENUE_SIGNUP = false`, the switched-off "For Hosts & Venues" role card and the "List a venue or space" CTA button. The new section doesn't depend on them. No data model, database, Offers or Venues changes.
+- **Copy pass needed later:** the "Host a house concert" feature card (`FEATURES`, "Home hosting" tag) still says "vet your guests, and share the address only with people you’ve approved". Guest vetting and approved-only address sharing are currently hidden features, so this copy promises things the product doesn't show right now. Left unchanged on purpose (Tim, 2026-10-24).
+- `bun run build` clean; `/hosts` is listed as a dynamic route next to `/privacy` and `/terms`, and `hosts.md` is in `.next/standalone/src/content/`. **Not verified in a browser.**
+
+---
+
 ## 2026-10-18 — Default illustrations for profile heroes and offers, cover editors and rejected uploads, both live on production
 
 ### What was there before (read-only investigation, 2026-10-18)
