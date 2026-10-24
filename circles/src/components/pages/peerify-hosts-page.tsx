@@ -11,54 +11,61 @@ const ART = "/peerify/illustrations"
 type HostsArt = {
     src: string
     alt: string
-    // Default-image PNG (dark lines on cream): shown inverted so it matches the light-on-dark SVGs.
-    paper?: boolean
-    // Wide 4:1 strip: cropped to its middle instead of shown small.
-    crop?: boolean
-    // Set while an existing drawing stands in for one that hasn't been drawn yet: what the new one
-    // should show. Swap `src`/`alt` and drop this once it exists.
+    // Set on a placeholder drawing: what the hand-drawn replacement shows. The replacement keeps the same
+    // file name and size, so swapping it in needs no code change; drop this note then.
     standInFor?: string
 }
 
-// Every drawing on the page, in one place. null = text only until a drawing exists.
+// Every drawing on the page, in one place. hosts/ drawings: light lines on transparent, accents in the
+// landing drawings' amber (#ff811b). Cards are 460×200, steps 240×150; the frames fit them uncropped.
 const HOSTS_ART = {
     intro: { src: `${ART}/feature-door.svg`, alt: "An open front door to a room lit with string lights" },
     venue: {
-        src: `${ART}/defaults/hero-band-soundcheck.png`,
-        alt: "A guitar, amp and drum kit set up for a soundcheck",
-        paper: true,
-        crop: true,
-        standInFor: "A small venue with a stage, sound and lights",
+        src: `${ART}/hosts/space-venue.svg`,
+        alt: "A small stage with a lighting rig, spotlights, speakers and a mic stand",
+        standInFor: "Hand-drawn small venue with a stage, sound and lights (460×200)",
     },
     popUp: {
-        src: `${ART}/defaults/hero-venue-cafe-corner.png`,
-        alt: "A café counter with pendant lamps and a small corner for music",
-        paper: true,
-        crop: true,
+        src: `${ART}/hosts/space-popup.svg`,
+        alt: "A café counter and tables under pendant lamps, with a mic stand",
+        standInFor: "Hand-drawn café or shop after hours, set up for a show (460×200)",
     },
     home: {
-        src: `${ART}/defaults/offer-show-garden.png`,
-        alt: "A garden under string lights, with chairs and a mic stand",
-        paper: true,
+        src: `${ART}/hosts/space-home.svg`,
+        alt: "A living room with a fireplace, an armchair, a guitar and a mic stand",
+        standInFor: "Hand-drawn living room or garden set up for a show (460×200)",
     },
-    step1: { src: `${ART}/feature-map.svg`, alt: "A folded map with a dotted route to a house" },
-    step2: { src: `${ART}/feature-crew.svg`, alt: "A small car with a guitar case strapped to the roof" },
+    step1: {
+        src: `${ART}/hosts/step-1-tell-us.svg`,
+        alt: "A clipboard checklist with two items ticked",
+        standInFor: "Hand-drawn: telling Peerify about your space (240×150)",
+    },
+    step2: {
+        src: `${ART}/hosts/step-2-connect.svg`,
+        alt: "A house, a plus sign and a map pin with a music note",
+        standInFor: "Hand-drawn: host and touring artist being connected (240×150)",
+    },
     step3: {
-        src: `${ART}/defaults/offer-meal-extra-plate.png`,
-        alt: "A table laid for a meal, with a place set for a guest",
-        paper: true,
-        standInFor: "Host and artist agreeing the terms",
+        src: `${ART}/hosts/step-3-terms.svg`,
+        alt: "Stacks of coins beside a jar labelled 1000",
+        standInFor: "Hand-drawn: host and artist agreeing the terms (240×150)",
     },
-    step4: { src: `${ART}/step-3-host.svg`, alt: "Someone on a step stool hanging string lights" },
-    // Needs a drawing: everyone reviewing everyone after the show.
-    step5: null,
+    step4: {
+        src: `${ART}/hosts/step-4-show.svg`,
+        alt: "String lights over a guitar, a mic stand and an amp",
+        standInFor: "Hand-drawn: the show, with the artist and local crew (240×150)",
+    },
+    step5: {
+        src: `${ART}/hosts/step-5-reviews.svg`,
+        alt: "A profile card with four hearts",
+        standInFor: "Hand-drawn: everyone reviewing everyone after the show (240×150)",
+    },
     listening: { src: `${ART}/manifesto-lights.svg`, alt: "" },
-} satisfies Record<string, HostsArt | null>
+} satisfies Record<string, HostsArt>
 
 function ArtFrame({ art, className }: { art: HostsArt; className: string }) {
-    const classes = [className, "hostsArt", art.paper && "hostsArt--paper", art.crop && "hostsArt--crop"]
     return (
-        <div className={classes.filter(Boolean).join(" ")}>
+        <div className={`${className} hostsArt`}>
             <Image src={art.src} alt={art.alt} fill unoptimized />
         </div>
     )
@@ -82,7 +89,7 @@ const SPACES = [
     },
 ]
 
-const STEPS: { art: HostsArt | null; text: string }[] = [
+const STEPS: { art: HostsArt; text: string }[] = [
     {
         art: HOSTS_ART.step1,
         text: "Tell us about your space: what kind it is, roughly how many people it holds, and where it is.",
@@ -157,8 +164,8 @@ export default function PeerifyHostsPage() {
                     <h2 className={"serif"}>How the host pilot works</h2>
                     <ol className={"hostsSteps"}>
                         {STEPS.map((s, i) => (
-                            <li key={i} className={s.art ? "step hostsStep" : "step hostsStep hostsStep--textOnly"}>
-                                {s.art ? <ArtFrame art={s.art} className={"hostsStepArt"} /> : <div aria-hidden="true" />}
+                            <li key={i} className={"step hostsStep"}>
+                                <ArtFrame art={s.art} className={"hostsStepArt"} />
                                 <div className={"stepN"} aria-hidden="true">{String(i + 1).padStart(2, "0")}</div>
                                 <p>{s.text}</p>
                             </li>
