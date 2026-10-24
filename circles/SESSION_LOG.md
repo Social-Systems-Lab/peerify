@@ -53,6 +53,16 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **Copy pass needed later:** the "Host a house concert" feature card (`FEATURES`, "Home hosting" tag) still says "vet your guests, and share the address only with people you’ve approved". Guest vetting and approved-only address sharing are currently hidden features, so this copy promises things the product doesn't show right now. Left unchanged on purpose (Tim, 2026-10-24).
 - `bun run build` clean; `/hosts` is listed as a dynamic route next to `/privacy` and `/terms`, and `hosts.md` is in `.next/standalone/src/content/`. **Not verified in a browser.**
 
+### Update after Tim's browser check (same day)
+| Staging | What |
+|---|---|
+| `eecac904` | Standalone section replaced by a third **role card** ("For Hosts", heading "Living rooms, gardens & cafés after closing", "Join the host pilot →" `/hosts`), same markup and classes as the artist/fan cards. `rolesGrid` is now always three columns; the unused `rolesGrid--twoUp` rule and the section's CSS are removed. `SHOW_VENUE_SIGNUP` and the old venue card are unchanged (turning the flag on would now make four cards) |
+| `223594c9` | Tab titles: the root layout template already appends " \| Peerify", so `/hosts`, `/privacy`, `/terms` now set just "Host a show", "Privacy Policy", "Terms of Service" |
+
+- **Heading wrap check** (headless Chromium, real card CSS): the hosts heading wraps to the same number of lines as the other two, or fewer, at 1440/1280/1100/390 px with a Times-like serif. At 1100 px (tablet, three columns) its first two bullets wrap to two lines where the other cards' bullets don't; the grid keeps the cards equal height.
+- **Found, not fixed:** "Playfair Display" is named in `peerify-landing-page.css` but never loaded (no font file, no `@font-face`), so all landing headings fall back to the visitor's system serif. Also `/welcome`, `/holding` and `/donations` still set "… | Peerify" by hand and show the suffix twice.
+- **/hosts redesign:** proposal only (dark landing style, drawings per section), waiting for Tim.
+
 ---
 
 ## 2026-10-18 — Default illustrations for profile heroes and offers, cover editors and rejected uploads, both live on production
