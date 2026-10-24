@@ -80,6 +80,20 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Why not plain "Raleway": `PeerifyContactDialog` names `'Raleway'` inline and is also opened outside `.peerify-home` (pilot check-email page). With the scoped name it keeps the system sans everywhere, as before. (`search-filters.tsx` only mentions the dialog in a comment.) Its Playfair headings did change with `62f3f915`, on the landing page and the check-email page only; neither is the logged-in app.
 - With Raleway, the hosts role card's first bullet wraps to two lines at 1280–1440 px where the other cards' bullets don't; wording left as is.
 
+### Round 5: /hosts edits after Tim's browser check (same day)
+| Staging | What |
+|---|---|
+| `93f8a2b1` | Join band: only "hello@peerify.net" is the link ("Email us at" is plain text) |
+| `8698f7db` | Listening rule: "…who came to listen. A café after closing, yes. A restaurant during the dinner rush, no. Our artists are not background music for diners." |
+| `548378de` | Step 3 ends "It’s all good." |
+| `72e288b4` | Landing scroll-reveal `IntersectionObserver` moved unchanged into `PeerifyReveal` (`peerify-reveal.tsx`, `selector`/`threshold` props) |
+| `5a9c83c4` | `/hosts` step numbers fill (amber, black digits, one pop to 1.18) as each row scrolls in: `<PeerifyReveal selector=".hostsStep" threshold={0.6} />` + `.hostsStep.visible .stepN`. No JS: stay outlined. `prefers-reduced-motion`: filled from the start, no animation or transition |
+| `28c8fa97` | `.stepN` gets `font-variant-numeric: lining-nums`: since Raleway loaded, its old-style figures sat unevenly in the step circles (landing and /hosts) |
+
+- **Note:** the landing page's step numbers fill on **hover**, not on scroll (`.step:hover .stepN`); only whole sections fade in on scroll. `/hosts` now fills on scroll as asked, so the two pages differ.
+- Checked with a browser bundle of the real component (esbuild, next/image + next/link stubbed) in headless Chromium: JS on (outlined → filled after scrolling, all 5), JS off (outlined, readable), reduced motion (filled, `animation: none`). Copy and the link text/href verified in the rendered page. **Not checked in the running app.**
+- Illustration specs for Tim's new /hosts drawings went out as `ILLUSTRATION-SPECS.md` in the cc-reports archive (slot sizes, 4:3 / 2:1, SVG, transparent, lines `#efe8dc`, accents `#ff811b`).
+
 ---
 
 ## 2026-10-18 — Default illustrations for profile heroes and offers, cover editors and rejected uploads, both live on production
