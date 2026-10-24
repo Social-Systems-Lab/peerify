@@ -15,7 +15,7 @@
 
 /* ── Tokens ── */
 .peerify-home.page {
-    font-family: "Raleway", sans-serif;
+    font-family: "Peerify Raleway", sans-serif;
     background: #0a0a0a;
     color: #f5f5f5;
     overflow-x: hidden;
@@ -98,7 +98,7 @@
     color: #fff;
     padding: 14px 34px;
     border-radius: 4px;
-    font-family: "Raleway", sans-serif;
+    font-family: "Peerify Raleway", sans-serif;
     font-size: 14px;
     font-weight: 700;
     letter-spacing: 0.5px;
@@ -115,7 +115,7 @@
     color: rgba(245,245,245,0.78);
     padding: 14px 34px;
     border-radius: 4px;
-    font-family: "Raleway", sans-serif;
+    font-family: "Peerify Raleway", sans-serif;
     font-size: 14px;
     font-weight: 500;
     text-decoration: none;
@@ -130,7 +130,7 @@
     color: #f5f5f5;
     padding: 15px 34px;
     border-radius: 4px;
-    font-family: "Raleway", sans-serif;
+    font-family: "Peerify Raleway", sans-serif;
     font-size: 14px;
     font-weight: 700;
     text-decoration: none;
@@ -144,7 +144,7 @@
     color: #111;
     padding: 15px 34px;
     border-radius: 4px;
-    font-family: "Raleway", sans-serif;
+    font-family: "Peerify Raleway", sans-serif;
     font-size: 14px;
     font-weight: 500;
     text-decoration: none;
@@ -351,7 +351,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    font-family: "Raleway", sans-serif;
+    font-family: "Peerify Raleway", sans-serif;
     font-size: 15px;
     font-weight: 800;
     letter-spacing: 1px;
@@ -462,7 +462,7 @@
 .peerify-home .bigStat { text-align: center; padding: 0 52px; border-right: 1px solid rgba(0,0,0,0.15); }
 .peerify-home .bigStat:last-child { border-right: none; }
 .peerify-home .bigStatN {
-    font-family: "Raleway", sans-serif;
+    font-family: "Peerify Raleway", sans-serif;
     font-size: clamp(52px, 7vw, 84px);
     font-weight: 800;
     color: #000;
@@ -722,7 +722,7 @@
 .peerify-home .big-stat-n,
 .peerify-home .statNumber {
     color: #000000;
-    font-family: "Raleway", sans-serif;
+    font-family: "Peerify Raleway", sans-serif;
     font-size: clamp(52px, 7vw, 84px);
     font-weight: 800;
     line-height: 1;
@@ -780,7 +780,7 @@
     border: none;
     color: rgba(17,17,17,0.75);
     padding: 8px 4px;
-    font-family: "Raleway", sans-serif;
+    font-family: "Peerify Raleway", sans-serif;
     font-size: 13px;
     font-weight: 600;
     text-decoration: underline;
