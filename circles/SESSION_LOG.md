@@ -94,6 +94,17 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Checked with a browser bundle of the real component (esbuild, next/image + next/link stubbed) in headless Chromium: JS on (outlined → filled after scrolling, all 5), JS off (outlined, readable), reduced motion (filled, `animation: none`). Copy and the link text/href verified in the rendered page. **Not checked in the running app.**
 - Illustration specs for Tim's new /hosts drawings went out as `ILLUSTRATION-SPECS.md` in the cc-reports archive (slot sizes, 4:3 / 2:1, SVG, transparent, lines `#efe8dc`, accents `#ff811b`).
 
+### Round 6: step highlight like the landing page, placeholder drawings (same day)
+| Staging | What |
+|---|---|
+| `8c03bb94` | `/hosts` step rows carry the landing `.step` class, so the landing's own `.step:hover` rules highlight the number under the pointer (only one at a time; it follows a wheel scroll because the pointer stays still). Replaces round 5's fill-on-scroll. CSS only (works without JS); reduced motion keeps the colour change, drops lift and scale. `PeerifyReveal` is landing-only again, no props |
+| `2f42c6e8` | Eight placeholder SVGs from Tim in `public/peerify/illustrations/hosts/` (3 space cards 460×200, steps 1–5 240×150), amber `#e0822f` → `#ff811b` (landing drawings' amber; nothing else changed). `HOSTS_ART` points at them, with `standInFor` noting the hand-drawn replacements (same file names and sizes). Colour flip, crop and the text-only step row removed: nothing uses them |
+
+- **Landing step logic:** there is no step script on the landing page. `public-home-page-effects.tsx` has observers but belongs to the old Kamooni home (`.kam-home`). On touch screens `:hover` only follows taps, on both pages.
+- SVGs checked before adding: plain shapes only (no script, handlers, external refs). Each carries a C2PA provenance block (`<metadata>`, "Claude provided this file…"); left in, but the colour edit means its content hash no longer matches.
+- Fit checked at 1440 / 900 / 390 px: every drawing uncropped (`contain`, fits by width; the frames are 2:1 and 4:3, so a small empty band sits above and below). Line colour `#f3ece0` vs the landing drawings' `#efe8dc`, left as delivered.
+- Verified with a browser bundle of the real component in headless Chromium (hover with a still pointer + wheel, JS off, reduced motion). **Not checked in the running app.**
+
 ---
 
 ## 2026-10-18 — Default illustrations for profile heroes and offers, cover editors and rejected uploads, both live on production
