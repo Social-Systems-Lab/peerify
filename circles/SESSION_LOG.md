@@ -75,6 +75,11 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Checked with a static render of the real component (esbuild, next/image + next/link stubbed) in headless Chromium at 1440 and 390 px: no broken images, no horizontal overflow. **Not checked in the running app.**
 - **Still open:** the landing body font "Raleway" is also never loaded (system sans-serif instead); `/welcome`, `/holding`, `/donations` doubled titles.
 
+### Round 4: Raleway (same day)
+- `d1797acf`: Raleway self-hosted (Google v37, upright only, `public/fonts/v1/raleway/` + `OFL.txt`) under the family name **"Peerify Raleway"**, and the 9 landing CSS rules now name that. All 9 are `.peerify-home` rules (checked in the built CSS), so only the landing page and `/hosts` use it. The app's fonts (Wix Madefor Display, Libre Franklin, Yeseva One, the `:root` variables) are unchanged: the `fonts.css` diff is additions only. `check-release-fonts.py`: 41 urls, pass.
+- Why not plain "Raleway": `PeerifyContactDialog` names `'Raleway'` inline and is also opened outside `.peerify-home` (pilot check-email page). With the scoped name it keeps the system sans everywhere, as before. (`search-filters.tsx` only mentions the dialog in a comment.) Its Playfair headings did change with `62f3f915`, on the landing page and the check-email page only; neither is the logged-in app.
+- With Raleway, the hosts role card's first bullet wraps to two lines at 1280–1440 px where the other cards' bullets don't; wording left as is.
+
 ---
 
 ## 2026-10-18 — Default illustrations for profile heroes and offers, cover editors and rejected uploads, both live on production
