@@ -52,13 +52,6 @@ const FEATURES = [
         alt: "A record sliding out of its sleeve beside a cassette",
     },
     {
-        tag: "Coming soon",
-        title: "The Peerify Player",
-        body: "Your personal collection. When you’re in close proximity to another listener, you can share the music you own with them. All plays are recorded, and Peerify surplus becomes royalties for the artists.",
-        art: "feature-player.svg",
-        alt: "Two phones held side by side, sharing a song",
-    },
-    {
         tag: "Tour support",
         title: "Join the tour team",
         body: "When a tour pledge hits 10%, a tour team forms. Offer a spare room, a meal, transport, or a stage. Community makes tours possible, and you get to make new friends along the way.",
@@ -71,6 +64,13 @@ const FEATURES = [
         body: "Open your living room to live music. Set the capacity, vet your guests, and share the address only with people you’ve approved. Intimate music in the places it belongs.",
         art: "feature-door.svg",
         alt: "An open front door to a room lit with string lights",
+    },
+    {
+        tag: "Coming soon",
+        title: "The Peerify Player",
+        body: "Your personal collection. When you’re in close proximity to another listener, you can share the music you own with them. All plays are recorded, and Peerify surplus becomes royalties for the artists.",
+        art: "feature-player.svg",
+        alt: "Two phones held side by side, sharing a song",
     },
 ]
 
