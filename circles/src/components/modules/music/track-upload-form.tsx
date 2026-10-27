@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/components/ui/use-toast";
 import { uploadTrackAction } from "./actions";
+import { CURRENT_TRACK_RIGHTS_TEXT, CURRENT_TRACK_RIGHTS_VERSION } from "@/lib/peerify/track-rights";
 
 type TrackUploadFormProps = {
     circleId: string;
@@ -51,6 +52,7 @@ export const TrackUploadForm: React.FC<TrackUploadFormProps> = ({ circleId }) =>
         formData.append("title", title.trim());
         formData.append("circleId", circleId);
         formData.append("rightsConfirmed", "true");
+        formData.append("rightsVersion", CURRENT_TRACK_RIGHTS_VERSION);
         formData.append("audio", file);
 
         startTransition(async () => {
@@ -109,7 +111,7 @@ export const TrackUploadForm: React.FC<TrackUploadFormProps> = ({ circleId }) =>
                     disabled={isPending}
                 />
                 <Label htmlFor="track-rights" className="text-sm font-normal leading-snug">
-                    I own or control the rights to this audio and have permission to upload it.
+                    {CURRENT_TRACK_RIGHTS_TEXT}
                 </Label>
             </div>
 

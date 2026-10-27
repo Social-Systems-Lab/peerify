@@ -293,6 +293,10 @@ export const trackSchema = z.object({
     originalMimeType: z.string().optional(),
     rightsConfirmed: z.literal(true), // artist confirmed they own/control the rights
     rightsConfirmedAt: z.date(),
+    // Which rights statement was ticked, and its full text (see lib/peerify/track-rights.ts).
+    // Missing on tracks uploaded before 2026-10-27: those agreed to version "2026-06-26".
+    rightsAttestationVersion: z.string().optional(),
+    rightsAttestationText: z.string().optional(),
     createdAt: z.date(),
     createdBy: didSchema,
     commentCount: z.number().default(0), // denormalized count, public (shown next to the track)
