@@ -599,19 +599,32 @@ export default function HomeContent({
                                     <VerifyAccountButton />
                                 </div>
                             ) : null} */}
-                            {(circle.description || circle.mission) && (
-                                <div className="line-clamp-1 pb-1 text-gray-600">
-                                    {authorizedToEdit ? (
-                                        <EditableField
-                                            id={isUser || circle.description ? "description" : "mission"}
-                                            value={(circle.description || circle.mission)!}
-                                            circleId={circle._id!}
-                                            multiline
-                                        />
-                                    ) : (
-                                        (circle.description ?? circle.mission)
-                                    )}
+                            {/* The subtitle is the description, or the mission when there is none.
+                                Editors also see it when both are empty, as an "Add" placeholder.
+                                Personal, artist and venue profiles always write description
+                                (Settings hides Mission for them), so a long mission shown here
+                                has to fit the 200-character description limit when edited. */}
+                            {authorizedToEdit ? (
+                                <div className="pb-1 text-gray-600">
+                                    <EditableField
+                                        id={
+                                            isUser || isPeerifyManagedArtistIdentity || circle.description || !circle.mission
+                                                ? "description"
+                                                : "mission"
+                                        }
+                                        value={circle.description || circle.mission || ""}
+                                        circleId={circle._id!}
+                                        placeholder="Add a short description"
+                                        textClassName="line-clamp-1"
+                                        multiline
+                                    />
                                 </div>
+                            ) : (
+                                (circle.description || circle.mission) && (
+                                    <div className="line-clamp-1 pb-1 text-gray-600">
+                                        {circle.description || circle.mission}
+                                    </div>
+                                )
                             )}
                             {isPeerifyArtistProfile && (
                                 <div

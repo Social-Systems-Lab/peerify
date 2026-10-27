@@ -13,6 +13,8 @@ import { getAuthenticatedUserDid, getAuthorizedMembers, isAuthorized } from "@/l
 import { features } from "@/lib/data/constants";
 import { saveFile } from "@/lib/data/storage";
 import { getImageUploadErrorMessage } from "@/lib/media/sanitize-image";
+import { getImageUploadRejection } from "@/lib/image-upload-limits";
+import { PROFILE_TEXT_FIELDS, validateProfileText } from "@/lib/profile-text-limits";
 import { revalidatePath } from "next/cache";
 import { getUser, getUserById, getUserPrivate, addBookmark, removeBookmark, pinCircle, unpinCircle } from "@/lib/data/user";
 import {
@@ -432,31 +434,42 @@ export const unpinCircleAction = async (circleId: string): Promise<UserPrivate |
 // their circle. Only what the real callers send is allowed: EditableField (home-content.tsx:
 // name, description, mission) and the picture uploads (EditableImage, onboarding and
 // circle-wizard profile steps). Every other key is ignored.
-const INLINE_PROFILE_TEXT_FIELDS = ["name", "description", "mission"] as const;
+// Text is trimmed and checked against the shared limits (profile-text-limits.ts) before anything
+// is uploaded or written; too-long text is refused, never cut.
 const INLINE_PROFILE_FILE_FIELDS = ["picture"] as const;
 
-// Thrown when the server refuses an inline picture upload; its message is safe to show as is.
-class InlineImageUploadError extends Error {}
+// Thrown when the server refuses an inline edit (bad text, rejected picture); its message is safe
+// to show as is.
+class InlineProfileUpdateError extends Error {}
 
 const buildInlineProfileUpdate = async (circleId: string, formData: FormData): Promise<Partial<Circle>> => {
     const updateData: Partial<Circle> = { _id: circleId };
 
-    for (const field of INLINE_PROFILE_TEXT_FIELDS) {
+    for (const field of PROFILE_TEXT_FIELDS) {
         const value = formData.get(field);
         if (typeof value === "string") {
-            updateData[field] = value;
+            const trimmed = value.trim();
+            const textError = validateProfileText(field, trimmed);
+            if (textError) {
+                throw new InlineProfileUpdateError(textError);
+            }
+            updateData[field] = trimmed;
         }
     }
 
     for (const field of INLINE_PROFILE_FILE_FIELDS) {
         const value = formData.get(field);
         if (value instanceof File) {
+            const rejection = getImageUploadRejection(value);
+            if (rejection) {
+                throw new InlineProfileUpdateError(rejection);
+            }
             let fileInfo;
             try {
                 fileInfo = await saveFile(value, field, circleId, true);
             } catch (uploadError) {
                 console.error(`Failed to upload ${field}:`, uploadError);
-                throw new InlineImageUploadError(getImageUploadErrorMessage(uploadError));
+                throw new InlineProfileUpdateError(getImageUploadErrorMessage(uploadError));
             }
             updateData[field] = fileInfo;
             revalidatePath(fileInfo.url);
@@ -519,7 +532,7 @@ export const updateCircleField = async (circleId: string, formData: FormData): P
 
         return { success: true, message: updateMessage, circle };
     } catch (error) {
-        if (error instanceof InlineImageUploadError) {
+        if (error instanceof InlineProfileUpdateError) {
             return { success: false, message: error.message };
         }
         return { success: false, message: `Failed to update circle. ${error}` };

@@ -56,12 +56,8 @@ import {
     type PeerifyArtistProfile,
     type PeerifyVenueProfile,
 } from "@/lib/peerify/artist-profile";
-import {
-    ABOUT_IMAGE_UPLOAD_MAX_BYTES,
-    ABOUT_IMAGE_UPLOAD_TOO_LARGE_MESSAGE,
-    formatFileSizeMB,
-    UNSUPPORTED_IMAGE_MESSAGE,
-} from "@/lib/image-upload-limits";
+import { getImageUploadRejection } from "@/lib/image-upload-limits";
+import { PROFILE_TEXT_FIELDS, validateProfileText } from "@/lib/profile-text-limits";
 import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
 import { classifyLocationInput, toUsableLocation } from "@/lib/utils/event-location";
 
@@ -138,15 +134,7 @@ const validateAboutImageUpload = (file: any): string | null => {
         return null;
     }
 
-    if (typeof file.type === "string" && !file.type.startsWith("image/")) {
-        return UNSUPPORTED_IMAGE_MESSAGE;
-    }
-
-    if (typeof file.size === "number" && file.size > ABOUT_IMAGE_UPLOAD_MAX_BYTES) {
-        return `${ABOUT_IMAGE_UPLOAD_TOO_LARGE_MESSAGE} Selected file is ${formatFileSizeMB(file.size)}.`;
-    }
-
-    return null;
+    return getImageUploadRejection(file);
 };
 
 async function revalidateCircleDetachPaths(circleId: string, parentCircleId?: string | null) {
@@ -825,6 +813,22 @@ export async function saveAbout(values: {
         let existingCircle = await getCircleById(values._id);
         if (!existingCircle) {
             throw new Error("Circle not found");
+        }
+
+        // Name, description and mission are trimmed and length-checked when they change. A value
+        // that is unchanged is left alone even if it is over today's limit (e.g. a long mission
+        // that Settings no longer shows), so old data never blocks saving the rest of the form.
+        for (const field of PROFILE_TEXT_FIELDS) {
+            const value = circleUpdateData[field];
+            if (typeof value !== "string" || value === (existingCircle[field] ?? "")) {
+                continue;
+            }
+            const trimmed = value.trim();
+            const textError = validateProfileText(field, trimmed);
+            if (textError) {
+                return { success: false, message: textError };
+            }
+            circleUpdateData[field] = trimmed;
         }
 
         // LocationPicker's Clear removes a stored location. Written as null, the same as the
