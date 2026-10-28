@@ -2,9 +2,27 @@ import { verifyUserToken } from "@/lib/auth/jwt";
 import { getAuthCookieNamesForClearing, readAuthToken } from "@/lib/auth/cookie";
 import { NextResponse, type NextRequest } from "next/server";
 import { buildPublicUrl } from "@/lib/utils/public-origin";
+import { getClientIp } from "@/lib/utils/client-ip";
+import { isStoredFileImageRequest, takeImageRequest } from "@/lib/storage/image-request-cap";
 
 export async function middleware(request: NextRequest) {
     const pathname = request.nextUrl.pathname;
+
+    // /_next/image is matched only for this cap (see config below); nothing else in this function
+    // applies to it. Requests without X-Real-IP (local dev) aren't capped, like the /storage route.
+    if (pathname === "/_next/image") {
+        const clientIp = getClientIp(request.headers);
+        if (clientIp && isStoredFileImageRequest(pathname, request.nextUrl.searchParams)) {
+            const retryAfterSeconds = takeImageRequest(clientIp);
+            if (retryAfterSeconds > 0) {
+                return new NextResponse("Too many requests", {
+                    status: 429,
+                    headers: { "Retry-After": String(retryAfterSeconds) },
+                });
+            }
+        }
+        return NextResponse.next();
+    }
     const isMaintenanceMode = process.env.NEXT_PUBLIC_MAINTENANCE_MODE === "true";
 
     if (isMaintenanceMode) {
@@ -227,6 +245,8 @@ function redirectToCircleNotFound(request: NextRequest, circleHandle: string, mo
 
 export const config = {
     matcher: [
+        // Only for the per-IP image cap at the top of middleware().
+        "/_next/image",
         "/((?!api|_next/static|_next/image|robots.txt|sitemap.xml|favicon.ico|.*\\.(?:css|js|json|txt|svg|jpg|jpeg|png|gif|webp|ico|pdf|mp4|webm|ogg|woff|woff2|ttf|eot|webmanifest)$).*)",
     ],
 };
