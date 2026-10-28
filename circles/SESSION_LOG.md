@@ -40,6 +40,31 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-28 — Crew default by act format: investigated, PARKED (nothing built)
+
+Asked: Crew ON by default for Solo, Band/Duo and DJ, OFF for every other act format; the Enable Crew toggle stays for all artists. Read-only investigation only (report and counts script: `~/cc-reports/crew-default/`, outbox `20261028-0713-crew-default.tar.gz`).
+
+**Parked (Tim, 2026-10-28) until a Music Teachers role or a band-member profile type exists.** The act formats are Solo, Duo, Band, DJ / Producer and Ensemble, so the only format the change would turn off is Ensemble, and Ensembles should keep Crew too. Teachers and band members can't be told apart today. Crew stays ON for everyone unless the artist turns it off.
+
+What to know when picking it back up:
+- `circles.crewEnabled` is never written when a profile is created. If the field is missing, Crew is ON (every check reads `!== false`). The only thing that writes it is `setCrewEnabledAction` (the auto-saving Enable Crew toggle). So "saved the toggle" = the field exists.
+- Proposed design: one helper. A saved boolean wins; otherwise use the default for `getPeerifyActFormat(circle)`. Store nothing at creation, because the act format is picked after the profile is created, and storing a value then would lock in the Solo default. Then an untouched profile follows a later format change automatically.
+- Places to switch to that helper: `circle-tabs.tsx`, `isModuleEnabled()` (`client-auth.ts`), `home-content.tsx` (2 places), `content-preview.tsx`, `pledge-dialog.tsx`, `applyForCrewMembership` (`home/actions.ts`), and the toggle's `initialValue`. `DISCOVERY_CIRCLE_PROJECTION` would need `metadata.peerify.artistProfile.actFormat` added. Also check that no write path runs circles through `circleSchema.parse`: the zod `.default(true)` on `crewEnabled` would silently mark profiles as touched.
+- DJ and Producer are one format value. Telling them apart needs `identityType`.
+- Old-box staging copy (stale since 2026-10-25): 16 artist profiles, 0 would have changed. Cleura staging and prod were not counted; `c01-crew-default-counts.js` (read-only, prints counts only) is in the archive.
+
+## Follow-up (open) — Crew still shows in places when an artist turns it off
+
+Found 2026-10-28 during the Crew-default investigation. These gaps already exist and are separate from the parked item above. None of them is visible to the public or to people outside the crew. When `crewEnabled === false`:
+- **Admin side:** Settings → Crew Applications (nav item and page) and Settings → Crew dashboard aren't gated. Admins can still approve pending applications and Broadcast to Crew (`broadcastToCrewAction` only checks `manage_crew_applications`). The resulting `crew_application_approved` / `crew_broadcast` notifications link to `/crew`, which is blocked.
+- **Crew members:** the user toolbox "Crews" tab (`user-toolbox.tsx`) still lists the circle, and clicking it lands on the blocked page. Old Crew notifications also link to the blocked page.
+- **Feed:** `getAccessibleFeedIdsForUser` (`feed.ts`) still includes the circle's Crew feed for members tagged `crew`. Past Crew posts and broadcasts keep appearing in crew members' following feed and activity panel.
+- Not a gap: crew-context DMs stay open on purpose (`message-button.tsx`). The map's "crewOffer" pins aren't tied to Crew membership.
+
+Suggested order: gate Broadcast/approve and the toolbox list first, then the feed. Not scheduled.
+
+---
+
 ## 2026-10-24 — Spaces step 1: pop-up and private spaces (owner + admin only) — on local staging, not pushed
 
 Decisions (Tim, 2026-10-24): venues stay venue circles; pop-up and home/private spaces get their own `spaces` collection. "Show space" (`hosting_show`) offers will be replaced by spaces later and were **not touched**. Nothing public in this round: no map pins, search, profile display or feed.
