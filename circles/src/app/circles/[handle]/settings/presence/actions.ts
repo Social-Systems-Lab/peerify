@@ -4,7 +4,8 @@ import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { ensureOfferPinOffset, getCircleById, getCirclePath, updateCircle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
 import { getTourTeamOfferingLabel, isRetiredOfferType } from "@/lib/data/tour-team-offerings";
-import { isFile, saveFile } from "@/lib/data/storage";
+import { isFile, removePrivateObject, savePrivateFile } from "@/lib/data/storage";
+import { offerPhotoFolder, offerPhotoRefFromKey, offerPhotoUrl, parseOfferPhotoUrl } from "@/lib/media/offer-photo";
 import { Circle, FileInfo, FormSubmitResponse, TourTeamOffering, tourTeamOfferingSchema } from "@/models/models";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -15,15 +16,36 @@ import { z } from "zod";
 // uploading on every photo pick inside the modal. Any item missing both a new file and a resolvable
 // existing url is dropped rather than persisting a broken photo entry.
 //
-// A real persisted photo URL is always a server path (/storage/... or /uploads/...), never a
+// New photos go to the private bucket (lib/media/offer-photo.ts) and are stored as their
+// /api/offer-photo/<circle id>/<file> address. One of those coming back is kept only if it belongs
+// to this circle, so an offering can't borrow another circle's photo.
+//
+// A real persisted photo URL is always a server path (/storage/..., /uploads/... or
+// /api/offer-photo/...), never a
 // blob: URL — those are ephemeral, page-session-scoped object URLs from URL.createObjectURL(),
 // meaningless once the page unloads. One can end up here if an offering's still-unresolved draft
 // photo (added via the modal but never yet through a real page save) gets re-flattened into an
 // "existing" entry by further picker interaction before its first real save — see
 // create-offer-modal.tsx's isResolvedOfferPhoto for the client-side half of this. Reject rather
 // than silently writing a dead URL into Mongo.
-function isPersistableUrl(url: string): boolean {
-    return !url.startsWith("blob:");
+function isPersistableUrl(url: string, circleId: string): boolean {
+    if (url.startsWith("blob:")) return false;
+    if (url.startsWith("/api/offer-photo/")) return parseOfferPhotoUrl(url)?.circleId === circleId;
+    return true;
+}
+
+const OFFER_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
+// saveFile's metadata stripping (GPS included) happens in savePrivateFile too; see
+// sanitize-image.ts. Anything that isn't a plain image is removed again and dropped.
+async function saveOfferPhoto(file: File, circleId: string): Promise<FileInfo | null> {
+    const saved = await savePrivateFile(file, offerPhotoFolder(circleId));
+    const ref = OFFER_PHOTO_TYPES.has(saved.contentType) ? offerPhotoRefFromKey(circleId, saved.key) : null;
+    if (!ref) {
+        await removePrivateObject(saved.key);
+        return null;
+    }
+    return { url: offerPhotoUrl(ref), fileName: ref.file, originalName: saved.originalName };
 }
 
 // Gives the circle its stored offer pin offset the first time it might show offer pins. A failure
@@ -66,11 +88,11 @@ async function resolveOfferingPhotos(offering: TourTeamOffering, circleId: strin
     const resolvedPhotos: FileInfo[] = [];
     for (const photo of draftPhotos) {
         if (isFile(photo.file)) {
-            // saveFile strips the metadata (GPS included) of every image upload; see sanitize-image.ts.
-            resolvedPhotos.push(await saveFile(photo.file, "offer-photo", circleId, true));
-        } else if (typeof photo.existingMediaUrl === "string" && isPersistableUrl(photo.existingMediaUrl)) {
+            const saved = await saveOfferPhoto(photo.file as File, circleId);
+            if (saved) resolvedPhotos.push(saved);
+        } else if (typeof photo.existingMediaUrl === "string" && isPersistableUrl(photo.existingMediaUrl, circleId)) {
             resolvedPhotos.push({ url: photo.existingMediaUrl });
-        } else if (typeof photo.url === "string" && isPersistableUrl(photo.url)) {
+        } else if (typeof photo.url === "string" && isPersistableUrl(photo.url, circleId)) {
             // Already a resolved FileInfo — e.g. every offering in the array other than the one
             // just added/edited, which arrives here as-saved, not as an ImageItem draft. Pass it
             // through unchanged rather than reconstructing {url} and dropping fileName/originalName.

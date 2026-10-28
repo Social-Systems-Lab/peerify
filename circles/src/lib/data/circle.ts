@@ -490,6 +490,17 @@ export const ensureOfferPinOffset = async (circleId: string): Promise<void> => {
     );
 };
 
+// Whether a circle still has this offer photo (its /api/offer-photo address) on one of its
+// offerings: the offer photo route serves nothing else, so a removed photo stops working at once.
+export const circleHasOfferPhoto = async (circleId: string, url: string): Promise<boolean> => {
+    if (!ObjectId.isValid(circleId)) return false;
+    const found = await Circles.findOne(
+        { _id: new ObjectId(circleId), "tourTeamOfferings.photos.url": url },
+        { projection: { _id: 1 } },
+    );
+    return !!found;
+};
+
 // Narrow projection for getOfferDetailsForMember — deliberately not SAFE_CIRCLE_PROJECTION
 // (members/accessRules/etc. have no business being read for this lookup) and deliberately not
 // OFFER_MAP_PIN_PROJECTION (that one excludes photos/detail/details on purpose — see its own

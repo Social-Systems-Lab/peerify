@@ -668,8 +668,8 @@ export async function planAccountErasure(did: string): Promise<ErasurePlan> {
 
     // --- Files ----------------------------------------------------------------------------------
     plan.files.publicPrefixes = own.map((id) => `${id}/`);
-    // Audio, and verification attachments (savePrivateFile, one folder per applicant circle).
-    plan.files.privatePrefixes = own.flatMap((id) => [`audio/${id}/`, `verification/${id}/`]);
+    // Audio, verification attachments and offer photos (savePrivateFile, one folder per circle).
+    plan.files.privatePrefixes = own.flatMap((id) => [`audio/${id}/`, `verification/${id}/`, `offer-photos/${id}/`]);
     const keys = new Set<string>();
     for (const name of ERASURE_COLLECTIONS) {
         for (const doc of plan.deletes[name]) {

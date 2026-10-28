@@ -248,8 +248,16 @@ export default async function CircleHomePage(props: PageProps) {
     const fundingPreviewAsksForAboutPage = fundingPreviewAsks.map((ask) =>
         ask.circle ? { ...ask, circle: publicCircle } : ask,
     );
+    // Offer photos are for logged-in viewers only (Tim, 2026-10-28): a logged-out visitor gets the
+    // offers without photos, old /storage ones included, and sees each type's default picture. New
+    // photos are also refused to them by /api/offer-photo itself.
     const circleForAboutPage =
-        offersPanelVisibility === "visible" || !publicCircle.tourTeamOfferings?.length
+        !viewerDid && publicCircle.tourTeamOfferings?.length
+            ? {
+                  ...publicCircle,
+                  tourTeamOfferings: publicCircle.tourTeamOfferings.map((offering) => ({ ...offering, photos: undefined })),
+              }
+            : offersPanelVisibility === "visible" || !publicCircle.tourTeamOfferings?.length
             ? publicCircle
             : {
                   ...publicCircle,

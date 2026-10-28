@@ -352,6 +352,9 @@ function seed() {
         `verification/${s(A_ID)}/moved.pdf`,
         `verification/${s(A_ID)}/stray-no-row.png`,
         "verification/carol-circle/proof.png",
+        `offer-photos/${s(A_ID)}/0123456789abcdef0123456789abcdef.jpg`,
+        `offer-photos/${s(ART_ID)}/0123456789abcdef0123456789abcdee.png`,
+        `offer-photos/${s(B_ID)}/0123456789abcdef0123456789abcded.jpg`,
     ]) {
         buckets.private.add(key);
     }
@@ -392,12 +395,13 @@ describe("eraseAccount", () => {
             [`${s(V_ID)}/bob1700.png`, `${s(V_ID)}/group1700.png`, `${s(B_ID)}/picture1700.png`].sort(),
         );
         // Audio of her own artist circle is gone; the co-run circle's song stays. Her private
-        // verification files go (by key and by her folder); Carol's stays with Carol's request.
+        // verification files and offer photos go (by key and by her folders); Carol's and Bob's stay.
         expect([...buckets.private].sort()).toEqual(
             [
                 `audio/${s(CO_ID)}/t2/original.mp3`,
                 `audio/${s(CO_ID)}/t2/preview.mp3`,
                 "verification/carol-circle/proof.png",
+                `offer-photos/${s(B_ID)}/0123456789abcdef0123456789abcded.jpg`,
             ].sort(),
         );
         expect(fs.existsSync(path.join(USERS_DIR, A))).toBe(false);
