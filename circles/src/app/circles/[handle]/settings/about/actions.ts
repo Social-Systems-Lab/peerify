@@ -231,6 +231,35 @@ export async function setCrewEnabledAction(circleId: string, crewEnabled: boolea
     return { success: true };
 }
 
+// The Pledges card's on/off toggle (PledgesEnabledToggle, about-settings-form.tsx): its own
+// auto-saving action for the same reasons as setCrewEnabledAction above.
+export async function setPledgesEnabledAction(circleId: string, pledgesEnabled: boolean): Promise<FormSubmitResponse> {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) {
+        return { success: false, message: "You need to be logged in to edit circle settings" };
+    }
+
+    const authorized = await isAuthorized(userDid, circleId, features.settings.edit_about);
+    if (!authorized) {
+        return { success: false, message: "You are not authorized to edit circle settings" };
+    }
+
+    try {
+        await updateCircle({ _id: circleId, pledgesEnabled }, userDid);
+    } catch (error) {
+        return { success: false, message: "Failed to update Pledges setting. " + error?.toString() };
+    }
+
+    const circle = await getCircleById(circleId);
+    const circlePath = circle ? await getCirclePath(circle) : null;
+    if (circlePath) {
+        revalidatePath(circlePath);
+        revalidatePath(`${circlePath}settings/about`);
+    }
+
+    return { success: true };
+}
+
 export async function publishCircleAction(formData: FormData) {
     const circleId = String(formData.get("circleId") || "");
     if (!circleId) {

@@ -842,6 +842,10 @@ export const circleSchema = z.object({
     // true (missing/true = enabled) so existing circles are unaffected. Pure visibility gate —
     // toggling this off never touches Members docs, "crew" userGroup tags, or Post documents.
     crewEnabled: z.boolean().default(true).optional(),
+    // Artist's own on/off switch for Pledges (PledgesEnabledToggle), like crewEnabled: absent or
+    // true means on. Off hides the Pledge button and refuses new pledges; existing pledges are
+    // kept and stay on the Pledges dashboard.
+    pledgesEnabled: z.boolean().default(true).optional(),
     isPublic: z.boolean().optional(),
     showAdminsPublicly: z.boolean().optional(),
     mapVisible: z.boolean().optional(),

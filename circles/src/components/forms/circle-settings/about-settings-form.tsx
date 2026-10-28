@@ -7,11 +7,11 @@ import { Form } from "@/components/ui/form";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/use-toast";
-import { Circle } from "@/models/models";
+import { Circle, FormSubmitResponse } from "@/models/models";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { useForm, Controller, Control, FieldValues } from "react-hook-form";
-import { saveAbout, setCrewEnabledAction } from "@/app/circles/[handle]/settings/about/actions";
+import { saveAbout, setCrewEnabledAction, setPledgesEnabledAction } from "@/app/circles/[handle]/settings/about/actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown } from "lucide-react";
@@ -334,14 +334,31 @@ const PeerifyCheckboxField = ({
     </label>
 );
 
-// Deliberately NOT part of the react-hook-form state the rest of this form shares — this
-// toggle auto-saves on click via its own server action (setCrewEnabledAction), the same
-// pattern crew-member-rail.tsx's crewVisible Switch already uses (optimistic flip, revert +
-// toast only on failure, no success toast for something this minor). Staying out of the shared
-// form means neither direction of accidental interference is possible: clicking this never
-// saves/discards unrelated unsaved Description/Content/Welcome Message edits, and clicking the
-// form's own Save Changes button never resets this back to a stale default value.
-const CrewEnabledToggle = ({ circleId, initialValue }: { circleId: string; initialValue: boolean }) => {
+// Deliberately NOT part of the react-hook-form state the rest of this form shares — these
+// toggles auto-save on click via their own server action (setCrewEnabledAction,
+// setPledgesEnabledAction), the same pattern crew-member-rail.tsx's crewVisible Switch already
+// uses (optimistic flip, revert + toast only on failure, no success toast for something this
+// minor). Staying out of the shared form means neither direction of accidental interference is
+// possible: clicking one never saves/discards unrelated unsaved Description/Content/Welcome
+// Message edits, and clicking the form's own Save Changes button never resets one back to a stale
+// default value.
+const AutoSaveSwitch = ({
+    id,
+    label,
+    onDescription,
+    offDescription,
+    errorMessage,
+    initialValue,
+    save,
+}: {
+    id: string;
+    label: string;
+    onDescription: string;
+    offDescription: string;
+    errorMessage: string;
+    initialValue: boolean;
+    save: (checked: boolean) => Promise<FormSubmitResponse>;
+}) => {
     const { toast } = useToast();
     const [enabled, setEnabled] = useState(initialValue);
     const [isSaving, setIsSaving] = useState(false);
@@ -351,13 +368,13 @@ const CrewEnabledToggle = ({ circleId, initialValue }: { circleId: string; initi
         setIsSaving(true);
         setJustSaved(false);
         setEnabled(checked);
-        const res = await setCrewEnabledAction(circleId, checked);
+        const res = await save(checked);
         setIsSaving(false);
         if (!res.success) {
             setEnabled(!checked);
             toast({
                 title: "Error",
-                description: res.message || "Failed to update Crew setting",
+                description: res.message || errorMessage,
                 variant: "destructive",
             });
             return;
@@ -368,18 +385,14 @@ const CrewEnabledToggle = ({ circleId, initialValue }: { circleId: string; initi
 
     return (
         <div className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm">
-            <Label htmlFor="crew-enabled-toggle">
-                <span className="block font-medium">Enable Crew</span>
-                <span className="mt-1 block text-muted-foreground">
-                    {enabled
-                        ? "Fans can apply to join your Crew and see your Crew page."
-                        : "Crew is hidden from your page. Existing Crew members and applications are kept — just not visible to fans."}
-                </span>
+            <Label htmlFor={id}>
+                <span className="block font-medium">{label}</span>
+                <span className="mt-1 block text-muted-foreground">{enabled ? onDescription : offDescription}</span>
             </Label>
             <div className="flex shrink-0 items-center gap-2">
                 {justSaved && <span className="text-xs text-muted-foreground">Saved</span>}
                 <Switch
-                    id="crew-enabled-toggle"
+                    id={id}
                     checked={enabled}
                     onCheckedChange={onToggle}
                     disabled={isSaving}
@@ -393,6 +406,30 @@ const CrewEnabledToggle = ({ circleId, initialValue }: { circleId: string; initi
         </div>
     );
 };
+
+const CrewEnabledToggle = ({ circleId, initialValue }: { circleId: string; initialValue: boolean }) => (
+    <AutoSaveSwitch
+        id="crew-enabled-toggle"
+        label="Enable Crew"
+        onDescription="Fans can apply to join your Crew and see your Crew page."
+        offDescription="Crew is hidden from your page. Existing Crew members and applications are kept — just not visible to fans."
+        errorMessage="Failed to update Crew setting"
+        initialValue={initialValue}
+        save={(checked) => setCrewEnabledAction(circleId, checked)}
+    />
+);
+
+const PledgesEnabledToggle = ({ circleId, initialValue }: { circleId: string; initialValue: boolean }) => (
+    <AutoSaveSwitch
+        id="pledges-enabled-toggle"
+        label="Enable Pledges"
+        onDescription="Fans can pledge interest in a show near them."
+        offDescription="The Pledge button is hidden and new pledges are turned away. Existing pledges are kept on your Pledges dashboard."
+        errorMessage="Failed to update Pledges setting"
+        initialValue={initialValue}
+        save={(checked) => setPledgesEnabledAction(circleId, checked)}
+    />
+);
 
 const ADDRESS_VISIBILITY_OPTIONS = [
     { value: "private", label: "Private — show city/area only" },
@@ -1097,6 +1134,19 @@ export function AboutSettingsForm({
                                 />
                             )}
                         />
+                    </div>
+                )}
+
+                {/* Same circles that show the Pledge button (isPeerifyArtistIdentity). */}
+                {isCrewEligibleCircle && (
+                    <div className="space-y-4 rounded-lg border bg-slate-50 p-4">
+                        <div className="space-y-1">
+                            <h3 className="font-medium">Pledges</h3>
+                            <p className="text-sm text-muted-foreground">
+                                A pledge is not a ticket purchase. It shows you where fans would come to a show.
+                            </p>
+                        </div>
+                        <PledgesEnabledToggle circleId={circle._id ?? ""} initialValue={circle.pledgesEnabled !== false} />
                     </div>
                 )}
 

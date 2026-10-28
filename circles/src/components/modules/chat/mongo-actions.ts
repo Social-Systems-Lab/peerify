@@ -1182,6 +1182,11 @@ export const sendPeerifyArtistEnquiryAction = async ({
         return { success: false, message: "This profile is not accepting booking enquiries" };
     }
 
+    // Same: the Pledge button is hidden when the artist turned Pledges off (pledgesEnabled).
+    if (enquiryType === "pledge" && artist.pledgesEnabled === false) {
+        return { success: false, message: "This artist isn't taking pledges right now" };
+    }
+
     const sender = await getCircleByDid(userDid);
     if (!sender?._id || !sender.did) {
         return { success: false, message: "Could not resolve your profile" };

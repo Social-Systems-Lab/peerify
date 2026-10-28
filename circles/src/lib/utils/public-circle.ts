@@ -47,6 +47,7 @@ const PUBLIC_CIRCLE_FIELDS = [
     "enabledModules",
     "accessRules",
     "crewEnabled",
+    "pledgesEnabled",
     "crewWelcomeMessage",
     "questionnaire",
     "isFoundingMember",
