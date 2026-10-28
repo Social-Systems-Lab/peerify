@@ -754,7 +754,10 @@ export type EventTags = z.infer<typeof eventTagsSchema>;
 // circles. "popup" is a business or room that hosts now and then (a café after closing, a shop), so
 // its location is kept as entered; "private" is a home or other private place, and only its rough
 // area is ever stored (lib/spaces/space-rules.ts rounds the location before anything is saved).
-// Nothing public reads this collection: a space is seen only by its owner and platform admins.
+// A private space whose owner turns on publiclyListed goes on the map: its stored point is then the
+// point the owner picked, moved by the owner's circle offerPinOffset (the same 200–400 m shift as
+// their offer pins), and mapPinPlacedAt says when. Without mapPinPlacedAt the stored point is the
+// rounded area (every space saved before 2026-10-28), which is never shown.
 // Setting and step-free access reuse the event tags' vocabularies (indoor/outdoor, accessible/
 // stairs involved/not specified) so the words match what hosts already see on events.
 export const SPACE_TYPES = ["popup", "private"] as const;
@@ -794,6 +797,9 @@ export const privateSpaceInputSchema = z.object({
     stepFreeAccess: eventTagAccessibilitySchema,
     // Read by platform admins only; the form asks people not to put an address here.
     notesForPeerify: z.string().trim().max(SPACE_NOTES_MAX_LENGTH).optional(),
+    // Off unless the owner turns it on: spaces saved before this existed were saved as "only you
+    // and the Peerify team can see this".
+    publiclyListed: z.boolean().optional(),
     ...spaceCommonInputFields,
 });
 
@@ -814,7 +820,7 @@ type StoredSpaceFields<T> = Omit<T, "listeningRuleAccepted" | "hostResponsibilit
 };
 export type SpaceDoc =
     | StoredSpaceFields<z.infer<typeof popupSpaceInputSchema>>
-    | StoredSpaceFields<z.infer<typeof privateSpaceInputSchema>>;
+    | (StoredSpaceFields<z.infer<typeof privateSpaceInputSchema>> & { mapPinPlacedAt?: Date });
 
 export const circleSchema = z.object({
     _id: z.any().optional(),

@@ -52,6 +52,14 @@ function SpaceDetails({ space }: { space: SpaceView }) {
         rows.push(["Sound", SPACE_AMPLIFICATION_LABELS[space.amplification]]);
         if (space.noiseCurfew) rows.push(["Noise curfew", space.noiseCurfew]);
         rows.push(["Step-free access", spaceStepFreeAccessLabel(space.stepFreeAccess)]);
+        rows.push([
+            "On the map",
+            !space.publiclyListed
+                ? "No"
+                : space.mapPinPlacedAt
+                  ? "Yes, as a pin near your place"
+                  : "Not yet: edit the space and pick your place on the map",
+        ]);
     }
     rows.push(["In return", space.dealPreferences.map((d) => SPACE_DEAL_PREFERENCE_LABELS[d]).join(", ")]);
     if (space.type === "private" && space.notesForPeerify) rows.push(["Notes for Peerify", space.notesForPeerify]);

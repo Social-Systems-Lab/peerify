@@ -7,12 +7,18 @@
 // location.
 //
 // No discovery path (circle queries, search, map feeds, the vector index) reads this collection.
+//
+// A private space its owner puts on the map (publiclyListed) is the one place a picked point
+// arrives: placePrivateSpaceLocation moves it by the owner's offerPinOffset before anything is
+// stored, and only the moved point is kept.
 
 import { ObjectId } from "mongodb";
 import { Circles, Spaces } from "./db";
-import { SpaceDoc, SpaceInput, SpaceType } from "@/models/models";
+import { ensureOfferPinOffset } from "./circle";
+import { Location, SpaceDoc, SpaceInput, SpaceType } from "@/models/models";
 import { canPerformRestrictedAction } from "@/lib/auth/verification";
-import { SPACES_PER_PERSON_MAX } from "@/lib/spaces/space-rules";
+import { LngLat, SPACES_PER_PERSON_MAX } from "@/lib/spaces/space-rules";
+import { OfferPinOffset, applyOfferPinOffset, isValidOfferPinOffset } from "@/lib/utils";
 
 export { SPACES_PER_PERSON_MAX };
 
@@ -35,6 +41,8 @@ const SPACE_PROJECTION = {
     noiseCurfew: 1,
     stepFreeAccess: 1,
     notesForPeerify: 1,
+    publiclyListed: 1,
+    mapPinPlacedAt: 1,
     listeningRuleAcceptedAt: 1,
     hostResponsibilityAcceptedAt: 1,
     createdAt: 1,
@@ -44,7 +52,7 @@ const SPACE_PROJECTION = {
 // Optional fields per type: cleared with $unset when an edit leaves them empty.
 const OPTIONAL_FIELDS: Record<SpaceType, string[]> = {
     popup: ["noiseLimits"],
-    private: ["noiseCurfew", "notesForPeerify"],
+    private: ["noiseCurfew", "notesForPeerify", "mapPinPlacedAt"],
 };
 
 // Omit that keeps the popup/private union, so code can still narrow on `type`.
@@ -53,26 +61,30 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 // What the browser gets: ids and dates as strings.
 export type SpaceView = DistributiveOmit<
     SpaceDoc,
-    "_id" | "listeningRuleAcceptedAt" | "hostResponsibilityAcceptedAt" | "createdAt" | "updatedAt"
+    "_id" | "listeningRuleAcceptedAt" | "hostResponsibilityAcceptedAt" | "createdAt" | "updatedAt" | "mapPinPlacedAt"
 > & {
     _id: string;
     listeningRuleAcceptedAt: string;
     hostResponsibilityAcceptedAt: string;
     createdAt: string;
     updatedAt: string;
+    mapPinPlacedAt?: string;
 };
 
 const toIso = (value: unknown): string => (value instanceof Date ? value.toISOString() : String(value ?? ""));
 
-export const toSpaceView = (doc: SpaceDoc): SpaceView =>
-    ({
+export const toSpaceView = (doc: SpaceDoc): SpaceView => {
+    const mapPinPlacedAt = doc.type === "private" ? doc.mapPinPlacedAt : undefined;
+    return {
         ...doc,
         _id: String(doc._id),
         listeningRuleAcceptedAt: toIso(doc.listeningRuleAcceptedAt),
         hostResponsibilityAcceptedAt: toIso(doc.hostResponsibilityAcceptedAt),
         createdAt: toIso(doc.createdAt),
         updatedAt: toIso(doc.updatedAt),
-    }) as SpaceView;
+        ...(mapPinPlacedAt ? { mapPinPlacedAt: toIso(mapPinPlacedAt) } : {}),
+    } as SpaceView;
+};
 
 const toObjectId = (id: string): ObjectId | null => (ObjectId.isValid(id) ? new ObjectId(id) : null);
 
@@ -96,6 +108,70 @@ export const getSpaceActor = async (
     return { did, isAdmin: user.isAdmin === true, canCreate: canPerformRestrictedAction(user) };
 };
 
+// The owner's offerPinOffset, created if they have none yet: one offset per person, shared by
+// their offer pins and their spaces' pins. Two different shifts of the same home would draw two
+// rings around it that cross at only two points. Null when it can't be had (no user row, or a
+// stored offset that isn't valid); the space then stays off the map.
+const getOwnerPinOffset = async (ownerDid: string): Promise<OfferPinOffset | null> => {
+    const owner = await Circles.findOne({ did: ownerDid, circleType: "user" }, { projection: { _id: 1, offerPinOffset: 1 } });
+    if (!owner) return null;
+    if (isValidOfferPinOffset(owner.offerPinOffset)) return owner.offerPinOffset;
+    await ensureOfferPinOffset(String(owner._id));
+    const again = await Circles.findOne({ _id: owner._id }, { projection: { offerPinOffset: 1 } });
+    return isValidOfferPinOffset(again?.offerPinOffset) ? again.offerPinOffset : null;
+};
+
+const sameLngLat = (a: LngLat | undefined, b: LngLat): boolean => !!a && a.lng === b.lng && a.lat === b.lat;
+
+type PlacedLocation = { location: Location; mapPinPlacedAt?: Date };
+
+// What a private space stores as its location.
+// - Not on the map: the rounded area from parseSpaceInput, and no mapPinPlacedAt.
+// - On the map, and the form sent back the point it was given (the owner didn't pick again):
+//   whatever is stored stays. That keeps an existing pin where it is, and keeps a space saved with
+//   only its rounded area off the map until the owner picks their place.
+// - On the map, newly picked: the picked point moved by the owner's offset, with the area names.
+export const placePrivateSpaceLocation = async (
+    ownerDid: string,
+    input: Extract<SpaceInput, { type: "private" }>,
+    pickedLngLat: LngLat | undefined,
+    current?: SpaceDoc | null,
+): Promise<PlacedLocation> => {
+    if (!input.publiclyListed || !pickedLngLat) {
+        return { location: input.location };
+    }
+    if (current?.type === "private" && sameLngLat(current.location?.lngLat, pickedLngLat)) {
+        return current.mapPinPlacedAt
+            ? { location: current.location, mapPinPlacedAt: current.mapPinPlacedAt }
+            : { location: input.location };
+    }
+    const offset = await getOwnerPinOffset(ownerDid);
+    if (!offset) {
+        return { location: input.location };
+    }
+    return {
+        location: { ...input.location, lngLat: applyOfferPinOffset(pickedLngLat, offset) },
+        mapPinPlacedAt: new Date(),
+    };
+};
+
+// The stored fields of a parsed input, with a private space's location placed.
+const toPlacedFields = async (
+    ownerDid: string,
+    input: SpaceInput,
+    pickedLngLat: LngLat | undefined,
+    current?: SpaceDoc | null,
+): Promise<Record<string, unknown>> => {
+    const fields = toStoredFields(input) as Record<string, unknown>;
+    if (input.type !== "private") return fields;
+    const placed = await placePrivateSpaceLocation(ownerDid, input, pickedLngLat, current);
+    return {
+        ...fields,
+        location: placed.location,
+        ...(placed.mapPinPlacedAt ? { mapPinPlacedAt: placed.mapPinPlacedAt } : {}),
+    };
+};
+
 export const listSpacesForOwner = async (ownerDid: string): Promise<SpaceView[]> => {
     const docs = (await Spaces.find({ ownerDid }, { projection: SPACE_PROJECTION })
         .sort({ createdAt: 1 })
@@ -107,14 +183,18 @@ export type CreateSpaceResult = { ok: true; id: string } | { ok: false; reason: 
 
 // The cap is checked before the insert, so two saves at the same moment could both pass; a person
 // racing themselves to an 11th space isn't worth a transaction.
-export const createSpaceForOwner = async (ownerDid: string, input: SpaceInput): Promise<CreateSpaceResult> => {
+export const createSpaceForOwner = async (
+    ownerDid: string,
+    input: SpaceInput,
+    pickedLngLat?: LngLat,
+): Promise<CreateSpaceResult> => {
     const count = await Spaces.countDocuments({ ownerDid });
     if (count >= SPACES_PER_PERSON_MAX) {
         return { ok: false, reason: "limit" };
     }
     const now = new Date();
     const doc = {
-        ...toStoredFields(input),
+        ...(await toPlacedFields(ownerDid, input, pickedLngLat)),
         ownerDid,
         listeningRuleAcceptedAt: now,
         hostResponsibilityAcceptedAt: now,
@@ -127,10 +207,19 @@ export const createSpaceForOwner = async (ownerDid: string, input: SpaceInput): 
 
 // The type can't change on edit: the filter includes it, so a pop-up can't be turned into a
 // private space (or back) with leftover fields of the other kind.
-export const updateSpaceForOwner = async (ownerDid: string, spaceId: string, input: SpaceInput): Promise<boolean> => {
+export const updateSpaceForOwner = async (
+    ownerDid: string,
+    spaceId: string,
+    input: SpaceInput,
+    pickedLngLat?: LngLat,
+): Promise<boolean> => {
     const _id = toObjectId(spaceId);
     if (!_id) return false;
-    const fields = toStoredFields(input) as Record<string, unknown>;
+    const current =
+        input.type === "private" && pickedLngLat
+            ? ((await Spaces.findOne({ _id, ownerDid, type: input.type }, { projection: SPACE_PROJECTION })) as SpaceDoc | null)
+            : null;
+    const fields = await toPlacedFields(ownerDid, input, pickedLngLat, current);
     const unset = Object.fromEntries(
         OPTIONAL_FIELDS[input.type].filter((key) => fields[key] === undefined).map((key) => [key, ""]),
     );

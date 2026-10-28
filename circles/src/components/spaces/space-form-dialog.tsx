@@ -1,14 +1,17 @@
 "use client";
 
 // Add or edit one pop-up or private space (see lib/data/space.ts). The server validates again with
-// parseSpaceInput; checks here are only for quick feedback. For a private space the picked location
-// is rounded to its area the moment it's picked (toAreaOnlyLocation), so the exact point stays in
-// the browser: the map pin jumps to the rounded point to show what will be stored.
+// parseSpaceInput; checks here are only for quick feedback. For a private space that isn't on the
+// map, the picked location is rounded to its area the moment it's picked (toAreaOnlyLocation), so
+// the exact point stays in the browser: the map pin jumps to the rounded point to show what will be
+// stored. A private space on the map (publiclyListed) sends the picked point instead; the server
+// moves it 200–400 m and stores only the moved point.
 
 import React, { useCallback, useState, useTransition } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -29,6 +32,7 @@ import {
 import { EVENT_TAG_ACCESSIBILITY_OPTIONS, EVENT_TAG_SETTING_OPTIONS } from "@/lib/peerify/event-tags";
 import type { EventTagAccessibility, EventTagSetting } from "@/lib/peerify/event-tags";
 import { PRIVATE_SPACE_PRECISION, toAreaOnlyLocation } from "@/lib/spaces/space-rules";
+import { OFFER_PIN_OFFSET_MAX_METERS, OFFER_PIN_OFFSET_MIN_METERS } from "@/lib/utils";
 import {
     HOST_RESPONSIBILITY_TEXT,
     LISTENING_RULE_TEXT,
@@ -40,6 +44,8 @@ import {
 } from "@/lib/spaces/space-labels";
 import type { SpaceView } from "@/lib/data/space";
 import { createSpaceAction, updateSpaceAction } from "@/app/circles/[handle]/settings/spaces/actions";
+
+const PIN_RANGE = `${OFFER_PIN_OFFSET_MIN_METERS}–${OFFER_PIN_OFFSET_MAX_METERS} m`;
 
 type FormState = {
     name: string;
@@ -55,6 +61,7 @@ type FormState = {
     noiseCurfew: string;
     stepFreeAccess: EventTagAccessibility | "";
     notesForPeerify: string;
+    publiclyListed: boolean;
     listeningRuleAccepted: boolean;
     hostResponsibilityAccepted: boolean;
 };
@@ -75,6 +82,7 @@ const fromSpace = (space: SpaceView | undefined): FormState => {
         noiseCurfew: s.noiseCurfew ?? "",
         stepFreeAccess: s.stepFreeAccess ?? "",
         notesForPeerify: s.notesForPeerify ?? "",
+        publiclyListed: s.publiclyListed === true,
         // An existing space was saved with both ticked.
         listeningRuleAccepted: !!space,
         hostResponsibilityAccepted: !!space,
@@ -108,12 +116,16 @@ const toInput = (type: SpaceType, form: FormState) => {
         noiseCurfew: form.noiseCurfew,
         stepFreeAccess: form.stepFreeAccess,
         notesForPeerify: form.notesForPeerify,
+        publiclyListed: form.publiclyListed,
     };
 };
 
 const quickCheck = (type: SpaceType, form: FormState): string | null => {
     if (type === "popup" && !form.name.trim()) return "Give the space a name.";
-    if (!form.location?.lngLat) return type === "popup" ? "Pick the place on the map." : "Pick your area on the map.";
+    if (!form.location?.lngLat) {
+        if (type === "popup") return "Pick the place on the map.";
+        return form.publiclyListed ? "Pick your place on the map." : "Pick your area on the map.";
+    }
     const capacity = Number(form.capacity);
     if (!Number.isInteger(capacity) || capacity < 1) return "Enter how many people fit, as a whole number.";
     if (type === "popup" && !form.showTimes.trim()) return "Say when shows are possible.";
@@ -141,6 +153,9 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
     const [error, setError] = useState<string | null>(null);
     const idPrefix = React.useId();
     const isPrivate = type === "private";
+    // Saved with a pin already: the form sends its stored point back, and the server keeps it.
+    const hasPlacedPin = !!(space && space.type === "private" && space.mapPinPlacedAt);
+    const isListed = isPrivate && form.publiclyListed;
 
     const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
         setError(null);
@@ -151,10 +166,26 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
     const handleLocationChange = useCallback(
         (location: Location | undefined) => {
             setError(null);
-            setForm((current) => ({ ...current, location: isPrivate ? toAreaOnlyLocation(location) : location }));
+            setForm((current) => ({
+                ...current,
+                location: isPrivate && !current.publiclyListed ? toAreaOnlyLocation(location) : location,
+            }));
         },
         [isPrivate],
     );
+
+    // Turning the map on asks for the place itself, unless this space already has its pin: a
+    // rounded area can't become a pin. Turning it off rounds whatever was picked.
+    const setListed = (on: boolean) => {
+        setError(null);
+        setForm((current) => {
+            if (!on) return { ...current, publiclyListed: false, location: toAreaOnlyLocation(current.location) };
+            const stored = space?.location?.lngLat;
+            const picked = current.location?.lngLat;
+            const keep = hasPlacedPin && !!stored && !!picked && stored.lng === picked.lng && stored.lat === picked.lat;
+            return { ...current, publiclyListed: true, location: keep ? current.location : undefined };
+        });
+    };
 
     const toggleDeal = (deal: SpaceDealPreference, on: boolean) => {
         setError(null);
@@ -211,9 +242,11 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
                         {space ? "Edit" : "Add a"} {SPACE_TYPE_LABELS[type].toLowerCase()}
                     </DialogTitle>
                     <DialogDescription>
-                        {isPrivate
-                            ? "Only you and the Peerify team can see this. We store the rough area only, never your address."
-                            : "Only you and the Peerify team can see this for now."}
+                        {isListed
+                            ? `Shown on the map as a pin ${PIN_RANGE} from your place. We never store or show your address.`
+                            : isPrivate
+                              ? "Only you and the Peerify team can see this. We store the rough area only, never your address."
+                              : "Only you and the Peerify team can see this for now."}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -231,15 +264,37 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
                         </div>
                     ) : null}
 
+                    {isPrivate ? (
+                        <div className="flex items-start justify-between gap-4 rounded-md border p-4">
+                            <div className="space-y-1">
+                                <Label htmlFor={id("listed")}>Show this space on the Peerify map</Label>
+                                <p className="text-sm text-muted-foreground">
+                                    People see a pin with the kind of space and your area&apos;s name, never your
+                                    name, profile or address. The pin sits {PIN_RANGE} from the place you pick, in a
+                                    direction we choose at random.
+                                </p>
+                            </div>
+                            <Switch id={id("listed")} checked={form.publiclyListed} onCheckedChange={setListed} />
+                        </div>
+                    ) : null}
+
                     <div className="space-y-2">
-                        <Label>{isPrivate ? "Your area" : "Where it is"}</Label>
+                        <Label>{isListed ? "Your place" : isPrivate ? "Your area" : "Where it is"}</Label>
                         <p className="text-sm text-muted-foreground">
-                            {isPrivate
-                                ? "Search for your town or tap the map near you. We round it to an area of about 10 km, and that's all we keep: the pin moves to the rounded point."
-                                : "Search for the address or tap the map."}
+                            {isListed
+                                ? `Search for your address or tap the map at your place. Before saving, we move the point ${PIN_RANGE} in a random direction and keep only the moved point, never the one you picked.`
+                                : isPrivate
+                                  ? "Search for your town or tap the map near you. We round it to an area of about 10 km, and that's all we keep: the pin moves to the rounded point."
+                                  : "Search for the address or tap the map."}
                         </p>
                         <LocationPicker
-                            value={isPrivate ? (form.location ?? { precision: PRIVATE_SPACE_PRECISION }) : form.location}
+                            value={
+                                isListed
+                                    ? (form.location ?? { precision: 4 })
+                                    : isPrivate
+                                      ? (form.location ?? { precision: PRIVATE_SPACE_PRECISION })
+                                      : form.location
+                            }
                             onChange={handleLocationChange}
                             compact={true}
                         />

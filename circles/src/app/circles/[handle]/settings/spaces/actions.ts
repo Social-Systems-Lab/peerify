@@ -55,7 +55,7 @@ export async function createSpaceAction(raw: unknown): Promise<SpaceActionResult
         const parsed = parseSpaceInput(raw);
         if (!parsed.ok) return { success: false, message: `Please check the form (${parsed.error}).` };
 
-        const created = await createSpaceForOwner(actor.did, parsed.value);
+        const created = await createSpaceForOwner(actor.did, parsed.value, parsed.pickedLngLat);
         if (!created.ok) {
             return {
                 success: false,
@@ -77,7 +77,7 @@ export async function updateSpaceAction(spaceId: string, raw: unknown): Promise<
         const parsed = parseSpaceInput(raw);
         if (!parsed.ok) return { success: false, message: `Please check the form (${parsed.error}).` };
 
-        const updated = await updateSpaceForOwner(did, String(spaceId), parsed.value);
+        const updated = await updateSpaceForOwner(did, String(spaceId), parsed.value, parsed.pickedLngLat);
         if (!updated) return { success: false, message: NOT_FOUND };
         return { success: true, spaces: await listSpacesForOwner(did) };
     } catch (error) {

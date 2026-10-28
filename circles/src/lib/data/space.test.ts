@@ -5,6 +5,7 @@
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { createFakeDb } from "@/lib/testing/fake-db";
+import { ObjectId } from "mongodb";
 
 const fakeDb = createFakeDb();
 mock.module("@/lib/data/db", () => fakeDb.module);
@@ -259,5 +260,114 @@ describe("getSpaceActor", () => {
         expect(await getSpaceActor("did:test:admin")).toEqual({ did: "did:test:admin", isAdmin: true, canCreate: true });
         expect(await getSpaceActor("did:test:artist")).toBeNull();
         expect(await getSpaceActor(undefined)).toBeNull();
+    });
+});
+
+describe("private space on the map (publiclyListed)", () => {
+    const OFFSET = { bearingDeg: 123.45, distanceM: 300 };
+    const metersBetween = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) => {
+        const dLat = (a.lat - b.lat) * 111_320;
+        const dLng = (a.lng - b.lng) * 111_320 * Math.cos((b.lat * Math.PI) / 180);
+        return Math.sqrt(dLat * dLat + dLng * dLng);
+    };
+    const parsedFull = (raw: unknown) => {
+        const result = parseSpaceInput(raw);
+        if (!result.ok) throw new Error(result.error);
+        return result;
+    };
+    const withOwner = (offerPinOffset?: unknown) =>
+        fakeDb.reset({
+            Circles: [{ _id: new ObjectId(), did: ALICE, circleType: "user", ...(offerPinOffset ? { offerPinOffset } : {}) }],
+        });
+
+    test("off by default; parse hands back the picked point only when listed", () => {
+        const off = parsedFull(privateInput());
+        expect(off.pickedLngLat).toBeUndefined();
+        expect((off.value as any).publiclyListed).toBe(false);
+        const on = parsedFull(privateInput({ publiclyListed: true }));
+        expect(on.pickedLngLat).toEqual(EXACT.lngLat);
+        // The value itself is still the rounded area: a caller that ignores pickedLngLat stores that.
+        expect(on.value.location).toEqual(toAreaOnlyLocation(EXACT));
+    });
+
+    test("stores the point moved by the owner's offset, never the picked one", async () => {
+        withOwner(OFFSET);
+        const input = parsedFull(privateInput({ publiclyListed: true }));
+        expect((await createSpaceForOwner(ALICE, input.value, input.pickedLngLat)).ok).toBe(true);
+        const [doc] = stored();
+        const raw = JSON.stringify(doc);
+        expect(raw.includes(String(EXACT.lngLat.lng))).toBe(false);
+        expect(raw.includes(String(EXACT.lngLat.lat))).toBe(false);
+        expect(raw.includes("Drottninggatan")).toBe(false);
+        expect(Math.abs(metersBetween(doc.location.lngLat, EXACT.lngLat) - 300) < 1).toBe(true);
+        expect(doc.mapPinPlacedAt instanceof Date).toBe(true);
+        expect(doc.publiclyListed).toBe(true);
+    });
+
+    test("a person without an offset gets one, and it's the one on their circle", async () => {
+        withOwner();
+        const input = parsedFull(privateInput({ publiclyListed: true }));
+        await createSpaceForOwner(ALICE, input.value, input.pickedLngLat);
+        const owner = fakeDb.col("Circles").docs[0];
+        expect(owner.offerPinOffset.distanceM >= 200 && owner.offerPinOffset.distanceM <= 400).toBe(true);
+        const d = metersBetween(stored()[0].location.lngLat, EXACT.lngLat);
+        expect(Math.abs(d - owner.offerPinOffset.distanceM) < 1).toBe(true);
+    });
+
+    test("two spaces at the same place get the same pin (one offset per person)", async () => {
+        withOwner(OFFSET);
+        const input = parsedFull(privateInput({ publiclyListed: true }));
+        await createSpaceForOwner(ALICE, input.value, input.pickedLngLat);
+        await createSpaceForOwner(ALICE, input.value, input.pickedLngLat);
+        expect(stored()[0].location.lngLat).toEqual(stored()[1].location.lngLat);
+    });
+
+    test("an edit that sends the stored pin back keeps it; picking again moves it", async () => {
+        withOwner(OFFSET);
+        const input = parsedFull(privateInput({ publiclyListed: true }));
+        const { id } = (await createSpaceForOwner(ALICE, input.value, input.pickedLngLat)) as { ok: true; id: string };
+        const pin = { ...stored()[0].location.lngLat };
+        const placedAt = stored()[0].mapPinPlacedAt;
+
+        const sameAgain = parsedFull(privateInput({ publiclyListed: true, location: { ...EXACT, lngLat: pin }, capacity: 30 }));
+        expect(await updateSpaceForOwner(ALICE, id, sameAgain.value, sameAgain.pickedLngLat)).toBe(true);
+        expect(stored()[0].location.lngLat).toEqual(pin);
+        expect(stored()[0].mapPinPlacedAt).toEqual(placedAt);
+        expect(stored()[0].capacity).toBe(30);
+
+        const elsewhere = { lng: 18.07, lat: 59.34 };
+        const moved = parsedFull(privateInput({ publiclyListed: true, location: { ...EXACT, lngLat: elsewhere } }));
+        await updateSpaceForOwner(ALICE, id, moved.value, moved.pickedLngLat);
+        expect(Math.abs(metersBetween(stored()[0].location.lngLat, elsewhere) - 300) < 1).toBe(true);
+    });
+
+    test("a space saved with its rounded area stays off the map until the place is picked", async () => {
+        withOwner(OFFSET);
+        const { id } = (await createSpaceForOwner(ALICE, parsed(privateInput()))) as { ok: true; id: string };
+        const area = { ...stored()[0].location.lngLat };
+        const optIn = parsedFull(privateInput({ publiclyListed: true, location: { ...EXACT, lngLat: area } }));
+        await updateSpaceForOwner(ALICE, id, optIn.value, optIn.pickedLngLat);
+        expect(stored()[0].location.lngLat).toEqual(area);
+        expect(stored()[0].mapPinPlacedAt).toBeUndefined();
+    });
+
+    test("turning it off rounds the point again and drops the pin date", async () => {
+        withOwner(OFFSET);
+        const input = parsedFull(privateInput({ publiclyListed: true }));
+        const { id } = (await createSpaceForOwner(ALICE, input.value, input.pickedLngLat)) as { ok: true; id: string };
+        const pin = stored()[0].location.lngLat;
+        const off = parsedFull(privateInput({ publiclyListed: false, location: { ...EXACT, lngLat: pin } }));
+        await updateSpaceForOwner(ALICE, id, off.value, off.pickedLngLat);
+        expect(stored()[0].location.lngLat).toEqual(coarsenLngLat(pin, 0.1));
+        expect("mapPinPlacedAt" in stored()[0]).toBe(false);
+        expect(stored()[0].publiclyListed).toBe(false);
+    });
+
+    test("an invalid stored offset keeps the space off the map", async () => {
+        withOwner({ bearingDeg: 10, distanceM: 5 });
+        const input = parsedFull(privateInput({ publiclyListed: true }));
+        await createSpaceForOwner(ALICE, input.value, input.pickedLngLat);
+        expect(stored()[0].location).toEqual(toAreaOnlyLocation(EXACT));
+        expect(stored()[0].mapPinPlacedAt).toBeUndefined();
     });
 });

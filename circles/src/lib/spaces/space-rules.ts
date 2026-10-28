@@ -5,6 +5,12 @@
 // allow-list. For a private space that rebuild is toAreaOnlyLocation: the exact spot is never
 // stored, only the rough area. The form runs the same rounding as soon as a location is picked, so
 // the exact point normally never leaves the browser either.
+//
+// The one exception is a private space the owner puts on the map (publiclyListed). Then the form
+// sends the picked point, and parseSpaceInput hands it back separately as pickedLngLat, next to an
+// area-only value. lib/data/space.ts moves it by the owner's offset and stores only the moved
+// point; the picked one is never stored or logged. A caller that ignores pickedLngLat stores the
+// rounded area, never the picked point.
 
 import { Location, SpaceInput, spaceInputSchema } from "@/models/models";
 import { coarsenLngLat } from "@/lib/utils";
@@ -42,7 +48,7 @@ export function toAreaOnlyLocation(location: Location | undefined): Location | u
 }
 
 // A pop-up space keeps the location as entered (it's a business), minus fields that aren't part
-// of a location and the public "show exact" confirmation: nothing shows spaces publicly yet.
+// of a location and the public "show exact" confirmation: pop-up spaces aren't shown publicly.
 function toPopupLocation(location: Location | undefined): Location | undefined {
     if (!location || !hasFiniteLngLat(location)) {
         return undefined;
@@ -58,7 +64,11 @@ function toPopupLocation(location: Location | undefined): Location | undefined {
     });
 }
 
-export type ParseSpaceResult = { ok: true; value: SpaceInput } | { ok: false; error: string };
+export type LngLat = NonNullable<Location["lngLat"]>;
+
+export type ParseSpaceResult =
+    | { ok: true; value: SpaceInput; pickedLngLat?: LngLat }
+    | { ok: false; error: string };
 
 export function parseSpaceInput(raw: unknown): ParseSpaceResult {
     const parsed = spaceInputSchema.safeParse(raw);
@@ -78,14 +88,19 @@ export function parseSpaceInput(raw: unknown): ParseSpaceResult {
         if (!location) {
             return { ok: false, error: "location: pick the area on the map" };
         }
+        const publiclyListed = input.publiclyListed === true;
         return {
             ok: true,
             value: pickDefined({
                 ...input,
                 dealPreferences,
                 setting: Array.from(new Set(input.setting)),
+                publiclyListed,
                 location,
             }),
+            ...(publiclyListed
+                ? { pickedLngLat: { lng: input.location.lngLat!.lng, lat: input.location.lngLat!.lat } }
+                : {}),
         };
     }
 
