@@ -10,7 +10,7 @@ import { useAtom } from "jotai";
 import Link from "next/link";
 import { Home, Mail, MapPin } from "lucide-react";
 import { userAtom } from "@/lib/data/atoms";
-import { SpaceMapPin, SpaceMemberDetails } from "@/models/models";
+import { Media, SpaceMapPin, SpaceMemberDetails } from "@/models/models";
 import {
     SPACE_AMPLIFICATION_LABELS,
     SPACE_DEAL_PREFERENCE_LABELS,
@@ -20,6 +20,7 @@ import {
     spaceStepFreeAccessLabel,
 } from "@/lib/spaces/space-labels";
 import { Skeleton } from "@/components/ui/skeleton";
+import ImageCarousel from "@/components/ui/image-carousel";
 import { getSpaceDetailsForMemberAction } from "./map-explorer-actions";
 
 export const PEERIFY_TEAM_EMAIL = "hello@peerify.net";
@@ -101,6 +102,25 @@ export default function PrivateSpaceMapPreview({ pin }: { pin: SpaceMapPin }) {
                 </div>
             ) : details ? (
                 <div className="mt-4 space-y-4">
+                    {details.photos.length > 0 ? (
+                        <div className="relative h-[220px] w-full overflow-hidden rounded-md">
+                            <ImageCarousel
+                                images={details.photos.map(
+                                    (photo, index): Media => ({
+                                        name: photo.originalName || `Space photo ${index + 1}`,
+                                        type: "image",
+                                        fileInfo: photo,
+                                    }),
+                                )}
+                                options={{ loop: details.photos.length > 1 }}
+                                containerClassName="h-full"
+                                imageClassName="object-cover"
+                                showArrows={false}
+                                showDots={details.photos.length > 1}
+                                dotsPosition="bottom-right"
+                            />
+                        </div>
+                    ) : null}
                     <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
                         {detailRows(details).map(([label, value]) => (
                             <div key={label} className="contents">

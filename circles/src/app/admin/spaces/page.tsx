@@ -30,7 +30,8 @@ const details = (space: AdminSpaceRow): [string, string][] => {
         rows.push(["PA", space.paAvailable ? "Yes" : "No"]);
     } else {
         rows.push(["Area", spaceAreaLabel(space.location)]);
-        rows.push(["Rounded point (0.1°)", point]);
+        rows.push([space.mapPinPlacedAt ? "Map pin (moved 200–400 m)" : "Rounded point (0.1°)", point]);
+        rows.push(["Photos", String(space.photos?.length ?? 0)]);
         rows.push(["Setting", space.setting.map(spaceSettingLabel).join(", ")]);
         rows.push(["Sound", SPACE_AMPLIFICATION_LABELS[space.amplification]]);
         if (space.noiseCurfew) rows.push(["Noise curfew", space.noiseCurfew]);
@@ -111,6 +112,16 @@ export default async function AdminSpacesPage() {
                                         </div>
                                     ))}
                                 </dl>
+                                {space.type === "private" && space.photos?.length ? (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                        {space.photos.map((photo) => (
+                                            <a key={photo.url} href={photo.url} target="_blank" rel="noreferrer">
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={photo.url} alt="" className="h-20 w-20 rounded object-cover" />
+                                            </a>
+                                        ))}
+                                    </div>
+                                ) : null}
                             </details>
                         </li>
                     ))}

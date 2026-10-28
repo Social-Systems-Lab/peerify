@@ -669,7 +669,11 @@ export async function planAccountErasure(did: string): Promise<ErasurePlan> {
     // --- Files ----------------------------------------------------------------------------------
     plan.files.publicPrefixes = own.map((id) => `${id}/`);
     // Audio, verification attachments and offer photos (savePrivateFile, one folder per circle).
-    plan.files.privatePrefixes = own.flatMap((id) => [`audio/${id}/`, `verification/${id}/`, `offer-photos/${id}/`]);
+    plan.files.privatePrefixes = [
+        ...own.flatMap((id) => [`audio/${id}/`, `verification/${id}/`, `offer-photos/${id}/`]),
+        // Space photos sit in one folder per space (lib/media/space-photo.ts); the spaces are hers.
+        ...plan.deletes.spaces.map((space) => `space-photos/${str(space._id)}/`),
+    ];
     const keys = new Set<string>();
     for (const name of ERASURE_COLLECTIONS) {
         for (const doc of plan.deletes[name]) {

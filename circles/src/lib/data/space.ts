@@ -17,7 +17,7 @@
 import { ObjectId } from "mongodb";
 import { Circles, Spaces } from "./db";
 import { ensureOfferPinOffset, getPublishedCircleQuery } from "./circle";
-import { Location, SpaceDoc, SpaceInput, SpaceMapPin, SpaceMemberDetails, SpaceType } from "@/models/models";
+import { FileInfo, Location, SpaceDoc, SpaceInput, SpaceMapPin, SpaceMemberDetails, SpaceType } from "@/models/models";
 import { canPerformRestrictedAction } from "@/lib/auth/verification";
 import { LngLat, SPACES_PER_PERSON_MAX } from "@/lib/spaces/space-rules";
 import { OfferPinOffset, applyOfferPinOffset, isValidOfferPinOffset } from "@/lib/utils";
@@ -45,6 +45,7 @@ const SPACE_PROJECTION = {
     notesForPeerify: 1,
     publiclyListed: 1,
     mapPinPlacedAt: 1,
+    photos: 1,
     listeningRuleAcceptedAt: 1,
     hostResponsibilityAcceptedAt: 1,
     createdAt: 1,
@@ -54,7 +55,7 @@ const SPACE_PROJECTION = {
 // Optional fields per type: cleared with $unset when an edit leaves them empty.
 const OPTIONAL_FIELDS: Record<SpaceType, string[]> = {
     popup: ["noiseLimits"],
-    private: ["noiseCurfew", "notesForPeerify", "mapPinPlacedAt"],
+    private: ["noiseCurfew", "notesForPeerify", "mapPinPlacedAt", "photos"],
 };
 
 // Omit that keeps the popup/private union, so code can still narrow on `type`.
@@ -185,18 +186,26 @@ export type CreateSpaceResult = { ok: true; id: string } | { ok: false; reason: 
 
 // The cap is checked before the insert, so two saves at the same moment could both pass; a person
 // racing themselves to an 11th space isn't worth a transaction.
+// spaceId: chosen by the caller when it has uploaded photos into that space's folder first.
+// photos: private spaces only, already resolved (see the spaces actions).
 export const createSpaceForOwner = async (
     ownerDid: string,
     input: SpaceInput,
     pickedLngLat?: LngLat,
+    extras: { spaceId?: string; photos?: FileInfo[] } = {},
 ): Promise<CreateSpaceResult> => {
     const count = await Spaces.countDocuments({ ownerDid });
     if (count >= SPACES_PER_PERSON_MAX) {
         return { ok: false, reason: "limit" };
     }
     const now = new Date();
+    const presetId = extras.spaceId ? toObjectId(extras.spaceId) : null;
+    if (extras.spaceId && !presetId) throw new Error("Invalid space id");
+    const photos = input.type === "private" && extras.photos?.length ? { photos: extras.photos } : {};
     const doc = {
+        ...(presetId ? { _id: presetId } : {}),
         ...(await toPlacedFields(ownerDid, input, pickedLngLat)),
+        ...photos,
         ownerDid,
         listeningRuleAcceptedAt: now,
         hostResponsibilityAcceptedAt: now,
@@ -214,6 +223,9 @@ export const updateSpaceForOwner = async (
     spaceId: string,
     input: SpaceInput,
     pickedLngLat?: LngLat,
+    // Private spaces: the full new list (empty removes them all). Left out, the stored photos are
+    // removed too, so callers always pass it.
+    photos?: FileInfo[],
 ): Promise<boolean> => {
     const _id = toObjectId(spaceId);
     if (!_id) return false;
@@ -222,6 +234,7 @@ export const updateSpaceForOwner = async (
             ? ((await Spaces.findOne({ _id, ownerDid, type: input.type }, { projection: SPACE_PROJECTION })) as SpaceDoc | null)
             : null;
     const fields = await toPlacedFields(ownerDid, input, pickedLngLat, current);
+    if (input.type === "private" && photos?.length) fields.photos = photos;
     const unset = Object.fromEntries(
         OPTIONAL_FIELDS[input.type].filter((key) => fields[key] === undefined).map((key) => [key, ""]),
     );
@@ -233,6 +246,18 @@ export const updateSpaceForOwner = async (
         },
     );
     return result.matchedCount === 1;
+};
+
+export const newSpaceId = (): string => String(new ObjectId());
+
+// The owner's own space's photos, or null when it isn't theirs (or doesn't exist).
+export const getSpacePhotosForOwner = async (ownerDid: string, spaceId: string): Promise<FileInfo[] | null> => {
+    const _id = toObjectId(spaceId);
+    if (!_id) return null;
+    const doc = (await Spaces.findOne({ _id, ownerDid }, { projection: { _id: 1, photos: 1 } })) as {
+        photos?: FileInfo[];
+    } | null;
+    return doc ? (doc.photos ?? []) : null;
 };
 
 export const deleteSpaceForOwner = async (ownerDid: string, spaceId: string): Promise<boolean> => {
@@ -327,6 +352,7 @@ export const getSpaceDetailsForMember = async (spaceId: string): Promise<SpaceMe
                 noiseCurfew: 1,
                 stepFreeAccess: 1,
                 dealPreferences: 1,
+                photos: 1,
             },
         },
     )) as Extract<SpaceDoc, { type: "private" }> | null;
@@ -339,5 +365,24 @@ export const getSpaceDetailsForMember = async (spaceId: string): Promise<SpaceMe
         ...(doc.noiseCurfew ? { noiseCurfew: doc.noiseCurfew } : {}),
         stepFreeAccess: doc.stepFreeAccess,
         dealPreferences: doc.dealPreferences,
+        photos: (doc.photos ?? []).map((photo) => ({ url: photo.url, originalName: photo.originalName })),
     };
+};
+
+// Whether this viewer may see this space photo (its /api/space-photo address): the space must
+// still have it, and the viewer must be the owner, a platform admin, or (for a space on the map,
+// of a published owner) any signed-in person.
+export const canViewSpacePhoto = async (viewerDid: string | undefined, spaceId: string, url: string): Promise<boolean> => {
+    const _id = toObjectId(spaceId);
+    if (!viewerDid || !_id) return false;
+    const doc = (await Spaces.findOne(
+        { _id, type: "private", "photos.url": url },
+        { projection: { _id: 1, ownerDid: 1, publiclyListed: 1, mapPinPlacedAt: 1 } },
+    )) as (Pick<SpaceDoc, "ownerDid"> & { publiclyListed?: boolean; mapPinPlacedAt?: Date }) | null;
+    if (!doc) return false;
+    if (doc.ownerDid === viewerDid) return true;
+    const viewer = await Circles.findOne({ did: viewerDid, circleType: "user" }, { projection: { isAdmin: 1 } });
+    if (viewer?.isAdmin === true) return true;
+    if (!viewer || doc.publiclyListed !== true || !doc.mapPinPlacedAt) return false;
+    return (await publishedOwnerDids([doc.ownerDid])).has(doc.ownerDid);
 };

@@ -820,7 +820,12 @@ type StoredSpaceFields<T> = Omit<T, "listeningRuleAccepted" | "hostResponsibilit
 };
 export type SpaceDoc =
     | StoredSpaceFields<z.infer<typeof popupSpaceInputSchema>>
-    | (StoredSpaceFields<z.infer<typeof privateSpaceInputSchema>> & { mapPinPlacedAt?: Date });
+    | (StoredSpaceFields<z.infer<typeof privateSpaceInputSchema>> & {
+          mapPinPlacedAt?: Date;
+          // Their /api/space-photo addresses (lib/media/space-photo.ts); never in the client input
+          // schema, the spaces actions resolve uploads into these.
+          photos?: FileInfo[];
+      });
 
 export const circleSchema = z.object({
     _id: z.any().optional(),
@@ -1233,6 +1238,7 @@ export type SpaceMemberDetails = {
     noiseCurfew?: string;
     stepFreeAccess: z.infer<typeof eventTagAccessibilitySchema>;
     dealPreferences: SpaceDealPreference[];
+    photos: FileInfo[];
 };
 
 export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin | SpaceMapPin;

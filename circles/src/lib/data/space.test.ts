@@ -13,7 +13,9 @@ mock.module("@/lib/data/db", () => fakeDb.module);
 const { coarsenLngLat } = await import("@/lib/utils");
 const { parseSpaceInput, toAreaOnlyLocation } = await import("@/lib/spaces/space-rules");
 const {
+    canViewSpacePhoto,
     createSpaceForOwner,
+    getSpacePhotosForOwner,
     deleteSpaceForOwner,
     getSpaceActor,
     getSpaceDetailsForMember,
@@ -432,6 +434,7 @@ describe("space map pins and details (getSpaceMapPins, getSpaceDetailsForMember)
             noiseCurfew: "22:00",
             stepFreeAccess: "stairs_involved",
             dealPreferences: ["takings_share", "food_drinks"],
+            photos: [],
         });
         expect(JSON.stringify(details).includes("Ring the bell")).toBe(false);
 
@@ -440,5 +443,75 @@ describe("space map pins and details (getSpaceMapPins, getSpaceDetailsForMember)
         const draftOwner = await listed(BOB);
         expect(await getSpaceDetailsForMember(draftOwner.id)).toBeNull();
         expect(await getSpaceDetailsForMember("not-an-id")).toBeNull();
+    });
+});
+
+describe("space photos (canViewSpacePhoto, stored photos)", () => {
+    const OFFSET = { bearingDeg: 45, distanceM: 350 };
+    const ADMIN = "did:test:admin";
+    const CAROL = "did:test:carol";
+    const photo = (spaceId: string, n: number) => ({
+        url: `/api/space-photo/${spaceId}/0123456789abcdef0123456789abcde${n}.jpg`,
+        fileName: `0123456789abcdef0123456789abcde${n}.jpg`,
+        originalName: `garden${n}.jpg`,
+    });
+    const people = () =>
+        fakeDb.reset({
+            Circles: [
+                { _id: new ObjectId(), did: ALICE, circleType: "user", offerPinOffset: OFFSET },
+                { _id: new ObjectId(), did: CAROL, circleType: "user" },
+                { _id: new ObjectId(), did: ADMIN, circleType: "user", isAdmin: true },
+            ],
+        });
+    const create = async (listed: boolean) => {
+        const result = parseSpaceInput(privateInput({ publiclyListed: listed }));
+        if (!result.ok) throw new Error(result.error);
+        const spaceId = String(new ObjectId());
+        const photos = [photo(spaceId, 1), photo(spaceId, 2)];
+        const created = await createSpaceForOwner(ALICE, result.value, result.pickedLngLat, { spaceId, photos });
+        return { spaceId, photos, created };
+    };
+
+    test("create stores the photos under the chosen id", async () => {
+        people();
+        const { spaceId, photos, created } = await create(true);
+        expect(created).toEqual({ ok: true, id: spaceId });
+        expect(String(stored()[0]._id)).toBe(spaceId);
+        expect(stored()[0].photos).toEqual(photos);
+        expect(await getSpacePhotosForOwner(ALICE, spaceId)).toEqual(photos);
+        expect(await getSpacePhotosForOwner(BOB, spaceId)).toBeNull();
+    });
+
+    test("on the map: owner, admin and any signed-in person; never signed out or a photo it lacks", async () => {
+        people();
+        const { spaceId, photos } = await create(true);
+        expect(await canViewSpacePhoto(ALICE, spaceId, photos[0].url)).toBe(true);
+        expect(await canViewSpacePhoto(ADMIN, spaceId, photos[0].url)).toBe(true);
+        expect(await canViewSpacePhoto(CAROL, spaceId, photos[1].url)).toBe(true);
+        expect(await canViewSpacePhoto(undefined, spaceId, photos[0].url)).toBe(false);
+        expect(await canViewSpacePhoto(CAROL, spaceId, photo(spaceId, 3).url)).toBe(false);
+        expect(await canViewSpacePhoto("did:test:nobody", spaceId, photos[0].url)).toBe(false);
+    });
+
+    test("off the map: only the owner and admins", async () => {
+        people();
+        const { spaceId, photos } = await create(false);
+        expect(await canViewSpacePhoto(ALICE, spaceId, photos[0].url)).toBe(true);
+        expect(await canViewSpacePhoto(ADMIN, spaceId, photos[0].url)).toBe(true);
+        expect(await canViewSpacePhoto(CAROL, spaceId, photos[0].url)).toBe(false);
+    });
+
+    test("details carry the photo addresses; an update with no photos removes them", async () => {
+        people();
+        const { spaceId, photos } = await create(true);
+        expect((await getSpaceDetailsForMember(spaceId))!.photos).toEqual(
+            photos.map((p) => ({ url: p.url, originalName: p.originalName })),
+        );
+        const again = parseSpaceInput(privateInput({ publiclyListed: true, location: { ...EXACT, lngLat: stored()[0].location.lngLat } }));
+        if (!again.ok) throw new Error(again.error);
+        await updateSpaceForOwner(ALICE, spaceId, again.value, again.pickedLngLat, [photos[1]]);
+        expect(stored()[0].photos).toEqual([photos[1]]);
+        await updateSpaceForOwner(ALICE, spaceId, again.value, again.pickedLngLat, []);
+        expect("photos" in stored()[0]).toBe(false);
     });
 });

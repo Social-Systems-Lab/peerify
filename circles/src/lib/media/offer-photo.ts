@@ -14,6 +14,9 @@ const FILE_PATTERN = /^[0-9a-f]{32}\.(jpg|jpeg|png|webp|gif)$/;
 
 export type OfferPhotoRef = { circleId: string; file: string };
 
+// Also the file names of space photos (lib/media/space-photo.ts).
+export const isPhotoFileName = (file: string): boolean => FILE_PATTERN.test(file);
+
 export const isOfferPhotoRef = (circleId: string, file: string): boolean =>
     CIRCLE_ID_PATTERN.test(circleId) && FILE_PATTERN.test(file);
 

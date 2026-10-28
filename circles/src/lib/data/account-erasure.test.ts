@@ -318,7 +318,7 @@ function seed() {
     d.peerify_pledges.docs.push({ _id: oid(), pledgerDid: A, pledgerName: "Alice", artistCircleId: s(CO_ID) });
     d.capturedEmails.docs.push({ _id: oid(), to: EMAIL, templateModel: { name: "Alice" } }, { _id: id("bobMail"), to: "bob@example.test" });
     d.spaces.docs.push(
-        { _id: oid(), ownerDid: A, type: "private", location: { precision: 2, city: "Lund", lngLat: { lng: 13.2, lat: 55.7 } }, notesForPeerify: "Alice's home" },
+        { _id: id("aliceSpace"), ownerDid: A, type: "private", location: { precision: 2, city: "Lund", lngLat: { lng: 13.2, lat: 55.7 } }, notesForPeerify: "Alice's home" },
         { _id: oid(), ownerDid: A, type: "popup", name: "Alice's café" },
         { _id: id("bobSpace"), ownerDid: B, type: "popup", name: "Bob's café" },
     );
@@ -355,6 +355,8 @@ function seed() {
         `offer-photos/${s(A_ID)}/0123456789abcdef0123456789abcdef.jpg`,
         `offer-photos/${s(ART_ID)}/0123456789abcdef0123456789abcdee.png`,
         `offer-photos/${s(B_ID)}/0123456789abcdef0123456789abcded.jpg`,
+        `space-photos/${s(id("aliceSpace"))}/0123456789abcdef0123456789abcdec.jpg`,
+        `space-photos/${s(id("bobSpace"))}/0123456789abcdef0123456789abcdeb.jpg`,
     ]) {
         buckets.private.add(key);
     }
@@ -402,6 +404,7 @@ describe("eraseAccount", () => {
                 `audio/${s(CO_ID)}/t2/preview.mp3`,
                 "verification/carol-circle/proof.png",
                 `offer-photos/${s(B_ID)}/0123456789abcdef0123456789abcded.jpg`,
+                `space-photos/${s(id("bobSpace"))}/0123456789abcdef0123456789abcdeb.jpg`,
             ].sort(),
         );
         expect(fs.existsSync(path.join(USERS_DIR, A))).toBe(false);

@@ -18,8 +18,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import LocationPicker from "@/components/forms/location-picker";
+import { ImageItem, MultiImageUploader } from "@/components/forms/controls/multi-image-uploader";
+import { SPACE_PHOTOS_MAX, SPACE_PHOTO_WARNING } from "@/lib/media/space-photo";
 import {
     Location,
+    Media,
     SPACE_AMPLIFICATION_OPTIONS,
     SPACE_DEAL_PREFERENCES,
     SPACE_NAME_MAX_LENGTH,
@@ -62,6 +65,7 @@ type FormState = {
     stepFreeAccess: EventTagAccessibility | "";
     notesForPeerify: string;
     publiclyListed: boolean;
+    photos: ImageItem[];
     listeningRuleAccepted: boolean;
     hostResponsibilityAccepted: boolean;
 };
@@ -83,6 +87,13 @@ const fromSpace = (space: SpaceView | undefined): FormState => {
         stepFreeAccess: s.stepFreeAccess ?? "",
         notesForPeerify: s.notesForPeerify ?? "",
         publiclyListed: s.publiclyListed === true,
+        // The same items the uploader builds from photosSeed: it doesn't report its starting
+        // images, so without this an edit that leaves the photos alone would send none.
+        photos: (space?.type === "private" ? (space.photos ?? []) : []).map((photo) => ({
+            id: photo.url,
+            preview: photo.url,
+            existingMediaUrl: photo.url,
+        })),
         // An existing space was saved with both ticked.
         listeningRuleAccepted: !!space,
         hostResponsibilityAccepted: !!space,
@@ -117,8 +128,16 @@ const toInput = (type: SpaceType, form: FormState) => {
         stepFreeAccess: form.stepFreeAccess,
         notesForPeerify: form.notesForPeerify,
         publiclyListed: form.publiclyListed,
+        // New files, or saved photos by their address; never the picker's blob previews.
+        photos: form.photos.map((item) => (item.file ? { file: item.file } : { existingMediaUrl: item.existingMediaUrl })),
     };
 };
+
+// The uploader wants Media[] for the photos already saved.
+const photosSeed = (space: SpaceView | undefined): Media[] =>
+    space?.type === "private"
+        ? (space.photos ?? []).map((photo) => ({ name: photo.originalName || "Space photo", type: "image", fileInfo: photo }))
+        : [];
 
 const quickCheck = (type: SpaceType, form: FormState): string | null => {
     if (type === "popup" && !form.name.trim()) return "Give the space a name.";
@@ -441,6 +460,22 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
                             </div>
                         ))}
                     </div>
+
+                    {isPrivate ? (
+                        <div className="space-y-2">
+                            <Label>Photos (optional)</Label>
+                            <p className="text-sm text-muted-foreground">
+                                Only people who are logged in see them, and only while the space is on the map.
+                            </p>
+                            <MultiImageUploader
+                                initialImages={photosSeed(space)}
+                                onChange={(items) => update("photos", items)}
+                                maxImages={SPACE_PHOTOS_MAX}
+                                previewMode="compact"
+                            />
+                            <p className="text-sm font-medium text-amber-800">{SPACE_PHOTO_WARNING}</p>
+                        </div>
+                    ) : null}
 
                     {isPrivate ? (
                         <div className="space-y-2">
