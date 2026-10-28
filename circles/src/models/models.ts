@@ -1057,13 +1057,26 @@ export type VerificationRequest = z.infer<typeof verificationRequestSchema>;
 export type VerificationRequestStatus = z.infer<typeof verificationRequestStatusSchema>;
 export type VerificationRequestType = z.infer<typeof verificationRequestTypeSchema>;
 
+// A verification attachment in the private bucket (savePrivateFile): stored by key, never by URL.
+// Viewers get a signed 15-minute link at serialise time (serializeVerificationMessage). movedFrom
+// is the old public /storage URL while scripts/move-verification-attachments-private.ts is between
+// its copy and delete phases. Attachments saved before the move are plain FileInfo ({ url }).
+export const privateVerificationAttachmentSchema = z.object({
+    key: z.string(),
+    originalName: z.string(),
+    contentType: z.string(),
+    size: z.number(),
+    movedFrom: z.string().optional(),
+});
+export type PrivateVerificationAttachment = z.infer<typeof privateVerificationAttachmentSchema>;
+
 export const verificationMessageSchema = z.object({
     _id: z.any().optional(),
     requestId: z.string(),
     senderDid: didSchema,
     senderRole: verificationMessageSenderRoleSchema,
     body: z.string(),
-    attachments: z.array(fileInfoSchema).optional(),
+    attachments: z.array(z.union([privateVerificationAttachmentSchema, fileInfoSchema])).optional(),
     createdAt: z.date(),
 });
 

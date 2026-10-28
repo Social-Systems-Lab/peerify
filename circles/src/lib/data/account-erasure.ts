@@ -171,8 +171,13 @@ const fileUrlsOf = (collection: ErasureCollection, doc: AnyDoc): unknown[] => {
         case "fundingAsks":
             return [doc.coverImage?.url];
         case "chatMessageDocs":
-        case "verificationMessages":
             return Array.isArray(doc.attachments) ? doc.attachments.map((a: any) => a?.url) : [];
+        case "verificationMessages":
+            // Old public attachments ({ url }), and the public original of one moved to the private
+            // bucket but not yet deleted (movedFrom). Private keys: see verificationPrivateKeysOf.
+            return Array.isArray(doc.attachments)
+                ? doc.attachments.flatMap((a: any) => [a?.url, a?.movedFrom])
+                : [];
         case "chatConversations":
         case "chatRooms":
             return [doc.picture?.url, doc.metadata?.senderAvatarUrl];
@@ -663,7 +668,8 @@ export async function planAccountErasure(did: string): Promise<ErasurePlan> {
 
     // --- Files ----------------------------------------------------------------------------------
     plan.files.publicPrefixes = own.map((id) => `${id}/`);
-    plan.files.privatePrefixes = own.map((id) => `audio/${id}/`);
+    // Audio, and verification attachments (savePrivateFile, one folder per applicant circle).
+    plan.files.privatePrefixes = own.flatMap((id) => [`audio/${id}/`, `verification/${id}/`]);
     const keys = new Set<string>();
     for (const name of ERASURE_COLLECTIONS) {
         for (const doc of plan.deletes[name]) {
@@ -674,9 +680,14 @@ export async function planAccountErasure(did: string): Promise<ErasurePlan> {
         }
     }
     plan.files.publicKeys = [...keys];
-    plan.files.privateKeys = plan.deletes.tracks
-        .flatMap((t) => [t.originalKey, t.previewKey])
-        .filter((k): k is string => typeof k === "string" && !!k);
+    plan.files.privateKeys = [
+        ...plan.deletes.tracks.flatMap((t) => [t.originalKey, t.previewKey]),
+        // Also by key: an attachment on a request for a circle the person owns sits in the
+        // applicant's folder, which may not be one of this person's own prefixes.
+        ...plan.deletes.verificationMessages.flatMap((m) =>
+            Array.isArray(m.attachments) ? m.attachments.map((a: any) => a?.key) : [],
+        ),
+    ].filter((k): k is string => typeof k === "string" && !!k);
 
     return plan;
 }

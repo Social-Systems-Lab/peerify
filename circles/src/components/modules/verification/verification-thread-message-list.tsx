@@ -11,7 +11,7 @@ type VerificationThreadMessage = {
     senderPictureUrl?: string | null;
     body?: string;
     createdAt?: string | null;
-    attachments: Array<{ url: string; fileName?: string | null; originalName?: string | null }>;
+    attachments: VerificationAttachment[];
 };
 
 const formatDate = (value?: string | null) => {
@@ -22,11 +22,17 @@ const formatDate = (value?: string | null) => {
     return new Date(value).toLocaleString();
 };
 
-const MessageAttachments = ({
-    attachments,
-}: {
-    attachments: Array<{ url: string; fileName?: string | null; originalName?: string | null }>;
-}) => {
+// isImage/expires come with private attachments (signed links, serializeVerificationMessage);
+// older ones are plain /storage URLs and an image is guessed from the name.
+type VerificationAttachment = {
+    url: string;
+    fileName?: string | null;
+    originalName?: string | null;
+    isImage?: boolean;
+    expires?: boolean;
+};
+
+const MessageAttachments = ({ attachments }: { attachments: VerificationAttachment[] }) => {
     if (!attachments.length) {
         return null;
     }
@@ -35,7 +41,7 @@ const MessageAttachments = ({
         <div className="mt-3 space-y-2">
             {attachments.map((attachment) => {
                 const label = attachment.originalName || attachment.fileName || attachment.url;
-                const isImage = /\.(png|jpe?g|gif|webp|svg)$/i.test(label);
+                const isImage = attachment.isImage ?? /\.(png|jpe?g|gif|webp|svg)$/i.test(label);
 
                 if (isImage) {
                     return (
@@ -64,6 +70,11 @@ const MessageAttachments = ({
                     </a>
                 );
             })}
+            {attachments.some((attachment) => attachment.expires) ? (
+                <p className="text-xs text-muted-foreground">
+                    Attachment links work for 15 minutes. Reload the page to open them again.
+                </p>
+            ) : null}
         </div>
     );
 };

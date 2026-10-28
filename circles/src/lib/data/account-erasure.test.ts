@@ -286,8 +286,30 @@ function seed() {
     d.verifications.docs.push({ _id: id("aVerif"), userDid: A, targetCircleId: s(A_ID) }, { _id: id("cVerif"), userDid: C, reviewedBy: A });
     d.verificationMessages.docs.push(
         { _id: oid(), requestId: s(id("aVerif")), senderDid: B, attachments: [{ url: `/storage/${s(A_ID)}/proof1700.pdf` }] },
+        // Private attachments (savePrivateFile): one moved from the public bucket, not yet deleted there.
+        {
+            _id: oid(),
+            requestId: s(id("aVerif")),
+            senderDid: A,
+            attachments: [
+                { key: `verification/${s(A_ID)}/id-front.png`, originalName: "id.png", contentType: "image/png", size: 3 },
+                {
+                    key: `verification/${s(A_ID)}/moved.pdf`,
+                    originalName: "old.pdf",
+                    contentType: "application/pdf",
+                    size: 3,
+                    movedFrom: `/storage/${s(A_ID)}/verification-attachment1700.pdf`,
+                },
+            ],
+        },
         { _id: oid(), requestId: s(id("cVerif")), senderDid: A, body: "looks good" },
-        { _id: id("cVerifMsg"), requestId: s(id("cVerif")), senderDid: C, body: "thanks" },
+        {
+            _id: id("cVerifMsg"),
+            requestId: s(id("cVerif")),
+            senderDid: C,
+            body: "thanks",
+            attachments: [{ key: "verification/carol-circle/proof.png", originalName: "p.png", contentType: "image/png", size: 3 }],
+        },
     );
     d.adminInvitations.docs.push({ _id: oid(), invitedUserDid: A, invitedByUserDid: B, circleId: s(V_ID) });
     d.adminRoleRemovalRequests.docs.push({ _id: oid(), targetUserDid: A, requestedByDid: B, circleId: s(CO_ID) });
@@ -308,6 +330,7 @@ function seed() {
         `${s(A_ID)}/chat1700.png`,
         `${s(A_ID)}/event1700.png`,
         `${s(A_ID)}/proof1700.pdf`,
+        `${s(A_ID)}/verification-attachment1700.pdf`,
         `${s(A_ID)}/stray-no-row.png`,
         `${s(ART_ID)}/picture1700.png`,
         `${s(V_ID)}/feeds/y/alice1700.png`,
@@ -325,6 +348,10 @@ function seed() {
         `audio/${s(ART_ID)}/t1/preview.mp3`,
         `audio/${s(CO_ID)}/t2/original.mp3`,
         `audio/${s(CO_ID)}/t2/preview.mp3`,
+        `verification/${s(A_ID)}/id-front.png`,
+        `verification/${s(A_ID)}/moved.pdf`,
+        `verification/${s(A_ID)}/stray-no-row.png`,
+        "verification/carol-circle/proof.png",
     ]) {
         buckets.private.add(key);
     }
@@ -364,9 +391,14 @@ describe("eraseAccount", () => {
         expect(publicLeft.sort()).toEqual(
             [`${s(V_ID)}/bob1700.png`, `${s(V_ID)}/group1700.png`, `${s(B_ID)}/picture1700.png`].sort(),
         );
-        // Audio of her own artist circle is gone; the co-run circle's song stays.
+        // Audio of her own artist circle is gone; the co-run circle's song stays. Her private
+        // verification files go (by key and by her folder); Carol's stays with Carol's request.
         expect([...buckets.private].sort()).toEqual(
-            [`audio/${s(CO_ID)}/t2/original.mp3`, `audio/${s(CO_ID)}/t2/preview.mp3`].sort(),
+            [
+                `audio/${s(CO_ID)}/t2/original.mp3`,
+                `audio/${s(CO_ID)}/t2/preview.mp3`,
+                "verification/carol-circle/proof.png",
+            ].sort(),
         );
         expect(fs.existsSync(path.join(USERS_DIR, A))).toBe(false);
         expect(fs.existsSync(path.join(USERS_DIR, B))).toBe(true);

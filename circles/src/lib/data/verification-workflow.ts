@@ -2,10 +2,12 @@ import { Circles, db } from "@/lib/data/db";
 import { activateUserAccount } from "@/lib/data/account-lifecycle";
 import { sendEmail } from "@/lib/data/email";
 import { sendNotifications } from "@/lib/data/notifications";
-import { saveFile } from "@/lib/data/storage";
+import { savePrivateFile } from "@/lib/data/storage";
+import { privateMediaUrl, VERIFICATION_MEDIA_TTL_SECONDS } from "@/lib/media/private-media-token";
 import {
     Circle,
     FileInfo,
+    PrivateVerificationAttachment,
     UserPrivate,
     VerificationMessage,
     VerificationRequest,
@@ -98,11 +100,42 @@ export const canApplicantReplyToVerificationRequest = (request: VerificationRequ
     return status !== "approved" && status !== "rejected";
 };
 
-const serializeFileInfo = (file: FileInfo): FileInfo => ({
-    url: file.url,
-    fileName: file.fileName,
-    originalName: file.originalName,
-});
+export type SerializedVerificationAttachment = FileInfo & {
+    // Set for private attachments, from the stored type; the old ones are guessed from the name.
+    isImage?: boolean;
+    // A signed link that stops working (VERIFICATION_MEDIA_TTL_SECONDS).
+    expires?: boolean;
+};
+
+const INLINE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+
+const isPrivateAttachment = (
+    attachment: FileInfo | PrivateVerificationAttachment,
+): attachment is PrivateVerificationAttachment => typeof (attachment as PrivateVerificationAttachment).key === "string";
+
+// Callers have already checked that the viewer may see this thread (admin, or the applicant). A
+// private attachment becomes a signed 15-minute link; its key never leaves the server. One saved
+// before the move to the private bucket still has its /storage URL and passes through as it is.
+const serializeAttachment = async (
+    attachment: FileInfo | PrivateVerificationAttachment,
+): Promise<SerializedVerificationAttachment> => {
+    if (isPrivateAttachment(attachment)) {
+        return {
+            url: await privateMediaUrl(
+                { key: attachment.key, name: attachment.originalName },
+                VERIFICATION_MEDIA_TTL_SECONDS,
+            ),
+            originalName: attachment.originalName,
+            isImage: INLINE_IMAGE_TYPES.has(attachment.contentType),
+            expires: true,
+        };
+    }
+    return {
+        url: attachment.url,
+        fileName: attachment.fileName,
+        originalName: attachment.originalName,
+    };
+};
 
 export const serializeVerificationRequest = (request: VerificationRequest) => ({
     id: request._id?.toString?.() ?? "",
@@ -118,7 +151,7 @@ export const serializeVerificationRequest = (request: VerificationRequest) => ({
     decisionReason: request.decisionReason ?? null,
 });
 
-export const serializeVerificationMessage = (
+export const serializeVerificationMessage = async (
     message: VerificationMessage,
     senderName: string,
     senderPictureUrl?: string,
@@ -130,7 +163,7 @@ export const serializeVerificationMessage = (
     senderName,
     senderPictureUrl: senderPictureUrl ?? null,
     body: message.body,
-    attachments: (message.attachments ?? []).map(serializeFileInfo),
+    attachments: await Promise.all((message.attachments ?? []).map(serializeAttachment)),
     createdAt: message.createdAt.toISOString(),
 });
 
@@ -281,16 +314,20 @@ export async function getVerificationRequestById(requestId: string): Promise<Ver
     return await verificationRequestsCollection().findOne({ _id: new ObjectId(requestId) });
 }
 
-const saveVerificationAttachments = async (files: File[], ownerId: string): Promise<FileInfo[]> => {
-    const attachments: FileInfo[] = [];
+// Into the private bucket, one folder per applicant (account erasure removes it by prefix). The
+// message stores the key; viewers only ever get signed links (serializeAttachment).
+const saveVerificationAttachments = async (
+    files: File[],
+    ownerId: string,
+): Promise<PrivateVerificationAttachment[]> => {
+    const attachments: PrivateVerificationAttachment[] = [];
 
     for (const file of files) {
         if (!(file instanceof File) || file.size === 0) {
             continue;
         }
 
-        const saved = await saveFile(file, "verification-attachment", ownerId, true);
-        attachments.push(saved);
+        attachments.push(await savePrivateFile(file, `verification/${ownerId}`));
     }
 
     return attachments;
@@ -786,11 +823,13 @@ export async function getAdminVerificationRequestDetail(requestId: string) {
                     organizationClaimReview: null,
                 }
               : null,
-        messages: messages.map((message) =>
-            serializeVerificationMessage(
-                message,
-                senderNames.get(message.senderDid) ?? "Unknown user",
-                senderPictures.get(message.senderDid),
+        messages: await Promise.all(
+            messages.map((message) =>
+                serializeVerificationMessage(
+                    message,
+                    senderNames.get(message.senderDid) ?? "Unknown user",
+                    senderPictures.get(message.senderDid),
+                ),
             ),
         ),
     };
@@ -830,11 +869,13 @@ export async function getApplicantVerificationThread(userDid: string) {
 
     return {
         request: serializeVerificationRequest(request),
-        messages: messages.map((message) =>
-            serializeVerificationMessage(
-                message,
-                senderNames.get(message.senderDid) ?? (message.senderRole === "admin" ? "Admin" : "You"),
-                senderPictures.get(message.senderDid),
+        messages: await Promise.all(
+            messages.map((message) =>
+                serializeVerificationMessage(
+                    message,
+                    senderNames.get(message.senderDid) ?? (message.senderRole === "admin" ? "Admin" : "You"),
+                    senderPictures.get(message.senderDid),
+                ),
             ),
         ),
         canReply: canApplicantReplyToVerificationRequest(request),
@@ -875,11 +916,13 @@ export async function getIndependentCircleVerificationThread(circleId: string, u
 
     return {
         request: serializeVerificationRequest(request),
-        messages: messages.map((message) =>
-            serializeVerificationMessage(
-                message,
-                senderNames.get(message.senderDid) ?? (message.senderRole === "admin" ? "Admin" : "You"),
-                senderPictures.get(message.senderDid),
+        messages: await Promise.all(
+            messages.map((message) =>
+                serializeVerificationMessage(
+                    message,
+                    senderNames.get(message.senderDid) ?? (message.senderRole === "admin" ? "Admin" : "You"),
+                    senderPictures.get(message.senderDid),
+                ),
             ),
         ),
         canReply: canApplicantReplyToVerificationRequest(request),
