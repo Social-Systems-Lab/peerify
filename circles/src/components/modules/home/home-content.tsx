@@ -637,7 +637,8 @@ export default function HomeContent({
                                         {/* Hidden for this circle's own admins, same as Pledges/Crew Dashboard below —
                                             pledging to (or joining the Crew of) a profile you manage isn't a real
                                             fan action, it's just noise on your own profile. */}
-                                        {!authorizedToEdit ? (
+                                        {/* Also hidden when the artist turned Pledges off (pledgesEnabled). */}
+                                        {!authorizedToEdit && circle.pledgesEnabled !== false ? (
                                             <Button
                                                 type="button"
                                                 size="sm"

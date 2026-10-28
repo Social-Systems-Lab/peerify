@@ -385,7 +385,8 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                 {/* Hidden for this circle's own admins, same as the full artist page —
                                     pledging to (or joining the Crew of) a profile you manage isn't a
                                     real fan action. */}
-                                {!isViewerCircleAdmin ? (
+                                {/* Also hidden when the artist turned Pledges off (pledgesEnabled). */}
+                                {!isViewerCircleAdmin && circle.pledgesEnabled !== false ? (
                                     <Button
                                         type="button"
                                         size="sm"

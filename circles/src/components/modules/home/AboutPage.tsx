@@ -550,13 +550,18 @@ export default function AboutPage({
         setIsBookDialogOpen(true);
     }, [circle.handle, peerifyArtistProfile.bookingEnabled, router, user?.did]);
 
+    // Reached from the Pledge buttons' event and the ?artistAction=pledge link, so it checks
+    // pledgesEnabled itself: an old link must not open the dialog once Pledges are off.
     const openPledgeDialog = React.useCallback(() => {
+        if (circle.pledgesEnabled === false) {
+            return;
+        }
         if (!user?.did) {
             router.push(`/login?redirectTo=${encodeURIComponent(`/circles/${circle.handle}/home`)}`);
             return;
         }
         setIsPledgeDialogOpen(true);
-    }, [circle.handle, router, user?.did]);
+    }, [circle.handle, circle.pledgesEnabled, router, user?.did]);
 
     React.useEffect(() => {
         const openArtistEnquiry = (event: Event) => {
