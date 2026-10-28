@@ -1,7 +1,7 @@
 "use server";
 
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
-import { getCircleById, getCirclePath, updateCircle } from "@/lib/data/circle";
+import { ensureOfferPinOffset, getCircleById, getCirclePath, updateCircle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
 import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 import { isFile, saveFile } from "@/lib/data/storage";
@@ -24,6 +24,16 @@ import { z } from "zod";
 // than silently writing a dead URL into Mongo.
 function isPersistableUrl(url: string): boolean {
     return !url.startsWith("blob:");
+}
+
+// Gives the circle its stored offer pin offset the first time it might show offer pins. A failure
+// only means the pin falls back to the coarse grid for now, so it never fails the save.
+async function ensureOfferPinOffsetQuietly(circleId: string): Promise<void> {
+    try {
+        await ensureOfferPinOffset(circleId);
+    } catch (error) {
+        console.error("ensureOfferPinOffset failed:", error);
+    }
 }
 
 // Turns a tourTeamOfferingSchema validation failure into a message naming the actual offering and
@@ -137,6 +147,10 @@ export async function savePresence(data: Circle): Promise<FormSubmitResponse> {
             userDid,
         );
 
+        if (resolvedOfferings && resolvedOfferings.length > 0) {
+            await ensureOfferPinOffsetQuietly(circleId);
+        }
+
         revalidatePath(`/circles/${data.handle}/settings/presence`);
         revalidatePath(`/circles/${data.handle}/home`);
         revalidatePath(`/circles/${data.handle}`);
@@ -181,6 +195,10 @@ export async function setOffersVisibleAction(circleId: string, offersVisible: bo
         await updateCircle({ _id: circleId, offersVisible }, userDid);
     } catch (error) {
         return { success: false, message: "Failed to update offers visibility. " + error?.toString() };
+    }
+
+    if (offersVisible) {
+        await ensureOfferPinOffsetQuietly(circleId);
     }
 
     const circle = await getCircleById(circleId);

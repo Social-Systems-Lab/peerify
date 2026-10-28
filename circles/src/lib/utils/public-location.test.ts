@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import type { Circle, Location } from "@/models/models";
 import {
+    OFFER_PIN_OFFSET_MAX_METERS,
+    OFFER_PIN_OFFSET_MIN_METERS,
     PUBLIC_COARSE_PIN_GRID_DEGREES,
     getOfferPinLocation,
     redactCircleLocationForViewer,
@@ -181,6 +183,46 @@ for (const key of ["contactEmail", "phone", "bookingNote", "technicalNeeds"]) {
 }
 for (const key of ["onboardingFlow", "signupIntent", "authProviders", "autoProvisionedFromSignup", '"address"', "publicCity", '"notes"']) {
     assert.equal(loggedIn.includes(key), false, `logged in: ${key} must not be sent`);
+}
+
+// Offers map: a stored offerPinOffset moves the pin 200–400 m from the real point, the same way
+// on every call; a missing or out-of-range offset falls back to the grid, never the real point.
+const metersBetween = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) => {
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const dLat = toRad(b.lat - a.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * 6_371_000 * Math.asin(Math.sqrt(h));
+};
+for (const offset of [
+    { bearingDeg: 12.5, distanceM: OFFER_PIN_OFFSET_MIN_METERS },
+    { bearingDeg: 101, distanceM: OFFER_PIN_OFFSET_MAX_METERS },
+    { bearingDeg: 217.5, distanceM: 300 },
+]) {
+    const withOffset = { ...CASES[1][1], offerPinOffset: offset } as Circle;
+    const pin = getOfferPinLocation(withOffset);
+    const text = JSON.stringify(pin);
+    for (const leak of [STREET, String(EXACT.lng), String(EXACT.lat), "exactConfirmedAt"]) {
+        assert.equal(text.includes(leak), false, `offset ${offset.distanceM} m / offers pin: ${leak} leaked`);
+    }
+    const distance = metersBetween(EXACT, pin!.lngLat!);
+    assert.ok(Math.abs(distance - offset.distanceM) < 2, `offset ${offset.distanceM} m: pin is ${distance.toFixed(1)} m away`);
+    assert.deepEqual(getOfferPinLocation(withOffset)?.lngLat, pin?.lngLat, "same offset, same pin");
+    assert.equal(pin?.precision, 2);
+}
+for (const bad of [{ bearingDeg: 10, distanceM: 50 }, { bearingDeg: 10, distanceM: 5000 }, { bearingDeg: Number.NaN, distanceM: 300 }]) {
+    const pin = getOfferPinLocation({ ...CASES[1][1], offerPinOffset: bad } as Circle);
+    assert.deepEqual(pin?.lngLat, { lng: 4.9, lat: 52.35 }, `invalid offset ${JSON.stringify(bad)}: grid pin`);
+}
+// The offset never leaves the server through the public shapes: offset plus pin is the address.
+const withStoredOffset = { ...CASES[1][1], offerPinOffset: { bearingDeg: 45, distanceM: 250 } } as Circle;
+for (const [name, shape] of [
+    ["profile page", toPublicCircle(withStoredOffset, { viewerDid: undefined, viewerIsPlatformAdmin: false, viewerCanManage: false })],
+    ["profile page, signed in", toPublicCircle(withStoredOffset, { viewerDid: STRANGER, viewerIsPlatformAdmin: false, viewerCanManage: false })],
+    ["list item", toPublicCircleListItem(withStoredOffset, { viewerDid: undefined, viewerIsPlatformAdmin: false })],
+    ["offers pin", getOfferPinLocation(withStoredOffset)],
+] as const) {
+    assert.equal(JSON.stringify(shape).includes("offerPinOffset"), false, `${name}: offerPinOffset must not be sent`);
 }
 
 console.log("public-location: all tests passed");

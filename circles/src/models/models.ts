@@ -859,6 +859,11 @@ export const circleSchema = z.object({
     // getOfferMapPins (its query is an exact match on offersVisible: true, so an absent field
     // never matches) until their owner explicitly turns the Presence-settings toggle on.
     offersVisible: z.boolean().optional(),
+    // Server-only, never sent to a browser: the offer pin is the real point moved by this offset,
+    // so the offset plus a pin gives the address back. Set once by ensureOfferPinOffset
+    // (lib/data/circle.ts), never changed, and stripped from client input by createCircle and
+    // updateCircle. Not in SAFE_CIRCLE_PROJECTION or the public allow-lists.
+    offerPinOffset: z.object({ bearingDeg: z.number(), distanceM: z.number() }).optional(),
     userGroups: z.array(userGroupSchema).default([]).optional(),
     enabledModules: z.array(z.string()).default([]).optional(),
     accessRules: accessRulesSchema.optional(),
@@ -1139,10 +1144,11 @@ export type ServerSettings = z.infer<typeof serverSettingsSchema>;
 // hidden until they choose to reveal it via a reply (see the anonymized-contact-thread design,
 // not yet built). _id is a stable per-pin key (`${circleId}:${offeringId}`), not a real document
 // id. location is NOT the same viewer-precision-redacted Location other map pins use — it's
-// deliberately not viewer-aware at all: real coordinate if the circle's own location.precision is
-// already Exact (e.g. a venue), otherwise a fixed coarse (~1km) fallback so a pin always renders
-// regardless of what precision the profile happens to have set for unrelated purposes. See
-// getOfferPinLocation (lib/data/circle.ts).
+// deliberately not viewer-aware at all: the real coordinate only for a confirmed exact location
+// (e.g. a venue with a public address), otherwise the real point moved 200–400 m by the circle's
+// stored offerPinOffset (or the ~5 km grid until it has one), so a pin always renders regardless
+// of what precision the profile happens to have set for unrelated purposes. See
+// getOfferPinLocation (lib/utils.ts).
 // Consent to appear on the map at all is gated by offersVisible — a field independent of
 // mapVisible/searchable, so a circle can show offer pins while otherwise fully private.
 // Exception: pins sourced from a venue circle (metadata.peerify.identityType === "venue") DO

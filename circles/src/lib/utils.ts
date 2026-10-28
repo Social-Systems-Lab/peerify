@@ -176,13 +176,55 @@ function toUnconfirmedExactPublicLocation(location: Location): Location {
     return { ...rest, precision: 2, lngLat: coarsenLngLat(location.lngLat) };
 }
 
+// Offer pins sit 200–400 m from the real point (Tim, 2026-10-28): close enough to be useful, never
+// on the building. Looser than the public profile pin grid on purpose: an individual's offer pin
+// carries no name, handle or picture. The offset is random, one per circle, stored on the circle
+// (offerPinOffset) and never changed, so every load shows the same pin and refreshing reveals
+// nothing. One offset per circle, not per offer: the centre of several independently moved pins
+// would sit near the address.
+export const OFFER_PIN_OFFSET_MIN_METERS = 200;
+export const OFFER_PIN_OFFSET_MAX_METERS = 400;
+
+const METERS_PER_DEGREE_LAT = 111_320;
+
+export type OfferPinOffset = NonNullable<Circle["offerPinOffset"]>;
+
+export function isValidOfferPinOffset(offset: unknown): offset is OfferPinOffset {
+    const value = offset as Partial<OfferPinOffset> | undefined;
+    return (
+        typeof value?.bearingDeg === "number" &&
+        typeof value.distanceM === "number" &&
+        Number.isFinite(value.bearingDeg) &&
+        value.distanceM >= OFFER_PIN_OFFSET_MIN_METERS &&
+        value.distanceM <= OFFER_PIN_OFFSET_MAX_METERS
+    );
+}
+
+// Moves a point distanceM metres along bearingDeg (0 = north, 90 = east). Flat-earth maths is
+// well under a metre off at these distances.
+export function applyOfferPinOffset(
+    lngLat: NonNullable<Location["lngLat"]>,
+    offset: OfferPinOffset,
+): NonNullable<Location["lngLat"]> {
+    const bearing = (offset.bearingDeg * Math.PI) / 180;
+    const dLat = (offset.distanceM * Math.cos(bearing)) / METERS_PER_DEGREE_LAT;
+    const dLng =
+        (offset.distanceM * Math.sin(bearing)) / (METERS_PER_DEGREE_LAT * Math.cos((lngLat.lat * Math.PI) / 180));
+    const round = (value: number) => Math.round(value * 1e6) / 1e6;
+    return { lng: round(lngLat.lng + dLng), lat: round(lngLat.lat + dLat) };
+}
+
 // Offers map pins (lib/data/circle.ts) — see the comment above its caller there. The same for
 // every viewer: the real pin and street only when the owner confirmed "exact" and, for a venue,
 // its addressVisibility is "public" (the same ceiling redactCircleLocationForViewer applies to the
-// venue's profile pin); otherwise city level at most, with the pin snapped to the public ~5 km
-// grid so it still renders. The street is never kept on that path, with or without a pin.
+// venue's profile pin); otherwise city level at most, with the pin moved by the circle's stored
+// offerPinOffset. A circle without a valid offset yet (before the backfill, or if writing it
+// failed) falls back to the public ~5 km grid, never to the real point. The street is never kept
+// on that path, with or without a pin.
 // Venue is decided by identityType alone, the same test getOfferMapPins uses to attach identity.
-export function getOfferPinLocation(circle: Pick<Circle, "location" | "metadata">): Location | undefined {
+export function getOfferPinLocation(
+    circle: Pick<Circle, "location" | "metadata" | "offerPinOffset">,
+): Location | undefined {
     const location = circle.location;
     if (!location) {
         return location;
@@ -194,10 +236,18 @@ export function getOfferPinLocation(circle: Pick<Circle, "location" | "metadata"
     }
     const { street: _street, exactConfirmedAt: _confirmed, ...rest } = location;
     const precision = Math.min(location.precision ?? 2, 2);
-    if (!location.lngLat) {
+    const lngLat = location.lngLat;
+    if (!lngLat) {
         return { ...rest, precision };
     }
-    return { ...rest, precision, lngLat: coarsenLngLat(location.lngLat) };
+    if (
+        Number.isFinite(lngLat.lng) &&
+        Number.isFinite(lngLat.lat) &&
+        isValidOfferPinOffset(circle.offerPinOffset)
+    ) {
+        return { ...rest, precision, lngLat: applyOfferPinOffset(lngLat, circle.offerPinOffset) };
+    }
+    return { ...rest, precision, lngLat: coarsenLngLat(lngLat) };
 }
 
 // Pure: returns a new Location object (or the same reference when nothing changes), never

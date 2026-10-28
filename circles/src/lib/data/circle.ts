@@ -18,12 +18,15 @@ import {
 import { getServerSettings } from "./server-settings";
 import { Circles, Members, MembershipRequests, Feeds, Posts, ChatRooms } from "./db";
 import { ObjectId } from "mongodb";
+import { randomInt } from "crypto";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
 import {
     escapeRegex,
     getOfferPinLocation,
+    OFFER_PIN_OFFSET_MAX_METERS,
+    OFFER_PIN_OFFSET_MIN_METERS,
     redactCircleLocationForViewer,
     viewerBypassesLocationRedaction,
 } from "../utils";
@@ -356,6 +359,8 @@ const OFFER_MAP_PIN_PROJECTION = {
     "metadata.peerify.identityType": 1,
     // getOfferPinLocation's venue ceiling: no exact pin unless the venue's address is public.
     "metadata.peerify.venueProfile.addressVisibility": 1,
+    // Read here only to move the pin; never copied onto an OfferMapPin.
+    offerPinOffset: 1,
 } as const;
 
 type OfferMapCircleRow = {
@@ -366,6 +371,7 @@ type OfferMapCircleRow = {
     handle?: string;
     picture?: FileInfo;
     metadata?: { peerify?: { identityType?: string; venueProfile?: { addressVisibility?: string } } };
+    offerPinOffset?: Circle["offerPinOffset"];
 };
 
 // Offer-pin location (getOfferPinLocation, lib/utils.ts) is decoupled entirely from the profile's own location.precision-gated
@@ -377,8 +383,10 @@ type OfferMapCircleRow = {
 //   addressVisibility "public", the same ceiling its own profile pin has.
 // - anything else: a circle's own precision choice governs OTHER surfaces but must never silently
 //   block Offers pins from rendering at all — that was a real bug (toggle on, count shows, no
-//   pin, no explanation why). Falls back to a coarse coordinate snapped to the public ~5 km grid
-//   (PUBLIC_COARSE_PIN_GRID_DEGREES, 0.05°), so a pin always renders once offersVisible is on.
+//   pin, no explanation why). The pin is the real point moved 200–400 m by the circle's stored
+//   offerPinOffset (see ensureOfferPinOffset below), or, while a circle has none yet, snapped to
+//   the public ~5 km grid (PUBLIC_COARSE_PIN_GRID_DEGREES, 0.05°). Either way a pin renders once
+//   offersVisible is on.
 
 // Global, cross-circle query for Offer map pins — one pin PER OFFER, not per circle. A circle
 // with 3 offerings produces 3 pins here, each carrying that one offering's type/label and the
@@ -451,6 +459,31 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
         }
     }
     return pins;
+};
+
+// Uniform by area over the 200–400 m ring (not uniform in distance, which would bunch pins near
+// the inner edge), any bearing. crypto, not Math.random: nobody may be able to predict it.
+const generateOfferPinOffset = (): NonNullable<Circle["offerPinOffset"]> => {
+    const unit = () => randomInt(0, 2 ** 32) / 2 ** 32;
+    const min2 = OFFER_PIN_OFFSET_MIN_METERS ** 2;
+    const max2 = OFFER_PIN_OFFSET_MAX_METERS ** 2;
+    return {
+        bearingDeg: Math.round(unit() * 360 * 100) / 100,
+        distanceM: Math.round(Math.sqrt(min2 + unit() * (max2 - min2))),
+    };
+};
+
+// Gives a circle its offer pin offset, once. The filter only matches a circle that has none, so an
+// existing offset is never replaced: a second, different offset for the same address would let
+// anyone with a before and after view narrow the address down to the two points where the rings
+// cross. Called after saving offerings and after turning offersVisible on; existing circles get
+// theirs from the backfill script (scripts/backfill-offer-pin-offsets.mongosh.js). Errors are the
+// caller's to log, never to fail a save over: without an offset the pin falls back to the grid.
+export const ensureOfferPinOffset = async (circleId: string): Promise<void> => {
+    await Circles.updateOne(
+        { _id: new ObjectId(circleId), offerPinOffset: { $exists: false } },
+        { $set: { offerPinOffset: generateOfferPinOffset() } },
+    );
 };
 
 // Narrow projection for getOfferDetailsForMember — deliberately not SAFE_CIRCLE_PROJECTION
@@ -700,6 +733,8 @@ export const createCircle = async (circle: Circle, authenticatedUserDid: string)
 
     circle.createdAt = new Date();
     circle.userGroups = defaultUserGroups;
+    // Only ever set by ensureOfferPinOffset.
+    delete circle.offerPinOffset;
 
     // Set default enabled modules based on circle type
     let defaultModules = getDefaultModules(circle.circleType ?? "circle");
@@ -972,6 +1007,7 @@ export const updateCircle = async (circle: Partial<Circle>, authenticatedUserDid
     delete circleWithoutId.did; // DID should never change
     delete circleWithoutId.email; // Email should likely be updated via a separate, dedicated process if needed
     delete circleWithoutId.circleType; // CircleType should not change after creation
+    delete circleWithoutId.offerPinOffset; // Set once by ensureOfferPinOffset, never changed
 
     // Check for handle conflict if handle is being updated
     if (circleWithoutId.handle && circleWithoutId.handle !== existingCircle.handle) {
