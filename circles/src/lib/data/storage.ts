@@ -3,6 +3,7 @@
 import fs from "fs-extra";
 import path from "path";
 import { Client as MinioClient } from "minio";
+import { randomBytes } from "crypto";
 import { sanitizeUpload } from "@/lib/media/sanitize-image";
 
 const resolveMinioHost = () => {
@@ -83,6 +84,12 @@ export type FileInfo = {
     url: string;
 };
 
+// The public bucket is served to anyone who has a URL (the /storage and /uploads routes check
+// nothing), so an object name must not be guessable: 128 random bits, not a timestamp. Names used
+// to be `${prefix}${Date.now()}`, where only the millisecond was unknown. The `${circleId}/`
+// folder stays: account erasure and find-orphan-storage-prefixes.ts work by it.
+const unguessableName = (prefix: string): string => `${prefix}-${randomBytes(16).toString("hex")}`;
+
 export const saveFile = async (
     file: any,
     fileName: string,
@@ -113,7 +120,7 @@ export const saveFile = async (
         const sanitized = await sanitizeUpload(buffer, file?.type, originalName);
         buffer = sanitized.buffer;
         const extension = sanitized.extension || resolveFileExtension(originalName, file?.type);
-        const finalName = `${Date.now()}-${fileName}${extension}`;
+        const finalName = `${unguessableName(fileName)}${extension}`;
         const filePath = path.join(uploadDir, finalName);
         
         const fileDir = path.dirname(filePath);
@@ -139,7 +146,7 @@ export const saveFile = async (
         }
     }
 
-    const objectBaseName = `${fileName}${Date.now()}`;
+    const objectBaseName = unguessableName(fileName);
     let buffer: Buffer;
     let contentType = "application/octet-stream";
     let originalName = "unknown";
