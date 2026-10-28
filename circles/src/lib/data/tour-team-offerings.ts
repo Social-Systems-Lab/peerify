@@ -25,6 +25,11 @@ export const RETIRED_OFFER_TYPES: readonly TourTeamOffering["type"][] = ["hostin
 export const isRetiredOfferType = (type: string): boolean =>
     (RETIRED_OFFER_TYPES as readonly string[]).includes(type);
 
+// Whether an offering may be shown to anyone but its owner: the server-side filter for every
+// non-owner surface (map pins and their details, the public profile, Crew).
+export const isListedOffering = (offering: Pick<TourTeamOffering, "type">): boolean =>
+    !isRetiredOfferType(offering.type);
+
 // The structured types offered in the "Create an offer" modal's Step 1 grid, in display order
 // (Accommodation, Meal, Transport, Promotion) — each has a matching offerDetailsSchema variant and
 // a Step 2 form. "Other" (type "custom") is always offered alongside these, generic/type-less, and

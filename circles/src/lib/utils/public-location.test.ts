@@ -225,4 +225,31 @@ for (const [name, shape] of [
     assert.equal(JSON.stringify(shape).includes("offerPinOffset"), false, `${name}: offerPinOffset must not be sent`);
 }
 
+// Retired offer types (Show space) reach the owner's own profile only.
+const withShowSpace = {
+    ...CASES[1][1],
+    tourTeamOfferings: [
+        { id: "show-1", type: "hosting_show" },
+        { id: "meal-1", type: "home_cooked_meal" },
+    ],
+} as Circle;
+for (const viewerDid of [undefined, STRANGER]) {
+    const shaped = toPublicCircle(
+        withShowSpace,
+        { viewerDid, viewerIsPlatformAdmin: false, viewerCanManage: false },
+        { includeTourTeamOfferings: true },
+    );
+    assert.deepEqual(
+        shaped.tourTeamOfferings?.map((offering) => offering.type),
+        ["home_cooked_meal"],
+        `${viewerDid ?? "logged out"}: Show space hidden`,
+    );
+}
+assert.equal(
+    toPublicCircle(withShowSpace, { viewerDid: OWNER, viewerIsPlatformAdmin: false, viewerCanManage: false }, { includeTourTeamOfferings: true })
+        .tourTeamOfferings?.length,
+    2,
+    "owner keeps their Show space",
+);
+
 console.log("public-location: all tests passed");

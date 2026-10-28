@@ -11,6 +11,7 @@ import {
     getOfferDefaultImageUrl,
     getTourTeamOfferingLabel,
     accommodationSubTypeLabels,
+    isRetiredOfferType,
     OFFER_MODAL_TYPES,
 } from "@/lib/data/tour-team-offerings";
 import { CreateOfferModal } from "./create-offer-modal";
@@ -125,6 +126,9 @@ export function OfferManager({
                         const summary = getOfferDetailsSummary(offering);
                         const thumbnail = offering.photos?.[0]?.url || getOfferDefaultImageUrl(offering);
                         const isUnsaved = touchedIds.has(offering.id);
+                        // Retired types (Show space) are kept, hidden from everyone else, and can
+                        // be deleted but not edited (savePresence keeps the stored copy).
+                        const isRetired = isRetiredOfferType(offering.type);
                         return (
                             <div key={offering.id} className="flex items-start gap-3 rounded-md border px-3 py-2">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -137,7 +141,26 @@ export function OfferManager({
                                                 Unsaved
                                             </Badge>
                                         )}
+                                        {isRetired && (
+                                            <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-medium">
+                                                No longer shown
+                                            </Badge>
+                                        )}
                                     </div>
+                                    {isRetired && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Show spaces are no longer offers, so nobody else sees this one.{" "}
+                                            {isVenue ? null : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAddSpaceOpen(true)}
+                                                    className="font-medium text-foreground underline underline-offset-2"
+                                                >
+                                                    Add it as a space
+                                                </button>
+                                            )}
+                                        </p>
+                                    )}
                                     {offering.accommodationType && (
                                         <p className="text-xs text-muted-foreground">
                                             {accommodationSubTypeLabels[offering.accommodationType]}
@@ -151,14 +174,16 @@ export function OfferManager({
                                     {summary && <p className="text-xs text-muted-foreground">{summary}</p>}
                                     {offering.detail && <p className="text-xs text-muted-foreground">{offering.detail}</p>}
                                 </div>
-                                <button
-                                    type="button"
-                                    aria-label="Edit offering"
-                                    onClick={() => openEditModal(offering)}
-                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-black/10"
-                                >
-                                    <Pencil className="h-4 w-4" />
-                                </button>
+                                {!isRetired && (
+                                    <button
+                                        type="button"
+                                        aria-label="Edit offering"
+                                        onClick={() => openEditModal(offering)}
+                                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-black/10"
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     aria-label="Remove offering"

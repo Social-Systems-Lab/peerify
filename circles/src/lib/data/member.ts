@@ -15,6 +15,7 @@ import { redactLocationForViewer, viewerBypassesLocationRedaction, type Location
 import { toPublicLocation } from "../utils/public-circle";
 import { getMetrics } from "../utils/metrics";
 import { SAFE_CIRCLE_PROJECTION } from "./circle";
+import { isListedOffering } from "./tour-team-offerings";
 import { addChatRoomMember, getChatRoomByHandle, removeChatRoomMember } from "./chat";
 import { upsertFollowState } from "./relationships";
 
@@ -292,7 +293,11 @@ export const getCrewOfferings = async (
         },
     ]).toArray();
 
-    return offerers as CrewOfferer[];
+    // Retired types (Show space) are kept on the profile for its owner only; someone left with
+    // nothing else drops out, the same as a member with no offerings at all.
+    return (offerers as CrewOfferer[])
+        .map((offerer) => ({ ...offerer, tourTeamOfferings: offerer.tourTeamOfferings.filter(isListedOffering) }))
+        .filter((offerer) => offerer.tourTeamOfferings.length > 0);
 };
 
 // Self-service only — callers must derive userDid from the authenticated viewer's own session,

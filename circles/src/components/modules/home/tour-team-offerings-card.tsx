@@ -15,6 +15,7 @@ import {
     getTourTeamOfferingIcon,
     getTourTeamOfferingLabel,
     sortOfferingsForDisplay,
+    isListedOffering,
 } from "@/lib/data/tour-team-offerings";
 
 interface TourTeamOfferingsCardProps {
@@ -24,7 +25,10 @@ interface TourTeamOfferingsCardProps {
 
 export default function TourTeamOfferingsCard({ circle, canManage }: TourTeamOfferingsCardProps) {
     const router = useRouter();
-    const offerings = sortOfferingsForDisplay(circle.tourTeamOfferings || []);
+    // The server already drops retired types (Show space) for everyone else; the owner gets the
+    // full circle, so filter here too and show them what visitors see. Their Presence settings
+    // list still shows the hidden ones, marked "no longer shown".
+    const offerings = sortOfferingsForDisplay((circle.tourTeamOfferings || []).filter(isListedOffering));
     // Same isVenue-branches-copy pattern presence-settings-form.tsx already uses for this section
     // ("Unlike an individual profile, a venue offer pin shows your venue's name...") — first-person
     // singular reads oddly on a venue's business profile, so venues get "we" instead of "I".

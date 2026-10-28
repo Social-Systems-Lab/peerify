@@ -1,5 +1,6 @@
 import type { Circle, Location } from "@/models/models";
 import { redactCircleLocationForViewer } from "@/lib/utils";
+import { isListedOffering } from "@/lib/data/tour-team-offerings";
 
 // Shapes a circle document for viewers who don't manage it, before it's serialised to the
 // circle layout's client components (HomeCover, HomeContent, CircleTabs) and the home page's
@@ -190,7 +191,8 @@ export function toPublicCircle(
     }
 
     if (options.includeTourTeamOfferings && circle.tourTeamOfferings !== undefined) {
-        publicCircle.tourTeamOfferings = circle.tourTeamOfferings;
+        // Retired types (Show space) stay on the circle for its owner only.
+        publicCircle.tourTeamOfferings = circle.tourTeamOfferings.filter(isListedOffering);
     }
 
     return publicCircle;

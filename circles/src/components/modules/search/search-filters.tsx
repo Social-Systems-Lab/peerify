@@ -30,7 +30,7 @@ import {
     PRIMARY_GENRE_OPTIONS,
 } from "@/lib/peerify/artist-profile";
 import { PEERIFY_ACT_OFFER_ICONS } from "@/lib/peerify/act-offer-icons";
-import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
+import { getTourTeamOfferingLabel, isRetiredOfferType } from "@/lib/data/tour-team-offerings";
 import CategoryFilter, { CategoryFilterProps } from "./category-filter";
 
 // ---- Filter shape ----
@@ -47,8 +47,12 @@ export type ResultCategory = (typeof RESULT_TYPE_OPTIONS)[number]["value"];
 // Full individual-host set (tourTeamOfferingTypes) plus "custom" — deliberately NOT the narrower
 // venue-only subset (VENUE_TOUR_TEAM_OFFERING_TYPES) venues are restricted to in their own
 // editor. Offer pins on the map come from both individuals and venues, so the filter's universe
-// of options has to cover every type either can produce.
-export const OFFER_TYPE_FILTER_OPTIONS = [...tourTeamOfferingTypes, "custom"] as const;
+// of options has to cover every type either can produce. Retired types (Show space) are never
+// pinned, so they're left out.
+export const OFFER_TYPE_FILTER_OPTIONS = [
+    ...tourTeamOfferingTypes.filter((type) => !isRetiredOfferType(type)),
+    "custom",
+] as const;
 export type OfferTypeFilterOption = (typeof OFFER_TYPE_FILTER_OPTIONS)[number];
 
 export type SearchFiltersValue = {

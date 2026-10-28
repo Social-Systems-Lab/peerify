@@ -31,6 +31,7 @@ import {
     viewerBypassesLocationRedaction,
 } from "../utils";
 import { toPublicCircleListItem, toPublicLocation } from "../utils/public-circle";
+import { isListedOffering } from "./tour-team-offerings";
 import { deleteVbdCircle, deleteVbdPost, upsertVbdCircles } from "./vdb";
 import { createDefaultChatRooms, getChatRoomByHandle, updateChatRoom } from "./chat";
 import { createDefaultFeed } from "./feed";
@@ -446,7 +447,8 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
     const pins: OfferMapPin[] = [];
     for (const row of rows) {
         const isVenue = row.metadata?.peerify?.identityType === "venue";
-        for (const offering of row.tourTeamOfferings ?? []) {
+        // Retired types (Show space) are kept on the circle but never pinned, for any viewer.
+        for (const offering of (row.tourTeamOfferings ?? []).filter(isListedOffering)) {
             pins.push({
                 _id: `${row._id}:${offering.id}`,
                 location: getOfferPinLocation(row),
@@ -543,7 +545,8 @@ export const getOfferDetailsForMember = async (
     }
 
     const offering = (circle.tourTeamOfferings as TourTeamOffering[] | undefined)?.find((o) => o.id === offeringId);
-    if (!offering) return null;
+    // A retired type (Show space) is never pinned, so its details aren't reachable by id either.
+    if (!offering || !isListedOffering(offering)) return null;
 
     return {
         _id: offerId,
