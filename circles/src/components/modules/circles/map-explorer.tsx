@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Circle, WithMetric, Content, ContentPreviewData, MemberDisplay, OfferMapPin } from "@/models/models";
+import { Circle, WithMetric, Content, ContentPreviewData, MemberDisplay, OfferMapPin, SpaceMapPin } from "@/models/models";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { useDebounce } from "@/components/utils/use-debounce";
 import useWindowDimensions from "@/components/utils/use-window-dimensions";
@@ -50,7 +50,7 @@ import SearchFilters, {
 import Indicators from "@/components/utils/indicators";
 import ResizingDrawer from "@/components/ui/resizing-drawer"; // Correct import name
 import ContentPreview from "@/components/layout/content-preview";
-import { getOpenEventsForMapAction, getOfferMapPinsAction } from "./map-explorer-actions";
+import { getOpenEventsForMapAction, getOfferMapPinsAction, getSpaceMapPinsAction } from "./map-explorer-actions";
 import { EventDisplay } from "@/models/models";
 import ActivityPanel from "@/components/layout/activity-panel";
 import MobileEventsPanel from "@/components/modules/events/mobile-events-panel";
@@ -204,6 +204,7 @@ const SEARCH_CATEGORY_LABELS: Record<string, string> = {
     communities: "venues",
     events: "events",
     offers: "offers",
+    spaces: "spaces",
 };
 
 // Empty array (or omitted) means "All" throughout this file — mirrors selectedCategories'
@@ -281,6 +282,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // notes on that inconsistency, left as-is), the Offer-type picker only makes sense while Offer
     // pins are actually part of the current view.
     const includesOffers = selectedCategories.length === 0 || selectedCategories.includes("offers");
+    // Private space pins: map pins only, like offers (they have no name to search by).
+    const includesSpaces = selectedCategories.length === 0 || selectedCategories.includes("spaces");
     const [allSearchResults, setAllSearchResults] = useState<WithMetric<Circle>[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
@@ -296,6 +299,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // react to. Carries no circle identity at all, so it's never routed through
     // mapItemToContent (which expects circle-shaped data) — merged in directly, like events.
     const [offerMapPins, setOfferMapPins] = useState<OfferMapPin[]>([]);
+    // Private space pins (getSpaceMapPins): fetched once, no filters of their own.
+    const [spaceMapPins, setSpaceMapPins] = useState<SpaceMapPin[]>([]);
     const [pendingFocusEventId, setPendingFocusEventId] = useState<string | null>(searchParams.get("focusEvent"));
     const [hasAppliedFocusEvent, setHasAppliedFocusEvent] = useState(false);
     // Opt-in filter to exclude virtual events — off by default, matching the "show everything by
@@ -533,13 +538,14 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 selectedOfferTypes.length === 0
                     ? offerMapPins.length
                     : offerMapPins.filter((pin) => selectedOfferTypes.includes(pin.offerType)).length,
+            spaces: spaceMapPins.length,
         };
         countsDatasetCircles?.forEach((result) => {
             if (isPeerifyVenueIdentity(result)) counts.communities++;
             else if (isPeerifyArtistIdentity(result) && matchesActFilters(result, actFilters)) counts.users++;
         });
         return counts;
-    }, [countsDatasetCircles, filteredEventsForMap.length, offerMapPins, selectedOfferTypes, actFilters]);
+    }, [countsDatasetCircles, filteredEventsForMap.length, offerMapPins, spaceMapPins, selectedOfferTypes, actFilters]);
 
     // Used only by this screen's own search-bar "Clear search" button visibility below — the
     // Advanced Filters trigger badge/count now lives inside SearchFilters itself, computed the
@@ -986,6 +992,17 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     }, []);
 
     useEffect(() => {
+        let canceled = false;
+        (async () => {
+            const data = await getSpaceMapPinsAction();
+            if (!canceled) setSpaceMapPins(data || []);
+        })();
+        return () => {
+            canceled = true;
+        };
+    }, []);
+
+    useEffect(() => {
         if (!pendingFocusEventId || hasAppliedFocusEvent) return;
         const targetEvent = eventsForMap.find((evt) => getEventId(evt) === pendingFocusEventId);
         if (!targetEvent) return;
@@ -1090,6 +1107,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 ...mapData,
                 ...(includesEvents ? (filteredEventsForMap as unknown as Content[]) : []),
                 ...offerMapData,
+                ...(includesSpaces ? (spaceMapPins as unknown as Content[]) : []),
             ];
             setDisplayedContent(combined);
         }
@@ -1104,6 +1122,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         offerMapPins,
         selectedOfferTypes,
         includesOffers,
+        spaceMapPins,
+        includesSpaces,
         panelMode, // Added dependency
     ]);
 
@@ -1347,6 +1367,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     events: categoryCounts.events,
                                     users: categoryCounts.users,
                                     offers: categoryCounts.offers,
+                                    spaces: categoryCounts.spaces,
                                 }}
                                 selectedCategories={selectedCategories}
                                 onSelectionChange={setSelectedCategories}
@@ -1356,6 +1377,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     communities: "Venues",
                                     events: "Events",
                                     offers: "Offers",
+                                    spaces: "Spaces",
                                 }}
                             />
                         </div>

@@ -3,11 +3,12 @@
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getOpenEventsForMap, getOpenEventsForList } from "@/lib/data/event";
 import { getCircleById, getOfferDetailsForMember, getOfferMapPins } from "@/lib/data/circle";
+import { getSpaceDetailsForMember, getSpaceMapPins } from "@/lib/data/space";
 import { getTracksByCircleId } from "@/lib/data/track";
 import { signAudioToken } from "@/lib/audio/audio-token";
 import { isPeerifyArtistIdentity, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 import { features } from "@/lib/data/constants";
-import { EventDisplay, OfferMapPin, OfferMemberDetails } from "@/models/models";
+import { EventDisplay, OfferMapPin, OfferMemberDetails, SpaceMapPin, SpaceMemberDetails } from "@/models/models";
 
 type RangeInput = { from?: string; to?: string };
 
@@ -107,6 +108,36 @@ export async function getOfferDetailsForMemberAction(offerId: string): Promise<O
         return await getOfferDetailsForMember(offerId, userDid);
     } catch (err) {
         console.error("getOfferDetailsForMemberAction error:", err);
+        return null;
+    }
+}
+
+/**
+ * Private space pins (getSpaceMapPins): spaces whose owner put them on the map, with only the area
+ * names and the moved pin point. The same for every viewer, signed in or not. Errors are logged by
+ * name only and give an empty list, like the offer pins.
+ */
+export async function getSpaceMapPinsAction(): Promise<SpaceMapPin[]> {
+    try {
+        return await getSpaceMapPins();
+    } catch (err) {
+        console.error("getSpaceMapPinsAction error:", err instanceof Error ? err.name : "unknown error");
+        return [];
+    }
+}
+
+/**
+ * One space's details (capacity, setting, sound, access, what the host would like in return) for a
+ * signed-in viewer only; null when signed out or the space isn't on the map. One space by id, no
+ * bulk variant, like getOfferDetailsForMemberAction.
+ */
+export async function getSpaceDetailsForMemberAction(spaceId: string): Promise<SpaceMemberDetails | null> {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return null;
+        return await getSpaceDetailsForMember(String(spaceId));
+    } catch (err) {
+        console.error("getSpaceDetailsForMemberAction error:", err instanceof Error ? err.name : "unknown error");
         return null;
     }
 }

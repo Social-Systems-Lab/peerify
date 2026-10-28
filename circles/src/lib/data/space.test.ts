@@ -12,8 +12,16 @@ mock.module("@/lib/data/db", () => fakeDb.module);
 
 const { coarsenLngLat } = await import("@/lib/utils");
 const { parseSpaceInput, toAreaOnlyLocation } = await import("@/lib/spaces/space-rules");
-const { createSpaceForOwner, deleteSpaceForOwner, getSpaceActor, listSpacesForOwner, updateSpaceForOwner, SPACES_PER_PERSON_MAX } =
-    await import("./space");
+const {
+    createSpaceForOwner,
+    deleteSpaceForOwner,
+    getSpaceActor,
+    getSpaceDetailsForMember,
+    getSpaceMapPins,
+    listSpacesForOwner,
+    updateSpaceForOwner,
+    SPACES_PER_PERSON_MAX,
+} = await import("./space");
 
 const ALICE = "did:test:alice";
 const BOB = "did:test:bob";
@@ -369,5 +377,68 @@ describe("private space on the map (publiclyListed)", () => {
         await createSpaceForOwner(ALICE, input.value, input.pickedLngLat);
         expect(stored()[0].location).toEqual(toAreaOnlyLocation(EXACT));
         expect(stored()[0].mapPinPlacedAt).toBeUndefined();
+    });
+});
+
+describe("space map pins and details (getSpaceMapPins, getSpaceDetailsForMember)", () => {
+    const OFFSET = { bearingDeg: 200, distanceM: 250 };
+    const owners = (extra: Record<string, unknown>[] = []) =>
+        fakeDb.reset({
+            Circles: [
+                { _id: new ObjectId(), did: ALICE, circleType: "user", name: "Alice", handle: "alice", offerPinOffset: OFFSET },
+                { _id: new ObjectId(), did: BOB, circleType: "user", offerPinOffset: OFFSET, publishStatus: "draft" },
+                ...extra,
+            ],
+        });
+    const listed = (did: string, overrides: Record<string, unknown> = {}) => {
+        const result = parseSpaceInput(privateInput({ publiclyListed: true, ...overrides }));
+        if (!result.ok) throw new Error(result.error);
+        return createSpaceForOwner(did, result.value, result.pickedLngLat) as Promise<{ ok: true; id: string }>;
+    };
+
+    test("only listed private spaces with a pin, of published owners", async () => {
+        owners();
+        const { id } = await listed(ALICE);
+        await createSpaceForOwner(ALICE, parsed(privateInput()));
+        await createSpaceForOwner(ALICE, parsed(popupInput()));
+        await listed(BOB);
+        const pins = await getSpaceMapPins();
+        expect(pins.map((pin) => pin._id)).toEqual([id]);
+    });
+
+    test("a pin carries the space id, area names and the moved point, nothing else", async () => {
+        owners();
+        const { id } = await listed(ALICE);
+        const [pin] = await getSpaceMapPins();
+        expect(Object.keys(pin).sort()).toEqual(["_id", "location", "spaceKind"]);
+        expect(Object.keys(pin.location).sort()).toEqual(["city", "country", "countryCode", "lngLat", "precision", "region"]);
+        expect(pin.location.lngLat).toEqual(stored()[0].location.lngLat);
+        const raw = JSON.stringify(pin);
+        for (const hidden of [ALICE, "alice", "Alice", "Ring the bell", "Drottninggatan", String(EXACT.lngLat.lng)]) {
+            expect(raw.includes(hidden)).toBe(false);
+        }
+        expect(pin._id).toBe(id);
+    });
+
+    test("details: the allow-listed fields only, and only for a space on the map", async () => {
+        owners();
+        const { id } = await listed(ALICE);
+        const details = await getSpaceDetailsForMember(id);
+        expect(details).toEqual({
+            _id: id,
+            capacity: 25,
+            setting: ["indoor"],
+            amplification: "acoustic_only",
+            noiseCurfew: "22:00",
+            stepFreeAccess: "stairs_involved",
+            dealPreferences: ["takings_share", "food_drinks"],
+        });
+        expect(JSON.stringify(details).includes("Ring the bell")).toBe(false);
+
+        const hidden = (await createSpaceForOwner(ALICE, parsed(privateInput()))) as { ok: true; id: string };
+        expect(await getSpaceDetailsForMember(hidden.id)).toBeNull();
+        const draftOwner = await listed(BOB);
+        expect(await getSpaceDetailsForMember(draftOwner.id)).toBeNull();
+        expect(await getSpaceDetailsForMember("not-an-id")).toBeNull();
     });
 });

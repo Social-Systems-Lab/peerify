@@ -40,6 +40,7 @@ export const RESULT_TYPE_OPTIONS = [
     { value: "communities", label: "Venues" },
     { value: "events", label: "Events" },
     { value: "offers", label: "Offers" },
+    { value: "spaces", label: "Spaces" },
 ] as const;
 
 export type ResultCategory = (typeof RESULT_TYPE_OPTIONS)[number]["value"];

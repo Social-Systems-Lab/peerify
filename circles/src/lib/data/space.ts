@@ -6,7 +6,9 @@
 // through parseSpaceInput (lib/spaces/space-rules.ts), which already rounded a private space's
 // location.
 //
-// No discovery path (circle queries, search, map feeds, the vector index) reads this collection.
+// The only discovery path is getSpaceMapPins and getSpaceDetailsForMember below: private spaces
+// whose owner put them on the map, and nothing else (no pop-ups, no owner, no notes). Circle
+// queries, search and the vector index don't read this collection.
 //
 // A private space its owner puts on the map (publiclyListed) is the one place a picked point
 // arrives: placePrivateSpaceLocation moves it by the owner's offerPinOffset before anything is
@@ -14,8 +16,8 @@
 
 import { ObjectId } from "mongodb";
 import { Circles, Spaces } from "./db";
-import { ensureOfferPinOffset } from "./circle";
-import { Location, SpaceDoc, SpaceInput, SpaceType } from "@/models/models";
+import { ensureOfferPinOffset, getPublishedCircleQuery } from "./circle";
+import { Location, SpaceDoc, SpaceInput, SpaceMapPin, SpaceMemberDetails, SpaceType } from "@/models/models";
 import { canPerformRestrictedAction } from "@/lib/auth/verification";
 import { LngLat, SPACES_PER_PERSON_MAX } from "@/lib/spaces/space-rules";
 import { OfferPinOffset, applyOfferPinOffset, isValidOfferPinOffset } from "@/lib/utils";
@@ -264,4 +266,78 @@ export const listAllSpacesForAdmin = async (): Promise<AdminSpaceRow[]> => {
             owner: owner ? { name: owner.name, handle: owner.handle, email: owner.email } : null,
         };
     });
+};
+
+// On the map: a private space whose owner turned the switch on and that has its moved pin. A
+// space with only its rounded area (saved before the switch existed, or with no offset) has no
+// mapPinPlacedAt and never matches.
+const ON_MAP_QUERY = { type: "private", publiclyListed: true, mapPinPlacedAt: { $exists: true } } as const;
+
+// The owners of these spaces whose own profile is published: an unpublished or removed owner
+// takes their spaces off the map with them.
+const publishedOwnerDids = async (ownerDids: string[]): Promise<Set<string>> => {
+    if (ownerDids.length === 0) return new Set();
+    const owners = await Circles.find(
+        { $and: [{ did: { $in: ownerDids }, circleType: "user" }, getPublishedCircleQuery()] },
+        { projection: { did: 1 } },
+    ).toArray();
+    return new Set(owners.map((owner) => owner.did as string));
+};
+
+// Area names and the pin point only, rebuilt from an allow-list.
+const toPinLocation = (location: Location): Location =>
+    Object.fromEntries(
+        Object.entries({
+            precision: 2,
+            country: location.country,
+            countryCode: location.countryCode,
+            region: location.region,
+            city: location.city,
+            lngLat: location.lngLat ? { lng: location.lngLat.lng, lat: location.lngLat.lat } : undefined,
+        }).filter(([, value]) => value !== undefined && value !== ""),
+    ) as unknown as Location;
+
+// Map pins for every viewer, signed in or not. ownerDid is read to drop spaces of unpublished
+// owners and never leaves this function.
+export const getSpaceMapPins = async (): Promise<SpaceMapPin[]> => {
+    const docs = (await Spaces.find(ON_MAP_QUERY, { projection: { _id: 1, ownerDid: 1, location: 1 } }).toArray()) as Pick<
+        SpaceDoc,
+        "_id" | "ownerDid" | "location"
+    >[];
+    const published = await publishedOwnerDids(Array.from(new Set(docs.map((doc) => doc.ownerDid))));
+    return docs
+        .filter((doc) => published.has(doc.ownerDid) && doc.location?.lngLat)
+        .map((doc) => ({ _id: String(doc._id), spaceKind: "private" as const, location: toPinLocation(doc.location) }));
+};
+
+// One space's details for a signed-in viewer (the caller checks the sign-in), under the same gate
+// as the pins, so an id of a space that isn't on the map reads nothing.
+export const getSpaceDetailsForMember = async (spaceId: string): Promise<SpaceMemberDetails | null> => {
+    const _id = toObjectId(spaceId);
+    if (!_id) return null;
+    const doc = (await Spaces.findOne(
+        { ...ON_MAP_QUERY, _id },
+        {
+            projection: {
+                _id: 1,
+                ownerDid: 1,
+                capacity: 1,
+                setting: 1,
+                amplification: 1,
+                noiseCurfew: 1,
+                stepFreeAccess: 1,
+                dealPreferences: 1,
+            },
+        },
+    )) as Extract<SpaceDoc, { type: "private" }> | null;
+    if (!doc || !(await publishedOwnerDids([doc.ownerDid])).has(doc.ownerDid)) return null;
+    return {
+        _id: String(doc._id),
+        capacity: doc.capacity,
+        setting: doc.setting,
+        amplification: doc.amplification,
+        ...(doc.noiseCurfew ? { noiseCurfew: doc.noiseCurfew } : {}),
+        stepFreeAccess: doc.stepFreeAccess,
+        dealPreferences: doc.dealPreferences,
+    };
 };

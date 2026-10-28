@@ -1214,7 +1214,28 @@ export type OfferMemberDetails = {
     photos: FileInfo[];
 };
 
-export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin;
+// A private space on the map (getSpaceMapPins, lib/data/space.ts): the space's own _id, the area
+// names and the moved pin point, nothing else. No owner, no name, no space details. Duck-typed on
+// spaceKind, which nothing else in the Content union has.
+export type SpaceMapPin = {
+    _id: string;
+    spaceKind: "private";
+    location: Location;
+};
+
+// Fetched by a signed-in viewer who opens a space pin (getSpaceDetailsForMember). Still nothing
+// about the owner, and never notesForPeerify (meant for the Peerify team only).
+export type SpaceMemberDetails = {
+    _id: string;
+    capacity: number;
+    setting: z.infer<typeof eventTagSettingSchema>[];
+    amplification: (typeof SPACE_AMPLIFICATION_OPTIONS)[number];
+    noiseCurfew?: string;
+    stepFreeAccess: z.infer<typeof eventTagAccessibilitySchema>;
+    dealPreferences: SpaceDealPreference[];
+};
+
+export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin | SpaceMapPin;
 
 // Define Permissions type based on what IssuesModule passes
 export type IssuePermissions = {
@@ -1284,6 +1305,8 @@ export type ContentPreviewData =
     // circle (see OfferMapPin above), rendered by CrewOfferMapPreview, never CirclePreview (whose
     // Offers section is deliberately gated to the owner/a circle admin).
     | { type: "crewOffer"; content: OfferMapPin; props?: never }
+    // A private space pin (SpaceMapPin), rendered by PrivateSpaceMapPreview.
+    | { type: "privateSpace"; content: SpaceMapPin; props?: never }
     | { type: "proposal"; content: ProposalDisplay; props: { circle: Circle } }
     | { type: "issue"; content: IssueDisplay; props: { circle: Circle; permissions: IssuePermissions } }
     | { type: "task"; content: TaskDisplay; props: { circle: Circle; permissions: TaskPermissions } }

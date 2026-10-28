@@ -77,6 +77,11 @@ export default async function AdminSpacesPage() {
                                     {space.type === "popup" ? space.name : spaceAreaLabel(space.location) || "Area set"}
                                 </span>
                                 <span className="text-muted-foreground">{SPACE_TYPE_LABELS[space.type]}</span>
+                                {space.type === "private" && space.mapPinPlacedAt ? (
+                                    <span className="text-muted-foreground">On the map</span>
+                                ) : null}
+                                {/* The reference a "Message the Peerify team" email quotes. */}
+                                <span className="font-mono text-xs text-muted-foreground">ref {space._id}</span>
                             </div>
                             <div className="mt-1">
                                 {space.owner ? (
