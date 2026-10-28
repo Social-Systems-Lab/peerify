@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useSetAtom } from "jotai";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, X } from "lucide-react";
@@ -13,6 +14,7 @@ import {
     OFFER_MODAL_TYPES,
 } from "@/lib/data/tour-team-offerings";
 import { CreateOfferModal } from "./create-offer-modal";
+import { addSpaceDialogOpenAtom } from "@/lib/data/atoms";
 
 interface OfferManagerProps {
     value: TourTeamOffering[] | undefined;
@@ -49,6 +51,7 @@ export function OfferManager({
     isVenue = false,
 }: OfferManagerProps) {
     const [modalOpen, setModalOpen] = useState(false);
+    const setAddSpaceOpen = useSetAtom(addSpaceDialogOpenAtom);
     // Non-null while editing an existing offering — CreateOfferModal reads this to open straight
     // to a pre-filled Step 2 instead of the create flow's Step 1 grid. Cleared on close so the
     // next "Add an offer" click doesn't reopen into a stale edit.
@@ -183,6 +186,7 @@ export function OfferManager({
                 onSave={saveOffering}
                 editingOffering={editingOffering}
                 isVenue={isVenue}
+                onShowSpaceChosen={isVenue ? undefined : () => setAddSpaceOpen(true)}
             />
         </div>
     );

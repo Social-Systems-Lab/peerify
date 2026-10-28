@@ -9,7 +9,7 @@ import { GlobalCreateDialogContent, CreatableItemKey } from "@/components/global
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/use-toast";
 import { useAtom } from "jotai"; // Added useAtom
-import { userAtom, createPostDialogAtom } from "@/lib/data/atoms"; // Added createPostDialogAtom and userAtom
+import { userAtom, createPostDialogAtom, addSpaceDialogOpenAtom } from "@/lib/data/atoms"; // Added createPostDialogAtom and userAtom
 import { Circle, Feed, UserPrivate } from "@/models/models"; // Added Circle, Feed, UserPrivate
 import { getPublicUserFeedAction, getFeedByHandleAction } from "@/components/modules/feeds/actions"; // Changed to server action
 import { useActingIdentity } from "@/lib/utils/acting-identity";
@@ -73,7 +73,8 @@ export function GlobalCreateButton() {
     const [isCreateProjectOpen, setCreateProjectOpen] = useState(false);
     const [isCreatePeerifyArtistOpen, setCreatePeerifyArtistOpen] = useState(false);
     const [isCreatePeerifyVenueOpen, setCreatePeerifyVenueOpen] = useState(false);
-    const [isAddSpaceOpen, setAddSpaceOpen] = useState(false);
+    // An atom, not local state, so the Show space tile in Create an offer can open it too.
+    const [isAddSpaceOpen, setAddSpaceOpen] = useAtom(addSpaceDialogOpenAtom);
     const [spaceFormType, setSpaceFormType] = useState<SpaceType | null>(null);
 
     // Add a space → Venue opens the existing venue identity dialog; the other two open the space form.

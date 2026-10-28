@@ -15,22 +15,34 @@ export const tourTeamOfferingTypeLabels: Record<(typeof tourTeamOfferingTypes)[n
     promotion: "Promotion",
 };
 
-// The five structured types offered in the "Create an offer" modal's Step 1 grid, in display
-// order (Accommodation, Show space, Meal, Transport, Promotion) — each has a matching
-// offerDetailsSchema variant and a Step 2 form. "Other" (type "custom") is always offered
-// alongside these, generic/type-less, and isn't part of this list. city_guide/sound_equipment_help
+// Offer types that can no longer be created and are no longer shown to anyone but the owner.
+// Show space (hosting_show) is retired (Tim, 2026-10-28): offers must be free, and hosts of stages
+// may earn money, so a show space is now added as a space (Create → Add a space). Existing
+// offerings are kept as stored, never deleted: the server hides them (see isListedOffering) and
+// refuses new ones (savePresence), and the owner's own list marks them "no longer shown".
+export const RETIRED_OFFER_TYPES: readonly TourTeamOffering["type"][] = ["hosting_show"];
+
+export const isRetiredOfferType = (type: string): boolean =>
+    (RETIRED_OFFER_TYPES as readonly string[]).includes(type);
+
+// The structured types offered in the "Create an offer" modal's Step 1 grid, in display order
+// (Accommodation, Meal, Transport, Promotion) — each has a matching offerDetailsSchema variant and
+// a Step 2 form. "Other" (type "custom") is always offered alongside these, generic/type-less, and
+// isn't part of this list. A personal profile's modal also shows a Show space tile that opens Add
+// a space instead (see CreateOfferModal's onShowSpaceChosen). city_guide/sound_equipment_help
 // predate this modal and have no Step 2 form of their own — they're no longer creatable from the
 // modal (existing offerings of those types still render/persist fine).
-export const OFFER_MODAL_TYPES = ["spare_room", "hosting_show", "home_cooked_meal", "local_transport", "promotion"] as const;
+export const OFFER_MODAL_TYPES = ["spare_room", "home_cooked_meal", "local_transport", "promotion"] as const;
 
 // Curated subset of OFFER_MODAL_TYPES for venue circles (identityType "venue" — see
 // isPeerifyVenueIdentity), passed as CreateOfferModal's allowedTypes for venue presence settings.
 // spare_room/local_transport are personal-hospitality gestures from an individual host and don't
-// fit a business profile. hosting_show/home_cooked_meal are a venue's core offer (a bar/venue with
-// an attached restaurant). promotion is included — a venue promoting a show locally (flyers,
+// fit a business profile. home_cooked_meal is a venue's core offer (a bar/venue with an attached
+// restaurant); Show space is retired (see RETIRED_OFFER_TYPES), and a venue is the stage anyway.
+// promotion is included — a venue promoting a show locally (flyers,
 // regulars, local listings) is a natural business offer, no reason to restrict it to personal
 // circles. Bands are out of scope for now (see getOfferMapPins), so this subset isn't used for them.
-export const VENUE_OFFER_MODAL_TYPES = ["hosting_show", "home_cooked_meal", "promotion"] as const;
+export const VENUE_OFFER_MODAL_TYPES = ["home_cooked_meal", "promotion"] as const;
 
 // No existing icon-per-offering-type mapping existed anywhere before this (checked the
 // offerings-editing UI, offers-step.tsx and presence-settings-form.tsx — both text-only), so

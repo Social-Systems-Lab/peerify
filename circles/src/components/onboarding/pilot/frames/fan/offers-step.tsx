@@ -9,7 +9,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { CharCounter } from "@/components/forms/controls/char-counter";
 import { Circle, OFFER_NOTES_MAX_LENGTH, TourTeamOffering, tourTeamOfferingTypes } from "@/models/models";
-import { tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
+import { isRetiredOfferType, tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
 import { savePresence } from "@/app/circles/[handle]/settings/presence/actions";
 
 type OffersStepProps = {
@@ -46,6 +46,11 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
     const removeOffering = (id: string) => {
         setOfferings((prev) => prev.filter((offering) => offering.id !== id));
     };
+
+    // Retired types (Show space) can't be picked here any more. One the person already has is kept
+    // in the saved list untouched (savePresence keeps the stored copy) but not shown for editing.
+    const creatableTypes = tourTeamOfferingTypes.filter((type) => !isRetiredOfferType(type));
+    const editableOfferings = offerings.filter((offering) => !isRetiredOfferType(offering.type));
 
     const hasIncompleteCustomOffering = offerings.some(
         (offering) => offering.type === "custom" && !offering.label?.trim(),
@@ -88,7 +93,7 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
             </p>
 
             <div className="flex flex-wrap gap-2">
-                {tourTeamOfferingTypes.map((type) => {
+                {creatableTypes.map((type) => {
                     const isSelected = offerings.some((offering) => offering.id === type);
                     return (
                         <button
@@ -115,9 +120,9 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
                 </button>
             </div>
 
-            {offerings.length > 0 ? (
+            {editableOfferings.length > 0 ? (
                 <div className="space-y-3">
-                    {offerings.map((offering) => (
+                    {editableOfferings.map((offering) => (
                         <div key={offering.id} className="space-y-2 rounded-lg border p-3">
                             <div className="flex items-center justify-between gap-2">
                                 {offering.type === "custom" ? (

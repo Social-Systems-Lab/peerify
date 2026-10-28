@@ -3,7 +3,7 @@
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { ensureOfferPinOffset, getCircleById, getCirclePath, updateCircle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
-import { getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
+import { getTourTeamOfferingLabel, isRetiredOfferType } from "@/lib/data/tour-team-offerings";
 import { isFile, saveFile } from "@/lib/data/storage";
 import { Circle, FileInfo, FormSubmitResponse, TourTeamOffering, tourTeamOfferingSchema } from "@/models/models";
 import { revalidatePath } from "next/cache";
@@ -108,9 +108,35 @@ export async function savePresence(data: Circle): Promise<FormSubmitResponse> {
             delete engagementSettings.interests;
         }
 
-        const resolvedOfferings = data.tourTeamOfferings
-            ? await Promise.all(data.tourTeamOfferings.map((offering) => resolveOfferingPhotos(offering, data._id as string)))
-            : data.tourTeamOfferings;
+        // Retired types (Show space, see RETIRED_OFFER_TYPES) can't be created any more, from the
+        // modal, the pilot onboarding or a direct call. One the circle already has is kept exactly
+        // as stored (whatever the client sent for it), so the owner can keep or delete it but not
+        // change it. Checked before any photo upload.
+        let submittedOfferings = data.tourTeamOfferings;
+        if (submittedOfferings?.some((offering) => isRetiredOfferType(offering.type))) {
+            const stored = (await getCircleById(circleId))?.tourTeamOfferings ?? [];
+            const storedById = new Map(stored.map((offering) => [offering.id, offering]));
+            const kept: TourTeamOffering[] = [];
+            for (const offering of submittedOfferings) {
+                if (!isRetiredOfferType(offering.type)) {
+                    kept.push(offering);
+                    continue;
+                }
+                const storedOffering = storedById.get(offering.id);
+                if (!storedOffering || storedOffering.type !== offering.type) {
+                    return {
+                        success: false,
+                        message: `"${getTourTeamOfferingLabel(offering)}" is no longer an offer. Add your space with Create → Add a space.`,
+                    };
+                }
+                kept.push(storedOffering);
+            }
+            submittedOfferings = kept;
+        }
+
+        const resolvedOfferings = submittedOfferings
+            ? await Promise.all(submittedOfferings.map((offering) => resolveOfferingPhotos(offering, data._id as string)))
+            : submittedOfferings;
 
         // Nothing upstream of this point (the modal's own maxLength attributes, react-hook-form)
         // actually enforces tourTeamOfferingSchema server-side — those are client-only UX, easily

@@ -19,7 +19,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MultiImageUploader, ImageItem } from "@/components/forms/controls/multi-image-uploader";
 import { CharCounter } from "@/components/forms/controls/char-counter";
 import { cn } from "@/lib/utils";
-import { Sparkles } from "lucide-react";
+import { Mic2, Sparkles } from "lucide-react";
 import {
     accommodationSubTypes,
     hostingShowSpaceTypes,
@@ -78,6 +78,10 @@ interface CreateOfferModalProps {
     // for why this is threaded down rather than derived here from a circle this component doesn't
     // have in scope).
     isVenue?: boolean;
+    // When set, Step 1 shows a Show space tile that closes this modal and calls this instead of
+    // opening a form: show spaces are added as spaces now, not as offers (see RETIRED_OFFER_TYPES).
+    // Personal profiles only; a venue is the stage already.
+    onShowSpaceChosen?: () => void;
 }
 
 const EMPTY_IMAGES: ImageItem[] = [];
@@ -142,6 +146,7 @@ export function CreateOfferModal({
     onSave,
     editingOffering,
     isVenue = false,
+    onShowSpaceChosen,
 }: CreateOfferModalProps) {
     const isEditing = Boolean(editingOffering);
 
@@ -380,22 +385,38 @@ export function CreateOfferModal({
                                 ? "Other"
                                 : tourTeamOfferingTypeLabels[type as (typeof tourTeamOfferingTypes)[number]];
                             return (
-                                <button
-                                    key={type}
-                                    type="button"
-                                    disabled={alreadyAdded}
-                                    onClick={() => selectType(type)}
-                                    className={cn(
-                                        "flex flex-col items-center gap-2 rounded-lg border px-3 py-4 text-center text-sm transition",
-                                        alreadyAdded
-                                            ? "cursor-not-allowed border-dashed opacity-50"
-                                            : "hover:border-primary hover:bg-primary/5",
+                                <React.Fragment key={type}>
+                                    {/* Show space sits just before Other, where its offer tile used to be listed last-but-one. */}
+                                    {isOther && onShowSpaceChosen && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                onOpenChange(false);
+                                                onShowSpaceChosen();
+                                            }}
+                                            className="flex flex-col items-center gap-2 rounded-lg border px-3 py-4 text-center text-sm transition hover:border-primary hover:bg-primary/5"
+                                        >
+                                            <Mic2 className="h-6 w-6" />
+                                            <span>Show space</span>
+                                            <span className="text-xs text-muted-foreground">Add it as a space</span>
+                                        </button>
                                     )}
-                                >
-                                    <Icon className="h-6 w-6" />
-                                    <span>{tileLabel}</span>
-                                    {alreadyAdded && <span className="text-xs text-muted-foreground">Already added</span>}
-                                </button>
+                                    <button
+                                        type="button"
+                                        disabled={alreadyAdded}
+                                        onClick={() => selectType(type)}
+                                        className={cn(
+                                            "flex flex-col items-center gap-2 rounded-lg border px-3 py-4 text-center text-sm transition",
+                                            alreadyAdded
+                                                ? "cursor-not-allowed border-dashed opacity-50"
+                                                : "hover:border-primary hover:bg-primary/5",
+                                        )}
+                                    >
+                                        <Icon className="h-6 w-6" />
+                                        <span>{tileLabel}</span>
+                                        {alreadyAdded && <span className="text-xs text-muted-foreground">Already added</span>}
+                                    </button>
+                                </React.Fragment>
                             );
                         })}
                     </div>

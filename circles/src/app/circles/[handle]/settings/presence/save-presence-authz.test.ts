@@ -11,6 +11,8 @@ let allow = false;
 const authorizeCalls: unknown[][] = [];
 const updateCalls: Record<string, unknown>[] = [];
 const saveFileCalls: unknown[][] = [];
+const offsetCalls: string[] = [];
+let storedOfferings: Record<string, unknown>[] = [];
 
 mock.module("@/lib/auth/auth", () => ({
     getAuthenticatedUserDid: async () => "did-attacker",
@@ -20,10 +22,13 @@ mock.module("@/lib/auth/auth", () => ({
     },
 }));
 mock.module("@/lib/data/circle", () => ({
-    getCircleById: async (id: string) => ({ _id: id, handle: "victim" }),
+    getCircleById: async (id: string) => ({ _id: id, handle: "victim", tourTeamOfferings: storedOfferings }),
     getCirclePath: async () => "/circles/victim/",
     updateCircle: async (circle: Record<string, unknown>) => {
         updateCalls.push(circle);
+    },
+    ensureOfferPinOffset: async (id: string) => {
+        offsetCalls.push(id);
     },
 }));
 mock.module("@/lib/data/storage", () => ({
@@ -43,6 +48,8 @@ describe("savePresence authorization", () => {
         authorizeCalls.length = 0;
         updateCalls.length = 0;
         saveFileCalls.length = 0;
+        offsetCalls.length = 0;
+        storedOfferings = [];
     });
 
     test("without permission, nothing is written", async () => {
@@ -75,5 +82,60 @@ describe("savePresence authorization", () => {
         expect(updateCalls).toHaveLength(1);
         expect(updateCalls[0]._id).toBe("victim-circle");
         expect(result.success).toBe(true);
+    });
+});
+
+// Show space (hosting_show) is retired: new ones are refused from every path, an existing one is
+// kept exactly as stored.
+describe("savePresence and retired offer types", () => {
+    const meal = { id: "meal-1", type: "home_cooked_meal", detail: "Soup" };
+    const storedShowSpace = { id: "show-1", type: "hosting_show", detail: "Living room, 20 people" };
+
+    beforeEach(() => {
+        allow = true;
+        updateCalls.length = 0;
+        saveFileCalls.length = 0;
+        offsetCalls.length = 0;
+        storedOfferings = [];
+    });
+
+    test("a new Show space offer is refused, with nothing uploaded or written", async () => {
+        const result = await savePresence({
+            _id: "own-circle",
+            tourTeamOfferings: [meal, { id: "hosting_show", type: "hosting_show", photos: [{ file: { __testFile: true } }] }],
+        } as any);
+
+        expect(result.success).toBe(false);
+        expect(result.message).toContain("Add a space");
+        expect(saveFileCalls).toHaveLength(0);
+        expect(updateCalls).toHaveLength(0);
+    });
+
+    test("an existing Show space offer is kept as stored, edits ignored", async () => {
+        storedOfferings = [storedShowSpace];
+        const result = await savePresence({
+            _id: "own-circle",
+            tourTeamOfferings: [{ ...storedShowSpace, detail: "Edited" }, meal],
+        } as any);
+
+        expect(result.success).toBe(true);
+        expect(updateCalls[0].tourTeamOfferings).toEqual([storedShowSpace, meal]);
+    });
+
+    test("an existing offer can't be turned into a Show space", async () => {
+        storedOfferings = [meal];
+        const result = await savePresence({
+            _id: "own-circle",
+            tourTeamOfferings: [{ ...meal, type: "hosting_show" }],
+        } as any);
+
+        expect(result.success).toBe(false);
+        expect(updateCalls).toHaveLength(0);
+    });
+
+    test("saving offers gives the circle its offer pin offset", async () => {
+        await savePresence({ _id: "own-circle", tourTeamOfferings: [meal] } as any);
+
+        expect(offsetCalls).toEqual(["own-circle"]);
     });
 });
