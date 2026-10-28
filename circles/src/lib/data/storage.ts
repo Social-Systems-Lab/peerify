@@ -239,6 +239,35 @@ export const putPrivateObject = async (key: string, buffer: Buffer, contentType:
     });
 };
 
+// A file stored in the private bucket for a viewer-checked feature (verification attachments
+// first). What callers store instead of a URL: the key never reaches a browser, viewers get a
+// signed, short-lived link (lib/media/private-media-token.ts).
+export type PrivateFileInfo = { key: string; originalName: string; contentType: string; size: number };
+
+// "<feature>/<owner id>", e.g. "verification/<applicant circle id>": one folder per owner so
+// account erasure can remove it by prefix.
+const PRIVATE_FOLDER_PATTERN = /^[a-z][a-z-]*\/[A-Za-z0-9_-]+$/;
+
+// Like saveFile, but into the private bucket under an unguessable name: the same sanitising
+// (metadata stripped, type from the detected format), no public URL.
+export const savePrivateFile = async (file: File, folder: string): Promise<PrivateFileInfo> => {
+    if (!PRIVATE_FOLDER_PATTERN.test(folder)) {
+        throw new Error(`Refusing private storage folder "${folder}"`);
+    }
+    const originalName = typeof file.name === "string" && file.name ? file.name : "file";
+    const sanitized = await sanitizeUpload(
+        Buffer.from(await file.arrayBuffer()),
+        file.type || "application/octet-stream",
+        originalName,
+    );
+    // The extension can come from the uploader's file name: keep it only if it's short and plain.
+    const extension = sanitized.extension || resolveFileExtension(originalName, sanitized.contentType);
+    const safeExtension = /^\.[a-z0-9]{1,8}$/.test(extension) ? extension : "";
+    const key = `${folder}/${randomBytes(16).toString("hex")}${safeExtension}`;
+    await putPrivateObject(key, sanitized.buffer, sanitized.contentType);
+    return { key, originalName, contentType: sanitized.contentType, size: sanitized.buffer.length };
+};
+
 export type PrivateObjectStat = { size: number; contentType: string };
 
 export const statPrivateObject = async (key: string): Promise<PrivateObjectStat> => {
