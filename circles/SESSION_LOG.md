@@ -40,6 +40,22 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-28 (later) — Private files, item 4 steps 1–3: verification attachments and offer photos private, private spaces on the map — on origin/staging
+
+All on origin/staging (`d2e2655e`, `e78020fd`, `29df85f2`, `8c7aeadb`, `2d439637`). Reports and run sheets in `~/cc-reports` (`STORAGE-ACCESS-INVESTIGATION-20261028.md`, `VERIFICATION-MOVE-CLEURA-STAGING-20261028.md`, `OFFER-PHOTOS-MOVE-CLEURA-STAGING-20261028.md`).
+
+**Storage.** New uploads get random names (`{prefix}-{32 hex}`). `/storage` and `/uploads` limit misses per IP (60 per 10 min → 429), and middleware caps `/_next/image` requests for `/storage` files per IP.
+
+**Verification attachments (V1–V3).** New ones go to the private bucket and are shown through signed 15-minute links (`/api/private-media`). `scripts/move-verification-attachments-private.ts` moves old ones. The personal verification thread card is hidden (auto-verify, `08dc5fd7`), so only the admin view shows attachments; the Account Settings heading no longer mentions the thread (`29df85f2`).
+
+**Item 4, step 1 (`30cfa4c7`).** Private spaces get "Show this space on the Peerify map" (`publiclyListed`, off by default). When it's on, the picked point is moved by the owner's `offerPinOffset` (one offset per person, shared with offer pins) and only the moved point is stored, with `mapPinPlacedAt`. Spaces saved before stay off the map until the host picks the place again.
+
+**Step 2 (`8c7aeadb`).** Space pins on Explore for everyone, "Spaces" category, pins only. Signed-in viewers get the details and "Interested in this space? Message the Peerify team" (mailto hello@peerify.net with the space reference; the team passes requests on by hand until there's a request flow). `/admin/spaces` shows the reference.
+
+**Step 3 (`617d5f90`, `2d439637`).** Offer photos are logged-in only: new ones are private behind `/api/offer-photo/<circle id>/<file>` (session check, only while the circle still has the photo). Tim chose this stable address over signed links so the offer editor keeps photos however long it's open; verification keeps its signed 15-minute links. `scripts/move-offer-photos-private.ts` moves old ones. **Cleura staging, 2026-10-28: copy 9, browser checks OK, delete-old 9, final dry run all 0.**
+
+**ORDER FOR PROD (Tim, 2026-10-28).** `a440d431` (`/storage` and `/uploads` refuse `offer-photo*` names) stays on local branch `hold/offer-photo-storage-refusal`. It goes out together with V4 (refuse verification attachment names), only after **both** moves (verification attachments and offer photos) have run on prod after the cutover, delete phase included. Deployed earlier, it would break offer photos that haven't been moved yet.
+
 ## 2026-10-28 — Offer pins 200–400 m, Show space retired from offers, Pledges toggle — pushed to origin/staging, not deployed
 
 Tim's decisions (2026-10-28), built as 6 commits `05811822..4a11f636`. Reports: `~/cc-reports/OFFERS-PINS-SHOWSPACE-PLEDGES-INVESTIGATION-20261028.md` (investigation) and `~/cc-reports/ITEMS-1-3-BUILD-20261028.md` (what was built + staging checklist), outbox `20261028-0832-items1-3-built-item4-report`.
