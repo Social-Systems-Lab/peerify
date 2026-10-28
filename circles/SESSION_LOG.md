@@ -40,6 +40,44 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-28 — Offer pins 200–400 m, Show space retired from offers, Pledges toggle — pushed to origin/staging, not deployed
+
+Tim's decisions (2026-10-28), built as 6 commits `05811822..4a11f636`. Reports: `~/cc-reports/OFFERS-PINS-SHOWSPACE-PLEDGES-INVESTIGATION-20261028.md` (investigation) and `~/cc-reports/ITEMS-1-3-BUILD-20261028.md` (what was built + staging checklist), outbox `20261028-0832-items1-3-built-item4-report`.
+
+**1. Offer pins (`05811822`, `e181b488`).** Before: a deterministic snap to the 0.05° grid, up to ~3.1 km off. Now: the real point moved by `circles.offerPinOffset` `{ bearingDeg, distanceM }`, 200–400 m, crypto random, uniform by area. It's set once per circle by `ensureOfferPinOffset` (after saving offerings, after turning `offersVisible` on) and never replaced. Tim accepted that this loosens "city or coarser" for offer pins only, because individual offer pins carry no name. Profile pins, Explore and search keep the grid.
+- Why one stored offset per circle: one per offer would let the centre of a host's pins point at the address. It can't be a hash of the circle id, because that id is public in the pin `_id`. And it can never change: two offsets for the same address → two rings → two candidate points.
+- The offset must never reach a browser: offset + pin = address. It's not in `SAFE_CIRCLE_PROJECTION` or the public allow-lists, and `createCircle`/`updateCircle` strip it from client input. Tests assert the public shapes don't carry it.
+- No offset yet → grid pin, never the real point. The backfill is `circles/scripts/backfill-offer-pin-offsets.mongosh.js` (dry run by default, `EXPECT_DB`, counts only), run by Tim after deploy: staging first, prod after the cutover.
+
+**2. Show space (`a831bdf8`, `760ae155`).** Offers must be free, and hosts of stages may earn money, so Show space (`hosting_show`) is retired as an offer type (`RETIRED_OFFER_TYPES`, `isListedOffering` in `tour-team-offerings.ts`).
+- Create an offer (personal): the Show space tile opens Create → Add a space (`addSpaceDialogOpenAtom`). It's gone from the venue offer list and the pilot onboarding chips.
+- `savePresence` refuses a new one before any upload, and keeps an existing one exactly as stored.
+- Existing ones are hidden on the server from everyone but the owner: map pins, offer details by id, the public profile (`toPublicCircle`), Crew offers and the dashboard. The map filter drops the option. The owner sees them in Presence settings as "No longer shown", with Delete but no Edit. Nothing is deleted.
+- The spaces flow is open to every signed-in user on staging (saving needs a verified account). Tim: that's fine.
+
+**3. Pledges (`ca3d04be`, `4a11f636`).** `fundingPanelVisibility` is the Funding asks panel, not Pledges, so this is a new `pledgesEnabled` flag built like `crewEnabled` (absent = on, no migration).
+- The "Enable Pledges" switch is in Settings → About; Crew and Pledges share `AutoSaveSwitch`.
+- Off: fan Pledge buttons are hidden (profile, map popup / Discover), `openPledgeDialog` ignores the event and `?artistAction=pledge`, and `createPeerifyPledgeAction` plus the chat-enquiry pledge path refuse.
+- Existing pledges, the dashboard (with a note) and the pledge DM grant are kept.
+
+Checks: tsc, eslint (changed files), `bun run build` all clean. Four test files fail exactly as on `4c235a01`: act-format-save, inline-header-edit, track-rights (needs MONGODB_URI), participation-readiness. Note: running `bun test src` in one process gives many false failures from `mock.module` leaking between files; run files one by one.
+
+**Item 4 (public private spaces) investigated, waiting for Tim's answers A–H:** `~/cc-reports/PRIVATE-SPACES-PUBLIC-INVESTIGATION-20261028.md`.
+- Existing private spaces were saved under an "only you and Peerify, ~10 km area" promise.
+- Space pins and offer pins at the same home need the same offset (one per person).
+- There is no request flow yet.
+
+## Follow-up (PRIORITY, before item 4 photos) — /storage serves any file to anyone
+
+Found 2026-10-28. `src/app/storage/[...path]/route.ts` streams any MinIO object to anyone who has the URL, with no session check. Names are `{circleId}/{prefix}{Date.now()}.ext`, so they're hard to guess but not secret. For offer photos, meant for signed-in members only via `getOfferDetailsForMember`, the circle id is public in the offer pin `_id`, so only the millisecond timestamp protects them.
+
+To do (read-only investigation first, 2026-10-28):
+- unguessable random names for all new uploads
+- a plan for existing offer photos
+- whether `/storage` should check who is asking
+
+---
+
 ## 2026-10-28 — Crew default by act format: investigated, PARKED (nothing built)
 
 Asked: Crew ON by default for Solo, Band/Duo and DJ, OFF for every other act format; the Enable Crew toggle stays for all artists. Read-only investigation only (report and counts script: `~/cc-reports/crew-default/`, outbox `20261028-0713-crew-default.tar.gz`).
