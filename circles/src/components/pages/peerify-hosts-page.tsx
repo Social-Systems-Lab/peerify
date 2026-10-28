@@ -1,6 +1,7 @@
 import Image from "next/image"
 import Link from "next/link"
 import PeerifyFooter from "@/components/pages/peerify-footer"
+import { NOT_VETTED_TEXT } from "@/lib/spaces/space-labels"
 
 // Public /hosts page: the host pilot, in the landing page's dark style. Uses the landing page's
 // classes (peerify-landing-page.css) plus a few of its own (peerify-hosts-page.css).
@@ -188,6 +189,7 @@ export default function PeerifyHostsPage() {
                         running a good show. The event itself is yours: you’re responsible for it, including any local
                         rules on licensing, alcohol, noise and safety where you live.
                     </p>
+                    <p>{NOT_VETTED_TEXT}</p>
                 </div>
             </section>
 

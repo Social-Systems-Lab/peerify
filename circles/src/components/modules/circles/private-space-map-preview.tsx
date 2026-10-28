@@ -14,6 +14,7 @@ import { Media, SpaceMapPin, SpaceMemberDetails } from "@/models/models";
 import {
     SPACE_AMPLIFICATION_LABELS,
     SPACE_DEAL_PREFERENCE_LABELS,
+    NOT_VETTED_TEXT,
     SPACE_TYPE_LABELS,
     spaceAreaLabel,
     spaceSettingLabel,
@@ -87,6 +88,7 @@ export default function PrivateSpaceMapPreview({ pin }: { pin: SpaceMapPin }) {
             <p className="mt-3 text-sm text-muted-foreground">
                 The pin is near the space, not at it. The address is shared only if the host agrees.
             </p>
+            <p className="mt-2 text-sm text-muted-foreground">{NOT_VETTED_TEXT}</p>
 
             {!isSignedIn ? (
                 <p className="mt-4 text-sm">

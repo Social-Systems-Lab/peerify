@@ -39,6 +39,7 @@ import { OFFER_PIN_OFFSET_MAX_METERS, OFFER_PIN_OFFSET_MIN_METERS } from "@/lib/
 import {
     HOST_RESPONSIBILITY_TEXT,
     LISTENING_RULE_TEXT,
+    NOT_VETTED_TEXT,
     SPACE_AMPLIFICATION_LABELS,
     SPACE_DEAL_PREFERENCE_LABELS,
     SPACE_TYPE_LABELS,
@@ -494,6 +495,7 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
                     ) : null}
 
                     <div className="space-y-3 rounded-md border p-4">
+                        <p className="text-sm text-muted-foreground">{NOT_VETTED_TEXT}</p>
                         <div className="flex items-start gap-2">
                             <Checkbox
                                 id={id("listening")}

@@ -33,6 +33,10 @@ export const LISTENING_RULE_TEXT =
 export const HOST_RESPONSIBILITY_TEXT =
     "I understand the event is mine: I'm responsible for it, including any local rules on licensing, alcohol, noise and safety.";
 
+// Item 4 (Tim, 2026-10-28): on the space form, the space panel on the map and /hosts.
+export const NOT_VETTED_TEXT =
+    "Peerify connects artists and hosts. We don't vet hosts, spaces or events, and we don't insure them.";
+
 // The three kinds as /hosts describes them, for the "Add a space" chooser.
 export const SPACE_KIND_DESCRIPTIONS = {
     venue: "A place built for live music, with a stage, sound and lights. Gets a public venue profile.",
