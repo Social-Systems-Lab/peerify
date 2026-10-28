@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Client as MinioClient } from "minio";
+import { getClientIp } from "@/lib/utils/client-ip";
+import { isMissingObjectError, recordStorageMiss, storageBlockedForSeconds } from "@/lib/storage/miss-limiter";
 
 async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -12,10 +14,23 @@ async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
+
+  // Too many missing objects from this IP recently: refuse everything, hits included, until the
+  // window ends (see miss-limiter.ts). Internal requests (no X-Real-IP) aren't limited.
+  const clientIp = getClientIp(req.headers);
+  if (clientIp) {
+    const blockedForSeconds = storageBlockedForSeconds(clientIp);
+    if (blockedForSeconds > 0) {
+      return NextResponse.json(
+        { error: "Too many requests" },
+        { status: 429, headers: { "Retry-After": String(blockedForSeconds) } },
+      );
+    }
+  }
 
   // (keep your existing production guard if you want it)
 
@@ -64,6 +79,12 @@ export async function GET(
       },
     });
   } catch (err: any) {
+    // A missing object is a 404 and counts towards this IP's misses. Not logged: a guesser would
+    // fill the log with names.
+    if (isMissingObjectError(err)) {
+      if (clientIp) recordStorageMiss(clientIp);
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
     console.error("[storage proxy] failed", { bucket, objectName, host, port, err });
     return NextResponse.json({ error: "Storage fetch failed" }, { status: 502 });
   }
