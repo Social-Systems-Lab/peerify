@@ -113,8 +113,8 @@ export async function getOfferDetailsForMemberAction(offerId: string): Promise<O
 }
 
 /**
- * Private space pins (getSpaceMapPins): spaces whose owner put them on the map, with only the area
- * names and the moved pin point. The same for every viewer, signed in or not. Errors are logged by
+ * Space pins (getSpaceMapPins): pop-ups and private spaces whose owner put them on the map, with
+ * only the area names, the pin point and a pop-up's name when its owner shows it. The same for every viewer, signed in or not. Errors are logged by
  * name only and give an empty list, like the offer pins.
  */
 export async function getSpaceMapPinsAction(): Promise<SpaceMapPin[]> {

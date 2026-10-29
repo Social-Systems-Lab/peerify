@@ -758,6 +758,14 @@ export type EventTags = z.infer<typeof eventTagsSchema>;
 // point the owner picked, moved by the owner's circle offerPinOffset (the same 200–400 m shift as
 // their offer pins), and mapPinPlacedAt says when. Without mapPinPlacedAt the stored point is the
 // rounded area (every space saved before 2026-10-28), which is never shown.
+// A pop-up whose owner turns on publiclyListed goes on the map too. Its stored location stays the
+// exact one as entered; the pin is worked out when the map loads (getSpaceMapPins). By default the
+// pin is that point moved by the space's own pinOffset (200–400 m, server-only); with
+// pinAtExactAddress it sits at the point itself, and only then may showNameOnMap put the name on
+// the pin. A pop-up gets its own offset, not the owner's offerPinOffset: a pop-up moved from
+// "near" to "exact" shows both the moved and the real point, which gives its offset away, and the
+// owner's would then unlock their home's pin. For the same reason pinOffset is dropped when a
+// pop-up goes to "exact", and a new one is made if it goes back to "near".
 // Setting and step-free access reuse the event tags' vocabularies (indoor/outdoor, accessible/
 // stairs involved/not specified) so the words match what hosts already see on events.
 export const SPACE_TYPES = ["popup", "private"] as const;
@@ -785,6 +793,12 @@ export const popupSpaceInputSchema = z.object({
     noiseLimits: z.string().trim().max(SPACE_TEXT_MAX_LENGTH).optional(),
     powerAvailable: z.boolean(),
     paAvailable: z.boolean(),
+    // Off unless the owner turns it on, like a private space's.
+    publiclyListed: z.boolean().optional(),
+    // "Pin at the exact address" (for businesses and public places); otherwise the pin is moved.
+    pinAtExactAddress: z.boolean().optional(),
+    // Only with pinAtExactAddress (parseSpaceInput drops it otherwise).
+    showNameOnMap: z.boolean().optional(),
     ...spaceCommonInputFields,
 });
 
@@ -819,7 +833,11 @@ type StoredSpaceFields<T> = Omit<T, "listeningRuleAccepted" | "hostResponsibilit
     updatedAt: Date;
 };
 export type SpaceDoc =
-    | StoredSpaceFields<z.infer<typeof popupSpaceInputSchema>>
+    | (StoredSpaceFields<z.infer<typeof popupSpaceInputSchema>> & {
+          // Server-only, never sent to a browser (see the Spaces comment above). Set while the
+          // pop-up's pin is a moved one.
+          pinOffset?: { bearingDeg: number; distanceM: number };
+      })
     | (StoredSpaceFields<z.infer<typeof privateSpaceInputSchema>> & {
           mapPinPlacedAt?: Date;
           // Their /api/space-photo addresses (lib/media/space-photo.ts); never in the client input
@@ -1219,27 +1237,44 @@ export type OfferMemberDetails = {
     photos: FileInfo[];
 };
 
-// A private space on the map (getSpaceMapPins, lib/data/space.ts): the space's own _id, the area
-// names and the moved pin point, nothing else. No owner, no name, no space details. Duck-typed on
-// spaceKind, which nothing else in the Content union has.
+// A space on the map (getSpaceMapPins, lib/data/space.ts): the space's own _id, its kind, the area
+// names and the pin point, nothing else. No owner and no space details; a name only for a pop-up
+// pinned at its exact address whose owner chose to show it. Duck-typed on spaceKind, which nothing
+// else in the Content union has.
 export type SpaceMapPin = {
     _id: string;
-    spaceKind: "private";
+    spaceKind: SpaceType;
     location: Location;
+    // A pop-up pinned at its exact address (its owner's choice); every other pin is moved.
+    atExactAddress?: true;
+    name?: string;
 };
 
 // Fetched by a signed-in viewer who opens a space pin (getSpaceDetailsForMember). Still nothing
-// about the owner, and never notesForPeerify (meant for the Peerify team only).
+// about the owner, never notesForPeerify (meant for the Peerify team only), and a pop-up's name
+// only when its pin shows it anyway.
 export type SpaceMemberDetails = {
     _id: string;
     capacity: number;
-    setting: z.infer<typeof eventTagSettingSchema>[];
-    amplification: (typeof SPACE_AMPLIFICATION_OPTIONS)[number];
-    noiseCurfew?: string;
-    stepFreeAccess: z.infer<typeof eventTagAccessibilitySchema>;
     dealPreferences: SpaceDealPreference[];
     photos: FileInfo[];
-};
+} & (
+    | {
+          spaceKind: "private";
+          setting: z.infer<typeof eventTagSettingSchema>[];
+          amplification: (typeof SPACE_AMPLIFICATION_OPTIONS)[number];
+          noiseCurfew?: string;
+          stepFreeAccess: z.infer<typeof eventTagAccessibilitySchema>;
+      }
+    | {
+          spaceKind: "popup";
+          name?: string;
+          showTimes: string;
+          noiseLimits?: string;
+          powerAvailable: boolean;
+          paAvailable: boolean;
+      }
+);
 
 export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin | SpaceMapPin;
 
@@ -1311,8 +1346,8 @@ export type ContentPreviewData =
     // circle (see OfferMapPin above), rendered by CrewOfferMapPreview, never CirclePreview (whose
     // Offers section is deliberately gated to the owner/a circle admin).
     | { type: "crewOffer"; content: OfferMapPin; props?: never }
-    // A private space pin (SpaceMapPin), rendered by PrivateSpaceMapPreview.
-    | { type: "privateSpace"; content: SpaceMapPin; props?: never }
+    // A pop-up or private space pin (SpaceMapPin), rendered by SpaceMapPreview.
+    | { type: "space"; content: SpaceMapPin; props?: never }
     | { type: "proposal"; content: ProposalDisplay; props: { circle: Circle } }
     | { type: "issue"; content: IssueDisplay; props: { circle: Circle; permissions: IssuePermissions } }
     | { type: "task"; content: TaskDisplay; props: { circle: Circle; permissions: TaskPermissions } }

@@ -24,6 +24,7 @@ import {
     SPACE_AMPLIFICATION_LABELS,
     SPACE_DEAL_PREFERENCE_LABELS,
     SPACE_TYPE_LABELS,
+    popupOnMapLabel,
     spaceAreaLabel,
     spaceSettingLabel,
     spaceStepFreeAccessLabel,
@@ -47,6 +48,7 @@ function SpaceDetails({ space }: { space: SpaceView }) {
             "Equipment",
             [space.powerAvailable ? "Power" : null, space.paAvailable ? "PA" : null].filter(Boolean).join(", ") || "None",
         ]);
+        rows.push(["On the map", popupOnMapLabel(space)]);
     } else {
         rows.push(["Setting", space.setting.map(spaceSettingLabel).join(", ")]);
         rows.push(["Sound", SPACE_AMPLIFICATION_LABELS[space.amplification]]);

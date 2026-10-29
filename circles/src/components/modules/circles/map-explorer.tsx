@@ -299,7 +299,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // react to. Carries no circle identity at all, so it's never routed through
     // mapItemToContent (which expects circle-shaped data) — merged in directly, like events.
     const [offerMapPins, setOfferMapPins] = useState<OfferMapPin[]>([]);
-    // Private space pins (getSpaceMapPins): fetched once, no filters of their own.
+    // Pop-up and private space pins (getSpaceMapPins): fetched once, no filters of their own.
     const [spaceMapPins, setSpaceMapPins] = useState<SpaceMapPin[]>([]);
     const [pendingFocusEventId, setPendingFocusEventId] = useState<string | null>(searchParams.get("focusEvent"));
     const [hasAppliedFocusEvent, setHasAppliedFocusEvent] = useState(false);

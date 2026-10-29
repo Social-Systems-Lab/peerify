@@ -1,14 +1,15 @@
 "use client";
 
-// The panel a private space pin opens (SpaceMapPin, models.ts). Everyone sees the kind of space and
-// its area. A signed-in viewer also gets the space's details (getSpaceDetailsForMemberAction) and a
-// way to tell the Peerify team they're interested: there's no request flow yet, so the team passes
-// requests on to hosts by hand. Nothing here names or links to the host.
+// The panel a pop-up or private space pin opens (SpaceMapPin, models.ts). Everyone sees the kind of
+// space, its area, and a pop-up's name when its owner shows it. A signed-in viewer also gets the
+// space's details (getSpaceDetailsForMemberAction) and a way to tell the Peerify team they're
+// interested: there's no request flow yet, so the team passes requests on to hosts by hand.
+// Nothing here names or links to the host.
 
 import React, { useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import Link from "next/link";
-import { Home, Mail, MapPin } from "lucide-react";
+import { Home, Mail, MapPin, Store } from "lucide-react";
 import { userAtom } from "@/lib/data/atoms";
 import { Media, SpaceMapPin, SpaceMemberDetails } from "@/models/models";
 import {
@@ -33,19 +34,26 @@ export const spaceInterestMailto = (spaceId: string): string =>
         `Hi Peerify team,\n\nI'm interested in this space (reference ${spaceId}).\n\n`,
     )}`;
 
+const yesNo = (value: boolean) => (value ? "Yes" : "No");
+
 const detailRows = (details: SpaceMemberDetails): [string, string][] => {
-    const rows: [string, string][] = [
-        ["People", String(details.capacity)],
-        ["Setting", details.setting.map(spaceSettingLabel).join(", ")],
-        ["Sound", SPACE_AMPLIFICATION_LABELS[details.amplification]],
-    ];
-    if (details.noiseCurfew) rows.push(["Noise curfew", details.noiseCurfew]);
-    rows.push(["Step-free access", spaceStepFreeAccessLabel(details.stepFreeAccess)]);
+    const rows: [string, string][] = [["People", String(details.capacity)]];
+    if (details.spaceKind === "popup") {
+        rows.push(["Shows", details.showTimes]);
+        if (details.noiseLimits) rows.push(["Noise limits", details.noiseLimits]);
+        rows.push(["Power sockets", yesNo(details.powerAvailable)]);
+        rows.push(["PA or speakers", yesNo(details.paAvailable)]);
+    } else {
+        rows.push(["Setting", details.setting.map(spaceSettingLabel).join(", ")]);
+        rows.push(["Sound", SPACE_AMPLIFICATION_LABELS[details.amplification]]);
+        if (details.noiseCurfew) rows.push(["Noise curfew", details.noiseCurfew]);
+        rows.push(["Step-free access", spaceStepFreeAccessLabel(details.stepFreeAccess)]);
+    }
     rows.push(["The host would like", details.dealPreferences.map((d) => SPACE_DEAL_PREFERENCE_LABELS[d]).join(", ")]);
     return rows;
 };
 
-export default function PrivateSpaceMapPreview({ pin }: { pin: SpaceMapPin }) {
+export default function SpaceMapPreview({ pin }: { pin: SpaceMapPin }) {
     const [user] = useAtom(userAtom);
     const isSignedIn = Boolean(user?.did);
     // undefined = loading, null = nothing to show (signed out, or the space left the map).
@@ -67,15 +75,19 @@ export default function PrivateSpaceMapPreview({ pin }: { pin: SpaceMapPin }) {
     }, [pin._id, isSignedIn]);
 
     const area = spaceAreaLabel(pin.location);
+    const KindIcon = pin.spaceKind === "popup" ? Store : Home;
 
     return (
         <div className="custom-scrollbar h-full overflow-y-auto p-4">
             <div className="flex items-center gap-3">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-amber-200 text-amber-900">
-                    <Home className="h-6 w-6" />
+                    <KindIcon className="h-6 w-6" />
                 </div>
                 <div className="min-w-0">
-                    <div className="truncate text-lg font-semibold">{SPACE_TYPE_LABELS.private}</div>
+                    <div className="truncate text-lg font-semibold">{pin.name ?? SPACE_TYPE_LABELS[pin.spaceKind]}</div>
+                    {pin.name ? (
+                        <div className="text-sm text-muted-foreground">{SPACE_TYPE_LABELS[pin.spaceKind]}</div>
+                    ) : null}
                     {area ? (
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                             <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -86,7 +98,9 @@ export default function PrivateSpaceMapPreview({ pin }: { pin: SpaceMapPin }) {
             </div>
 
             <p className="mt-3 text-sm text-muted-foreground">
-                The pin is near the space, not at it. The address is shared only if the host agrees.
+                {pin.atExactAddress
+                    ? "The pin is at the space."
+                    : "The pin is near the space, not at it. The address is shared only if the host agrees."}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">{NOT_VETTED_TEXT}</p>
 

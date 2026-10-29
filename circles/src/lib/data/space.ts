@@ -6,17 +6,20 @@
 // through parseSpaceInput (lib/spaces/space-rules.ts), which already rounded a private space's
 // location.
 //
-// The only discovery path is getSpaceMapPins and getSpaceDetailsForMember below: private spaces
-// whose owner put them on the map, and nothing else (no pop-ups, no owner, no notes). Circle
-// queries, search and the vector index don't read this collection.
+// The only discovery path is getSpaceMapPins and getSpaceDetailsForMember below: spaces whose owner
+// put them on the map, and nothing else (no owner, no notes, a pop-up's name only when its owner
+// shows it on an exact pin). Circle queries, search and the vector index don't read this
+// collection.
 //
 // A private space its owner puts on the map (publiclyListed) is the one place a picked point
 // arrives: placePrivateSpaceLocation moves it by the owner's offerPinOffset before anything is
-// stored, and only the moved point is kept.
+// stored, and only the moved point is kept. A pop-up keeps its exact location; its pin is worked
+// out when the map loads, from its own pinOffset (nextPopupPinOffset) unless it's pinned at the
+// exact address. pinOffset is never in SPACE_PROJECTION, so it never reaches a browser.
 
 import { ObjectId } from "mongodb";
 import { Circles, Spaces } from "./db";
-import { ensureOfferPinOffset, getPublishedCircleQuery } from "./circle";
+import { ensureOfferPinOffset, generateOfferPinOffset, getPublishedCircleQuery } from "./circle";
 import { FileInfo, Location, SpaceDoc, SpaceInput, SpaceMapPin, SpaceMemberDetails, SpaceType } from "@/models/models";
 import { canPerformRestrictedAction } from "@/lib/auth/verification";
 import { LngLat, SPACES_PER_PERSON_MAX } from "@/lib/spaces/space-rules";
@@ -44,6 +47,8 @@ const SPACE_PROJECTION = {
     stepFreeAccess: 1,
     notesForPeerify: 1,
     publiclyListed: 1,
+    pinAtExactAddress: 1,
+    showNameOnMap: 1,
     mapPinPlacedAt: 1,
     photos: 1,
     listeningRuleAcceptedAt: 1,
@@ -54,7 +59,7 @@ const SPACE_PROJECTION = {
 
 // Optional fields per type: cleared with $unset when an edit leaves them empty.
 const OPTIONAL_FIELDS: Record<SpaceType, string[]> = {
-    popup: ["noiseLimits"],
+    popup: ["noiseLimits", "pinOffset"],
     private: ["noiseCurfew", "notesForPeerify", "mapPinPlacedAt", "photos"],
 };
 
@@ -78,8 +83,10 @@ const toIso = (value: unknown): string => (value instanceof Date ? value.toISOSt
 
 export const toSpaceView = (doc: SpaceDoc): SpaceView => {
     const mapPinPlacedAt = doc.type === "private" ? doc.mapPinPlacedAt : undefined;
+    // Never in SPACE_PROJECTION; dropped here too, so no caller can pass it on by mistake.
+    const { pinOffset: _pinOffset, ...rest } = doc as SpaceDoc & { pinOffset?: unknown };
     return {
-        ...doc,
+        ...rest,
         _id: String(doc._id),
         listeningRuleAcceptedAt: toIso(doc.listeningRuleAcceptedAt),
         hostResponsibilityAcceptedAt: toIso(doc.hostResponsibilityAcceptedAt),
@@ -158,7 +165,20 @@ export const placePrivateSpaceLocation = async (
     };
 };
 
-// The stored fields of a parsed input, with a private space's location placed.
+// A pop-up's pinOffset after a save: none while it's pinned at the exact address (see the Spaces
+// comment in models.ts for why it's dropped), the one it has while its pin is a moved one, or a
+// new one the first time it goes on the map with a moved pin. Off the map, what it had stays.
+export const nextPopupPinOffset = (
+    input: Extract<SpaceInput, { type: "popup" }>,
+    currentOffset: unknown,
+): OfferPinOffset | undefined => {
+    if (input.pinAtExactAddress) return undefined;
+    if (isValidOfferPinOffset(currentOffset)) return currentOffset;
+    return input.publiclyListed ? generateOfferPinOffset() : undefined;
+};
+
+// The stored fields of a parsed input, with a private space's location placed and a pop-up's
+// pinOffset decided.
 const toPlacedFields = async (
     ownerDid: string,
     input: SpaceInput,
@@ -166,7 +186,10 @@ const toPlacedFields = async (
     current?: SpaceDoc | null,
 ): Promise<Record<string, unknown>> => {
     const fields = toStoredFields(input) as Record<string, unknown>;
-    if (input.type !== "private") return fields;
+    if (input.type === "popup") {
+        const pinOffset = nextPopupPinOffset(input, current?.type === "popup" ? current.pinOffset : undefined);
+        return pinOffset ? { ...fields, pinOffset } : fields;
+    }
     const placed = await placePrivateSpaceLocation(ownerDid, input, pickedLngLat, current);
     return {
         ...fields,
@@ -232,7 +255,12 @@ export const updateSpaceForOwner = async (
     const current =
         input.type === "private" && pickedLngLat
             ? ((await Spaces.findOne({ _id, ownerDid, type: input.type }, { projection: SPACE_PROJECTION })) as SpaceDoc | null)
-            : null;
+            : input.type === "popup"
+              ? ((await Spaces.findOne(
+                    { _id, ownerDid, type: "popup" },
+                    { projection: { _id: 1, type: 1, pinOffset: 1 } },
+                )) as SpaceDoc | null)
+              : null;
     const fields = await toPlacedFields(ownerDid, input, pickedLngLat, current);
     if (input.type === "private" && photos?.length) fields.photos = photos;
     const unset = Object.fromEntries(
@@ -293,10 +321,16 @@ export const listAllSpacesForAdmin = async (): Promise<AdminSpaceRow[]> => {
     });
 };
 
-// On the map: a private space whose owner turned the switch on and that has its moved pin. A
-// space with only its rounded area (saved before the switch existed, or with no offset) has no
-// mapPinPlacedAt and never matches.
-const ON_MAP_QUERY = { type: "private", publiclyListed: true, mapPinPlacedAt: { $exists: true } } as const;
+// On the map: a private space whose owner turned the switch on and that has its moved pin (a space
+// with only its rounded area, saved before the switch existed or with no offset, has no
+// mapPinPlacedAt and never matches), or a pop-up whose owner turned it on. A pop-up with a moved
+// pin but no valid pinOffset gets no pin (popupPinLngLat), never one at its real point.
+const ON_MAP_QUERY = {
+    $or: [
+        { type: "private" as const, publiclyListed: true, mapPinPlacedAt: { $exists: true } },
+        { type: "popup" as const, publiclyListed: true },
+    ],
+};
 
 // The owners of these spaces whose own profile is published: an unpublished or removed owner
 // takes their spaces off the map with them.
@@ -322,17 +356,44 @@ const toPinLocation = (location: Location): Location =>
         }).filter(([, value]) => value !== undefined && value !== ""),
     ) as unknown as Location;
 
+// A pop-up's pin point: its own point when pinned at the exact address, otherwise that point moved
+// by its pinOffset. Undefined (no pin) without a point or a valid offset.
+const popupPinLngLat = (doc: Extract<SpaceDoc, { type: "popup" }>): LngLat | undefined => {
+    const lngLat = doc.location?.lngLat;
+    if (!lngLat) return undefined;
+    if (doc.pinAtExactAddress === true) return { lng: lngLat.lng, lat: lngLat.lat };
+    return isValidOfferPinOffset(doc.pinOffset) ? applyOfferPinOffset(lngLat, doc.pinOffset) : undefined;
+};
+
+// The pin point of a space on the map, or undefined when it gets none.
+const pinLngLat = (doc: SpaceDoc): LngLat | undefined =>
+    doc.type === "popup" ? popupPinLngLat(doc) : (doc.location?.lngLat ?? undefined);
+
+// A pop-up's name, only on a pin at its exact address whose owner chose to show it.
+const shownPopupName = (doc: SpaceDoc): string | undefined =>
+    doc.type === "popup" && doc.pinAtExactAddress === true && doc.showNameOnMap === true ? doc.name : undefined;
+
 // Map pins for every viewer, signed in or not. ownerDid is read to drop spaces of unpublished
-// owners and never leaves this function.
+// owners, and pinOffset to place a pop-up's pin; neither leaves this function.
 export const getSpaceMapPins = async (): Promise<SpaceMapPin[]> => {
-    const docs = (await Spaces.find(ON_MAP_QUERY, { projection: { _id: 1, ownerDid: 1, location: 1 } }).toArray()) as Pick<
-        SpaceDoc,
-        "_id" | "ownerDid" | "location"
-    >[];
+    const docs = (await Spaces.find(ON_MAP_QUERY, {
+        projection: { _id: 1, type: 1, ownerDid: 1, location: 1, name: 1, pinAtExactAddress: 1, showNameOnMap: 1, pinOffset: 1 },
+    }).toArray()) as SpaceDoc[];
     const published = await publishedOwnerDids(Array.from(new Set(docs.map((doc) => doc.ownerDid))));
-    return docs
-        .filter((doc) => published.has(doc.ownerDid) && doc.location?.lngLat)
-        .map((doc) => ({ _id: String(doc._id), spaceKind: "private" as const, location: toPinLocation(doc.location) }));
+    const pins: SpaceMapPin[] = [];
+    for (const doc of docs) {
+        const lngLat = pinLngLat(doc);
+        if (!published.has(doc.ownerDid) || !lngLat) continue;
+        const name = shownPopupName(doc);
+        pins.push({
+            _id: String(doc._id),
+            spaceKind: doc.type,
+            location: toPinLocation({ ...doc.location, lngLat }),
+            ...(doc.type === "popup" && doc.pinAtExactAddress === true ? { atExactAddress: true as const } : {}),
+            ...(name ? { name } : {}),
+        });
+    }
+    return pins;
 };
 
 // One space's details for a signed-in viewer (the caller checks the sign-in), under the same gate
@@ -345,26 +406,50 @@ export const getSpaceDetailsForMember = async (spaceId: string): Promise<SpaceMe
         {
             projection: {
                 _id: 1,
+                type: 1,
                 ownerDid: 1,
+                location: 1,
+                pinOffset: 1,
                 capacity: 1,
+                dealPreferences: 1,
                 setting: 1,
                 amplification: 1,
                 noiseCurfew: 1,
                 stepFreeAccess: 1,
-                dealPreferences: 1,
                 photos: 1,
+                name: 1,
+                pinAtExactAddress: 1,
+                showNameOnMap: 1,
+                showTimes: 1,
+                noiseLimits: 1,
+                powerAvailable: 1,
+                paAvailable: 1,
             },
         },
-    )) as Extract<SpaceDoc, { type: "private" }> | null;
-    if (!doc || !(await publishedOwnerDids([doc.ownerDid])).has(doc.ownerDid)) return null;
+    )) as SpaceDoc | null;
+    // The same "has a pin" rule as getSpaceMapPins: no pin, no details.
+    if (!doc || !pinLngLat(doc) || !(await publishedOwnerDids([doc.ownerDid])).has(doc.ownerDid)) return null;
+    const common = { _id: String(doc._id), capacity: doc.capacity, dealPreferences: doc.dealPreferences };
+    if (doc.type === "popup") {
+        const name = shownPopupName(doc);
+        return {
+            ...common,
+            spaceKind: "popup",
+            ...(name ? { name } : {}),
+            showTimes: doc.showTimes,
+            ...(doc.noiseLimits ? { noiseLimits: doc.noiseLimits } : {}),
+            powerAvailable: doc.powerAvailable,
+            paAvailable: doc.paAvailable,
+            photos: [],
+        };
+    }
     return {
-        _id: String(doc._id),
-        capacity: doc.capacity,
+        ...common,
+        spaceKind: "private",
         setting: doc.setting,
         amplification: doc.amplification,
         ...(doc.noiseCurfew ? { noiseCurfew: doc.noiseCurfew } : {}),
         stepFreeAccess: doc.stepFreeAccess,
-        dealPreferences: doc.dealPreferences,
         photos: (doc.photos ?? []).map((photo) => ({ url: photo.url, originalName: photo.originalName })),
     };
 };

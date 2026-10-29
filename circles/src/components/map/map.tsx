@@ -69,9 +69,10 @@ const isSuppressedUserProfile = (content: any, viewerIsAdmin: boolean): boolean 
 // Duck-typed on `offerType`, which nothing else in the Content union has.
 const isOfferMapPin = (content: any): content is OfferMapPin => typeof content?.offerType === "string";
 
-// A private space pin (SpaceMapPin, models.ts): no identity, no name, only the area. Always
-// anonymous, like an individual's offer pin, and never has an Open action.
-const isSpaceMapPin = (content: any): content is SpaceMapPin => content?.spaceKind === "private";
+// A pop-up or private space pin (SpaceMapPin, models.ts): no identity, only the area, and a
+// pop-up's name when its owner shows it. Never has an Open action.
+const isSpaceMapPin = (content: any): content is SpaceMapPin =>
+    content?.spaceKind === "private" || content?.spaceKind === "popup";
 
 const SPACE_PIN_ICON_SVG_PATH = `<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/>`;
 const getSpacePinIconSvg = (size: number): string =>
@@ -140,7 +141,7 @@ const getMarkerTitle = (content: Content, viewerIsAdmin: boolean): string => {
         return (content as any)?.content?.slice(0, 80) ?? "Noticeboard post";
     }
     if (isSpaceMapPin(content)) {
-        return SPACE_TYPE_LABELS.private;
+        return content.name ?? SPACE_TYPE_LABELS[content.spaceKind];
     }
     if (isOfferMapPin(content)) {
         // Venue-sourced pins (circleHandle present — see OfferMapPin, models.ts) show the
@@ -750,7 +751,7 @@ const MapBox = ({
                     props: undefined,
                 } as any;
             } else if (isSpaceMapPin(content)) {
-                nextPreview = { type: "privateSpace", content };
+                nextPreview = { type: "space", content };
             } else {
                 const previewType = (content as any).circleType || "circle";
                 nextPreview = {

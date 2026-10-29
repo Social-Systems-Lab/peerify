@@ -7,6 +7,7 @@ import {
     SPACE_AMPLIFICATION_LABELS,
     SPACE_DEAL_PREFERENCE_LABELS,
     SPACE_TYPE_LABELS,
+    popupOnMapLabel,
     spaceAreaLabel,
     spaceSettingLabel,
     spaceStepFreeAccessLabel,
@@ -28,6 +29,7 @@ const details = (space: AdminSpaceRow): [string, string][] => {
         if (space.noiseLimits) rows.push(["Noise limits", space.noiseLimits]);
         rows.push(["Power", space.powerAvailable ? "Yes" : "No"]);
         rows.push(["PA", space.paAvailable ? "Yes" : "No"]);
+        rows.push(["On the map", popupOnMapLabel(space)]);
     } else {
         rows.push(["Area", spaceAreaLabel(space.location)]);
         rows.push([space.mapPinPlacedAt ? "Map pin (moved 200–400 m)" : "Rounded point (0.1°)", point]);
@@ -78,7 +80,8 @@ export default async function AdminSpacesPage() {
                                     {space.type === "popup" ? space.name : spaceAreaLabel(space.location) || "Area set"}
                                 </span>
                                 <span className="text-muted-foreground">{SPACE_TYPE_LABELS[space.type]}</span>
-                                {space.type === "private" && space.mapPinPlacedAt ? (
+                                {(space.type === "private" && space.mapPinPlacedAt) ||
+                                (space.type === "popup" && space.publiclyListed) ? (
                                     <span className="text-muted-foreground">On the map</span>
                                 ) : null}
                                 {/* The reference a "Message the Peerify team" email quotes. */}

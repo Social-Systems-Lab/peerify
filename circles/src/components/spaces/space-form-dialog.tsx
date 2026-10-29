@@ -5,7 +5,9 @@
 // map, the picked location is rounded to its area the moment it's picked (toAreaOnlyLocation), so
 // the exact point stays in the browser: the map pin jumps to the rounded point to show what will be
 // stored. A private space on the map (publiclyListed) sends the picked point instead; the server
-// moves it 200–400 m and stores only the moved point.
+// moves it 200–400 m and stores only the moved point. A pop-up always sends its point as picked;
+// on the map, its owner chooses a pin near the place (moved on the server, when the map loads) or
+// at the exact address, and only with the exact address may show the name.
 
 import React, { useCallback, useState, useTransition } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -40,6 +42,9 @@ import {
     HOST_RESPONSIBILITY_TEXT,
     LISTENING_RULE_TEXT,
     NOT_VETTED_TEXT,
+    POPUP_PIN_EXACT_HINT,
+    POPUP_PIN_EXACT_LABEL,
+    POPUP_PIN_NEAR_LABEL,
     SPACE_AMPLIFICATION_LABELS,
     SPACE_DEAL_PREFERENCE_LABELS,
     SPACE_TYPE_LABELS,
@@ -66,6 +71,8 @@ type FormState = {
     stepFreeAccess: EventTagAccessibility | "";
     notesForPeerify: string;
     publiclyListed: boolean;
+    pinAtExactAddress: boolean;
+    showNameOnMap: boolean;
     photos: ImageItem[];
     listeningRuleAccepted: boolean;
     hostResponsibilityAccepted: boolean;
@@ -88,6 +95,8 @@ const fromSpace = (space: SpaceView | undefined): FormState => {
         stepFreeAccess: s.stepFreeAccess ?? "",
         notesForPeerify: s.notesForPeerify ?? "",
         publiclyListed: s.publiclyListed === true,
+        pinAtExactAddress: s.pinAtExactAddress === true,
+        showNameOnMap: s.showNameOnMap === true,
         // The same items the uploader builds from photosSeed: it doesn't report its starting
         // images, so without this an edit that leaves the photos alone would send none.
         photos: (space?.type === "private" ? (space.photos ?? []) : []).map((photo) => ({
@@ -119,6 +128,9 @@ const toInput = (type: SpaceType, form: FormState) => {
             noiseLimits: form.noiseLimits,
             powerAvailable: form.powerAvailable,
             paAvailable: form.paAvailable,
+            publiclyListed: form.publiclyListed,
+            pinAtExactAddress: form.pinAtExactAddress,
+            showNameOnMap: form.pinAtExactAddress && form.showNameOnMap,
         };
     }
     return {
@@ -176,6 +188,7 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
     // Saved with a pin already: the form sends its stored point back, and the server keeps it.
     const hasPlacedPin = !!(space && space.type === "private" && space.mapPinPlacedAt);
     const isListed = isPrivate && form.publiclyListed;
+    const isPopupListed = !isPrivate && form.publiclyListed;
 
     const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
         setError(null);
@@ -198,6 +211,10 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
     // rounded area can't become a pin. Turning it off rounds whatever was picked.
     const setListed = (on: boolean) => {
         setError(null);
+        if (!isPrivate) {
+            update("publiclyListed", on);
+            return;
+        }
         setForm((current) => {
             if (!on) return { ...current, publiclyListed: false, location: toAreaOnlyLocation(current.location) };
             const stored = space?.location?.lngLat;
@@ -266,7 +283,11 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
                             ? `Shown on the map as a pin ${PIN_RANGE} from your place. We never store or show your address.`
                             : isPrivate
                               ? "Only you and the Peerify team can see this. We store the rough area only, never your address."
-                              : "Only you and the Peerify team can see this for now."}
+                              : isPopupListed
+                                ? form.pinAtExactAddress
+                                    ? "Shown on the map as a pin at this address."
+                                    : `Shown on the map as a pin ${PIN_RANGE} from the place.`
+                                : "Only you and the Peerify team can see this."}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -296,7 +317,56 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
                             </div>
                             <Switch id={id("listed")} checked={form.publiclyListed} onCheckedChange={setListed} />
                         </div>
-                    ) : null}
+                    ) : (
+                        <div className="space-y-4 rounded-md border p-4">
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="space-y-1">
+                                    <Label htmlFor={id("listed")}>Show this space on the Peerify map</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        People see a pin with the kind of space and its area, never your name or
+                                        profile.
+                                    </p>
+                                </div>
+                                <Switch id={id("listed")} checked={form.publiclyListed} onCheckedChange={setListed} />
+                            </div>
+                            {isPopupListed ? (
+                                <>
+                                    <RadioGroup
+                                        value={form.pinAtExactAddress ? "exact" : "near"}
+                                        onValueChange={(value) => update("pinAtExactAddress", value === "exact")}
+                                    >
+                                        <div className="flex items-start gap-2">
+                                            <RadioGroupItem value="near" id={id("pin-near")} className="mt-0.5" />
+                                            <Label htmlFor={id("pin-near")} className="font-normal">
+                                                {POPUP_PIN_NEAR_LABEL}
+                                            </Label>
+                                        </div>
+                                        <div className="flex items-start gap-2">
+                                            <RadioGroupItem value="exact" id={id("pin-exact")} className="mt-0.5" />
+                                            <Label htmlFor={id("pin-exact")} className="font-normal">
+                                                {POPUP_PIN_EXACT_LABEL}
+                                                <span className="block text-sm text-muted-foreground">
+                                                    {POPUP_PIN_EXACT_HINT}
+                                                </span>
+                                            </Label>
+                                        </div>
+                                    </RadioGroup>
+                                    {form.pinAtExactAddress ? (
+                                        <div className="flex items-center gap-2">
+                                            <Checkbox
+                                                id={id("show-name")}
+                                                checked={form.showNameOnMap}
+                                                onCheckedChange={(checked) => update("showNameOnMap", checked === true)}
+                                            />
+                                            <Label htmlFor={id("show-name")} className="font-normal">
+                                                Show the space&apos;s name on the map (optional)
+                                            </Label>
+                                        </div>
+                                    ) : null}
+                                </>
+                            ) : null}
+                        </div>
+                    )}
 
                     <div className="space-y-2">
                         <Label>{isListed ? "Your place" : isPrivate ? "Your area" : "Where it is"}</Label>

@@ -11,6 +11,11 @@
 // area-only value. lib/data/space.ts moves it by the owner's offset and stores only the moved
 // point; the picked one is never stored or logged. A caller that ignores pickedLngLat stores the
 // rounded area, never the picked point.
+//
+// A pop-up keeps its location as entered. Its map choices are normalised here: publiclyListed and
+// pinAtExactAddress are stored as true/false, and showNameOnMap is true only with
+// pinAtExactAddress, so a name never goes on a moved pin (it would name the place the pin was
+// moved away from).
 
 import { Location, SpaceInput, spaceInputSchema } from "@/models/models";
 import { coarsenLngLat } from "@/lib/utils";
@@ -48,7 +53,8 @@ export function toAreaOnlyLocation(location: Location | undefined): Location | u
 }
 
 // A pop-up space keeps the location as entered (it's a business), minus fields that aren't part
-// of a location and the public "show exact" confirmation: pop-up spaces aren't shown publicly.
+// of a location and the public "show exact" confirmation: its map pin is worked out separately
+// (getSpaceMapPins), never from that confirmation.
 function toPopupLocation(location: Location | undefined): Location | undefined {
     if (!location || !hasFiniteLngLat(location)) {
         return undefined;
@@ -108,5 +114,17 @@ export function parseSpaceInput(raw: unknown): ParseSpaceResult {
     if (!location) {
         return { ok: false, error: "location: pick the place on the map" };
     }
-    return { ok: true, value: pickDefined({ ...input, dealPreferences, location }) };
+    const publiclyListed = input.publiclyListed === true;
+    const pinAtExactAddress = input.pinAtExactAddress === true;
+    return {
+        ok: true,
+        value: pickDefined({
+            ...input,
+            dealPreferences,
+            location,
+            publiclyListed,
+            pinAtExactAddress,
+            showNameOnMap: pinAtExactAddress && input.showNameOnMap === true,
+        }),
+    };
 }

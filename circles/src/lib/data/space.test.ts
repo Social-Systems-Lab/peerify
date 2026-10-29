@@ -20,6 +20,7 @@ const {
     getSpaceActor,
     getSpaceDetailsForMember,
     getSpaceMapPins,
+    listAllSpacesForAdmin,
     listSpacesForOwner,
     updateSpaceForOwner,
     SPACES_PER_PERSON_MAX,
@@ -428,6 +429,7 @@ describe("space map pins and details (getSpaceMapPins, getSpaceDetailsForMember)
         const details = await getSpaceDetailsForMember(id);
         expect(details).toEqual({
             _id: id,
+            spaceKind: "private",
             capacity: 25,
             setting: ["indoor"],
             amplification: "acoustic_only",
@@ -513,5 +515,133 @@ describe("space photos (canViewSpacePhoto, stored photos)", () => {
         expect(stored()[0].photos).toEqual([photos[1]]);
         await updateSpaceForOwner(ALICE, spaceId, again.value, again.pickedLngLat, []);
         expect("photos" in stored()[0]).toBe(false);
+    });
+});
+
+describe("pop-up on the map (publiclyListed, pinAtExactAddress, showNameOnMap)", () => {
+    const OWNER_OFFSET = { bearingDeg: 10, distanceM: 210 };
+    const metersBetween = (a: { lng: number; lat: number }, b: { lng: number; lat: number }) => {
+        const dLat = (a.lat - b.lat) * 111_320;
+        const dLng = (a.lng - b.lng) * 111_320 * Math.cos((b.lat * Math.PI) / 180);
+        return Math.sqrt(dLat * dLat + dLng * dLng);
+    };
+    const withOwner = () =>
+        fakeDb.reset({
+            Circles: [{ _id: new ObjectId(), did: ALICE, circleType: "user", name: "Alice", handle: "alice", offerPinOffset: OWNER_OFFSET }],
+        });
+    const create = async (overrides: Record<string, unknown> = {}) =>
+        ((await createSpaceForOwner(ALICE, parsed(popupInput(overrides)))) as { ok: true; id: string }).id;
+    const edit = (id: string, overrides: Record<string, unknown> = {}) =>
+        updateSpaceForOwner(ALICE, id, parsed(popupInput(overrides)));
+    const rawDoc = (id: string) => stored().find((doc) => String(doc._id) === id)!;
+
+    test("parse: off by default; the name is only kept with the exact address", () => {
+        const off = parsed(popupInput()) as any;
+        expect([off.publiclyListed, off.pinAtExactAddress, off.showNameOnMap]).toEqual([false, false, false]);
+        const near = parsed(popupInput({ publiclyListed: true, showNameOnMap: true })) as any;
+        expect(near.showNameOnMap).toBe(false);
+        const exact = parsed(popupInput({ publiclyListed: true, pinAtExactAddress: true, showNameOnMap: true })) as any;
+        expect(exact.showNameOnMap).toBe(true);
+    });
+
+    test("off the map: no pin, no details, no offset", async () => {
+        withOwner();
+        const id = await create();
+        expect(await getSpaceMapPins()).toEqual([]);
+        expect(await getSpaceDetailsForMember(id)).toBeNull();
+        expect(rawDoc(id).pinOffset).toBeUndefined();
+    });
+
+    test("near: the exact point stays stored, the pin is moved 200–400 m by the space's own offset", async () => {
+        withOwner();
+        const id = await create({ publiclyListed: true });
+        const doc = rawDoc(id);
+        expect(doc.location.lngLat).toEqual(EXACT.lngLat);
+        expect(doc.location.street).toBe(EXACT.street);
+        expect(typeof doc.pinOffset?.distanceM).toBe("number");
+        // Its own offset, not the owner's (see the Spaces comment in models.ts).
+        expect(doc.pinOffset).not.toEqual(OWNER_OFFSET);
+
+        const [pin] = await getSpaceMapPins();
+        expect(Object.keys(pin).sort()).toEqual(["_id", "location", "spaceKind"]);
+        expect(pin.spaceKind).toBe("popup");
+        const meters = metersBetween(pin.location.lngLat!, EXACT.lngLat);
+        expect(meters >= 199 && meters <= 401).toBe(true);
+        const raw = JSON.stringify(pin);
+        for (const hidden of [ALICE, "alice", "Kafé Lyssna", "Drottninggatan", String(EXACT.lngLat.lng), "bearingDeg"]) {
+            expect(raw.includes(hidden)).toBe(false);
+        }
+    });
+
+    test("an edit keeps the pin where it is; going exact drops the offset; back to near makes a new one", async () => {
+        withOwner();
+        const id = await create({ publiclyListed: true });
+        const first = rawDoc(id).pinOffset;
+        const [before] = await getSpaceMapPins();
+        await edit(id, { publiclyListed: true, capacity: 80 });
+        expect(rawDoc(id).pinOffset).toEqual(first);
+        expect((await getSpaceMapPins())[0].location.lngLat).toEqual(before.location.lngLat);
+
+        await edit(id, { publiclyListed: true, pinAtExactAddress: true });
+        expect(rawDoc(id).pinOffset).toBeUndefined();
+        await edit(id, { publiclyListed: true });
+        const second = rawDoc(id).pinOffset;
+        expect(typeof second?.distanceM).toBe("number");
+        expect(second).not.toEqual(first);
+    });
+
+    test("turning it off keeps the offset (nothing was shown), and the pin goes", async () => {
+        withOwner();
+        const id = await create({ publiclyListed: true });
+        const offset = rawDoc(id).pinOffset;
+        await edit(id);
+        expect(rawDoc(id).pinOffset).toEqual(offset);
+        expect(await getSpaceMapPins()).toEqual([]);
+    });
+
+    test("exact: the pin is at the point; the name only when the owner shows it", async () => {
+        withOwner();
+        const id = await create({ publiclyListed: true, pinAtExactAddress: true });
+        const [pin] = await getSpaceMapPins();
+        expect(pin.location.lngLat).toEqual(EXACT.lngLat);
+        expect(pin.atExactAddress).toBe(true);
+        expect(pin.name).toBeUndefined();
+        expect(JSON.stringify(pin).includes("Drottninggatan")).toBe(false);
+        expect("name" in ((await getSpaceDetailsForMember(id)) ?? {})).toBe(false);
+
+        await edit(id, { publiclyListed: true, pinAtExactAddress: true, showNameOnMap: true });
+        expect((await getSpaceMapPins())[0].name).toBe("Kafé Lyssna");
+        expect(((await getSpaceDetailsForMember(id)) as any).name).toBe("Kafé Lyssna");
+    });
+
+    test("details: the pop-up's allow-listed fields", async () => {
+        withOwner();
+        const id = await create({ publiclyListed: true });
+        expect(await getSpaceDetailsForMember(id)).toEqual({
+            _id: id,
+            spaceKind: "popup",
+            capacity: 60,
+            dealPreferences: ["fixed_fee"],
+            showTimes: "Sunday evenings after closing",
+            noiseLimits: "Quiet after 23:00",
+            powerAvailable: true,
+            paAvailable: false,
+            photos: [],
+        });
+    });
+
+    test("a moved pin with no valid offset gets no pin, never one at the real point", async () => {
+        withOwner();
+        const id = await create({ publiclyListed: true });
+        rawDoc(id).pinOffset = { bearingDeg: 0, distanceM: 5 };
+        expect(await getSpaceMapPins()).toEqual([]);
+        expect(await getSpaceDetailsForMember(id)).toBeNull();
+    });
+
+    test("the offset never reaches the owner's or the admin's view", async () => {
+        withOwner();
+        await create({ publiclyListed: true });
+        expect(JSON.stringify(await listSpacesForOwner(ALICE)).includes("bearingDeg")).toBe(false);
+        expect(JSON.stringify(await listAllSpacesForAdmin()).includes("bearingDeg")).toBe(false);
     });
 });

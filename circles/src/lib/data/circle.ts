@@ -467,7 +467,7 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
 
 // Uniform by area over the 200–400 m ring (not uniform in distance, which would bunch pins near
 // the inner edge), any bearing. crypto, not Math.random: nobody may be able to predict it.
-const generateOfferPinOffset = (): NonNullable<Circle["offerPinOffset"]> => {
+export const generateOfferPinOffset = (): NonNullable<Circle["offerPinOffset"]> => {
     const unit = () => randomInt(0, 2 ** 32) / 2 ** 32;
     const min2 = OFFER_PIN_OFFSET_MIN_METERS ** 2;
     const max2 = OFFER_PIN_OFFSET_MAX_METERS ** 2;

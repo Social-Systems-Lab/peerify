@@ -48,3 +48,22 @@ export const SPACE_KIND_DESCRIPTIONS = {
 // these names anyway.
 export const spaceAreaLabel = (location: { city?: string; region?: string; country?: string } | undefined): string =>
     [location?.city ?? location?.region, location?.country].filter(Boolean).join(", ");
+
+// The pop-up form's two pin choices (Tim, 2026-10-29).
+export const POPUP_PIN_NEAR_LABEL = "Pin near the place (200–400 m away)";
+export const POPUP_PIN_EXACT_LABEL = "Pin at the exact address";
+export const POPUP_PIN_EXACT_HINT = "For businesses and public places.";
+
+// "On the map" for a pop-up, in the owner's list and on the admin page.
+export const popupOnMapLabel = (space: {
+    publiclyListed?: boolean;
+    pinAtExactAddress?: boolean;
+    showNameOnMap?: boolean;
+}): string =>
+    !space.publiclyListed
+        ? "No"
+        : !space.pinAtExactAddress
+          ? "Yes, as a pin near the place"
+          : space.showNameOnMap
+            ? "Yes, at the address, with its name"
+            : "Yes, at the address";
