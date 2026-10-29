@@ -290,8 +290,8 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
                                 <Label htmlFor={id("listed")}>Show this space on the Peerify map</Label>
                                 <p className="text-sm text-muted-foreground">
                                     People see a pin with the kind of space and your area&apos;s name, never your
-                                    name, profile or address. The pin sits {PIN_RANGE} from the place you pick, in a
-                                    direction we choose at random.
+                                    name, profile or address. The pin will display {PIN_RANGE} from the place you
+                                    pick, in a random direction.
                                 </p>
                             </div>
                             <Switch id={id("listed")} checked={form.publiclyListed} onCheckedChange={setListed} />
@@ -302,7 +302,7 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
                         <Label>{isListed ? "Your place" : isPrivate ? "Your area" : "Where it is"}</Label>
                         <p className="text-sm text-muted-foreground">
                             {isListed
-                                ? `Search for your address or tap the map at your place. Before saving, we move the point ${PIN_RANGE} in a random direction and keep only the moved point, never the one you picked.`
+                                ? "Search for your address or tap the map at your place. We keep only the moved point, never the one you picked."
                                 : isPrivate
                                   ? "Search for your town or tap the map near you. We round it to an area of about 10 km, and that's all we keep: the pin moves to the rounded point."
                                   : "Search for the address or tap the map."}
