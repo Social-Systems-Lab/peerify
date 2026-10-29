@@ -14,7 +14,7 @@ import {
     isRetiredOfferType,
     OFFER_MODAL_TYPES,
 } from "@/lib/data/tour-team-offerings";
-import { CreateOfferModal } from "./create-offer-modal";
+import { CreateOfferModal, type OfferMapChoice } from "./create-offer-modal";
 import { addSpaceDialogOpenAtom } from "@/lib/data/atoms";
 
 interface OfferManagerProps {
@@ -42,6 +42,9 @@ interface OfferManagerProps {
     // isPeerifyVenueIdentity(circle) for its own copy branches, this just passes it one level
     // further rather than having CreateOfferModal re-derive it from a circle it doesn't have.
     isVenue?: boolean;
+    // Personal profiles: Create an offer asks "Show this on the map?" while the offers aren't on
+    // the map yet (see CreateOfferModal's mapChoice).
+    mapChoice?: OfferMapChoice;
 }
 
 export function OfferManager({
@@ -50,6 +53,7 @@ export function OfferManager({
     allowedTypes = OFFER_MODAL_TYPES,
     saveVersion,
     isVenue = false,
+    mapChoice,
 }: OfferManagerProps) {
     const [modalOpen, setModalOpen] = useState(false);
     const setAddSpaceOpen = useSetAtom(addSpaceDialogOpenAtom);
@@ -211,6 +215,7 @@ export function OfferManager({
                 onSave={saveOffering}
                 editingOffering={editingOffering}
                 isVenue={isVenue}
+                mapChoice={mapChoice}
             />
         </div>
     );

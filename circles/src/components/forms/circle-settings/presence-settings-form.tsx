@@ -186,41 +186,32 @@ function StructuredSkillSelector({ value, onChange }: StructuredSkillSelectorPro
     );
 }
 
-// Auto-saves on click via its own server action (setOffersVisibleAction), mirroring
-// CrewEnabledToggle (about-settings-form.tsx) exactly — optimistic flip, revert + toast only on
-// failure, no success toast for something this minor, brief "Saved" flash instead. Staying out of
-// the shared form means neither direction of accidental interference is possible: clicking this
-// never saves/discards unrelated unsaved offerings/needs/engagements edits, and the form's own
-// Save Changes button never resets this back to a stale default value.
+// Auto-saves on click via its own server action (setOffersVisibleAction, called by the form's
+// saveOffersVisible), mirroring CrewEnabledToggle (about-settings-form.tsx) — optimistic flip,
+// revert + toast only on failure, no success toast for something this minor, brief "Saved" flash
+// instead. Staying out of the shared form means neither direction of accidental interference is
+// possible: clicking this never saves/discards unrelated unsaved offerings/needs/engagements edits,
+// and the form's own Save Changes button never resets this back to a stale default value. The value
+// lives in the form only so Create an offer's "Show this on the map?" (OfferManager) and this
+// switch stay in step.
 const OffersVisibleToggle = ({
-    circleId,
-    initialValue,
+    visible,
+    onSave,
     isVenue = false,
 }: {
-    circleId: string;
-    initialValue: boolean;
+    visible: boolean;
+    onSave: (checked: boolean) => Promise<boolean>;
     isVenue?: boolean;
 }) => {
-    const { toast } = useToast();
-    const [visible, setVisible] = useState(initialValue);
     const [isSaving, setIsSaving] = useState(false);
     const [justSaved, setJustSaved] = useState(false);
 
     const onToggle = async (checked: boolean) => {
         setIsSaving(true);
         setJustSaved(false);
-        setVisible(checked);
-        const res = await setOffersVisibleAction(circleId, checked);
+        const ok = await onSave(checked);
         setIsSaving(false);
-        if (!res.success) {
-            setVisible(!checked);
-            toast({
-                title: "Error",
-                description: res.message || "Failed to update offers visibility",
-                variant: "destructive",
-            });
-            return;
-        }
+        if (!ok) return;
         setJustSaved(true);
         window.setTimeout(() => setJustSaved(false), 1500);
     };
@@ -253,6 +244,22 @@ const OffersVisibleToggle = ({
 
 export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): React.ReactElement {
     const { toast } = useToast();
+    // Saved on its own, never by Save Changes: see OffersVisibleToggle.
+    const [offersVisible, setOffersVisible] = useState(circle.offersVisible === true);
+    const saveOffersVisible = async (checked: boolean): Promise<boolean> => {
+        setOffersVisible(checked);
+        const res = await setOffersVisibleAction(circle._id ?? "", checked);
+        if (!res.success) {
+            setOffersVisible(!checked);
+            toast({
+                title: "Error",
+                description: res.message || "Failed to update offers visibility",
+                variant: "destructive",
+            });
+            return false;
+        }
+        return true;
+    };
     const router = useRouter();
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showOfferingsIntro, setShowOfferingsIntro] = useState(false);
@@ -450,10 +457,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                     CrewEnabledToggle (about-settings-form.tsx): clicking it must never
                                     save/discard unrelated unsaved edits below, and the form's own Save
                                     Changes button must never reset it back to a stale default value. */}
-                                <OffersVisibleToggle
-                                    circleId={circle._id ?? ""}
-                                    initialValue={circle.offersVisible === true}
-                                />
+                                <OffersVisibleToggle visible={offersVisible} onSave={saveOffersVisible} />
                                 <Controller
                                     name="tourTeamOfferings"
                                     control={form.control as unknown as Control}
@@ -462,6 +466,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                             value={field.value as TourTeamOffering[] | undefined}
                                             onChange={field.onChange}
                                             saveVersion={saveVersion}
+                                            mapChoice={{ offersVisible, onChoose: saveOffersVisible }}
                                         />
                                     )}
                                 />
@@ -486,11 +491,7 @@ export function PresenceSettingsForm({ circle }: PresenceSettingsFormProps): Rea
                                 </p>
                                 {/* Same auto-save-on-click pattern as the isUser Offers card above — see that
                                     card's comment for why this stays out of the form's state/submit. */}
-                                <OffersVisibleToggle
-                                    circleId={circle._id ?? ""}
-                                    initialValue={circle.offersVisible === true}
-                                    isVenue
-                                />
+                                <OffersVisibleToggle visible={offersVisible} onSave={saveOffersVisible} isVenue />
                                 <Controller
                                     name="tourTeamOfferings"
                                     control={form.control as unknown as Control}

@@ -884,13 +884,11 @@ export const circleSchema = z.object({
     // identity of the offering circle (see OfferMapPin below), so this consent gate is
     // deliberately its own thing, not reused from either existing flag. See getOfferMapPins.
     // No schema .default() (matches mapVisible/searchable) — the real default lives in
-    // createCircle (lib/data/circle.ts), and is TRUE for newly-created circles only, an explicit
-    // product decision made after finding two of three existing staging circles with offerings
-    // had exact-precision locations (one with mapVisible explicitly false) — retroactively
-    // defaulting existing circles to visible would have exposed their real coordinates via an
-    // anonymous pin with no new consent from them. Existing circles stay excluded from
-    // getOfferMapPins (its query is an exact match on offersVisible: true, so an absent field
-    // never matches) until their owner explicitly turns the Presence-settings toggle on.
+    // createCircle (lib/data/circle.ts): false for new personal profiles since 2026-10-29 (Tim:
+    // map display is opt-in; the first Create an offer asks "Show this on the map?" and the answer
+    // sets it). It was true for profiles created before that, and those keep what they have.
+    // Circles without the field stay excluded from getOfferMapPins (its query is an exact match on
+    // offersVisible: true, so an absent field never matches) until their owner turns it on.
     offersVisible: z.boolean().optional(),
     // Server-only, never sent to a browser: the offer pin is the real point moved by this offset,
     // so the offset plus a pin gives the address back. Set once by ensureOfferPinOffset

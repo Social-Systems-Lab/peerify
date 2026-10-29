@@ -373,6 +373,7 @@ export function PilotOnboardingFlow({
                     circleId={String(personalCircle._id)}
                     circleHandle={personalCircle.handle || ""}
                     initialOfferings={personalCircle.tourTeamOfferings}
+                    offersVisible={personalCircle.offersVisible === true}
                     onContinue={() => advanceStep("fan-done")}
                 />
             </OnboardingCardShell>

@@ -780,12 +780,11 @@ export const createCircle = async (circle: Circle, authenticatedUserDid: string)
     if (circle.circleType === "user") {
         circle.mapVisible = circle.mapVisible ?? false;
         circle.searchable = circle.searchable ?? false;
-        // Defaults true for newly-created circles only — an explicit product decision, not the
-        // same default as mapVisible/searchable. Existing circles created before this field
-        // existed are unaffected (this line only runs in createCircle, never on an update), and
-        // stay excluded from getOfferMapPins's exact-match {offersVisible: true} query until
-        // their owner explicitly turns the Presence-settings toggle on — no retroactive backfill.
-        circle.offersVisible = circle.offersVisible ?? true;
+        // Off until the person says yes (Tim, 2026-10-29): Create an offer asks "Show this on the
+        // map?" while it's off, and the switch under Offers changes it. Profiles created while
+        // this defaulted to true keep their value (this line only runs in createCircle, never on
+        // an update).
+        circle.offersVisible = circle.offersVisible ?? false;
     }
 
     let result = await Circles.insertOne(circle);
