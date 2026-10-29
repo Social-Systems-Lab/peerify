@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useLayoutEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useAtom } from "jotai";
 import {
     Dialog,
     DialogContent,
@@ -19,7 +21,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MultiImageUploader, ImageItem } from "@/components/forms/controls/multi-image-uploader";
 import { CharCounter } from "@/components/forms/controls/char-counter";
 import { cn } from "@/lib/utils";
-import { Mic2, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { userAtom } from "@/lib/data/atoms";
 import {
     accommodationSubTypes,
     hostingShowSpaceTypes,
@@ -73,15 +76,11 @@ interface CreateOfferModalProps {
     // Step 1 grid, no Back) — editing an offering reuses the same two-step form, it just skips
     // choosing a type since that's already decided. Pass null/undefined for the "Add an offer" flow.
     editingOffering?: TourTeamOffering | null;
-    // Branches the free-of-charge notice copy only — "register as a Venue instead" is circular
-    // when shown to a profile that's already a registered venue (see OfferManager's own comment
+    // Branches the free-of-charge notice copy only — "add it under Spaces instead" makes no sense
+    // to a profile that's already a registered venue (see OfferManager's own comment
     // for why this is threaded down rather than derived here from a circle this component doesn't
     // have in scope).
     isVenue?: boolean;
-    // When set, Step 1 shows a Show space tile that closes this modal and calls this instead of
-    // opening a form: show spaces are added as spaces now, not as offers (see RETIRED_OFFER_TYPES).
-    // Personal profiles only; a venue is the stage already.
-    onShowSpaceChosen?: () => void;
 }
 
 const EMPTY_IMAGES: ImageItem[] = [];
@@ -146,9 +145,9 @@ export function CreateOfferModal({
     onSave,
     editingOffering,
     isVenue = false,
-    onShowSpaceChosen,
 }: CreateOfferModalProps) {
     const isEditing = Boolean(editingOffering);
+    const [user] = useAtom(userAtom);
 
     const [step, setStep] = useState<1 | 2>(1);
     const [selectedType, setSelectedType] = useState<TourTeamOffering["type"] | null>(null);
@@ -367,13 +366,29 @@ export function CreateOfferModal({
 
                 {/* Universal platform rule — shown on both steps (not just Step 1) so it's visible
                     regardless of where someone is in the flow, including right before they hit Add
-                    offer/Update on Step 2. Copy branches only for isVenue: "register as a Venue
-                    instead" is circular when the profile creating this offer is already a
-                    registered venue. */}
+                    offer/Update on Step 2. Copy branches only for isVenue: a venue is a space
+                    already, so it isn't sent to Spaces. Show spaces are spaces now, not offers
+                    (see RETIRED_OFFER_TYPES). */}
                 <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                    {isVenue
-                        ? "Offers must be free — no rental fees, ticket splits, or other compensation. Paid bookings are handled through your Venue listing, not here."
-                        : "Offers must be free — no rental fees, ticket splits, or other compensation. If you charge for your space, register as a Venue instead."}
+                    {isVenue ? (
+                        "Offers must be free — no rental fees, ticket splits, or other compensation. Paid bookings are handled through your Venue listing, not here."
+                    ) : (
+                        <>
+                            Offers are free: a bed, a meal, a ride or a hand with promotion. No rental fees or other
+                            payment. Have a space for shows? Add it under{" "}
+                            {user?.handle ? (
+                                <Link
+                                    href={`/circles/${user.handle}/settings/spaces`}
+                                    className="font-medium underline"
+                                >
+                                    Spaces
+                                </Link>
+                            ) : (
+                                "Spaces"
+                            )}{" "}
+                            instead.
+                        </>
+                    )}
                 </div>
 
                 {step === 1 && !isEditing && (
@@ -385,38 +400,24 @@ export function CreateOfferModal({
                                 ? "Other"
                                 : tourTeamOfferingTypeLabels[type as (typeof tourTeamOfferingTypes)[number]];
                             return (
-                                <React.Fragment key={type}>
-                                    {/* Show space sits just before Other, where its offer tile used to be listed last-but-one. */}
-                                    {isOther && onShowSpaceChosen && (
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                onOpenChange(false);
-                                                onShowSpaceChosen();
-                                            }}
-                                            className="flex flex-col items-center gap-2 rounded-lg border px-3 py-4 text-center text-sm transition hover:border-primary hover:bg-primary/5"
-                                        >
-                                            <Mic2 className="h-6 w-6" />
-                                            <span>Show space</span>
-                                            <span className="text-xs text-muted-foreground">Add it as a space</span>
-                                        </button>
+                                <button
+                                    key={type}
+                                    type="button"
+                                    disabled={alreadyAdded}
+                                    onClick={() => selectType(type)}
+                                    className={cn(
+                                        "flex flex-col items-center gap-2 rounded-lg border px-3 py-4 text-center text-sm transition",
+                                        alreadyAdded
+                                            ? "cursor-not-allowed border-dashed opacity-50"
+                                            : "hover:border-primary hover:bg-primary/5",
                                     )}
-                                    <button
-                                        type="button"
-                                        disabled={alreadyAdded}
-                                        onClick={() => selectType(type)}
-                                        className={cn(
-                                            "flex flex-col items-center gap-2 rounded-lg border px-3 py-4 text-center text-sm transition",
-                                            alreadyAdded
-                                                ? "cursor-not-allowed border-dashed opacity-50"
-                                                : "hover:border-primary hover:bg-primary/5",
-                                        )}
-                                    >
-                                        <Icon className="h-6 w-6" />
-                                        <span>{tileLabel}</span>
-                                        {alreadyAdded && <span className="text-xs text-muted-foreground">Already added</span>}
-                                    </button>
-                                </React.Fragment>
+                                >
+                                    <Icon className="h-6 w-6" />
+                                    <span>{tileLabel}</span>
+                                    {alreadyAdded && (
+                                        <span className="text-xs text-muted-foreground">Already added</span>
+                                    )}
+                                </button>
                             );
                         })}
                     </div>

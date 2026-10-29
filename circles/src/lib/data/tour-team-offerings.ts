@@ -33,8 +33,8 @@ export const isListedOffering = (offering: Pick<TourTeamOffering, "type">): bool
 // The structured types offered in the "Create an offer" modal's Step 1 grid, in display order
 // (Accommodation, Meal, Transport, Promotion) — each has a matching offerDetailsSchema variant and
 // a Step 2 form. "Other" (type "custom") is always offered alongside these, generic/type-less, and
-// isn't part of this list. A personal profile's modal also shows a Show space tile that opens Add
-// a space instead (see CreateOfferModal's onShowSpaceChosen). city_guide/sound_equipment_help
+// isn't part of this list. Show spaces are added under Spaces instead (the modal's notice links
+// there). city_guide/sound_equipment_help
 // predate this modal and have no Step 2 form of their own — they're no longer creatable from the
 // modal (existing offerings of those types still render/persist fine).
 export const OFFER_MODAL_TYPES = ["spare_room", "home_cooked_meal", "local_transport", "promotion"] as const;

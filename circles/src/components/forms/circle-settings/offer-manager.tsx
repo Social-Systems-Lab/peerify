@@ -211,7 +211,6 @@ export function OfferManager({
                 onSave={saveOffering}
                 editingOffering={editingOffering}
                 isVenue={isVenue}
-                onShowSpaceChosen={isVenue ? undefined : () => setAddSpaceOpen(true)}
             />
         </div>
     );

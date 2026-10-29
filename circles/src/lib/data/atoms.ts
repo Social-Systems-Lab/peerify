@@ -75,7 +75,7 @@ export type CreatePostDialogAtomProps = {
 };
 
 export const createPostDialogAtom = atom<CreatePostDialogAtomProps>({ isOpen: false });
-// Opens Create → Add a space from anywhere (e.g. the Show space tile in Create an offer). The
+// Opens Create → Add a space from anywhere (e.g. a retired Show space offer in OfferManager). The
 // dialog itself lives in GlobalCreateButton, which is mounted once in the nav for signed-in users.
 export const addSpaceDialogOpenAtom = atom<boolean>(false);
 

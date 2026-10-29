@@ -73,7 +73,7 @@ export function GlobalCreateButton() {
     const [isCreateProjectOpen, setCreateProjectOpen] = useState(false);
     const [isCreatePeerifyArtistOpen, setCreatePeerifyArtistOpen] = useState(false);
     const [isCreatePeerifyVenueOpen, setCreatePeerifyVenueOpen] = useState(false);
-    // An atom, not local state, so the Show space tile in Create an offer can open it too.
+    // An atom, not local state, so a retired Show space offer's "Add it as a space" can open it too.
     const [isAddSpaceOpen, setAddSpaceOpen] = useAtom(addSpaceDialogOpenAtom);
     const [spaceFormType, setSpaceFormType] = useState<SpaceType | null>(null);
 
