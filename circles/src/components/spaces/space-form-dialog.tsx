@@ -71,6 +71,9 @@ type FormState = {
     stepFreeAccess: EventTagAccessibility | "";
     notesForPeerify: string;
     publiclyListed: boolean;
+    // A new space asks "Show this on the map?" with neither answer picked; null until one is.
+    // An existing space has its switch instead, so this is already answered.
+    mapChoice: "yes" | "no" | null;
     pinAtExactAddress: boolean;
     showNameOnMap: boolean;
     photos: ImageItem[];
@@ -95,6 +98,7 @@ const fromSpace = (space: SpaceView | undefined): FormState => {
         stepFreeAccess: s.stepFreeAccess ?? "",
         notesForPeerify: s.notesForPeerify ?? "",
         publiclyListed: s.publiclyListed === true,
+        mapChoice: space ? (s.publiclyListed === true ? "yes" : "no") : null,
         pinAtExactAddress: s.pinAtExactAddress === true,
         showNameOnMap: s.showNameOnMap === true,
         // The same items the uploader builds from photosSeed: it doesn't report its starting
@@ -154,6 +158,7 @@ const photosSeed = (space: SpaceView | undefined): Media[] =>
 
 const quickCheck = (type: SpaceType, form: FormState): string | null => {
     if (type === "popup" && !form.name.trim()) return "Give the space a name.";
+    if (form.mapChoice === null) return "Choose whether to show this on the map.";
     if (!form.location?.lngLat) {
         if (type === "popup") return "Pick the place on the map.";
         return form.publiclyListed ? "Pick your place on the map." : "Pick your area on the map.";
@@ -211,16 +216,19 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
     // rounded area can't become a pin. Turning it off rounds whatever was picked.
     const setListed = (on: boolean) => {
         setError(null);
+        const mapChoice = on ? "yes" : "no";
         if (!isPrivate) {
-            update("publiclyListed", on);
+            setForm((current) => ({ ...current, publiclyListed: on, mapChoice }));
             return;
         }
         setForm((current) => {
-            if (!on) return { ...current, publiclyListed: false, location: toAreaOnlyLocation(current.location) };
+            if (!on) {
+                return { ...current, publiclyListed: false, mapChoice, location: toAreaOnlyLocation(current.location) };
+            }
             const stored = space?.location?.lngLat;
             const picked = current.location?.lngLat;
             const keep = hasPlacedPin && !!stored && !!picked && stored.lng === picked.lng && stored.lat === picked.lat;
-            return { ...current, publiclyListed: true, location: keep ? current.location : undefined };
+            return { ...current, publiclyListed: true, mapChoice, location: keep ? current.location : undefined };
         });
     };
 
@@ -271,6 +279,43 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
 
     const id = (name: string) => `${idPrefix}-${name}`;
 
+    const privatePinText = (
+        <p className="text-sm text-muted-foreground">
+            People see a pin with the kind of space and your area&apos;s name, never your name, profile or address. The
+            pin will display {PIN_RANGE} from the place you pick, in a random direction.
+        </p>
+    );
+    const popupPinText = (
+        <p className="text-sm text-muted-foreground">
+            People see a pin with the kind of space and its area, never your name or profile.
+        </p>
+    );
+
+    // Adding a space: an explicit choice, neither picked (Tim, 2026-10-29). Editing keeps the switch.
+    const mapChoiceRadio = (
+        <div className="space-y-3">
+            <div className="space-y-1">
+                <Label>Show this on the map?</Label>
+                <p className="text-sm text-muted-foreground">A pin lets artists planning shows nearby find you.</p>
+            </div>
+            <RadioGroup value={form.mapChoice ?? ""} onValueChange={(value) => setListed(value === "yes")}>
+                <div className="flex items-start gap-2">
+                    <RadioGroupItem value="yes" id={id("map-yes")} className="mt-0.5" />
+                    <Label htmlFor={id("map-yes")} className="font-normal">
+                        Yes: artists can find it as a pin near your place.
+                    </Label>
+                </div>
+                <div className="flex items-start gap-2">
+                    <RadioGroupItem value="no" id={id("map-no")} className="mt-0.5" />
+                    <Label htmlFor={id("map-no")} className="font-normal">
+                        Not now: only the Peerify team sees it, and we&apos;ll contact you if an artist is looking
+                        nearby.
+                    </Label>
+                </div>
+            </RadioGroup>
+        </div>
+    );
+
     return (
         <Dialog open={isOpen} onOpenChange={close}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[680px]">
@@ -306,29 +351,46 @@ export function SpaceFormDialog({ type, space, isOpen, onOpenChange, onSaved }: 
                     ) : null}
 
                     {isPrivate ? (
-                        <div className="flex items-start justify-between gap-4 rounded-md border p-4">
-                            <div className="space-y-1">
-                                <Label htmlFor={id("listed")}>Show this space on the Peerify map</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    People see a pin with the kind of space and your area&apos;s name, never your
-                                    name, profile or address. The pin will display {PIN_RANGE} from the place you
-                                    pick, in a random direction.
-                                </p>
+                        <div className="space-y-3 rounded-md border p-4">
+                            <div className="flex items-start justify-between gap-4">
+                                {space ? (
+                                    <div className="space-y-1">
+                                        <Label htmlFor={id("listed")}>Show this space on the Peerify map</Label>
+                                        {privatePinText}
+                                    </div>
+                                ) : (
+                                    mapChoiceRadio
+                                )}
+                                {space ? (
+                                    <Switch
+                                        id={id("listed")}
+                                        checked={form.publiclyListed}
+                                        onCheckedChange={setListed}
+                                    />
+                                ) : null}
                             </div>
-                            <Switch id={id("listed")} checked={form.publiclyListed} onCheckedChange={setListed} />
+                            {!space && form.publiclyListed ? privatePinText : null}
                         </div>
                     ) : (
                         <div className="space-y-4 rounded-md border p-4">
                             <div className="flex items-start justify-between gap-4">
-                                <div className="space-y-1">
-                                    <Label htmlFor={id("listed")}>Show this space on the Peerify map</Label>
-                                    <p className="text-sm text-muted-foreground">
-                                        People see a pin with the kind of space and its area, never your name or
-                                        profile.
-                                    </p>
-                                </div>
-                                <Switch id={id("listed")} checked={form.publiclyListed} onCheckedChange={setListed} />
+                                {space ? (
+                                    <div className="space-y-1">
+                                        <Label htmlFor={id("listed")}>Show this space on the Peerify map</Label>
+                                        {popupPinText}
+                                    </div>
+                                ) : (
+                                    mapChoiceRadio
+                                )}
+                                {space ? (
+                                    <Switch
+                                        id={id("listed")}
+                                        checked={form.publiclyListed}
+                                        onCheckedChange={setListed}
+                                    />
+                                ) : null}
                             </div>
+                            {!space && isPopupListed ? popupPinText : null}
                             {isPopupListed ? (
                                 <>
                                     <RadioGroup
