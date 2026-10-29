@@ -13,6 +13,7 @@ import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/a
 const SEARCH_CATEGORY_LABELS: Record<string, string> = {
     users: "artists",
     communities: "venues",
+    spaces: "spaces",
     events: "events",
 };
 
@@ -33,14 +34,15 @@ const isSuppressedSearchProfile = (item: any, viewerIsAdmin: boolean): boolean =
 
 const isEventItem = (item: any): boolean => "startAt" in item && Boolean(item?.title);
 
-// Section order mirrors the top Artists/Venues/Events pills. "Other" catches everything a
+// Section order mirrors the top Artists/Spaces/Events pills (venues are the only spaces listed;
+// pop-ups and private spaces are pins only). "Other" catches everything a
 // Category multi-select can't target directly (plain personal/fan profiles, projects, posts) —
 // items filterCirclesByCategory already lets through unfiltered under "All" today; sectioning
 // the list must not make those silently disappear, so they get their own catch-all section
 // rather than being dropped.
 const RESULT_SECTIONS: { key: "artists" | "venues" | "events" | "other"; label: string }[] = [
     { key: "artists", label: "Artists" },
-    { key: "venues", label: "Venues" },
+    { key: "venues", label: "Spaces" },
     { key: "events", label: "Events" },
     { key: "other", label: "Other" },
 ];

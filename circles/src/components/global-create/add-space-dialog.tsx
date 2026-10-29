@@ -5,17 +5,18 @@
 // in the spaces collection (see lib/data/space.ts).
 
 import React from "react";
-import { Building2, ChevronRight, Home, Store } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardTitle } from "@/components/ui/card";
 import { SPACE_KIND_DESCRIPTIONS } from "@/lib/spaces/space-labels";
+import { SPACE_KIND_ICONS, type SpaceKind } from "@/lib/spaces/space-kind-icons";
 
-export type SpaceKind = "venue" | "popup" | "private";
+export type { SpaceKind };
 
 const KINDS: { kind: SpaceKind; title: string; icon: React.ElementType }[] = [
-    { kind: "venue", title: "Venue", icon: Building2 },
-    { kind: "popup", title: "Pop-up space", icon: Store },
-    { kind: "private", title: "Home or private space", icon: Home },
+    { kind: "venue", title: "Venue", icon: SPACE_KIND_ICONS.venue },
+    { kind: "popup", title: "Pop-up space", icon: SPACE_KIND_ICONS.popup },
+    { kind: "private", title: "Home or private space", icon: SPACE_KIND_ICONS.private },
 ];
 
 interface AddSpaceDialogProps {

@@ -32,16 +32,30 @@ import {
 import { PEERIFY_ACT_OFFER_ICONS } from "@/lib/peerify/act-offer-icons";
 import { getTourTeamOfferingLabel, isRetiredOfferType } from "@/lib/data/tour-team-offerings";
 import CategoryFilter, { CategoryFilterProps } from "./category-filter";
+import { SPACE_KIND_ICONS, type SpaceKind } from "@/lib/spaces/space-kind-icons";
 
 // ---- Filter shape ----
 
+// Venues sit under Spaces (Tim, 2026-10-29), next to pop-ups and private spaces: see
+// SPACE_KIND_FILTER_OPTIONS.
 export const RESULT_TYPE_OPTIONS = [
     { value: "users", label: "Artists" },
-    { value: "communities", label: "Venues" },
+    { value: "spaces", label: "Spaces" },
     { value: "events", label: "Events" },
     { value: "offers", label: "Offers" },
-    { value: "spaces", label: "Spaces" },
 ] as const;
+
+// The sub-filter inside Spaces. Venues are venue circles (public profiles); pop-ups and private
+// spaces are space pins (getSpaceMapPins).
+export const SPACE_KIND_FILTER_OPTIONS = [
+    { value: "venue", label: "Venues" },
+    { value: "popup", label: "Pop-ups" },
+    { value: "private", label: "Private spaces" },
+] as const satisfies readonly { value: SpaceKind; label: string }[];
+
+// Empty means all three, the same "empty means All" convention as selectedCategories.
+export const includesSpaceKind = (selectedSpaceKinds: SpaceKind[], kind: SpaceKind) =>
+    selectedSpaceKinds.length === 0 || selectedSpaceKinds.includes(kind);
 
 export type ResultCategory = (typeof RESULT_TYPE_OPTIONS)[number]["value"];
 
@@ -60,6 +74,8 @@ export type SearchFiltersValue = {
     selectedCategories: string[];
     selectedGenres: string[];
     selectedOfferTypes: OfferTypeFilterOption[];
+    // Inside Spaces only (includesSpaceKind); empty means all three.
+    selectedSpaceKinds: SpaceKind[];
     dateRange: DateRange | undefined;
     physicalOnly: boolean;
     // Artist profiles only (matchesActFilters): venues, events and offer pins are never narrowed.
@@ -98,6 +114,7 @@ export const getActiveSearchFilterCount = (value: SearchFiltersValue): number =>
     if (value.physicalOnly) count += 1;
     if (isCategoryFilterActive(value.selectedCategories)) count += 1;
     if (value.selectedOfferTypes.length > 0) count += 1;
+    if (value.selectedSpaceKinds.length > 0) count += 1;
     if (value.selectedActFormats.length > 0) count += 1;
     if (value.selectedActOffers.length > 0) count += 1;
     return count;
@@ -253,6 +270,53 @@ export const OfferTypeFilterChips: React.FC<{
     );
 };
 
+// ---- Spaces sub-filter row (under the search bar, and in the modal) ----
+// The same pills as the What you do row. All three show as on while none is picked (empty means
+// all); turning one off keeps the other two, and the last one on can't be turned off.
+
+export const SpaceKindFilterRow: React.FC<{
+    selectedSpaceKinds: SpaceKind[];
+    onChange: (next: SpaceKind[]) => void;
+    className?: string;
+}> = ({ selectedSpaceKinds, onChange, className }) => {
+    const allKinds = SPACE_KIND_FILTER_OPTIONS.map((option) => option.value);
+    const shown = allKinds.filter((kind) => includesSpaceKind(selectedSpaceKinds, kind));
+    const toggle = (kind: SpaceKind) => {
+        const next = shown.includes(kind) ? shown.filter((k) => k !== kind) : [...shown, kind];
+        if (next.length === 0) return;
+        onChange(next.length === allKinds.length ? [] : allKinds.filter((k) => next.includes(k)));
+    };
+    return (
+        <div
+            role="group"
+            aria-label="Filter spaces by kind"
+            className={cn("no-scrollbar -mx-1 flex max-w-full gap-2 overflow-x-auto px-1 py-0.5", className)}
+        >
+            {SPACE_KIND_FILTER_OPTIONS.map((option) => {
+                const Icon = SPACE_KIND_ICONS[option.value];
+                const selected = shown.includes(option.value);
+                return (
+                    <button
+                        key={option.value}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => toggle(option.value)}
+                        className={cn(
+                            "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium shadow-sm transition-colors",
+                            selected
+                                ? "bg-[#e8720c] text-[#181512] hover:bg-[#ff8c2a]"
+                                : "bg-[#181512] text-white hover:bg-[#2b2621]",
+                        )}
+                    >
+                        <Icon className="h-4 w-4" aria-hidden />
+                        {option.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+};
+
 // ---- "What you do" icon row (under the search bar) ----
 // Charcoal pills, mustard when selected (the brand ink and MUSTARD from peerify-contact-dialog).
 // Scrolls sideways on narrow screens. Callers render it only while artists are in view
@@ -383,6 +447,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
         return format(new Date(), "MMM d, yyyy");
     }, [value.dateRange]);
     const includesOffers = value.selectedCategories.length === 0 || value.selectedCategories.includes("offers");
+    const includesSpaces = value.selectedCategories.length === 0 || value.selectedCategories.includes("spaces");
     const activeAdvancedFilterCount = useMemo(() => getActiveSearchFilterCount(value), [value]);
 
     // The genre dropdown's own Select (Radix) closes itself the instant a window "resize"
@@ -474,6 +539,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
             // disappears again immediately after clicking it, not just for the other three filters.
             selectedCategories: ["users"],
             selectedOfferTypes: [],
+            selectedSpaceKinds: [],
             selectedActFormats: [],
             selectedActOffers: [],
         });
@@ -519,6 +585,17 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                     })}
                 </div>
             </div>
+
+            {includesSpaces && categoryOptions.some((option) => option.value === "spaces") && (
+                <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
+                    <div className="text-sm font-semibold text-gray-900">Kind of space</div>
+                    <SpaceKindFilterRow
+                        selectedSpaceKinds={value.selectedSpaceKinds}
+                        onChange={(next) => onChange({ ...value, selectedSpaceKinds: next })}
+                        className="flex-wrap"
+                    />
+                </div>
+            )}
 
             {includesOffers && (
                 <div className="space-y-2 overflow-hidden rounded-[24px] border border-gray-200 bg-white p-4 shadow-sm">
@@ -647,7 +724,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                 that category. */}
             {(value.selectedCategories.length === 0 ||
                 value.selectedCategories.includes("users") ||
-                value.selectedCategories.includes("communities") ||
+                value.selectedCategories.includes("spaces") ||
                 value.selectedCategories.includes("events") ||
                 value.selectedCategories.includes("offers")) && (
                 <Accordion

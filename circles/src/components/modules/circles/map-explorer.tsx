@@ -46,7 +46,10 @@ import SearchFilters, {
     ActOfferFilterRow,
     includesArtistsCategory,
     NoMatchingArtistsNotice,
+    SpaceKindFilterRow,
+    includesSpaceKind,
 } from "../search/search-filters";
+import type { SpaceKind } from "@/lib/spaces/space-kind-icons";
 import Indicators from "@/components/utils/indicators";
 import ResizingDrawer from "@/components/ui/resizing-drawer"; // Correct import name
 import ContentPreview from "@/components/layout/content-preview";
@@ -282,7 +285,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // notes on that inconsistency, left as-is), the Offer-type picker only makes sense while Offer
     // pins are actually part of the current view.
     const includesOffers = selectedCategories.length === 0 || selectedCategories.includes("offers");
-    // Private space pins: map pins only, like offers (they have no name to search by).
+    // Spaces: venue circles plus pop-up and private space pins (map pins only, like offers: they
+    // have no name to search by), narrowed by the Spaces sub-filter (selectedSpaceKinds below).
     const includesSpaces = selectedCategories.length === 0 || selectedCategories.includes("spaces");
     const [allSearchResults, setAllSearchResults] = useState<WithMetric<Circle>[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -347,6 +351,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // ANY of the selected types" semantics as Genre. No ref/flag mirroring genrePillChangedRef is
     // needed since nothing needs to be told to re-fetch.
     const [selectedOfferTypes, setSelectedOfferTypes] = useState<OfferTypeFilterOption[]>([]);
+    // The Spaces sub-filter (Venues, Pop-ups, Private spaces), client-side like the offer types.
+    // Empty means all three.
+    const [selectedSpaceKinds, setSelectedSpaceKinds] = useState<SpaceKind[]>([]);
+    const visibleSpaceMapPins = useMemo(
+        () => (includesSpaces ? spaceMapPins.filter((pin) => includesSpaceKind(selectedSpaceKinds, pin.spaceKind)) : []),
+        [includesSpaces, spaceMapPins, selectedSpaceKinds],
+    );
 
     // Act format (modal) and What you do (row under the search bar): artist profiles only. Applied
     // client-side through filterCirclesByCategory on both data paths, and also sent with a running
@@ -374,6 +385,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             selectedCategories,
             selectedGenres,
             selectedOfferTypes,
+            selectedSpaceKinds,
             dateRange,
             physicalOnly,
             selectedActFormats,
@@ -384,6 +396,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             selectedCategories,
             selectedGenres,
             selectedOfferTypes,
+            selectedSpaceKinds,
             dateRange,
             physicalOnly,
             selectedActFormats,
@@ -406,6 +419,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             setSelectedCategories(next.selectedCategories);
             setSelectedGenres(next.selectedGenres);
             setSelectedOfferTypes(next.selectedOfferTypes);
+            setSelectedSpaceKinds(next.selectedSpaceKinds);
             setDateRange(next.dateRange);
             setPhysicalOnly(next.physicalOnly);
             setSelectedActFormats(next.selectedActFormats);
@@ -463,19 +477,20 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         // No circle document represents an event — events live in a separate dataset
         // (eventsForMap/filteredEventsForMap) entirely, so an "events"-only selection (no other
         // type alongside it) should never match any circle. OR-matches across every non-"events"
-        // type selected, so e.g. ["users", "communities"] returns artists AND venues together.
+        // type selected, so e.g. ["users", "spaces"] returns artists AND venues together. Under
+        // Spaces only venues are circles, and only while the sub-filter includes them.
         const nonEventTypes = categories.filter((category) => category !== "events");
         if (nonEventTypes.length === 0) return [];
         return circles.filter((circle) =>
             nonEventTypes.some((category) =>
                 category === "users"
                     ? isPeerifyArtistIdentity(circle)
-                    : category === "communities"
-                      ? isPeerifyVenueIdentity(circle)
+                    : category === "spaces"
+                      ? isPeerifyVenueIdentity(circle) && includesSpaceKind(selectedSpaceKinds, "venue")
                       : false,
             ),
         );
-    }, [actFilters]);
+    }, [actFilters, selectedSpaceKinds]);
 
     const displayedSwipeCircles = useMemo(() => {
         // ... (no changes) ...
@@ -538,14 +553,26 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 selectedOfferTypes.length === 0
                     ? offerMapPins.length
                     : offerMapPins.filter((pin) => selectedOfferTypes.includes(pin.offerType)).length,
-            spaces: spaceMapPins.length,
+            spaces: 0,
         };
         countsDatasetCircles?.forEach((result) => {
             if (isPeerifyVenueIdentity(result)) counts.communities++;
             else if (isPeerifyArtistIdentity(result) && matchesActFilters(result, actFilters)) counts.users++;
         });
+        // Spaces: the venues and space pins the sub-filter lets through.
+        counts.spaces =
+            (includesSpaceKind(selectedSpaceKinds, "venue") ? counts.communities : 0) +
+            spaceMapPins.filter((pin) => includesSpaceKind(selectedSpaceKinds, pin.spaceKind)).length;
         return counts;
-    }, [countsDatasetCircles, filteredEventsForMap.length, offerMapPins, spaceMapPins, selectedOfferTypes, actFilters]);
+    }, [
+        countsDatasetCircles,
+        filteredEventsForMap.length,
+        offerMapPins,
+        spaceMapPins,
+        selectedOfferTypes,
+        selectedSpaceKinds,
+        actFilters,
+    ]);
 
     // Used only by this screen's own search-bar "Clear search" button visibility below — the
     // Advanced Filters trigger badge/count now lives inside SearchFilters itself, computed the
@@ -1107,7 +1134,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                 ...mapData,
                 ...(includesEvents ? (filteredEventsForMap as unknown as Content[]) : []),
                 ...offerMapData,
-                ...(includesSpaces ? (spaceMapPins as unknown as Content[]) : []),
+                ...(visibleSpaceMapPins as unknown as Content[]),
             ];
             setDisplayedContent(combined);
         }
@@ -1122,8 +1149,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         offerMapPins,
         selectedOfferTypes,
         includesOffers,
-        spaceMapPins,
-        includesSpaces,
+        visibleSpaceMapPins,
         panelMode, // Added dependency
     ]);
 
@@ -1275,11 +1301,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         </li>
     );
 
-    // Section order mirrors the top Artists/Venues/Events pills, same convention as
-    // search-results-panel.tsx's desktop grouping.
+    // Section order mirrors the top Artists/Spaces/Events pills, same convention as
+    // search-results-panel.tsx's desktop grouping. Venues are the only spaces listed: pop-ups and
+    // private spaces are pins only.
     const drawerSectionList: { key: string; label: string; items: any[]; renderItem: (item: any) => React.ReactNode }[] = [
         { key: "artists", label: "Artists", items: drawerSections.artists, renderItem: renderDrawerCircleItem },
-        { key: "venues", label: "Venues", items: drawerSections.venues, renderItem: renderDrawerCircleItem },
+        { key: "venues", label: "Spaces", items: drawerSections.venues, renderItem: renderDrawerCircleItem },
         { key: "events", label: "Events", items: drawerSections.events, renderItem: renderDrawerEventItem },
         { key: "other", label: "Other", items: drawerSections.other, renderItem: renderDrawerCircleItem },
     ];
@@ -1363,7 +1390,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                 className="min-w-0 md:w-auto md:max-w-[calc(100%-24.5rem)] md:flex-none"
                                 categories={RESULT_TYPE_OPTIONS.map((option) => option.value)}
                                 categoryCounts={{
-                                    communities: categoryCounts.communities,
                                     events: categoryCounts.events,
                                     users: categoryCounts.users,
                                     offers: categoryCounts.offers,
@@ -1374,7 +1400,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                 hasSearched={true}
                                 displayLabelMap={{
                                     users: "Artists",
-                                    communities: "Venues",
                                     events: "Events",
                                     offers: "Offers",
                                     spaces: "Spaces",
@@ -1418,6 +1443,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                 })
                             }
                         />
+                        {includesSpaces && (
+                            <SpaceKindFilterRow
+                                selectedSpaceKinds={selectedSpaceKinds}
+                                onChange={(next) => handleFiltersChange({ ...filtersValue, selectedSpaceKinds: next })}
+                            />
+                        )}
                         {includesOffers && (
                             <OfferTypeFilterChips
                                 selectedOfferTypes={selectedOfferTypes}

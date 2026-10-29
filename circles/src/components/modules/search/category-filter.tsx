@@ -4,7 +4,7 @@ import React from "react";
 import { toggleVariants } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge"; // Import Badge for count display
-import { Users, User, Calendar, Hammer, Search, HeartHandshake } from "lucide-react";
+import { Users, User, Calendar, Hammer, Search, HeartHandshake, Building2 } from "lucide-react";
 
 export interface CategoryFilterProps {
     categories: string[]; // All available categories (e.g., ['circles', 'projects', 'users'])
@@ -38,6 +38,7 @@ const CategoryFilter: React.FC<CategoryFilterProps> = ({
         events: <Calendar className="h-4 w-4" />,
         projects: <Hammer className="h-4 w-4" />,
         offers: <HeartHandshake className="h-4 w-4" />,
+        spaces: <Building2 className="h-4 w-4" />,
     };
 
     // Tapping a pill always resets selection to exactly that one category — the same "reset to
