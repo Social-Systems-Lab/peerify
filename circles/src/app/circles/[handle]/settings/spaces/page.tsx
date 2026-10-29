@@ -32,8 +32,8 @@ export default async function SpacesSettingsPage(props: PageProps) {
         <div className="container py-6">
             <h1 className="mb-2 text-2xl font-bold">Spaces</h1>
             <p className="mb-6 text-muted-foreground">
-                Pop-up and home spaces you could host shows in. Spaces you add to the map show as a pin near your place.
-                Your name and address are never shown.
+                Pop-up and home spaces you could host shows in. Spaces you add to the map show as a pin near your place,
+                or at a pop-up&apos;s address if you choose. Your name is never shown.
             </p>
             <SpacesSettings initialSpaces={spaces} />
         </div>
