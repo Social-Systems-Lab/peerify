@@ -225,7 +225,7 @@ const OffersVisibleToggle = ({
                         ? "Turn this off if you don't currently have anything to offer touring artists. Your venue will still appear on the map as usual."
                         : visible
                           ? "Your offers appear as anonymous pins on the public Explore map — no name, photo, or profile link, just the offer type."
-                          : "Your offers are hidden from the public Explore map. They're still saved and visible to your own Crew, if any."}
+                          : "Not on the map. Your offers still show on your profile."}
                 </span>
             </Label>
             <div className="flex shrink-0 items-center gap-2">
