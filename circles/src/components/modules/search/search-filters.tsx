@@ -271,7 +271,7 @@ export const OfferTypeFilterChips: React.FC<{
 };
 
 // ---- Spaces sub-filter row (under the search bar, and in the modal) ----
-// Pills shaped like the What you do row, in the space markers' colours. All three show as on
+// Pills shaped like the What you do row, white like the other filter chips. All three show as on
 // while none is picked (empty means all); turning one off keeps the other two, and the last one
 // on can't be turned off.
 
@@ -303,14 +303,16 @@ export const SpaceKindFilterRow: React.FC<{
                         aria-pressed={selected}
                         onClick={() => toggle(option.value)}
                         className={cn(
-                            "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors",
-                            // On: the space markers' mustard (map.tsx getMarkerTheme). Off: white, thin outline.
+                            "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                            // On: white with dark text, like the other filter chips. Off: faded, light grey.
                             selected
-                                ? "border-[#fde68a] bg-[#fde68a] text-[#78350f] hover:bg-[#fcd34d]"
-                                : "border-gray-300 bg-white text-gray-700 hover:bg-[#fffbeb]",
+                                ? "border-gray-200 bg-white text-gray-900 shadow-sm hover:bg-gray-50"
+                                : "border-gray-200 bg-white/70 text-gray-400 hover:bg-white hover:text-gray-500",
                         )}
                     >
-                        <Icon className="h-4 w-4" aria-hidden />
+                        {/* Mustard to match the space markers (map.tsx getMarkerTheme), deep enough
+                            to read on white. */}
+                        <Icon className={cn("h-4 w-4", selected && "text-[#ca8a04]")} aria-hidden />
                         {option.label}
                     </button>
                 );
