@@ -271,8 +271,9 @@ export const OfferTypeFilterChips: React.FC<{
 };
 
 // ---- Spaces sub-filter row (under the search bar, and in the modal) ----
-// The same pills as the What you do row. All three show as on while none is picked (empty means
-// all); turning one off keeps the other two, and the last one on can't be turned off.
+// Pills shaped like the What you do row, in the space markers' colours. All three show as on
+// while none is picked (empty means all); turning one off keeps the other two, and the last one
+// on can't be turned off.
 
 export const SpaceKindFilterRow: React.FC<{
     selectedSpaceKinds: SpaceKind[];
@@ -302,10 +303,11 @@ export const SpaceKindFilterRow: React.FC<{
                         aria-pressed={selected}
                         onClick={() => toggle(option.value)}
                         className={cn(
-                            "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium shadow-sm transition-colors",
+                            "flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm font-medium shadow-sm transition-colors",
+                            // On: the space markers' mustard (map.tsx getMarkerTheme). Off: white, thin outline.
                             selected
-                                ? "bg-[#e8720c] text-[#181512] hover:bg-[#ff8c2a]"
-                                : "bg-[#181512] text-white hover:bg-[#2b2621]",
+                                ? "border-[#fde68a] bg-[#fde68a] text-[#78350f] hover:bg-[#fcd34d]"
+                                : "border-gray-300 bg-white text-gray-700 hover:bg-[#fffbeb]",
                         )}
                     >
                         <Icon className="h-4 w-4" aria-hidden />
