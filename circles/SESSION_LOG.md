@@ -40,6 +40,22 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-10-31 — Item 4 steps 4–5 and tweaks round: tested on Cleura staging, all passed
+
+On origin/staging: step 4 (space photos logged-in only, `d5df472a`), step 5 (vet note, `5ed49901`) and the tweaks round, 10 commits `91dcf41f..f4c73a07`. Tim deployed `f4c73a07` to Cleura staging and ran `~/cc-reports/ITEM4-TWEAKS-CLEURA-STAGING-CHECKLIST-20261029.md`. **Everything passed** (2026-10-31).
+
+What the tweaks round changed:
+- **Create an offer:** no Show space tile. New notice: "Offers are free… Have a space for shows? Add it under Spaces instead.", with a link to Settings → Spaces.
+- **Wording:** space form "The pin will display 200–400 m from the place you pick, in a random direction."; Settings → Spaces intro; offers switch off text "Not on the map. Your offers still show on your profile."
+- **Pop-ups on the map:** a switch, then "Pin near the place (200–400 m away)" (default) or "Pin at the exact address" ("for businesses and public places"). Only with the exact address can the name show (optional). Each pop-up has its own server-only `pinOffset`, never the owner's `offerPinOffset`, so a pop-up at its exact address can't reveal where the owner's offer pins come from. Private spaces keep the owner's offset, with no option.
+- **Explore:** pills are Artists, Spaces, Events, Offers. Spaces covers venues, pop-ups and private spaces, with a Venues / Pop-ups / Private spaces row (also "Kind of space" in Advanced Filters).
+- **Markers:** an icon on an amber circle with no pointer dot: building for venues, shop for pop-ups, house for private spaces. They sit centred on their spot, and venues keep their picture in the hover.
+- **Map choice:** a new pop-up or private space asks "Show this on the map? Yes / Not now", with neither picked. New accounts start with offers off the map (`offersVisible: false` at createCircle), and the first offer, in settings or onboarding, asks the same question. Existing accounts are unchanged.
+
+One change after testing (Tim): the Spaces kind pills were too bright. They now use the markers' mustard: on is `#fde68a` with `#78350f` text and icon, off is white with a thin outline (`3a715489`).
+
+Still open for item 4: the request flow (until then, a mailto to hello@peerify.net). Prod order unchanged: `a440d431` goes out with V4, after both moves have run on prod.
+
 ## 2026-10-28 (later) — Private files, item 4 steps 1–3: verification attachments and offer photos private, private spaces on the map — on origin/staging
 
 All on origin/staging (`d2e2655e`, `e78020fd`, `29df85f2`, `8c7aeadb`, `2d439637`). Reports and run sheets in `~/cc-reports` (`STORAGE-ACCESS-INVESTIGATION-20261028.md`, `VERIFICATION-MOVE-CLEURA-STAGING-20261028.md`, `OFFER-PHOTOS-MOVE-CLEURA-STAGING-20261028.md`).
