@@ -357,6 +357,14 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // The Spaces sub-filter (Venues, Pop-ups, Private spaces), client-side like the offer types.
     // Empty means all three.
     const [selectedSpaceKinds, setSelectedSpaceKinds] = useState<SpaceKind[]>([]);
+    // Leaving a pill resets its own sub-filter, whatever turned it off (pill, Advanced Filters,
+    // search, Clear): off Spaces → all three kinds again; Offers off → all offer types again.
+    useEffect(() => {
+        if (!includesSpaces && selectedSpaceKinds.length > 0) setSelectedSpaceKinds([]);
+    }, [includesSpaces, selectedSpaceKinds]);
+    useEffect(() => {
+        if (!includesOffers && selectedOfferTypes.length > 0) setSelectedOfferTypes([]);
+    }, [includesOffers, selectedOfferTypes]);
     const visibleSpaceMapPins = useMemo(
         () => (includesSpaces ? spaceMapPins.filter((pin) => includesSpaceKind(selectedSpaceKinds, pin.spaceKind)) : []),
         [includesSpaces, spaceMapPins, selectedSpaceKinds],

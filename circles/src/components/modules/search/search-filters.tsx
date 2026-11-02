@@ -464,8 +464,12 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
         }
         return format(new Date(), "MMM d, yyyy");
     }, [value.dateRange]);
-    const includesOffers = value.selectedCategories.length === 0 || value.selectedCategories.includes("offers");
-    const includesSpaces = value.selectedCategories.length === 0 || value.selectedCategories.includes("spaces");
+    // Offer type shows while Offers is part of the view (in Explore only when its pill is on, see
+    // emptyCategoriesShowNothing); Kind of space only while Spaces itself is selected.
+    const includesOffers =
+        value.selectedCategories.includes("offers") ||
+        (!emptyCategoriesShowNothing && value.selectedCategories.length === 0);
+    const includesSpaces = value.selectedCategories.includes("spaces");
     const activeAdvancedFilterCount = useMemo(
         () => getActiveSearchFilterCount(value, { emptyCategoriesShowNothing }),
         [value, emptyCategoriesShowNothing],
