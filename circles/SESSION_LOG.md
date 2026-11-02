@@ -3,42 +3,27 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-06-28)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 116e9394.
-- Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
-- Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
-- Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
-- **ORPHANED-CIRCLES ISSUE — Phase 0 fix deployed to staging (see 2026-08-02 (cont. 6) entry
-  below), Phase 1/2 still open, ALSO STILL LIVE IN PRODUCTION:** deleting a personal account
-  (admin dashboard or self-service — both call the identical `deleteCircle()`) never touches
-  circles that account created/administers, and silently strips that account's own admin
-  membership from those circles as a side effect of unrelated member-count-drift cleanup —
-  bypassing the existing "cannot remove the last admin" safeguard (`removeMemberAction`),
-  which never runs on this path. **Phase 0 (this staging-only fix): both deletion entry
-  points now BLOCK the deletion outright** if the account is the sole admin of any circle,
-  naming the affected circle(s) — no new orphaning can happen going forward on staging.
-  **Still open:** production has not been touched (byte-identical gap still live there); the
-  17 circles already orphaned on staging before this fix are untouched (Phase 1); no
-  reclaim/discovery-hiding/formal-orphan-state work has been done (Phase 2). Do not consider
-  this issue closed until Phase 1/2 are addressed or explicitly descoped, and until the
-  Phase 0 fix itself is deployed to production.
-- **PRODUCT CHANGE (2026-08-02, deployed to staging):** personal-profile participation
-  (posting/commenting/messaging) now requires Community Guidelines acceptance in addition to
-  picture + About text — see dated entry below. `getVerificationReadiness` is the single
-  source of truth for this; do not add a separate guidelines check elsewhere.
-- **OPERATIONAL HAZARD (see 2026-08-02 (cont. 3) incident below):** running a bare
-  `bun run build`/`CI=1 bun run build` in this worktree AFTER a real deploy has happened will
-  silently corrupt the live standalone build (Next.js regenerates `.next/standalone` from
-  scratch, wiping the static assets a prior `deploy-staging.sh` run copied in, without
-  restarting PM2 to match) — site-wide breakage, not specific to whatever was being verified.
-  Verification builds are fine standalone; just always follow one with a real
-  `deploy-staging.sh` run before trusting staging is in a consistent, servable state again.
-  Resolved as of 2026-08-02 (cont. 4)'s own follow-up deploy — a real `deploy-staging.sh` run
-  was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
-  post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
-- See OPERATIONS.md for full architecture and deploy procedure.
+## Current Status (2026-11-02)
+- Production: https://peerify.one, on the Cleura server `peerify-prod`. Staging: https://staging.peerify.one, on the Cleura server `peerify-staging`. On both, the app runs from `/srv/peerify/app/circles` as the `peerify` user, under PM2 (`peerify` :3000, `peerify-staging` :3001). Tim deploys.
+- Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
+- The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
+- Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
+- **Open, must be redone before the V4 step on prod:** `a440d431` (see the 2026-11-02 entry).
+- **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
+- Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
+- Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
+- See OPERATIONS.md for architecture.
 
 ---
+
+## 2026-11-02 — Moved to Cleura staging; unpushed work lost with the old box
+
+Claude now works on the Cleura staging server (`peerify-staging`), in `~/work/peerify`, starting at `c600de3e`. CLAUDE.md, PEERIFY_CONTEXT.md and this log's status block were updated for the move. The deploy scripts still have their old-box branch (hostname `peerify`), which is harmless. Removing it is left for later.
+
+Lost with the old box (it was never pushed):
+- **`a440d431` (OPEN, must be redone before the V4 step on prod).** It was on local branch `hold/offer-photo-storage-refusal`: `/storage` and `/uploads` refuse `offer-photo*` names. The plan is unchanged: it goes out together with V4 (refuse verification attachment names), only after **both** moves (verification attachments and offer photos) have run on prod, delete phase included. Deployed earlier, it breaks offer photos that haven't been moved yet. Rebuild it from the 2026-10-28 (later) entry before the V4 step.
+- **Explore map commits A–D**, which are being redone.
+- **The old `~/cc-reports` files** cited in earlier entries (cutover runbook, checklists, investigations). This box's `~/cc-reports` starts empty, apart from `outbox/`.
 
 ## 2026-10-31 — Item 4 steps 4–5 and tweaks round: tested on Cleura staging, all passed
 

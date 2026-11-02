@@ -12,7 +12,7 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 
 ## §0. Build Status — current reality
 
-*Last updated: 2026-09-01.*
+*Last updated: 2026-09-01; infrastructure section updated 2026-11-02 (move to Cleura). Features shipped since 2026-09-01 are in `SESSION_LOG.md`.*
 
 ### Live on production right now (peerify.one)
 - **Signup + auth** — personal-account-first signup, email confirmation, login/session. ALTCHA human-verification on signup (self-hosted, open-source).
@@ -31,26 +31,15 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 - **Crew Dashboard — new admin overview page, as of 2026-09-01, promoted to production.** Member cards (avatar, location, join date, offerings as icon badges reusing `CrewOffersWidget` styling, an explicit "general standing offer, not tour-specific" caption) with a Message action reusing the Pledge Dashboard's own DM pattern. Map view and per-artist offering customization explicitly deferred, same reasoning as the Pledge Dashboard's own map deferral. Full detail: `SESSION_LOG.md`, 2026-09-01 entry.
 - **Self-pledge/self-crew-application guard — as of 2026-09-01, promoted to production.** A circle's own admin could previously pledge to, or apply to the Crew of, their own artist profile — no UI gating and no server-side guard existed. Fixed on three independently-verified fronts: profile-page buttons, the map-popup card, and the underlying server actions (`createPeerifyPledgeAction`, `applyForCrewMembership`) themselves, so a direct action call can't bypass a hidden button either. Two pre-existing self-pledges cleaned up; a legitimate pre-existing admin+crew-member overlap deliberately left untouched. Full detail: `SESSION_LOG.md`, 2026-09-01 entry.
 
-### Infrastructure reality (important — supersedes older notes)
-- **Server:** Hetzner, `tim@peerify` (65.21.91.96). Kamooni is a *separate* machine (`ubuntu@91.123.202.241`) — never cross commands.
-- **Runtime:** bare-Node via PM2, NOT Docker (the repo Dockerfile exists but prod isn't deployed through it). Earlier context docs that imply Docker or `~/apps/peerify/circles` are STALE.
-- **Prod:** PM2 `peerify` :3000, branch `main`, source `~/apps/peerify-app/circles` (repo root; the app lives one level down with worktree prefix `circles/`). **Confirmed 2026-07-01** via `pm2 jlist` + `ss -ltnp` + `/proc/<pid>/cwd` (independent cross-check, not just PM2's own bookkeeping): tracking `Social-Systems-Lab/peerify.git` (`origin`), branch `main`, HEAD `f7a4ebe6`, working tree clean.
-- **Staging:** PM2 `peerify-staging` :3001, DB `peerify_staging`, bucket `circles-staging`, source `~/apps/peerify-staging/circles/circles`, env one level up.
-- **`~/apps/peerify/circles` is a STALE leftover checkout** tracking the OLD `Social-Systems-Lab/circles.git` repo (pre-split). It is NOT serving anything — no PM2 process points at it. Do not confuse it with prod (`~/apps/peerify-app/circles`). Candidate for eventual removal.
-- **Repo:** standalone `Social-Systems-Lab/peerify` (migrated off the shared Circles repo). HTTPS via nginx + Certbot. ffmpeg is a host dependency (`/usr/bin/ffmpeg` 6.1.1); prod `.env.local` sets `FFMPEG_PATH` explicitly.
-- **⚠️ Prod PM2 process is long-running across the last rebuild:** `peerify` has been up since 2026-06-30 13:29 with no restart recorded since the 15:25 standalone rebuild that same day. Node caches required route modules in memory for the life of the process, so a route hit before 15:25 could still be serving a stale in-memory module even though the on-disk build is current. The on-disk build only becomes fully authoritative after a clean restart — treat "grep says X is in/out of the build" as necessary but not sufficient; a stale in-memory route is a live possibility until the next restart.
+### Infrastructure reality (important — supersedes older notes, updated 2026-11-02)
+- **Servers (Cleura):** staging runs on `peerify-staging`, and prod runs on its own server, `peerify-prod`. Each server runs one app. Kamooni is a *separate* machine (`ubuntu@91.123.202.241`) — never cross commands.
+- **Old box retired:** the Hetzner box (`tim@peerify`, 65.21.91.96, later called `peerify-old`) ran prod and staging side by side under `~/apps/...`. It's unreachable and being retired, so don't connect to it. SESSION_LOG entries before 2026-11-02 describe it.
+- **Runtime:** bare-Node via PM2, NOT Docker (the repo Dockerfile exists but isn't used to deploy). On each Cleura server the app runs from `/srv/peerify/app/circles` as the `peerify` user, with its env in `/srv/peerify/env/app.env` (secret, never read). PM2 `peerify` :3000 on prod, `peerify-staging` :3001 on staging.
+- **Working copy (Claude):** `~/work/peerify` on `peerify-staging`, branch `staging`. Never edit `/srv/peerify`. Tim deploys. See `CLAUDE.md`.
+- **Deploy:** `deploy-staging.sh` / `scripts/deploy-peerify.sh` pick their paths by hostname and do an atomic release via `scripts/deploy-common.sh`: `bun install --frozen-lockfile`, build, copy `public/` and `.next/static` into the standalone folder, then a PM2 restart with only the app's env (`pm2_with_app_env`, under `env -i`). A plain `bun run build` + `pm2 restart` misses the asset copy. A successful restart is not proof the deploy is correct, so verify the rendered page.
+- **Repo:** standalone `Social-Systems-Lab/peerify`. HTTPS via nginx + Certbot. ffmpeg is a host dependency; set `FFMPEG_PATH` explicitly.
 - **Golden rules:** confirm `hostname`/`pwd`/`git branch` before acting; staging before prod; one step at a time; review every diff; no autonomous git/infra changes; destructive commands as single standalone pastes.
-- **Standalone deploys need asset copy, not just restart.** `bun run build` + `pm2 restart` alone will NOT update logo/hero/favicon — Next.js standalone output doesn't include `public/` or `.next/static`. Must copy both into the standalone folder after every build (see `deploy-peerify.sh` for prod's version). A successful restart is not proof the deploy is correct — verify the rendered page.
-
----
-**⚠️ PM2 deploy-safety rule (this has caused prod downtime TWICE):**
-- `--update-env` MERGES the current shell's env onto PM2's saved state — it does NOT replace it. A stray `PORT` exported earlier in the shell will silently propagate to the app you restart.
-- Prod (`peerify`, id 8) runs on **PORT 3000** (no PORT in its .env.local; PM2 default). Staging (`peerify-staging`, id 5) runs on **3001** (set in staging .env.local).
-- **ALWAYS** open a FRESH terminal tab for each app's deploy, OR run `unset PORT` before touching a different app.
-- **ALWAYS** run `echo $PORT` immediately BEFORE any `pm2 restart`. Expect empty-or-3000 for prod, 3001 for staging. If it's wrong, STOP.
-- After a correct prod restart, run `pm2 save` so a reboot resurrects the right port.
-- Full incident write-ups: see SESSION_LOG.md (2026-06-30 cleanup sprint Learnings + the 502/EADDRINUSE incident).
----
+- **History:** prod went down twice on the old box when a stray `PORT` in the shell leaked through `pm2 restart --update-env` (see the 2026-06-30 and 2026-10-10 SESSION_LOG entries). The deploy scripts now start PM2 with only the app's env.
 
 ### Design vs built — the gap ledger
 | Surface | Design state | Build state |
@@ -565,36 +554,11 @@ Inherited from Circles, usually with minor tweaks: Accounts/auth, Circles (fan c
 - `/signup/pilot`, `/signup/pilot/check-email`, `/onboarding/peerify?intent=fan|artist|host` exist as the first role-choice screens. (Note: the profile-creation flow is being reworked to go via "Create" — see §00.)
 
 ### Snapshots
-- `~/peerify-snapshots/peerify-onboarding-auth-working-20260608-0916.tar.gz` (+ a later landing snapshot).
+- `~/peerify-snapshots/peerify-onboarding-auth-working-20260608-0916.tar.gz` (+ a later landing snapshot). These were on the old Hetzner box and are gone with it.
 
-## Repository & Branch Reference (corrected 2026-07-05)
+## Repository & Branch Reference (updated 2026-11-02)
 
-**Current, correct setup:**
-- Peerify's live code lives at `Social-Systems-Lab/peerify` on GitHub (moved 
-  out of the shared `circles` repo on 2026-06-24).
-- Prod branch is `main` on the `peerify` repo — NOT `product/peerify`.
-- Prod worktree path: `/home/tim/apps/peerify-app/circles` (un-nested — 
-  no double `circles/circles`).
-- Staging worktree path: `/home/tim/apps/peerify-staging/circles/circles` 
-  (double-nested — different structure from prod, easy to confuse).
-
-**Deprecated / do not use:**
-- `/home/tim/apps/peerify/circles/circles` — this is a leftover worktree 
-  from the OLD shared `circles` repo (`Social-Systems-Lab/circles`), 
-  checked out on branch `product/peerify`. It was frozen at the exact 
-  commit of the June 24 repo move and tagged `archive/product-peerify-final`. 
-  It is NOT the current production code and should not be used for any 
-  future merges or deploys.
-- The `circles-origin` remote (pointing to the old `circles` repo) is 
-  present in the current prod worktree but explicitly disabled for push, 
-  by design.
-
-**Merge workflow for staging → prod:**
-1. From the staging worktree, push staging to origin: `git push origin staging`
-2. Switch to the prod worktree (`/home/tim/apps/peerify-app/circles`), 
-   confirm `git branch --show-current` shows `main`
-3. `git fetch --all`, then `git merge origin/staging`
-4. Review `git log --oneline main..origin/staging` before AND after the 
-   merge to confirm expected commits landed
-5. `git push origin main`
-6. Run `./scripts/deploy-peerify.sh` from the prod worktree
+- Peerify's code lives at `Social-Systems-Lab/peerify` on GitHub (moved out of the shared `circles` repo on 2026-06-24). The old `product/peerify` branch in `Social-Systems-Lab/circles` is history only (tag `archive/product-peerify-final`).
+- `staging` → Cleura staging, `main` → prod (peerify.one). Prod is never ahead of `main`.
+- **Staging work:** commit in `~/work/peerify` on `peerify-staging`, push to `origin staging` (never `main`). Tim deploys staging.
+- **Promotion to prod:** Tim's call, done on `peerify-prod` with an explicit go-ahead for every step (see `CLAUDE.md`, Deploy Safety). Commits usually reach `main` as cherry-picks, so staging and main SHAs differ for the same change.
