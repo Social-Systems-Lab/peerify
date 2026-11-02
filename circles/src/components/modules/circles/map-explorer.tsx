@@ -64,6 +64,7 @@ import {
     matchesActFilters,
 } from "@/lib/peerify/artist-profile";
 import { getCircleCoverImageUrl } from "@/lib/default-heroes";
+import { spacePinMatchesSearch } from "@/lib/spaces/space-search";
 
 // mapItemToContent helper remains the same
 const mapItemToContent = (item: WithMetric<Content> | Circle | undefined): Content | null => {
@@ -286,8 +287,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // notes on that inconsistency, left as-is), the Offer-type picker only makes sense while Offer
     // pins are actually part of the current view.
     const includesOffers = selectedCategories.includes("offers");
-    // Spaces: venue circles plus pop-up and private space pins (map pins only, like offers: they
-    // have no name to search by), narrowed by the Spaces sub-filter (selectedSpaceKinds below).
+    // Spaces: venue circles plus pop-up and private space pins (map pins only; during a search only
+    // a pop-up's publicly shown name can match, see spacePinMatchesSearch), narrowed by the Spaces
+    // sub-filter (selectedSpaceKinds below).
     const includesSpaces = selectedCategories.includes("spaces");
     const includesEvents = selectedCategories.includes("events");
     const includesArtists = selectedCategories.includes("users");
@@ -365,9 +367,25 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     useEffect(() => {
         if (!includesOffers && selectedOfferTypes.length > 0) setSelectedOfferTypes([]);
     }, [includesOffers, selectedOfferTypes]);
+    // While a search is showing, a space pin is drawn only if its publicly shown name matches
+    // (spacePinMatchesSearch): private spaces and unnamed pop-ups never match, and area names are
+    // never used. Named venues are circles and match through the circle search. Set once the
+    // search runs (hasSearched/searchQuery are declared below), so typing alone doesn't hide pins.
+    const [activeSearchQuery, setActiveSearchQuery] = useState<string | null>(null);
+    const kindFilteredSpaceMapPins = useMemo(
+        () => spaceMapPins.filter((pin) => includesSpaceKind(selectedSpaceKinds, pin.spaceKind)),
+        [spaceMapPins, selectedSpaceKinds],
+    );
+    const searchFilteredSpaceMapPins = useMemo(
+        () =>
+            activeSearchQuery === null
+                ? kindFilteredSpaceMapPins
+                : kindFilteredSpaceMapPins.filter((pin) => spacePinMatchesSearch(pin, activeSearchQuery)),
+        [kindFilteredSpaceMapPins, activeSearchQuery],
+    );
     const visibleSpaceMapPins = useMemo(
-        () => (includesSpaces ? spaceMapPins.filter((pin) => includesSpaceKind(selectedSpaceKinds, pin.spaceKind)) : []),
-        [includesSpaces, spaceMapPins, selectedSpaceKinds],
+        () => (includesSpaces ? searchFilteredSpaceMapPins : []),
+        [includesSpaces, searchFilteredSpaceMapPins],
     );
 
     // Act format (modal) and What you do (row under the search bar): artist profiles only. Applied
@@ -558,10 +576,13 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             // countsDatasetCircles below (genre is baked into the fetched results) — otherwise
             // this number would silently stop matching what's actually shown on the map/list the
             // moment an offer-type filter is active.
+            // Offer pins are hidden during a search (no name to match), so none count then.
             offers:
-                selectedOfferTypes.length === 0
-                    ? offerMapPins.length
-                    : offerMapPins.filter((pin) => selectedOfferTypes.includes(pin.offerType)).length,
+                activeSearchQuery !== null
+                    ? 0
+                    : selectedOfferTypes.length === 0
+                      ? offerMapPins.length
+                      : offerMapPins.filter((pin) => selectedOfferTypes.includes(pin.offerType)).length,
             spaces: 0,
         };
         countsDatasetCircles?.forEach((result) => {
@@ -570,14 +591,14 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         });
         // Spaces: the venues and space pins the sub-filter lets through.
         counts.spaces =
-            (includesSpaceKind(selectedSpaceKinds, "venue") ? counts.communities : 0) +
-            spaceMapPins.filter((pin) => includesSpaceKind(selectedSpaceKinds, pin.spaceKind)).length;
+            (includesSpaceKind(selectedSpaceKinds, "venue") ? counts.communities : 0) + searchFilteredSpaceMapPins.length;
         return counts;
     }, [
         countsDatasetCircles,
         filteredEventsForMap.length,
         offerMapPins,
-        spaceMapPins,
+        searchFilteredSpaceMapPins,
+        activeSearchQuery,
         selectedOfferTypes,
         selectedSpaceKinds,
         actFilters,
@@ -699,7 +720,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         [setZoomContent],
     );
 
-    const handleSearchTrigger = useCallback(async (options?: { preserveActiveCategory?: boolean }) => {
+    const handleSearchTrigger = useCallback(async () => {
         const searchCategoriesForBackend = ["circles", "users", "projects"];
         if (!searchQuery.trim() && selectedGenres.length === 0) {
             // If clearing search via empty query, reset state
@@ -710,6 +731,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                     .filter((c): c is Content => c !== null),
             );
             setHasSearched(false);
+            setActiveSearchQuery(null);
             setTriggerSnapIndex(SNAP_INDEX_PEEK); // Reset drawer to peek
             setContentPreview(undefined); // Clear preview
 
@@ -727,21 +749,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             return;
         }
 
-        // A pill already active from browsing shouldn't silently pre-scope a *new* text search —
-        // reset it only on the transition into search (not on a refinement of an already-active
-        // search, e.g. a genre pill change), so pills still work as a post-search narrowing tool
-        // rather than getting reset out from under a search the user is already looking at. That
-        // "refinement" intent didn't actually hold for the very first genre pill tapped before any
-        // text search had ever run — isFreshSearch was true then too, silently wiping the active
-        // tab back to "All" and un-scoping Genre/Physical/Calendar right when a user picks a genre
-        // while browsing Artists/Venues/Events. preserveActiveCategory (passed only by the genre-
-        // pill debounce below, never by an actual text-query trigger) is the fix: it keeps this
-        // reset doing exactly what the comment above already says it should.
-        const isFreshSearch = !hasSearched && !options?.preserveActiveCategory;
-        if (isFreshSearch && selectedCategories.length > 0) {
-            setSelectedCategories([]);
+        // A search keeps the pills already picked. With none picked (which shows nothing in
+        // Explore), it switches on Artists, Spaces and Events, which the pill row then highlights.
+        const effectiveCategories = selectedCategories.length > 0 ? selectedCategories : ["users", "spaces", "events"];
+        if (selectedCategories.length === 0) {
+            setSelectedCategories(effectiveCategories);
         }
-        const effectiveCategories = isFreshSearch ? [] : selectedCategories;
 
         // Open global left search panel in searching state (desktop UX)
         setSidePanelMode("search");
@@ -760,6 +773,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
 
         setIsSearching(true);
         setHasSearched(true);
+        setActiveSearchQuery(searchQuery);
         setAllSearchResults([]);
         setDisplayedContent([]);
         setContentPreview(undefined); // Clear preview on new search
@@ -833,7 +847,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setDisplayedContent,
         allDiscoverableCircles,
         selectedCategories,
-        hasSearched,
         filterCirclesByCategory,
         setContentPreview,
         hasDateFilter,
@@ -851,7 +864,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     useEffect(() => {
         if (!genrePillChangedRef.current) return;
         genrePillChangedRef.current = false;
-        debouncedGenreSearch({ preserveActiveCategory: true });
+        debouncedGenreSearch();
     }, [selectedGenres, debouncedGenreSearch]);
 
     // An act filter change re-runs a search that's already showing; otherwise the client-side
@@ -860,7 +873,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         if (!actFilterChangedRef.current) return;
         actFilterChangedRef.current = false;
         if (hasSearched) {
-            debouncedGenreSearch({ preserveActiveCategory: true });
+            debouncedGenreSearch();
         }
     }, [selectedActFormats, selectedActOffers, hasSearched, debouncedGenreSearch]);
 
@@ -868,7 +881,9 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         setSearchQuery("");
         setAllSearchResults([]);
         setHasSearched(false);
-        setSelectedCategories([]);
+        setActiveSearchQuery(null);
+        // Back to Artists, like a fresh page load.
+        setSelectedCategories(["users"]);
         setDateRange(undefined);
         setSelectedGenres([]);
         setSelectedActFormats([]);
@@ -1136,7 +1151,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             // memo declared near selectedCategories, also used by the Offer-type filter UI.
             // Applied on top of includesOffers, not instead of it — an empty selectedOfferTypes
             // means "all types", same convention as selectedGenres.
-            const offerPinsForCategory = includesOffers ? offerMapPins : [];
+            // Hidden while a search is showing: offer pins have no name to match.
+            const offerPinsForCategory = includesOffers && !hasSearched ? offerMapPins : [];
             const typeFilteredOfferPins =
                 selectedOfferTypes.length === 0
                     ? offerPinsForCategory
