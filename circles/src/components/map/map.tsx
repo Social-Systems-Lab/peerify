@@ -60,8 +60,9 @@ const isEventDisplay = (content: any): content is EventDisplay => !!(content && 
 // on the separate `searchable` field — see search-results-panel.tsx.
 // viewerIsAdmin (sourced from userAtom.isAdmin, the same trusted-on-login client state the
 // admin nav link already reads in global-nav.tsx) lets superadmins see the real marker for
-// profiles the owner hasn't opted into mapVisible for, mirroring the query-level bypass already
-// in getSwipeCircles/searchDiscoverableCircles.
+// profiles the owner hasn't opted into mapVisible for, mirroring searchDiscoverableCircles.
+// getSwipeCircles no longer has that bypass: it never returns a non-artist personal profile,
+// admins included (2026-11-02).
 const isSuppressedUserProfile = (content: any, viewerIsAdmin: boolean): boolean =>
     !viewerIsAdmin && content?.circleType === "user" && content?.mapVisible !== true;
 

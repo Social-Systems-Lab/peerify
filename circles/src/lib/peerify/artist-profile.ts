@@ -866,7 +866,9 @@ export const getAvailableActOffers = (
 };
 
 const ARTIST_PROFILE_PATH = "metadata.peerify.artistProfile";
-const ARTIST_IDENTITY_MONGO_QUERY = {
+// The Mongo form of isPeerifyArtistIdentity. Also used by getSwipeCircles (circle.ts) to keep
+// non-artist personal profiles off the Explore map.
+export const ARTIST_IDENTITY_MONGO_QUERY = {
     $or: [
         { "metadata.peerify.intent": "artist" },
         {

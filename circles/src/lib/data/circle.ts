@@ -20,7 +20,7 @@ import { Circles, Members, MembershipRequests, Feeds, Posts, ChatRooms } from ".
 import { ObjectId } from "mongodb";
 import { randomInt } from "crypto";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
-import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
+import { ARTIST_IDENTITY_MONGO_QUERY, isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
 import {
     escapeRegex,
@@ -307,10 +307,11 @@ export const resolveViewerIsAdmin = async (viewerDid?: string): Promise<boolean>
     return viewer?.isAdmin === true;
 };
 
-// Superadmins (user.isAdmin — see src/lib/auth/verification.ts) see every personal profile on
-// the map, including ones the owner hasn't opted into mapVisible for. isAdmin is resolved here
-// from a trusted DB lookup on viewerDid, never accepted as a caller-supplied boolean, so a client
-// can't just claim to be an admin. getPublishedCircleQuery() is applied identically either way.
+// The Explore map's circles. A personal profile (circleType "user") is kept only if it's an artist
+// (ARTIST_IDENTITY_MONGO_QUERY) and its owner turned mapVisible on; other personal profiles never
+// reach the map, for platform admins too. isAdmin (resolved from a trusted DB lookup on viewerDid,
+// never a caller-supplied boolean) now only decides how much of each location the viewer gets
+// (toPublicCircleListItem below). getPublishedCircleQuery() is applied the same way for everyone.
 export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => {
     let circles: Circle[] = [];
 
@@ -320,16 +321,15 @@ export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => 
         isAdmin = viewer?.isAdmin === true;
     }
 
-    const mapVisibilityClause = isAdmin
-        ? undefined
-        : {
-              $or: [{ circleType: { $ne: "user" } }, { $and: [{ circleType: "user" }, { mapVisible: true }] }],
-          };
+    const mapVisibilityClause = {
+        $or: [
+            { circleType: { $ne: "user" } },
+            { $and: [{ circleType: "user" }, { mapVisible: true }, ARTIST_IDENTITY_MONGO_QUERY] },
+        ],
+    };
 
     circles = await Circles.find(
-        mapVisibilityClause
-            ? { $and: [getPublishedCircleQuery(), mapVisibilityClause] }
-            : getPublishedCircleQuery(),
+        { $and: [getPublishedCircleQuery(), mapVisibilityClause] },
         { projection: DISCOVERY_CIRCLE_PROJECTION },
     ).toArray();
 
