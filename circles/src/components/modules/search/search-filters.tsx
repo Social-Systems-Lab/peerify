@@ -107,12 +107,22 @@ export const isCategoryFilterActive = (selectedCategories: string[]) => selected
 export const includesArtistsCategory = (selectedCategories: string[]) =>
     selectedCategories.length === 0 || selectedCategories.includes("users");
 
-export const getActiveSearchFilterCount = (value: SearchFiltersValue): number => {
+// emptyCategoriesShowNothing: Explore, where no pill selected means an empty map (not "All"), so
+// an empty selection isn't counted as a filter there; only a multi-selection is.
+export const getActiveSearchFilterCount = (
+    value: SearchFiltersValue,
+    options?: { emptyCategoriesShowNothing?: boolean },
+): number => {
     let count = 0;
     if (value.dateRange?.from || value.dateRange?.to) count += 1;
     if (value.selectedGenres.length > 0) count += 1;
     if (value.physicalOnly) count += 1;
-    if (isCategoryFilterActive(value.selectedCategories)) count += 1;
+    if (
+        options?.emptyCategoriesShowNothing
+            ? value.selectedCategories.length > 1
+            : isCategoryFilterActive(value.selectedCategories)
+    )
+        count += 1;
     if (value.selectedOfferTypes.length > 0) count += 1;
     if (value.selectedSpaceKinds.length > 0) count += 1;
     if (value.selectedActFormats.length > 0) count += 1;
@@ -429,6 +439,9 @@ export type SearchFiltersProps = {
     // `categories` prop already uses for the pill row. Defaults to the full 4-option list, so an
     // existing caller (MapExplorer) that never passes this sees no change at all.
     categoryOptions?: { value: string; label: string }[];
+    // Explore only: no pill selected means nothing, so the badge doesn't count it
+    // (getActiveSearchFilterCount). Discover leaves it off.
+    emptyCategoriesShowNothing?: boolean;
 };
 
 export const SearchFilters: React.FC<SearchFiltersProps> = ({
@@ -440,6 +453,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
     onOpenSectionChange,
     isMobile,
     categoryOptions = RESULT_TYPE_OPTIONS,
+    emptyCategoriesShowNothing = false,
 }) => {
     const hasDateFilter = Boolean(value.dateRange?.from || value.dateRange?.to);
     const dateLabel = useMemo(() => {
@@ -452,7 +466,10 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
     }, [value.dateRange]);
     const includesOffers = value.selectedCategories.length === 0 || value.selectedCategories.includes("offers");
     const includesSpaces = value.selectedCategories.length === 0 || value.selectedCategories.includes("spaces");
-    const activeAdvancedFilterCount = useMemo(() => getActiveSearchFilterCount(value), [value]);
+    const activeAdvancedFilterCount = useMemo(
+        () => getActiveSearchFilterCount(value, { emptyCategoriesShowNothing }),
+        [value, emptyCategoriesShowNothing],
+    );
 
     // The genre dropdown's own Select (Radix) closes itself the instant a window "resize"
     // event fires — confirmed live: dispatching a single resize event closes it within one

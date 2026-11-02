@@ -44,7 +44,6 @@ import SearchFilters, {
     OfferTypeFilterOption,
     getActiveSearchFilterCount,
     ActOfferFilterRow,
-    includesArtistsCategory,
     NoMatchingArtistsNotice,
     SpaceKindFilterRow,
     includesSpaceKind,
@@ -210,8 +209,11 @@ const SEARCH_CATEGORY_LABELS: Record<string, string> = {
     spaces: "spaces",
 };
 
-// Empty array (or omitted) means "All" throughout this file — mirrors selectedCategories'
-// own empty-means-All convention, not a separate falsy-value convention.
+// Shown in Explore while no pill is selected (the map is empty then).
+const EXPLORE_EMPTY_SELECTION_HINT = "Pick Artists, Spaces, Events or Offers to see the map.";
+
+// For the empty-results wording only: an empty list reads as "results".
+
 const getSearchCategoriesLabel = (categories: string[]) => {
     if (categories.length === 0) return "results";
     return categories.map((category) => SEARCH_CATEGORY_LABELS[category] ?? category).join(" & ");
@@ -275,19 +277,20 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     const searchParams = useSearchParams();
     const [viewMode, setViewMode] = useState<ViewMode>("explore");
     const [searchQuery, setSearchQuery] = useState("");
-    // Empty array means "All" (today's default is a single-element array, the equivalent of the
-    // old selectedCategory === "users" default). This is the actual source of truth for both map
-    // pins and results — the top Artists/Venues/Events pills are a "reset to exactly one" shortcut
-    // into this same state, not a separate concept (see setSelectedCategories usage below).
+    // The source of truth for both map pins and results; the default is Artists only. In Explore an
+    // empty array means nothing: no circles, events, offers or space pins, and a hint to pick a
+    // pill (EXPLORE_EMPTY_SELECTION_HINT). Discover keeps its own "empty means All" rule.
     const [selectedCategories, setSelectedCategories] = useState<string[]>(["users"]);
     // Shared by the displayed-content effect below and the Offer-type filter UI — unlike Genre,
     // which renders unconditionally regardless of category (see map-explorer's own investigation
     // notes on that inconsistency, left as-is), the Offer-type picker only makes sense while Offer
     // pins are actually part of the current view.
-    const includesOffers = selectedCategories.length === 0 || selectedCategories.includes("offers");
+    const includesOffers = selectedCategories.includes("offers");
     // Spaces: venue circles plus pop-up and private space pins (map pins only, like offers: they
     // have no name to search by), narrowed by the Spaces sub-filter (selectedSpaceKinds below).
-    const includesSpaces = selectedCategories.length === 0 || selectedCategories.includes("spaces");
+    const includesSpaces = selectedCategories.includes("spaces");
+    const includesEvents = selectedCategories.includes("events");
+    const includesArtists = selectedCategories.includes("users");
     const [allSearchResults, setAllSearchResults] = useState<WithMetric<Circle>[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
@@ -472,8 +475,8 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
         const circles = hasActFilters(actFilters)
             ? allCircles.filter((circle) => matchesActFilters(circle, actFilters))
             : allCircles;
-        // Empty array means "All" — unfiltered, same as the old null/falsy category.
-        if (categories.length === 0) return circles;
+        // Empty array means nothing in Explore (see selectedCategories).
+        if (categories.length === 0) return [];
         // No circle document represents an event — events live in a separate dataset
         // (eventsForMap/filteredEventsForMap) entirely, so an "events"-only selection (no other
         // type alongside it) should never match any circle. OR-matches across every non-"events"
@@ -511,14 +514,12 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     }, [allSearchResults, selectedCategories, filterCirclesByCategory]);
 
     // What the search results list/panel should actually show: filteredSearchResults is already
-    // correctly scoped to whichever circle types are selected (or every type, if none are) via
+    // correctly scoped to whichever circle types are selected (none if no pill is) via
     // filterCirclesByCategory — only events need handling here explicitly, since they're a
-    // separate dataset filterCirclesByCategory never touches. "All" (empty array) always
-    // includes events, same as today.
+    // separate dataset filterCirclesByCategory never touches.
     const searchDisplayItems = useMemo(() => {
-        const includesEvents = selectedCategories.length === 0 || selectedCategories.includes("events");
         return [...filteredSearchResults, ...(includesEvents ? filteredEventsForMap : [])];
-    }, [selectedCategories, filteredSearchResults, filteredEventsForMap]);
+    }, [includesEvents, filteredSearchResults, filteredEventsForMap]);
 
     const searchEmptyState = useMemo(
         () =>
@@ -577,7 +578,10 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // Used only by this screen's own search-bar "Clear search" button visibility below — the
     // Advanced Filters trigger badge/count now lives inside SearchFilters itself, computed the
     // same way from the same filtersValue.
-    const activeAdvancedFilterCount = useMemo(() => getActiveSearchFilterCount(filtersValue), [filtersValue]);
+    const activeAdvancedFilterCount = useMemo(
+        () => getActiveSearchFilterCount(filtersValue, { emptyCategoriesShowNothing: true }),
+        [filtersValue],
+    );
 
     useEffect(() => {
         if (!hasSearched) {
@@ -648,7 +652,6 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     // separate filteredEventsForMap dataset, included whenever "events" is selected or nothing
     // is, same rule searchDisplayItems/the map-markers effect already use).
     const drawerSections = useMemo(() => {
-        const includesEvents = selectedCategories.length === 0 || selectedCategories.includes("events");
         const artists: WithMetric<Circle>[] = [];
         const venues: WithMetric<Circle>[] = [];
         const other: WithMetric<Circle>[] = [];
@@ -658,7 +661,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             else other.push(circle);
         });
         return { artists, venues, events: includesEvents ? filteredEventsForMap : [], other };
-    }, [drawerListData, filteredEventsForMap, selectedCategories]);
+    }, [drawerListData, filteredEventsForMap, includesEvents]);
     const drawerHasResults =
         drawerSections.artists.length > 0 ||
         drawerSections.venues.length > 0 ||
@@ -776,8 +779,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             // searchDisplayItems memo) since those still reflect the previous render at this
             // point in the closure.
             const filtered = filterCirclesByCategory(results, effectiveCategories);
-            const includesEvents = effectiveCategories.length === 0 || effectiveCategories.includes("events");
-            const items = [...filtered, ...(includesEvents ? filteredEventsForMap : [])];
+            const items = [...filtered, ...(effectiveCategories.includes("events") ? filteredEventsForMap : [])];
             const counts = { communities: 0, projects: 0, users: 0, events: filteredEventsForMap.length };
             results.forEach((r: any) => {
                 if (isPeerifyVenueIdentity(r)) counts.communities++;
@@ -1103,23 +1105,29 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             if (dateRange?.from || dateRange?.to) {
                 circles = circles.filter((c) => withinDateRange((c as any).createdAt));
             }
+            // Backstop for search results: searchDiscoverableCircles keeps a personal profile's
+            // location for platform admins, so drop personal profiles here unless they'd be on the
+            // map anyway (an artist with mapVisible, as getSwipeCircles). The results list keeps them.
+            if (hasSearched) {
+                circles = circles.filter(
+                    (c) => c.circleType !== "user" || (isPeerifyArtistIdentity(c) && c.mapVisible === true),
+                );
+            }
             const mapData: Content[] = circles
                 .map((circle) => mapItemToContent(circle))
                 .filter((c): c is Content => c !== null);
 
-            // baseCircles is already correctly scoped to whichever circle types are selected (or
-            // every type, if none are) via filterCirclesByCategory — only events need handling
-            // here explicitly, since they're a separate dataset filterCirclesByCategory never
-            // touches. "All" (empty array) always includes events, same as today.
-            const includesEvents = selectedCategories.length === 0 || selectedCategories.includes("events");
-            // offerMapPins is likewise a separate dataset (see its fetch effect) —
-            // filterCirclesByCategory never touches it either, same "All" always-includes rule.
+            // baseCircles is already correctly scoped to whichever circle types are selected (none
+            // if no pill is) via filterCirclesByCategory — only events need handling here
+            // explicitly, since they're a separate dataset filterCirclesByCategory never touches.
+            // offerMapPins is likewise a separate dataset (see its fetch effect), shown only while
+            // the Offers pill is on.
             // Not routed through mapItemToContent — that helper expects circle-shaped data
             // (checks for circleType/type), and OfferMapPin has neither; it's already Content-
             // shaped enough to cast directly, same as events below. includesOffers is the shared
             // memo declared near selectedCategories, also used by the Offer-type filter UI.
             // Applied on top of includesOffers, not instead of it — an empty selectedOfferTypes
-            // means "all types", same "All" convention as selectedCategories/selectedGenres.
+            // means "all types", same convention as selectedGenres.
             const offerPinsForCategory = includesOffers ? offerMapPins : [];
             const typeFilteredOfferPins =
                 selectedOfferTypes.length === 0
@@ -1141,10 +1149,11 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
     }, [
         viewMode,
         baseCircles,
+        hasSearched,
         dateRange,
         withinDateRange,
         setDisplayedContent,
-        selectedCategories,
+        includesEvents,
         filteredEventsForMap,
         offerMapPins,
         selectedOfferTypes,
@@ -1355,6 +1364,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     openSection={openAdvancedSection}
                                     onOpenSectionChange={setOpenAdvancedSection}
                                     isMobile={isMobile}
+                                    emptyCategoriesShowNothing
                                 />
                                 {searchQuery || activeAdvancedFilterCount > 0 ? (
                                     <Button
@@ -1407,7 +1417,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                             />
                         </div>
 
-                        {includesArtistsCategory(selectedCategories) && (
+                        {includesArtists && (
                             <ActOfferFilterRow
                                 selectedActOffers={selectedActOffers}
                                 availableActOffers={availableActOffers}
@@ -1417,7 +1427,7 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
 
                         {/* Artist filters set, artists in view, and nobody left: say so instead of an
                             empty map (venues and events, if shown, are unaffected). */}
-                        {includesArtistsCategory(selectedCategories) &&
+                        {includesArtists &&
                             !isSearching &&
                             (hasActFilters(actFilters) || selectedGenres.length > 0) &&
                             drawerSections.artists.length === 0 && (
@@ -1433,6 +1443,15 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
                                     }
                                 />
                             )}
+
+                        {selectedCategories.length === 0 && (
+                            <div
+                                role="status"
+                                className="self-start rounded-xl bg-white/95 px-4 py-2.5 text-sm text-gray-600 shadow-sm ring-1 ring-black/5"
+                            >
+                                {EXPLORE_EMPTY_SELECTION_HINT}
+                            </div>
+                        )}
 
                         <GenreFilterChips
                             selectedGenres={selectedGenres}
