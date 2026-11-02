@@ -8,13 +8,69 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Open, must be redone before the V4 step on prod:** `a440d431` (see the 2026-11-02 entry).
+- **Prod = `0c637397`** (tree = staging `8ab88b39`), released 2026-11-02. `main` now contains `staging`, so the next release is a fast-forward. Only Tim can push `main` (from his Mac). See the "Release" entry below.
+- **Next on prod:** storage steps 2–5 (run sheet `~/cc-reports/outbox/20261102-1640-prod-runsheet.tar.gz`). Then step 6: rebuild `a440d431` (the `/storage` refusal of `offer-photo*` names) as a new staging commit together with V4.
+- **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
 - Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
 - See OPERATIONS.md for architecture.
 
 ---
+
+## 2026-11-02 (later) — Release: prod = staging 8ab88b39 (main `0c637397`); storage steps next; old box unreachable
+
+### Release
+- **Why a sync merge, not cherry-picks:** `main` (`03249c6d`) wasn't an ancestor of `staging`. Since the merge-base `47a3533d` (2026-08-04), main had been built from cherry-picks: 596 commits only on main, 656 only on staging. 171 staging commits had no patch twin on main, and a trial merge conflicted in ~55 files.
+- **Checked first that main held nothing staging lacks:**
+  - Files: no file existed only on main.
+  - 65 of the 70 differing files on main were, blob for blob, a version staging had at some point. The other 5 (`.gitignore`, CLAUDE.md, PEERIFY_CONTEXT.md, SESSION_LOG.md, `models.ts`) are newer on staging.
+  - Every main-only code commit was an older form of something staging has since rewritten.
+- **The commit:** `0c637397`. Its tree is exactly staging `8ab88b39`, with parents `03249c6d` and `8ab88b39`. Tim built and pushed it from his Mac (`~/peerify-release`, new key `~/.ssh/id_ed25519_github`). The push printed "Bypassed rule violations", and `git diff origin/staging origin/main` is empty.
+  - This box's GitHub key can't update main (`GH013 Cannot update this protected ref`).
+  - Staging is now an ancestor of main, so the next release fast-forwards.
+- **What prod needed besides the storage steps:**
+  - Env: only `EMAIL_CAPTURE_MODE` is new. It's staging-only and must be absent or `off` on prod. The new `check_prod_no_email_capture` in `deploy-common.sh` checks this, and it passed.
+  - `MINIO_PRIVATE_BUCKET` was made explicit in prod app.env on 2026-11-01 (`peerify-media`).
+  - No migrations. Indexes: `spaces.ownerDid` is created by the app at start.
+  - No dependency changes.
+- **Deploy (Tim, 2026-11-02):**
+  - Backup first: `/home/tim/backups/mongo-prod-20261102T151723Z` (39 collections, 2201 docs, 238 files; rollback point `03249c6d`; **delete by 2026-12-02**).
+  - DEPLOY SUCCEEDED. `/api/version` gitSha `0c637397`, build 2026-11-02T15:48:40Z.
+  - n08 `--url https://peerify.one` 76/0, and the browser check was fine.
+  - Explore A–D were tested in the browser on Cleura staging before the release, all fine.
+- **Rollback:** after step 4 or 5 `--copy`, prod can't go back to `03249c6d` (it can't show moved files). From then on, fix forward.
+
+### Next: storage steps on prod (Tim runs them; Claude has no access to `peerify-prod`)
+- Run sheet: `~/cc-reports/outbox/20261102-1640-prod-runsheet.tar.gz`. All steps run in one `sudo -iu peerify` shell in `/srv/peerify/app/circles`, with app.env loaded and MONGODB_URI switched to `tim_admin`. Each step is a dry run first.
+- The steps:
+  - (1) done 2026-11-01;
+  - (2) `backfill-offer-pin-offsets.mongosh.js`, `EXPECT_DB=circles`, then `APPLY=1`;
+  - (3) `st01-storage-private-refs.mongosh.js` count;
+  - (4) `move-verification-attachments-private.ts`: dry run, `--copy`, check the admin view, `--delete-old`, count again = 0;
+  - (5) `move-offer-photos-private.ts`: dry run, `--copy`, browser check, `--delete-old`, dry run = 0;
+  - (6) the refusal + V4.
+- **Step 6:** rebuild `a440d431` as a **new commit on staging only after 2–5 are done on prod**, with tests: `/storage` and `/uploads` refuse `offer-photo*` names, plus V4 (refuse verification attachment names). Tim checks it on staging first, then main fast-forwards.
+
+### Open: shorter log line for missing objects in /storage and /uploads
+- A scanner asking for e.g. `/uploads/.env` logs a long error with a stack. One short warning line is enough.
+- **Note:** both routes already return 404 without logging when MinIO says `NoSuchKey`/`NotFound` (`isMissingObjectError`). So these requests come back with a different error code, which falls through to `console.error("[storage proxy] failed", { …, err })` and a 502.
+- **To do:**
+  - Get the `code` from one such log line.
+  - Treat that code as a miss too: 404, counted, one short `console.warn` with the code and no stack.
+  - Keep the full log for real MinIO failures (connection, auth).
+  - Fix it in both routes, with a test.
+  - Not built yet.
+
+### Old box unreachable: post-cutover plan adjusted
+- Since 2026-11-02 the old box is unreachable to Tim as well: SSH hangs after connecting, and its nginx doesn't answer. Tim has asked the hosting provider.
+- **48-hour step (from Tue 2026-11-03 09:54 CET), split in two:**
+  - Goes ahead: remove `cutover-realip.conf` on Cleura prod and Cleura staging. It doesn't depend on the old box.
+  - Waits for the old box: its "has moved" page and nginx switch.
+  - Caveat: if the old box comes back still forwarding, its visitors share one IP's limits on Cleura once real-IP is gone, so switch it to "has moved" first.
+- **7-day items on the old box (Sun 2026-11-08):** wait until it's reachable. The old data just stays untouched longer.
+- **Not tied to the box:** remove the old box's SSH key from the `akrobatim` GitHub account.
+- Details in PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 
 ## 2026-11-02 — Moved to Cleura staging; unpushed work lost with the old box
 

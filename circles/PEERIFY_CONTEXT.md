@@ -34,6 +34,14 @@ For the detailed engineering changelog, see `SESSION_LOG.md` (this doc is the ov
 ### Infrastructure reality (important — supersedes older notes, updated 2026-11-02)
 - **Servers (Cleura):** staging runs on `peerify-staging`, and prod runs on its own server, `peerify-prod`. Each server runs one app. Kamooni is a *separate* machine (`ubuntu@91.123.202.241`) — never cross commands.
 - **Old box retired:** the Hetzner box (`tim@peerify`, 65.21.91.96, later called `peerify-old`) ran prod and staging side by side under `~/apps/...`. It's unreachable and being retired, so don't connect to it. SESSION_LOG entries before 2026-11-02 describe it.
+- **Prod now (2026-11-02):** `0c637397` (= staging `8ab88b39`), deployed by Tim. Pre-release backup on `peerify-prod`: `/home/tim/backups/mongo-prod-20261102T151723Z` (rollback point `03249c6d`; **delete by 2026-12-02**).
+- **Post-cutover follow-ups (plan adjusted 2026-11-02).** The cutover runbook itself is on Tim's side. Since 2026-11-02 the old box is unreachable to Tim too: SSH hangs after connecting, and its nginx doesn't answer. Tim has asked the hosting provider.
+  - **48-hour step, from Tue 2026-11-03 09:54 CET.** It's split in two:
+    - **Goes ahead:** remove `cutover-realip.conf` on Cleura prod and on Cleura staging. It doesn't depend on the old box.
+    - **Waits for the old box:** its "has moved" page and nginx switch.
+    - Caveat: if the old box comes back still forwarding, every forwarded visitor reaches Cleura from one IP once the real-IP config is gone, and they'd share the per-IP limits. So do the "has moved" switch first thing when it's reachable.
+  - **7-day items on the old box (Sun 2026-11-08):** wait for the old box to be reachable. This includes the end of the 7 days the old data stays untouched. The data simply stays there longer.
+  - **Not tied to the box:** remove the old box's SSH key from the `akrobatim` GitHub account (GitHub settings).
 - **Runtime:** bare-Node via PM2, NOT Docker (the repo Dockerfile exists but isn't used to deploy). On each Cleura server the app runs from `/srv/peerify/app/circles` as the `peerify` user, with its env in `/srv/peerify/env/app.env` (secret, never read). PM2 `peerify` :3000 on prod, `peerify-staging` :3001 on staging.
 - **Working copy (Claude):** `~/work/peerify` on `peerify-staging`, branch `staging`. Never edit `/srv/peerify`. Tim deploys. See `CLAUDE.md`.
 - **Deploy:** `deploy-staging.sh` / `scripts/deploy-peerify.sh` pick their paths by hostname and do an atomic release via `scripts/deploy-common.sh`: `bun install --frozen-lockfile`, build, copy `public/` and `.next/static` into the standalone folder, then a PM2 restart with only the app's env (`pm2_with_app_env`, under `env -i`). A plain `bun run build` + `pm2 restart` misses the asset copy. A successful restart is not proof the deploy is correct, so verify the rendered page.
@@ -561,4 +569,6 @@ Inherited from Circles, usually with minor tweaks: Accounts/auth, Circles (fan c
 - Peerify's code lives at `Social-Systems-Lab/peerify` on GitHub (moved out of the shared `circles` repo on 2026-06-24). The old `product/peerify` branch in `Social-Systems-Lab/circles` is history only (tag `archive/product-peerify-final`).
 - `staging` → Cleura staging, `main` → prod (peerify.one). Prod is never ahead of `main`.
 - **Staging work:** commit in `~/work/peerify` on `peerify-staging`, push to `origin staging` (never `main`). Tim deploys staging.
-- **Promotion to prod:** Tim's call, done on `peerify-prod` with an explicit go-ahead for every step (see `CLAUDE.md`, Deploy Safety). Commits usually reach `main` as cherry-picks, so staging and main SHAs differ for the same change.
+- **Promotion to prod:** Tim's call, with an explicit go-ahead for every step (see `CLAUDE.md`, Deploy Safety). Tim deploys on `peerify-prod`.
+- **Since 2026-11-02, `main` contains `staging`.** The release commit `0c637397` is a sync merge: its tree is exactly staging `8ab88b39`, with parents `03249c6d` (old main) and `8ab88b39`. So the next release is a fast-forward of `main` to a tested staging commit. No more cherry-picks. Before that, `main` was built from cherry-picks, so older staging and main SHAs differ for the same change.
+- **Who can push `main`:** only Tim, from his Mac (`~/peerify-release`, key `~/.ssh/id_ed25519_github`, the account on the ruleset's bypass list; a push prints "Bypassed rule violations"). The GitHub key on `peerify-staging` gets `GH013 Cannot update this protected ref`, so Claude prepares the commands and Tim runs them.
