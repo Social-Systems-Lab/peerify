@@ -124,6 +124,7 @@ const FIELDS = [
     ["attachCircleRequests", "approvedByDid", "did"],
     ["peerify_pledges", "pledgerDid", "did"],
     ["peerify_pledges", "artistCircleId", "circle"],
+    ["spaces", "ownerDid", "did"],
 ];
 
 const existingCollections = new Set(db.getCollectionNames());

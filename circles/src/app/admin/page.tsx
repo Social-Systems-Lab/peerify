@@ -6,6 +6,7 @@ import { getOnboardingMcpStats, getUserPrivate } from "@/lib/data/user";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { redirect } from "next/navigation";
 import { getCircles } from "@/lib/data/circle";
+import { isEmailCaptureOn } from "@/lib/email/capture-mode";
 
 type AdminPageProps = {
     searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -42,6 +43,7 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
                     onboardingMcpStats={onboardingMcpStats}
                     initialTab={initialTab}
                     initialVerificationCircleId={initialVerificationCircleId}
+                    showCapturedEmails={isEmailCaptureOn()}
                 />
             </Suspense>
         </div>

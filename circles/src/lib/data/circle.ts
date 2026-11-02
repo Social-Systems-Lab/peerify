@@ -18,16 +18,20 @@ import {
 import { getServerSettings } from "./server-settings";
 import { Circles, Members, MembershipRequests, Feeds, Posts, ChatRooms } from "./db";
 import { ObjectId } from "mongodb";
+import { randomInt } from "crypto";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
-import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
+import { ARTIST_IDENTITY_MONGO_QUERY, isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
 import {
     escapeRegex,
     getOfferPinLocation,
+    OFFER_PIN_OFFSET_MAX_METERS,
+    OFFER_PIN_OFFSET_MIN_METERS,
     redactCircleLocationForViewer,
     viewerBypassesLocationRedaction,
 } from "../utils";
 import { toPublicCircleListItem, toPublicLocation } from "../utils/public-circle";
+import { isListedOffering } from "./tour-team-offerings";
 import { deleteVbdCircle, deleteVbdPost, upsertVbdCircles } from "./vdb";
 import { createDefaultChatRooms, getChatRoomByHandle, updateChatRoom } from "./chat";
 import { createDefaultFeed } from "./feed";
@@ -64,6 +68,7 @@ export const SAFE_CIRCLE_PROJECTION = {
     featuredTrackId: 1,
     crewWelcomeMessage: 1,
     crewEnabled: 1,
+    pledgesEnabled: 1,
     isPublic: 1,
     showAdminsPublicly: 1,
     mapVisible: 1,
@@ -155,6 +160,7 @@ const DISCOVERY_CIRCLE_PROJECTION = {
     mission: 1,
     crewWelcomeMessage: 1,
     crewEnabled: 1,
+    pledgesEnabled: 1,
     isPublic: 1,
     mapVisible: 1,
     searchable: 1,
@@ -301,10 +307,11 @@ export const resolveViewerIsAdmin = async (viewerDid?: string): Promise<boolean>
     return viewer?.isAdmin === true;
 };
 
-// Superadmins (user.isAdmin — see src/lib/auth/verification.ts) see every personal profile on
-// the map, including ones the owner hasn't opted into mapVisible for. isAdmin is resolved here
-// from a trusted DB lookup on viewerDid, never accepted as a caller-supplied boolean, so a client
-// can't just claim to be an admin. getPublishedCircleQuery() is applied identically either way.
+// The Explore map's circles. A personal profile (circleType "user") is kept only if it's an artist
+// (ARTIST_IDENTITY_MONGO_QUERY) and its owner turned mapVisible on; other personal profiles never
+// reach the map, for platform admins too. isAdmin (resolved from a trusted DB lookup on viewerDid,
+// never a caller-supplied boolean) now only decides how much of each location the viewer gets
+// (toPublicCircleListItem below). getPublishedCircleQuery() is applied the same way for everyone.
 export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => {
     let circles: Circle[] = [];
 
@@ -314,16 +321,15 @@ export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => 
         isAdmin = viewer?.isAdmin === true;
     }
 
-    const mapVisibilityClause = isAdmin
-        ? undefined
-        : {
-              $or: [{ circleType: { $ne: "user" } }, { $and: [{ circleType: "user" }, { mapVisible: true }] }],
-          };
+    const mapVisibilityClause = {
+        $or: [
+            { circleType: { $ne: "user" } },
+            { $and: [{ circleType: "user" }, { mapVisible: true }, ARTIST_IDENTITY_MONGO_QUERY] },
+        ],
+    };
 
     circles = await Circles.find(
-        mapVisibilityClause
-            ? { $and: [getPublishedCircleQuery(), mapVisibilityClause] }
-            : getPublishedCircleQuery(),
+        { $and: [getPublishedCircleQuery(), mapVisibilityClause] },
         { projection: DISCOVERY_CIRCLE_PROJECTION },
     ).toArray();
 
@@ -356,6 +362,8 @@ const OFFER_MAP_PIN_PROJECTION = {
     "metadata.peerify.identityType": 1,
     // getOfferPinLocation's venue ceiling: no exact pin unless the venue's address is public.
     "metadata.peerify.venueProfile.addressVisibility": 1,
+    // Read here only to move the pin; never copied onto an OfferMapPin.
+    offerPinOffset: 1,
 } as const;
 
 type OfferMapCircleRow = {
@@ -366,6 +374,7 @@ type OfferMapCircleRow = {
     handle?: string;
     picture?: FileInfo;
     metadata?: { peerify?: { identityType?: string; venueProfile?: { addressVisibility?: string } } };
+    offerPinOffset?: Circle["offerPinOffset"];
 };
 
 // Offer-pin location (getOfferPinLocation, lib/utils.ts) is decoupled entirely from the profile's own location.precision-gated
@@ -377,8 +386,10 @@ type OfferMapCircleRow = {
 //   addressVisibility "public", the same ceiling its own profile pin has.
 // - anything else: a circle's own precision choice governs OTHER surfaces but must never silently
 //   block Offers pins from rendering at all — that was a real bug (toggle on, count shows, no
-//   pin, no explanation why). Falls back to a coarse coordinate snapped to the public ~5 km grid
-//   (PUBLIC_COARSE_PIN_GRID_DEGREES, 0.05°), so a pin always renders once offersVisible is on.
+//   pin, no explanation why). The pin is the real point moved 200–400 m by the circle's stored
+//   offerPinOffset (see ensureOfferPinOffset below), or, while a circle has none yet, snapped to
+//   the public ~5 km grid (PUBLIC_COARSE_PIN_GRID_DEGREES, 0.05°). Either way a pin renders once
+//   offersVisible is on.
 
 // Global, cross-circle query for Offer map pins — one pin PER OFFER, not per circle. A circle
 // with 3 offerings produces 3 pins here, each carrying that one offering's type/label and the
@@ -438,7 +449,8 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
     const pins: OfferMapPin[] = [];
     for (const row of rows) {
         const isVenue = row.metadata?.peerify?.identityType === "venue";
-        for (const offering of row.tourTeamOfferings ?? []) {
+        // Retired types (Show space) are kept on the circle but never pinned, for any viewer.
+        for (const offering of (row.tourTeamOfferings ?? []).filter(isListedOffering)) {
             pins.push({
                 _id: `${row._id}:${offering.id}`,
                 location: getOfferPinLocation(row),
@@ -451,6 +463,42 @@ export const getOfferMapPins = async (viewerDid?: string): Promise<OfferMapPin[]
         }
     }
     return pins;
+};
+
+// Uniform by area over the 200–400 m ring (not uniform in distance, which would bunch pins near
+// the inner edge), any bearing. crypto, not Math.random: nobody may be able to predict it.
+export const generateOfferPinOffset = (): NonNullable<Circle["offerPinOffset"]> => {
+    const unit = () => randomInt(0, 2 ** 32) / 2 ** 32;
+    const min2 = OFFER_PIN_OFFSET_MIN_METERS ** 2;
+    const max2 = OFFER_PIN_OFFSET_MAX_METERS ** 2;
+    return {
+        bearingDeg: Math.round(unit() * 360 * 100) / 100,
+        distanceM: Math.round(Math.sqrt(min2 + unit() * (max2 - min2))),
+    };
+};
+
+// Gives a circle its offer pin offset, once. The filter only matches a circle that has none, so an
+// existing offset is never replaced: a second, different offset for the same address would let
+// anyone with a before and after view narrow the address down to the two points where the rings
+// cross. Called after saving offerings and after turning offersVisible on; existing circles get
+// theirs from the backfill script (scripts/backfill-offer-pin-offsets.mongosh.js). Errors are the
+// caller's to log, never to fail a save over: without an offset the pin falls back to the grid.
+export const ensureOfferPinOffset = async (circleId: string): Promise<void> => {
+    await Circles.updateOne(
+        { _id: new ObjectId(circleId), offerPinOffset: { $exists: false } },
+        { $set: { offerPinOffset: generateOfferPinOffset() } },
+    );
+};
+
+// Whether a circle still has this offer photo (its /api/offer-photo address) on one of its
+// offerings: the offer photo route serves nothing else, so a removed photo stops working at once.
+export const circleHasOfferPhoto = async (circleId: string, url: string): Promise<boolean> => {
+    if (!ObjectId.isValid(circleId)) return false;
+    const found = await Circles.findOne(
+        { _id: new ObjectId(circleId), "tourTeamOfferings.photos.url": url },
+        { projection: { _id: 1 } },
+    );
+    return !!found;
 };
 
 // Narrow projection for getOfferDetailsForMember — deliberately not SAFE_CIRCLE_PROJECTION
@@ -510,7 +558,8 @@ export const getOfferDetailsForMember = async (
     }
 
     const offering = (circle.tourTeamOfferings as TourTeamOffering[] | undefined)?.find((o) => o.id === offeringId);
-    if (!offering) return null;
+    // A retired type (Show space) is never pinned, so its details aren't reachable by id either.
+    if (!offering || !isListedOffering(offering)) return null;
 
     return {
         _id: offerId,
@@ -700,6 +749,8 @@ export const createCircle = async (circle: Circle, authenticatedUserDid: string)
 
     circle.createdAt = new Date();
     circle.userGroups = defaultUserGroups;
+    // Only ever set by ensureOfferPinOffset.
+    delete circle.offerPinOffset;
 
     // Set default enabled modules based on circle type
     let defaultModules = getDefaultModules(circle.circleType ?? "circle");
@@ -729,12 +780,11 @@ export const createCircle = async (circle: Circle, authenticatedUserDid: string)
     if (circle.circleType === "user") {
         circle.mapVisible = circle.mapVisible ?? false;
         circle.searchable = circle.searchable ?? false;
-        // Defaults true for newly-created circles only — an explicit product decision, not the
-        // same default as mapVisible/searchable. Existing circles created before this field
-        // existed are unaffected (this line only runs in createCircle, never on an update), and
-        // stay excluded from getOfferMapPins's exact-match {offersVisible: true} query until
-        // their owner explicitly turns the Presence-settings toggle on — no retroactive backfill.
-        circle.offersVisible = circle.offersVisible ?? true;
+        // Off until the person says yes (Tim, 2026-10-29): Create an offer asks "Show this on the
+        // map?" while it's off, and the switch under Offers changes it. Profiles created while
+        // this defaulted to true keep their value (this line only runs in createCircle, never on
+        // an update).
+        circle.offersVisible = circle.offersVisible ?? false;
     }
 
     let result = await Circles.insertOne(circle);
@@ -972,6 +1022,7 @@ export const updateCircle = async (circle: Partial<Circle>, authenticatedUserDid
     delete circleWithoutId.did; // DID should never change
     delete circleWithoutId.email; // Email should likely be updated via a separate, dedicated process if needed
     delete circleWithoutId.circleType; // CircleType should not change after creation
+    delete circleWithoutId.offerPinOffset; // Set once by ensureOfferPinOffset, never changed
 
     // Check for handle conflict if handle is being updated
     if (circleWithoutId.handle && circleWithoutId.handle !== existingCircle.handle) {

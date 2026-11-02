@@ -10,6 +10,11 @@ import { getCircleById, updateCircle } from "@/lib/data/circle";
 import { putPrivateObject } from "@/lib/data/storage";
 import { createTrack, getTracksByCircleId, getTrackById, deleteTrack } from "@/lib/data/track";
 import { generateMp3Preview } from "@/lib/audio/ffmpeg";
+import {
+    CURRENT_TRACK_RIGHTS_TEXT,
+    CURRENT_TRACK_RIGHTS_VERSION,
+    TRACK_RIGHTS_STALE_MESSAGE,
+} from "@/lib/peerify/track-rights";
 
 // Accepted upload formats → canonical mime used when storing the original.
 const ACCEPTED_EXTENSIONS: Record<string, string> = {
@@ -24,6 +29,11 @@ const uploadSchema = z.object({
     circleId: z.string().min(1, "Missing artist profile"),
     rightsConfirmed: z.literal(true, {
         errorMap: () => ({ message: "You must confirm you own or control the rights to this audio" }),
+    }),
+    // The rights wording the form showed. Only the current one is accepted, so the version and
+    // text stored below are always what the person ticked (see lib/peerify/track-rights.ts).
+    rightsVersion: z.literal(CURRENT_TRACK_RIGHTS_VERSION, {
+        errorMap: () => ({ message: TRACK_RIGHTS_STALE_MESSAGE }),
     }),
 });
 
@@ -40,6 +50,7 @@ export async function uploadTrackAction(formData: FormData): Promise<UploadTrack
             title: formData.get("title"),
             circleId: formData.get("circleId"),
             rightsConfirmed: formData.get("rightsConfirmed") === "true",
+            rightsVersion: formData.get("rightsVersion"),
         });
         if (!parsed.success) {
             return { success: false, message: parsed.error.errors.map((e) => e.message).join(", ") };
@@ -119,6 +130,8 @@ export async function uploadTrackAction(formData: FormData): Promise<UploadTrack
             originalMimeType,
             rightsConfirmed: true,
             rightsConfirmedAt: now,
+            rightsAttestationVersion: CURRENT_TRACK_RIGHTS_VERSION,
+            rightsAttestationText: CURRENT_TRACK_RIGHTS_TEXT,
             commentCount: 0,
             createdAt: now,
             createdBy: userDid,

@@ -29,6 +29,7 @@ import {
     TaskPermissions, // Added TaskPermissions
     EventDisplay, // Added EventDisplay
     OfferMapPin,
+    SpaceMapPin,
 } from "@/models/models";
 import { PostItem } from "../modules/feeds/post-list";
 import Indicators from "../utils/indicators";
@@ -42,6 +43,7 @@ import IssueDetail from "../modules/issues/issue-detail";
 import TaskDetail from "../modules/tasks/task-detail"; // Added TaskDetail import
 import EventDetail from "../modules/events/event-detail"; // Added EventDetail import
 import CrewOfferMapPreview from "../modules/circles/crew-offer-map-preview";
+import SpaceMapPreview from "../modules/circles/space-map-preview";
 import { Lock, MapPin, Quote } from "lucide-react";
 import { CirclePicture } from "../modules/circles/circle-picture";
 import { useIsMobile } from "../utils/use-is-mobile";
@@ -385,7 +387,8 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                 {/* Hidden for this circle's own admins, same as the full artist page —
                                     pledging to (or joining the Crew of) a profile you manage isn't a
                                     real fan action. */}
-                                {!isViewerCircleAdmin ? (
+                                {/* Also hidden when the artist turned Pledges off (pledgesEnabled). */}
+                                {!isViewerCircleAdmin && circle.pledgesEnabled !== false ? (
                                     <Button
                                         type="button"
                                         size="sm"
@@ -645,6 +648,10 @@ export const ContentPreview: React.FC = () => {
             case "crewOffer": {
                 const pin = contentPreview!.content as OfferMapPin;
                 return <CrewOfferMapPreview key={pin._id} pin={pin} />;
+            }
+            case "space": {
+                const pin = contentPreview!.content as SpaceMapPin;
+                return <SpaceMapPreview key={pin._id} pin={pin} />;
             }
             case "proposal": {
                 // Render ProposalItem in preview mode

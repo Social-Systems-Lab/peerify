@@ -29,6 +29,10 @@ const settingsForms: SettingsForm[] = [
         handle: "presence",
     },
     {
+        name: "Spaces",
+        handle: "spaces",
+    },
+    {
         name: "Modules",
         handle: "pages",
     },
@@ -93,6 +97,12 @@ export const SettingsLayoutWrapper = ({ children, circle }: SettingsLayoutWrappe
         .filter((item) => {
             if (item.handle === "subscription") {
                 return user?.handle === circle.handle;
+            }
+
+            // A person's own pop-up and private spaces: only on their own personal profile (the
+            // page itself 404s for anyone else).
+            if (item.handle === "spaces") {
+                return isUser && user?.handle === circle.handle;
             }
 
             // Questionnaire is legacy Kamooni functionality (pre-join screening questions), not

@@ -5,7 +5,7 @@
 # Backups of env files hold secrets too (e.g. .env.local.bak-20261008-minio)
 .env*.bak*
 
-# Deploy-time atomic-release artifacts (see circles/scripts/deploy-common.sh) —
+# Deploy-time atomic-release artifacts (see scripts/deploy-common.sh) —
 # live one level above the app checkout, deliberately outside its
 # tsconfig scope so `next build` never scans a previous release's copied
 # source as project input.

@@ -2,12 +2,14 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAtom } from "jotai"
 import { userAtom } from "@/lib/data/atoms"
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes"
 import PeerifyContactDialog from "@/components/pages/contact/peerify-contact-dialog"
+import PeerifyFooter from "@/components/pages/peerify-footer"
+import PeerifyReveal from "@/components/pages/peerify-reveal"
 import { CreatePeerifyArtistDialog } from "@/components/global-create/create-peerify-artist-dialog"
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -50,13 +52,6 @@ const FEATURES = [
         alt: "A record sliding out of its sleeve beside a cassette",
     },
     {
-        tag: "Coming soon",
-        title: "The Peerify Player",
-        body: "Your personal collection. When you’re in close proximity to another listener, you can share the music you own with them. All plays are recorded, and Peerify surplus becomes royalties for the artists.",
-        art: "feature-player.svg",
-        alt: "Two phones held side by side, sharing a song",
-    },
-    {
         tag: "Tour support",
         title: "Join the tour team",
         body: "When a tour pledge hits 10%, a tour team forms. Offer a spare room, a meal, transport, or a stage. Community makes tours possible, and you get to make new friends along the way.",
@@ -69,6 +64,13 @@ const FEATURES = [
         body: "Open your living room to live music. Set the capacity, vet your guests, and share the address only with people you’ve approved. Intimate music in the places it belongs.",
         art: "feature-door.svg",
         alt: "An open front door to a room lit with string lights",
+    },
+    {
+        tag: "Coming soon",
+        title: "The Peerify Player",
+        body: "Your personal collection. When you’re in close proximity to another listener, you can share the music you own with them. All plays are recorded, and Peerify surplus becomes royalties for the artists.",
+        art: "feature-player.svg",
+        alt: "Two phones held side by side, sharing a song",
     },
 ]
 
@@ -96,17 +98,9 @@ export default function PeerifyLandingPage() {
         }
     }
 
-    useEffect(() => {
-        const observer = new IntersectionObserver(
-            (entries) => entries.forEach((e) => { if (e.isIntersecting) e.target.classList.add("visible") }),
-            { threshold: 0.1 }
-        )
-        document.querySelectorAll(`.${"reveal"}`).forEach((el) => observer.observe(el))
-        return () => observer.disconnect()
-    }, [])
-
     return (
         <div className="peerify-home page">
+            <PeerifyReveal />
 
             {/* ── HERO ── */}
             <section className={"hero"}>
@@ -176,7 +170,9 @@ export default function PeerifyLandingPage() {
                 <div className={"inner"}>
                     <p className={"sLabel"} style={{ color: "#e8720c" }}>Growing Peerify</p>
                     <h2 className={"serif serifLight"}>The roles you can play.</h2>
-                    <div className={SHOW_VENUE_SIGNUP ? "rolesGrid" : "rolesGrid rolesGrid--twoUp"}>
+                    {/* Three cards: artists, fans, hosts (host pilot → /hosts). The old venue card below
+                        stays behind SHOW_VENUE_SIGNUP; turning it on would make four. */}
+                    <div className={"rolesGrid"}>
 
                         <div className={"roleCard"}>
                             <div className={"roleImageWrap"}>
@@ -224,6 +220,23 @@ export default function PeerifyLandingPage() {
                                 ) : (
                                     <Link href="/signup/pilot?role=fan" className={"roleCta"}>Create a fan profile &rarr;</Link>
                                 )}
+                            </div>
+                        </div>
+
+                        <div className={"roleCard"}>
+                            <div className={"roleImageWrap"}>
+                                <Image src="/peerify/illustrations/role-host.svg" alt="A host carrying an amp into a room under string lights" fill unoptimized className={"roleImg"} />
+                            </div>
+                            <div className={"roleBody"}>
+                                <p className={"roleType"}>For Hosts</p>
+                                <h3>Living rooms, gardens &amp; cafés after closing</h3>
+                                <ul>
+                                    <li>Offer a space where people come to really listen</li>
+                                    <li>Shape the evening with the artist and their crew</li>
+                                    <li>Share in the takings if you want to</li>
+                                    <li>Bring live music to your neighbourhood</li>
+                                </ul>
+                                <Link href="/hosts" className={"roleCta"}>Join the host pilot &rarr;</Link>
                             </div>
                         </div>
 
@@ -374,24 +387,7 @@ export default function PeerifyLandingPage() {
             </section>
 
             {/* ── FOOTER ── */}
-            <footer className={"footer"}>
-                <div className={"footerLogo"}>
-                    <Image src="/peerify/logo-mark.png" alt="Peerify mark" width={28} height={28} />
-                    <div className={"footerLogoText"}>Peer<span>ify</span></div>
-                </div>
-                <nav className={"footerLinks"}>
-                    <Link href="/signup/pilot">For artists</Link>
-                    <Link href="/explore">Explore map</Link>
-                    <Link href="/discover">Discover</Link>
-                    <Link href="/privacy">Privacy</Link>
-                    <Link href="/terms">Terms</Link>
-                    <a href="https://peerify.net" target="_blank" rel="noopener noreferrer">peerify.net</a>
-                </nav>
-                <p className={"footerNote"}>
-                    A non-profit project by Social Systems Foundation.<br />
-                    &copy; {new Date().getFullYear()} Peerify
-                </p>
-            </footer>
+            <PeerifyFooter />
 
             <CreatePeerifyArtistDialog
                 isOpen={isArtistDialogOpen}

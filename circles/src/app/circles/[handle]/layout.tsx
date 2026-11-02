@@ -95,7 +95,7 @@ export default async function RootLayout(props: Props) {
     const pageContent = (
         <>
             <>
-                <HomeCover circle={plainCircle} />
+                <HomeCover circle={plainCircle} authorizedToEdit={authorizedToEdit} />
                 <HomeContent
                     circle={plainCircle}
                     authorizedToEdit={authorizedToEdit}

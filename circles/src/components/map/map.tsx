@@ -25,7 +25,19 @@ import {
 import { motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 import ContentPreview from "../layout/content-preview";
-import { Content, ContentPreviewData, Location, OfferMapPin, PostDisplay, EventDisplay } from "@/models/models";
+import { SPACE_TYPE_LABELS, spaceAreaLabel } from "@/lib/spaces/space-labels";
+import type { SpaceKind } from "@/lib/spaces/space-kind-icons";
+import { isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
+import {
+    Circle,
+    Content,
+    ContentPreviewData,
+    Location,
+    OfferMapPin,
+    PostDisplay,
+    EventDisplay,
+    SpaceMapPin,
+} from "@/models/models";
 import { getOfferDefaultImageUrl, getTourTeamOfferingLabel } from "@/lib/data/tour-team-offerings";
 import { DEFAULT_HERO_URLS, FALLBACK_HERO_URL, getCircleCoverImageUrl, getDefaultHeroUrl } from "@/lib/default-heroes";
 import { fetchOfferMemberDetails } from "../modules/circles/use-offer-member-details";
@@ -48,8 +60,9 @@ const isEventDisplay = (content: any): content is EventDisplay => !!(content && 
 // on the separate `searchable` field — see search-results-panel.tsx.
 // viewerIsAdmin (sourced from userAtom.isAdmin, the same trusted-on-login client state the
 // admin nav link already reads in global-nav.tsx) lets superadmins see the real marker for
-// profiles the owner hasn't opted into mapVisible for, mirroring the query-level bypass already
-// in getSwipeCircles/searchDiscoverableCircles.
+// profiles the owner hasn't opted into mapVisible for, mirroring searchDiscoverableCircles.
+// getSwipeCircles no longer has that bypass: it never returns a non-artist personal profile,
+// admins included (2026-11-02).
 const isSuppressedUserProfile = (content: any, viewerIsAdmin: boolean): boolean =>
     !viewerIsAdmin && content?.circleType === "user" && content?.mapVisible !== true;
 
@@ -59,6 +72,31 @@ const isSuppressedUserProfile = (content: any, viewerIsAdmin: boolean): boolean 
 // below that special-cases isOfferMapPin must check for circleHandle before assuming anonymity.
 // Duck-typed on `offerType`, which nothing else in the Content union has.
 const isOfferMapPin = (content: any): content is OfferMapPin => typeof content?.offerType === "string";
+
+// A pop-up or private space pin (SpaceMapPin, models.ts): no identity, only the area, and a
+// pop-up's name when its owner shows it. Never has an Open action.
+const isSpaceMapPin = (content: any): content is SpaceMapPin =>
+    content?.spaceKind === "private" || content?.spaceKind === "popup";
+
+// The Add a space chooser's icons (SPACE_KIND_ICONS: lucide Building2, Store, House), copied path
+// for path from lucide-react 0.484.0: these raw-DOM markers can't render a React icon.
+const SPACE_KIND_ICON_SVG_PATHS: Record<SpaceKind, string> = {
+    venue: `<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>`,
+    popup: `<path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/>`,
+    private: `<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`,
+};
+const getSpaceKindIconSvg = (kind: SpaceKind, size: number): string =>
+    `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${SPACE_KIND_ICON_SVG_PATHS[kind]}</svg>`;
+
+// Spaces on the map (Tim, 2026-10-29): a venue circle or a space pin. Their markers show the kind's
+// icon on the amber Spaces circle, with no pin point under it, centred on the spot. A venue's
+// picture stays in its hover popup. A venue's offer pins are offers, not spaces.
+const getSpaceMarkerKind = (content: Content): SpaceKind | null => {
+    if (isSpaceMapPin(content)) return content.spaceKind;
+    if (!isOfferMapPin(content) && !isEventDisplay(content) && isPeerifyVenueIdentity(content as Circle)) return "venue";
+    return null;
+};
+const spacePinArea = (pin: SpaceMapPin): string => spaceAreaLabel(pin.location);
 
 // Simplified, non-lucide-exact glyphs (same low-fidelity spirit as the openIcon/zoomIcon SVG
 // strings below, in this same file) for the marker face and hover-popup background — a real
@@ -120,6 +158,9 @@ const getMarkerTitle = (content: Content, viewerIsAdmin: boolean): string => {
     }
     if ((content as any)?.circleType === "post") {
         return (content as any)?.content?.slice(0, 80) ?? "Noticeboard post";
+    }
+    if (isSpaceMapPin(content)) {
+        return content.name ?? SPACE_TYPE_LABELS[content.spaceKind];
     }
     if (isOfferMapPin(content)) {
         // Venue-sourced pins (circleHandle present — see OfferMapPin, models.ts) show the
@@ -195,6 +236,9 @@ const getMarkerImageUrl = (content: Content, viewerIsAdmin: boolean): string | u
     // on the map even for a venue with several different offers.
     if (isOfferMapPin(content)) {
         return content.circleHandle ? content.circlePicture?.url : undefined;
+    }
+    if (isSpaceMapPin(content)) {
+        return undefined;
     }
     if (isSuppressedUserProfile(content, viewerIsAdmin)) {
         return undefined;
@@ -358,6 +402,9 @@ const getMarkerDescription = (content: Content, viewerIsAdmin: boolean): string 
     // instead, since the title above is the venue's name for those. A grouped pin (see
     // groupIdentityOfferPins, map-explorer.tsx) joins every offering's label instead of just its
     // own representative one — a venue with 2 offerings shouldn't only ever mention one of them.
+    if (isSpaceMapPin(content)) {
+        return spacePinArea(content);
+    }
     if (isOfferMapPin(content)) {
         if (!content.circleHandle) {
             return "";
@@ -411,13 +458,15 @@ const createMarkerPopupHtml = (content: Content, viewerIsAdmin: boolean): string
     // photo-background/Open-button treatment as any other circle pin below. Individual-hosted
     // offer pins show the offer's own photo or its type's default illustration, no Open button.
     const isAnonymousOffer = isOffer && !content.circleHandle;
-    const imageUrl = isAnonymousOffer
-        ? undefined
-        : getOptimizedImageUrl(
-              getMarkerImageUrl(content, viewerIsAdmin) ?? getMarkerPopupFallbackImageUrl(content, viewerIsAdmin),
-              384,
-              72,
-          );
+    const isSpace = isSpaceMapPin(content);
+    const imageUrl =
+        isAnonymousOffer || isSpace
+            ? undefined
+            : getOptimizedImageUrl(
+                  getMarkerImageUrl(content, viewerIsAdmin) ?? getMarkerPopupFallbackImageUrl(content, viewerIsAdmin),
+                  384,
+                  72,
+              );
     // data-marker-popup-photo-slot: an anonymous individual-host offer has no photo to show here
     // yet — this pin never carries one (see OfferMapPin, models.ts; pin-level data intentionally
     // excludes photos/description). It starts on the offer type's default illustration;
@@ -425,20 +474,23 @@ const createMarkerPopupHtml = (content: Content, viewerIsAdmin: boolean): string
     // swaps in the offer's first photo if one exists, leaving the illustration as-is otherwise.
     // Venue-sourced offer pins are untouched — they already show the venue's own picture here,
     // not a per-offer photo.
-    const backgroundHtml = isAnonymousOffer
-        ? `<div data-marker-popup-photo-slot="true" style="position:absolute;inset:0;background-color:${getMarkerTheme(content).background};background-image:url('${escapeHtml(getOfferDefaultImageUrl({ id: content._id, type: content.offerType }))}');background-size:cover;background-position:center;"></div>`
-        : `<div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl!)}');background-size:cover;background-position:center;"></div>`;
+    const backgroundHtml = isSpace
+        ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding-bottom:90px;background-color:${getMarkerTheme(content).background};color:${getMarkerTheme(content).color};">${getSpaceKindIconSvg(content.spaceKind, 64)}</div>`
+        : isAnonymousOffer
+          ? `<div data-marker-popup-photo-slot="true" style="position:absolute;inset:0;background-color:${getMarkerTheme(content).background};background-image:url('${escapeHtml(getOfferDefaultImageUrl({ id: content._id, type: content.offerType }))}');background-size:cover;background-position:center;"></div>`
+          : `<div style="position:absolute;inset:0;background-image:url('${escapeHtml(imageUrl!)}');background-size:cover;background-position:center;"></div>`;
     const openHref = getMarkerOpenHref(content);
     const openIcon = `<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>`;
     const zoomIcon = `<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>`;
     const buttonStyle =
         "display:inline-flex;height:40px;min-width:0;flex:1;align-items:center;justify-content:center;gap:7px;border-radius:9999px;border:1px solid rgba(255,255,255,.34);background:rgba(255,255,255,.13);padding:0 14px;font-size:15px;font-weight:700;color:#fff;text-decoration:none;text-shadow:0 1px 2px rgba(0,0,0,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.18);backdrop-filter:blur(6px);";
     // No "Open" action for an anonymous offer pin — no profile to open, only "Zoom in" applies.
-    const openAction = isAnonymousOffer
-        ? ""
-        : openHref
-          ? `<a href="${escapeHtml(openHref)}" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></a>`
-          : `<button type="button" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></button>`;
+    const openAction =
+        isAnonymousOffer || isSpace
+            ? ""
+            : openHref
+              ? `<a href="${escapeHtml(openHref)}" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></a>`
+              : `<button type="button" data-marker-popup-action="open" style="${buttonStyle}">${openIcon}<span>Open</span></button>`;
 
     return `
         <div style="position:relative;width:min(380px,calc(100vw - 32px));height:${POPUP_CARD_HEIGHT}px;overflow:hidden;border-radius:15px;background:#111827;box-shadow:0 12px 34px rgba(15,23,42,.28);cursor:pointer;">
@@ -463,6 +515,9 @@ const getMarkerTheme = (content: Content): { background: string; color: string; 
     if ((content as any)?.circleType === "post") {
         return { background: "#36516f", color: "#ffffff", size: 36 };
     }
+    if (getSpaceMarkerKind(content)) {
+        return { background: "#fde68a", color: "#78350f", size: 40 };
+    }
     if (isOfferMapPin(content)) {
         // Same "Offer" green for venue-identity and anonymous pins alike — the marker face always
         // shows the per-offer-type icon on this background regardless of identity (see
@@ -485,7 +540,9 @@ const getMarkerTheme = (content: Content): { background: string; color: string; 
 // marker (the pre-fix behavior) when there isn't enough room above within the map container's
 // visible bounds, since this is a custom overlay and doesn't get Mapbox's native Popup flip-to-fit.
 const getMarkerPopupTransform = (point: { x: number; y: number }, content: Content): string => {
-    const markerHeight = getMarkerTheme(content).size + 8;
+    // How far the marker reaches above its point: a space marker is centred on it.
+    const size = getMarkerTheme(content).size;
+    const markerHeight = getSpaceMarkerKind(content) ? Math.ceil(size / 2) : size + 8;
     const fitsAbove = point.y >= markerHeight + POPUP_MARKER_GAP + POPUP_CARD_HEIGHT;
     const verticalOffset = fitsAbove
         ? `calc(-100% - ${markerHeight + POPUP_MARKER_GAP}px)`
@@ -527,13 +584,16 @@ const createMarkerElement = (
     const theme = getMarkerTheme(content);
     const imageUrl = getOptimizedImageUrl(getMarkerImageUrl(content, viewerIsAdmin), 64, 60);
     const isAreaMarker = isPeerifyAreaMapContent(content);
+    const spaceKind = getSpaceMarkerKind(content);
     const markerElement = document.createElement("div");
     markerElement.title = isAreaMarker
         ? `${getMarkerTitle(content, viewerIsAdmin)} - Approximate area`
         : getMarkerTitle(content, viewerIsAdmin);
     markerElement.setAttribute("aria-label", markerElement.title);
     markerElement.style.width = `${theme.size}px`;
-    markerElement.style.height = `${theme.size + 8}px`;
+    markerElement.style.height = `${spaceKind ? theme.size : theme.size + 8}px`;
+    // Read by the overlay's positioning: centred on the point instead of standing on it.
+    if (spaceKind) markerElement.dataset.markerCentered = "true";
     markerElement.style.cursor = "pointer";
     markerElement.style.position = "absolute";
     markerElement.style.left = "0";
@@ -553,6 +613,8 @@ const createMarkerElement = (
     // fixed by excluding identity pins from jitter in the first place.
     if (isOfferMapPin(content)) {
         applyOfferMarkerFaceContent(face, content, theme.size);
+    } else if (spaceKind) {
+        face.innerHTML = getSpaceKindIconSvg(spaceKind, Math.round(theme.size * 0.5));
     } else if (!imageUrl || isEventDisplay(content)) {
         face.textContent = isEventDisplay(content)
             ? new Date(content.startAt).getDate().toString()
@@ -573,7 +635,7 @@ const createMarkerElement = (
     // Excludes offer pins even though imageUrl is set for venue-identity ones (see
     // getMarkerImageUrl) — that URL is for the hover popup (createMarkerPopupHtml), not the face,
     // which must stay icon-on-color per the comment above.
-    if (imageUrl && !isEventDisplay(content) && !isOfferMapPin(content)) {
+    if (imageUrl && !isEventDisplay(content) && !isOfferMapPin(content) && !spaceKind) {
         face.style.backgroundImage = `url("${imageUrl}")`;
         face.style.backgroundPosition = "center";
         face.style.backgroundSize = "cover";
@@ -617,7 +679,7 @@ const createMarkerElement = (
     });
 
     markerElement.appendChild(face);
-    markerElement.appendChild(pointer);
+    if (!spaceKind) markerElement.appendChild(pointer);
     applyMarkerDisclosureStyle(markerElement, content, viewerIsAdmin);
     return markerElement;
 };
@@ -712,6 +774,8 @@ const MapBox = ({
                     content,
                     props: undefined,
                 } as any;
+            } else if (isSpaceMapPin(content)) {
+                nextPreview = { type: "space", content };
             } else {
                 const previewType = (content as any).circleType || "circle";
                 nextPreview = {
@@ -886,7 +950,7 @@ const MapBox = ({
                 marker.dataset.zIndex = zIndex;
                 marker.style.zIndex = zIndex;
             }
-            marker.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, -100%)`;
+            marker.style.transform = `translate(${point.x}px, ${point.y}px) translate(-50%, ${marker.dataset.markerCentered === "true" ? "-50%" : "-100%"})`;
         });
 
         if (popupRef.current && popupContentRef.current?.location?.lngLat) {

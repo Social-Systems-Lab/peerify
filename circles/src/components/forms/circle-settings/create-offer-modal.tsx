@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useLayoutEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useAtom } from "jotai";
 import {
     Dialog,
     DialogContent,
@@ -14,12 +16,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { MultiImageUploader, ImageItem } from "@/components/forms/controls/multi-image-uploader";
 import { CharCounter } from "@/components/forms/controls/char-counter";
 import { cn } from "@/lib/utils";
 import { Sparkles } from "lucide-react";
+import { userAtom } from "@/lib/data/atoms";
 import {
     accommodationSubTypes,
     hostingShowSpaceTypes,
@@ -73,12 +77,24 @@ interface CreateOfferModalProps {
     // Step 1 grid, no Back) — editing an offering reuses the same two-step form, it just skips
     // choosing a type since that's already decided. Pass null/undefined for the "Add an offer" flow.
     editingOffering?: TourTeamOffering | null;
-    // Branches the free-of-charge notice copy only — "register as a Venue instead" is circular
-    // when shown to a profile that's already a registered venue (see OfferManager's own comment
+    // Branches the free-of-charge notice copy only — "add it under Spaces instead" makes no sense
+    // to a profile that's already a registered venue (see OfferManager's own comment
     // for why this is threaded down rather than derived here from a circle this component doesn't
     // have in scope).
     isVenue?: boolean;
+    // Personal profiles only. While their offers aren't on the map, adding an offer asks
+    // "Show this on the map?" with neither answer picked, and Add offer waits for one; Yes turns
+    // the map on for all of them. Once they're on the map, a line says so instead.
+    mapChoice?: OfferMapChoice;
 }
+
+// Create an offer's "Show this on the map?" (Tim, 2026-10-29): offersVisible is the person's one
+// setting for all their offers (setOffersVisibleAction). onChoose saves it and says whether that
+// worked.
+export type OfferMapChoice = {
+    offersVisible: boolean;
+    onChoose: (on: boolean) => Promise<boolean>;
+};
 
 const EMPTY_IMAGES: ImageItem[] = [];
 
@@ -142,8 +158,13 @@ export function CreateOfferModal({
     onSave,
     editingOffering,
     isVenue = false,
+    mapChoice,
 }: CreateOfferModalProps) {
     const isEditing = Boolean(editingOffering);
+    const [offerMapAnswer, setOfferMapAnswer] = useState<"yes" | "no" | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const asksMapChoice = !!mapChoice && !isEditing && !mapChoice.offersVisible;
+    const [user] = useAtom(userAtom);
 
     const [step, setStep] = useState<1 | 2>(1);
     const [selectedType, setSelectedType] = useState<TourTeamOffering["type"] | null>(null);
@@ -193,6 +214,7 @@ export function CreateOfferModal({
     const resetForm = () => {
         setStep(1);
         setSelectedType(null);
+        setOfferMapAnswer(null);
         resetStepTwoFields();
     };
 
@@ -258,7 +280,11 @@ export function CreateOfferModal({
     const goBack = () => setStep(1);
 
     const isCustom = selectedType === "custom";
-    const canSubmit = selectedType !== null && (!isCustom || label.trim().length > 0);
+    const canSubmit =
+        selectedType !== null &&
+        (!isCustom || label.trim().length > 0) &&
+        (!asksMapChoice || offerMapAnswer !== null) &&
+        !isSubmitting;
 
     // "Home" doesn't make sense for a registered venue circle — excluded when isVenue, except
     // when it's already the offering's current value (an existing venue offer saved before this
@@ -272,8 +298,15 @@ export function CreateOfferModal({
         [allowedTypes],
     );
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!selectedType || !canSubmit) return;
+        // Saved before the offer is added; on failure (a toast says so) the modal stays open.
+        if (asksMapChoice && offerMapAnswer === "yes") {
+            setIsSubmitting(true);
+            const ok = await mapChoice!.onChoose(true);
+            setIsSubmitting(false);
+            if (!ok) return;
+        }
 
         let details: OfferDetails | undefined;
         switch (selectedType) {
@@ -362,13 +395,29 @@ export function CreateOfferModal({
 
                 {/* Universal platform rule — shown on both steps (not just Step 1) so it's visible
                     regardless of where someone is in the flow, including right before they hit Add
-                    offer/Update on Step 2. Copy branches only for isVenue: "register as a Venue
-                    instead" is circular when the profile creating this offer is already a
-                    registered venue. */}
+                    offer/Update on Step 2. Copy branches only for isVenue: a venue is a space
+                    already, so it isn't sent to Spaces. Show spaces are spaces now, not offers
+                    (see RETIRED_OFFER_TYPES). */}
                 <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-                    {isVenue
-                        ? "Offers must be free — no rental fees, ticket splits, or other compensation. Paid bookings are handled through your Venue listing, not here."
-                        : "Offers must be free — no rental fees, ticket splits, or other compensation. If you charge for your space, register as a Venue instead."}
+                    {isVenue ? (
+                        "Offers must be free — no rental fees, ticket splits, or other compensation. Paid bookings are handled through your Venue listing, not here."
+                    ) : (
+                        <>
+                            Offers are free: a bed, a meal, a ride or a hand with promotion. No rental fees or other
+                            payment. Have a space for shows? Add it under{" "}
+                            {user?.handle ? (
+                                <Link
+                                    href={`/circles/${user.handle}/settings/spaces`}
+                                    className="font-medium underline"
+                                >
+                                    Spaces
+                                </Link>
+                            ) : (
+                                "Spaces"
+                            )}{" "}
+                            instead.
+                        </>
+                    )}
                 </div>
 
                 {step === 1 && !isEditing && (
@@ -394,7 +443,9 @@ export function CreateOfferModal({
                                 >
                                     <Icon className="h-6 w-6" />
                                     <span>{tileLabel}</span>
-                                    {alreadyAdded && <span className="text-xs text-muted-foreground">Already added</span>}
+                                    {alreadyAdded && (
+                                        <span className="text-xs text-muted-foreground">Already added</span>
+                                    )}
                                 </button>
                             );
                         })}
@@ -618,6 +669,41 @@ export function CreateOfferModal({
                                 {selectedType === "spare_room" ? ACCOMMODATION_PHOTO_NUDGE : GENERIC_PHOTO_NUDGE}
                             </p>
                         </div>
+
+                        {asksMapChoice ? (
+                            <div className="space-y-3 rounded-md border p-3">
+                                <div className="space-y-1">
+                                    <Label>Show this on the map?</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        A pin lets artists planning shows nearby find you.
+                                    </p>
+                                </div>
+                                <RadioGroup
+                                    value={offerMapAnswer ?? ""}
+                                    onValueChange={(value) => setOfferMapAnswer(value === "yes" ? "yes" : "no")}
+                                >
+                                    <div className="flex items-start gap-2">
+                                        <RadioGroupItem value="yes" id="offer-map-yes" className="mt-0.5" />
+                                        <Label htmlFor="offer-map-yes" className="font-normal">
+                                            Yes: artists can find it as a pin near your place.
+                                        </Label>
+                                    </div>
+                                    <div className="flex items-start gap-2">
+                                        <RadioGroupItem value="no" id="offer-map-no" className="mt-0.5" />
+                                        <Label htmlFor="offer-map-no" className="font-normal">
+                                            Not now: it shows on your profile only, not on the map.
+                                        </Label>
+                                    </div>
+                                </RadioGroup>
+                                <p className="text-xs text-muted-foreground">
+                                    This is for all your offers. You can change it under Offers.
+                                </p>
+                            </div>
+                        ) : mapChoice && !isEditing ? (
+                            <p className="text-sm text-muted-foreground">
+                                Your offers show on the map. You can change this under Offers.
+                            </p>
+                        ) : null}
                     </div>
                 )}
 

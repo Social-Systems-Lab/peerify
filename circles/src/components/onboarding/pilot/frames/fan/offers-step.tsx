@@ -9,23 +9,30 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import { CharCounter } from "@/components/forms/controls/char-counter";
 import { Circle, OFFER_NOTES_MAX_LENGTH, TourTeamOffering, tourTeamOfferingTypes } from "@/models/models";
-import { tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
-import { savePresence } from "@/app/circles/[handle]/settings/presence/actions";
+import { isRetiredOfferType, tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { savePresence, setOffersVisibleAction } from "@/app/circles/[handle]/settings/presence/actions";
 
 type OffersStepProps = {
     circleId: string;
     circleHandle: string;
     initialOfferings?: TourTeamOffering[];
+    // Whether their offers are on the map already; if not, picking offers asks.
+    offersVisible?: boolean;
     onContinue: () => void;
 };
 
 // Frame F3-expanded. Reuses the existing tourTeamOfferings field/shape and the existing
 // savePresence() action (src/app/circles/[handle]/settings/presence/actions.ts) rather than a
-// new parallel field — this is the same data the Presence Settings page already edits.
-export function OffersStep({ circleId, circleHandle, initialOfferings, onContinue }: OffersStepProps) {
+// new parallel field — this is the same data the Presence Settings page already edits. Like Create
+// an offer (CreateOfferModal's mapChoice), it asks "Show this on the map?" with neither answer
+// picked while the offers aren't on the map; Yes turns offersVisible on, Not now leaves it off.
+export function OffersStep({ circleId, circleHandle, initialOfferings, offersVisible = false, onContinue }: OffersStepProps) {
     const { toast } = useToast();
     const [offerings, setOfferings] = useState<TourTeamOffering[]>(initialOfferings || []);
     const [isSaving, setIsSaving] = useState(false);
+    const [mapAnswer, setMapAnswer] = useState<"yes" | "no" | null>(null);
 
     const toggleStandardOffering = (type: (typeof tourTeamOfferingTypes)[number]) => {
         setOfferings((prev) => {
@@ -47,9 +54,16 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
         setOfferings((prev) => prev.filter((offering) => offering.id !== id));
     };
 
+    // Retired types (Show space) can't be picked here any more. One the person already has is kept
+    // in the saved list untouched (savePresence keeps the stored copy) but not shown for editing.
+    const creatableTypes = tourTeamOfferingTypes.filter((type) => !isRetiredOfferType(type));
+    const editableOfferings = offerings.filter((offering) => !isRetiredOfferType(offering.type));
+
     const hasIncompleteCustomOffering = offerings.some(
         (offering) => offering.type === "custom" && !offering.label?.trim(),
     );
+    const asksMapChoice = !offersVisible && editableOfferings.length > 0;
+    const needsMapAnswer = asksMapChoice && mapAnswer === null;
 
     const handleContinue = async () => {
         if (offerings.length === 0) {
@@ -57,7 +71,7 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
             return;
         }
 
-        if (hasIncompleteCustomOffering) return;
+        if (hasIncompleteCustomOffering || needsMapAnswer) return;
 
         setIsSaving(true);
         try {
@@ -69,6 +83,16 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
             if (!result.success) {
                 toast({ title: "Couldn't save your offers", description: result.message, variant: "destructive" });
                 return;
+            }
+            if (asksMapChoice && mapAnswer === "yes") {
+                const mapResult = await setOffersVisibleAction(circleId, true);
+                if (!mapResult.success) {
+                    toast({
+                        title: "Your offers are saved, but not on the map yet",
+                        description: "You can turn this on under Settings → Offers.",
+                        variant: "destructive",
+                    });
+                }
             }
             onContinue();
         } finally {
@@ -88,7 +112,7 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
             </p>
 
             <div className="flex flex-wrap gap-2">
-                {tourTeamOfferingTypes.map((type) => {
+                {creatableTypes.map((type) => {
                     const isSelected = offerings.some((offering) => offering.id === type);
                     return (
                         <button
@@ -115,9 +139,9 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
                 </button>
             </div>
 
-            {offerings.length > 0 ? (
+            {editableOfferings.length > 0 ? (
                 <div className="space-y-3">
-                    {offerings.map((offering) => (
+                    {editableOfferings.map((offering) => (
                         <div key={offering.id} className="space-y-2 rounded-lg border p-3">
                             <div className="flex items-center justify-between gap-2">
                                 {offering.type === "custom" ? (
@@ -164,7 +188,35 @@ export function OffersStep({ circleId, circleHandle, initialOfferings, onContinu
                 </div>
             ) : null}
 
-            <Button type="button" className="w-full" onClick={handleContinue} disabled={isSaving || hasIncompleteCustomOffering}>
+            {asksMapChoice ? (
+                <div className="space-y-3 rounded-lg border p-3">
+                    <div className="space-y-1">
+                        <Label>Show this on the map?</Label>
+                        <p className="text-sm text-muted-foreground">A pin lets artists planning shows nearby find you.</p>
+                    </div>
+                    <RadioGroup value={mapAnswer ?? ""} onValueChange={(value) => setMapAnswer(value === "yes" ? "yes" : "no")}>
+                        <div className="flex items-start gap-2">
+                            <RadioGroupItem value="yes" id="onboarding-offer-map-yes" className="mt-0.5" />
+                            <Label htmlFor="onboarding-offer-map-yes" className="font-normal">
+                                Yes: artists can find it as a pin near your place.
+                            </Label>
+                        </div>
+                        <div className="flex items-start gap-2">
+                            <RadioGroupItem value="no" id="onboarding-offer-map-no" className="mt-0.5" />
+                            <Label htmlFor="onboarding-offer-map-no" className="font-normal">
+                                Not now: it shows on your profile only, not on the map.
+                            </Label>
+                        </div>
+                    </RadioGroup>
+                </div>
+            ) : null}
+
+            <Button
+                type="button"
+                className="w-full"
+                onClick={handleContinue}
+                disabled={isSaving || hasIncompleteCustomOffering || needsMapAnswer}
+            >
                 {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Continue
             </Button>

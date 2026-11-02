@@ -12,6 +12,7 @@ export const DEFAULT_DISCOVER_FILTERS: SearchFiltersValue = {
     selectedCategories: ["users"],
     selectedGenres: [],
     selectedOfferTypes: [],
+    selectedSpaceKinds: [],
     dateRange: undefined,
     physicalOnly: false,
     selectedActFormats: [],

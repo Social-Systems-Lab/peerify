@@ -52,6 +52,7 @@ const COLLECTION_NAMES = [
     "RateLimits",
     "UsedAltchaChallenges",
     "CapturedEmails",
+    "Spaces",
 ] as const;
 
 export type CollectionName = (typeof COLLECTION_NAMES)[number];
@@ -73,6 +74,8 @@ export const createFakeDb = () => {
         find: (...a: any[]) => (cols[n] as any).find(...a),
         findOne: (...a: any[]) => (cols[n] as any).findOne(...a),
         countDocuments: (...a: any[]) => (cols[n] as any).countDocuments(...a),
+        insertOne: (...a: any[]) => (cols[n] as any).insertOne(...a),
+        deleteOne: (...a: any[]) => (cols[n] as any).deleteOne(...a),
         deleteMany: (...a: any[]) => (cols[n] as any).deleteMany(...a),
         updateOne: (...a: any[]) => (cols[n] as any).updateOne(...a),
         findOneAndUpdate: (...a: any[]) => (cols[n] as any).findOneAndUpdate(...a),

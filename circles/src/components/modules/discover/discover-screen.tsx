@@ -74,6 +74,8 @@ const sanitizePersistedDiscoverFilters = (value: unknown): SearchFiltersValue | 
         selectedGenres: sanitizeStringArray(raw.selectedGenres),
         // Offers aren't a category on this screen (see DISCOVER_CATEGORIES) — always empty.
         selectedOfferTypes: [],
+        // Spaces aren't a category here either.
+        selectedSpaceKinds: [],
         dateRange: sanitizeDateRange(raw.dateRange),
         physicalOnly: raw.physicalOnly === true,
         // Missing in filters saved before act filters existed: same version, read as none.

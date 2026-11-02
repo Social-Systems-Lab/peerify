@@ -34,6 +34,8 @@ interface AdminDashboardProps {
     onboardingMcpStats: OnboardingMcpStats;
     initialTab?: string;
     initialVerificationCircleId?: string;
+    // Staging's email capture mode (EMAIL_CAPTURE_MODE=on). Off (prod): no "Captured emails" tab at all.
+    showCapturedEmails?: boolean;
 }
 
 const ADMIN_TABS = new Set([
@@ -44,9 +46,14 @@ const ADMIN_TABS = new Set([
     "verification-requests",
     "super-admins",
     "system-messages",
+    "spaces",
 ]);
 
-const normalizeAdminTab = (tab?: string) => (tab && ADMIN_TABS.has(tab) ? tab : "server-settings");
+// Only exists while capture mode is on; a ?tab=captured-emails link otherwise opens the default tab.
+const CAPTURED_EMAILS_TAB = "captured-emails";
+
+const normalizeAdminTab = (tab: string | undefined, showCapturedEmails: boolean) =>
+    tab && (ADMIN_TABS.has(tab) || (showCapturedEmails && tab === CAPTURED_EMAILS_TAB)) ? tab : "server-settings";
 
 export default function AdminDashboard({
     serverSettings,
@@ -54,8 +61,9 @@ export default function AdminDashboard({
     onboardingMcpStats,
     initialTab,
     initialVerificationCircleId,
+    showCapturedEmails = false,
 }: AdminDashboardProps) {
-    const [activeTab, setActiveTab] = useState(() => normalizeAdminTab(initialTab));
+    const [activeTab, setActiveTab] = useState(() => normalizeAdminTab(initialTab, showCapturedEmails));
     const [isReindexing, setIsReindexing] = useState(false);
     const [reindexStatusMessage, setReindexStatusMessage] = useState<string | null>(null);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -170,7 +178,47 @@ export default function AdminDashboard({
                 <TabsTrigger value="verification-requests">Verification Requests</TabsTrigger>
                 <TabsTrigger value="super-admins">Super Admins</TabsTrigger>
                 <TabsTrigger value="system-messages">System Messages</TabsTrigger>
+                <TabsTrigger value="spaces">Spaces</TabsTrigger>
+                {showCapturedEmails ? <TabsTrigger value={CAPTURED_EMAILS_TAB}>Captured emails</TabsTrigger> : null}
             </TabsList>
+
+            {/* Like Captured emails: the list lives on its own page (/admin/spaces), loaded only when
+                opened, with its own admin check. */}
+            <TabsContent value="spaces" className="space-y-4">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Spaces</CardTitle>
+                        <CardDescription>
+                            Pop-up and home or private spaces people have added, with their owners. Private spaces
+                            hold only a rough area. Nothing here is public.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Button asChild>
+                            <a href="/admin/spaces">Open spaces</a>
+                        </Button>
+                    </CardContent>
+                </Card>
+            </TabsContent>
+
+            {showCapturedEmails ? (
+                <TabsContent value={CAPTURED_EMAILS_TAB} className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Captured emails</CardTitle>
+                            <CardDescription>
+                                Email capture mode is on: nothing is sent. Every email is stored for 24 hours
+                                instead, with its links (they are live, so treat them like passwords).
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button asChild>
+                                <a href="/admin/emails">Open captured emails</a>
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+            ) : null}
 
             <TabsContent value="server-settings" className="space-y-4">
                 <div className="mb-8">

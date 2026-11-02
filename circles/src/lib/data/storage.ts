@@ -3,6 +3,7 @@
 import fs from "fs-extra";
 import path from "path";
 import { Client as MinioClient } from "minio";
+import { randomBytes } from "crypto";
 import { sanitizeUpload } from "@/lib/media/sanitize-image";
 
 const resolveMinioHost = () => {
@@ -83,6 +84,12 @@ export type FileInfo = {
     url: string;
 };
 
+// The public bucket is served to anyone who has a URL (the /storage and /uploads routes check
+// nothing), so an object name must not be guessable: 128 random bits, not a timestamp. Names used
+// to be `${prefix}${Date.now()}`, where only the millisecond was unknown. The `${circleId}/`
+// folder stays: account erasure and find-orphan-storage-prefixes.ts work by it.
+const unguessableName = (prefix: string): string => `${prefix}-${randomBytes(16).toString("hex")}`;
+
 export const saveFile = async (
     file: any,
     fileName: string,
@@ -113,7 +120,7 @@ export const saveFile = async (
         const sanitized = await sanitizeUpload(buffer, file?.type, originalName);
         buffer = sanitized.buffer;
         const extension = sanitized.extension || resolveFileExtension(originalName, file?.type);
-        const finalName = `${Date.now()}-${fileName}${extension}`;
+        const finalName = `${unguessableName(fileName)}${extension}`;
         const filePath = path.join(uploadDir, finalName);
         
         const fileDir = path.dirname(filePath);
@@ -139,7 +146,7 @@ export const saveFile = async (
         }
     }
 
-    const objectBaseName = `${fileName}${Date.now()}`;
+    const objectBaseName = unguessableName(fileName);
     let buffer: Buffer;
     let contentType = "application/octet-stream";
     let originalName = "unknown";
@@ -230,6 +237,35 @@ export const putPrivateObject = async (key: string, buffer: Buffer, contentType:
     await minioClient.putObject(privateBucketName, key, buffer, buffer.length, {
         "Content-Type": contentType,
     });
+};
+
+// A file stored in the private bucket for a viewer-checked feature (verification attachments
+// first). What callers store instead of a URL: the key never reaches a browser, viewers get a
+// signed, short-lived link (lib/media/private-media-token.ts).
+export type PrivateFileInfo = { key: string; originalName: string; contentType: string; size: number };
+
+// "<feature>/<owner id>", e.g. "verification/<applicant circle id>": one folder per owner so
+// account erasure can remove it by prefix.
+const PRIVATE_FOLDER_PATTERN = /^[a-z][a-z-]*\/[A-Za-z0-9_-]+$/;
+
+// Like saveFile, but into the private bucket under an unguessable name: the same sanitising
+// (metadata stripped, type from the detected format), no public URL.
+export const savePrivateFile = async (file: File, folder: string): Promise<PrivateFileInfo> => {
+    if (!PRIVATE_FOLDER_PATTERN.test(folder)) {
+        throw new Error(`Refusing private storage folder "${folder}"`);
+    }
+    const originalName = typeof file.name === "string" && file.name ? file.name : "file";
+    const sanitized = await sanitizeUpload(
+        Buffer.from(await file.arrayBuffer()),
+        file.type || "application/octet-stream",
+        originalName,
+    );
+    // The extension can come from the uploader's file name: keep it only if it's short and plain.
+    const extension = sanitized.extension || resolveFileExtension(originalName, sanitized.contentType);
+    const safeExtension = /^\.[a-z0-9]{1,8}$/.test(extension) ? extension : "";
+    const key = `${folder}/${randomBytes(16).toString("hex")}${safeExtension}`;
+    await putPrivateObject(key, sanitized.buffer, sanitized.contentType);
+    return { key, originalName, contentType: sanitized.contentType, size: sanitized.buffer.length };
 };
 
 export type PrivateObjectStat = { size: number; contentType: string };

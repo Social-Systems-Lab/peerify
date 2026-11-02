@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useSetAtom } from "jotai";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Pencil, X } from "lucide-react";
@@ -10,9 +11,11 @@ import {
     getOfferDefaultImageUrl,
     getTourTeamOfferingLabel,
     accommodationSubTypeLabels,
+    isRetiredOfferType,
     OFFER_MODAL_TYPES,
 } from "@/lib/data/tour-team-offerings";
-import { CreateOfferModal } from "./create-offer-modal";
+import { CreateOfferModal, type OfferMapChoice } from "./create-offer-modal";
+import { addSpaceDialogOpenAtom } from "@/lib/data/atoms";
 
 interface OfferManagerProps {
     value: TourTeamOffering[] | undefined;
@@ -39,6 +42,9 @@ interface OfferManagerProps {
     // isPeerifyVenueIdentity(circle) for its own copy branches, this just passes it one level
     // further rather than having CreateOfferModal re-derive it from a circle it doesn't have.
     isVenue?: boolean;
+    // Personal profiles: Create an offer asks "Show this on the map?" while the offers aren't on
+    // the map yet (see CreateOfferModal's mapChoice).
+    mapChoice?: OfferMapChoice;
 }
 
 export function OfferManager({
@@ -47,8 +53,10 @@ export function OfferManager({
     allowedTypes = OFFER_MODAL_TYPES,
     saveVersion,
     isVenue = false,
+    mapChoice,
 }: OfferManagerProps) {
     const [modalOpen, setModalOpen] = useState(false);
+    const setAddSpaceOpen = useSetAtom(addSpaceDialogOpenAtom);
     // Non-null while editing an existing offering — CreateOfferModal reads this to open straight
     // to a pre-filled Step 2 instead of the create flow's Step 1 grid. Cleared on close so the
     // next "Add an offer" click doesn't reopen into a stale edit.
@@ -122,6 +130,9 @@ export function OfferManager({
                         const summary = getOfferDetailsSummary(offering);
                         const thumbnail = offering.photos?.[0]?.url || getOfferDefaultImageUrl(offering);
                         const isUnsaved = touchedIds.has(offering.id);
+                        // Retired types (Show space) are kept, hidden from everyone else, and can
+                        // be deleted but not edited (savePresence keeps the stored copy).
+                        const isRetired = isRetiredOfferType(offering.type);
                         return (
                             <div key={offering.id} className="flex items-start gap-3 rounded-md border px-3 py-2">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -134,7 +145,26 @@ export function OfferManager({
                                                 Unsaved
                                             </Badge>
                                         )}
+                                        {isRetired && (
+                                            <Badge variant="outline" className="px-1.5 py-0 text-[10px] font-medium">
+                                                No longer shown
+                                            </Badge>
+                                        )}
                                     </div>
+                                    {isRetired && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Show spaces are no longer offers, so nobody else sees this one.{" "}
+                                            {isVenue ? null : (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAddSpaceOpen(true)}
+                                                    className="font-medium text-foreground underline underline-offset-2"
+                                                >
+                                                    Add it as a space
+                                                </button>
+                                            )}
+                                        </p>
+                                    )}
                                     {offering.accommodationType && (
                                         <p className="text-xs text-muted-foreground">
                                             {accommodationSubTypeLabels[offering.accommodationType]}
@@ -148,14 +178,16 @@ export function OfferManager({
                                     {summary && <p className="text-xs text-muted-foreground">{summary}</p>}
                                     {offering.detail && <p className="text-xs text-muted-foreground">{offering.detail}</p>}
                                 </div>
-                                <button
-                                    type="button"
-                                    aria-label="Edit offering"
-                                    onClick={() => openEditModal(offering)}
-                                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-black/10"
-                                >
-                                    <Pencil className="h-4 w-4" />
-                                </button>
+                                {!isRetired && (
+                                    <button
+                                        type="button"
+                                        aria-label="Edit offering"
+                                        onClick={() => openEditModal(offering)}
+                                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full hover:bg-black/10"
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                    </button>
+                                )}
                                 <button
                                     type="button"
                                     aria-label="Remove offering"
@@ -183,6 +215,7 @@ export function OfferManager({
                 onSave={saveOffering}
                 editingOffering={editingOffering}
                 isVenue={isVenue}
+                mapChoice={mapChoice}
             />
         </div>
     );

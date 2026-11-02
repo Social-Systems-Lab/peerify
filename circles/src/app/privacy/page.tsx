@@ -4,7 +4,7 @@ import path from "path";
 import type { Metadata } from "next";
 import RichText from "@/components/modules/feeds/RichText";
 
-export const metadata: Metadata = { title: "Privacy Policy · Peerify" };
+export const metadata: Metadata = { title: "Privacy Policy" };
 
 // Read at request time from the traced file (outputFileTracingIncludes in next.config.mjs keeps it in
 // the standalone build). Markdown rendering is the same RichText the app uses for posts.

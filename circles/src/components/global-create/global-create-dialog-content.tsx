@@ -25,6 +25,7 @@ export type CreatableItemKey =
     | "community"
     | "artist_identity"
     | "venue_identity"
+    | "space"
     | "project"
     | "task"
     | "goal"
@@ -36,7 +37,7 @@ export type CreatableItemKey =
 
 const visibleGlobalCreateItemKeys: CreatableItemKey[] = [
     "artist_identity",
-    "venue_identity",
+    "space",
     "community",
     "event",
 ];
@@ -61,10 +62,12 @@ export const creatableItemsList: CreatableItemDetail[] = [
         moduleHandle: "communities",
         createFeatureHandle: "create",
     },
+    // Opens the Add a space chooser: Venue (the venue identity flow, unchanged), Pop-up space, or
+    // Home or private space (add-space-dialog.tsx).
     {
-        key: "venue_identity",
-        title: "Venue Identity",
-        description: "Create a managed public Peerify venue, host, or music place profile.",
+        key: "space",
+        title: "Add a space",
+        description: "List a venue, a pop-up space, or your home.",
         icon: MapPin,
         moduleHandle: "communities",
         createFeatureHandle: "create",
@@ -147,7 +150,7 @@ interface GlobalCreateDialogContentProps {
     onCloseMainDialog: () => void; // To close this selection dialog
     onSelectItemType: (itemKey: CreatableItemKey) => void; // New prop to inform parent of selection
     setCreatePeerifyArtistOpen: (open: boolean) => void;
-    setCreatePeerifyVenueOpen: (open: boolean) => void;
+    setAddSpaceOpen: (open: boolean) => void;
     setCreateCommunityOpen: (open: boolean) => void;
     setCreateProjectOpen: (open: boolean) => void;
 }
@@ -156,7 +159,7 @@ export const GlobalCreateDialogContent: React.FC<GlobalCreateDialogContentProps>
     onCloseMainDialog,
     onSelectItemType,
     setCreatePeerifyArtistOpen,
-    setCreatePeerifyVenueOpen,
+    setAddSpaceOpen,
     setCreateCommunityOpen,
     setCreateProjectOpen,
 }) => {
@@ -173,8 +176,8 @@ export const GlobalCreateDialogContent: React.FC<GlobalCreateDialogContentProps>
 
         if (itemKey === "artist_identity") {
             setCreatePeerifyArtistOpen(true);
-        } else if (itemKey === "venue_identity") {
-            setCreatePeerifyVenueOpen(true);
+        } else if (itemKey === "space") {
+            setAddSpaceOpen(true);
         } else if (itemKey === "community") {
             setCreateCommunityOpen(true);
         } else if (itemKey === "project") {

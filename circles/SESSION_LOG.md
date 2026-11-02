@@ -3,41 +3,391 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-06-28, partially updated 2026-08-04 — see note below)
-- Production: https://peerify.one — live, HTTPS (nginx + Certbot), PM2 process `peerify` on :3000, branch `main` @ 9e2d0f8d (2026-09-16 promotion — see dated entry below).
-- Staging:    https://staging.peerify.one — live, isolated, PM2 process `peerify-staging` on :3001.
-- Audio pipeline: LIVE on prod (MP3 upload → ffmpeg derivative → signed streaming → play-only player). ffmpeg resolved via host /usr/bin/ffmpeg; prod .env.local sets FFMPEG_PATH explicitly.
-- Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker).
-- **ORPHANED-CIRCLES ISSUE — Phase 0 fix now LIVE IN PRODUCTION as of the 2026-08-03 promotion
-  below (it was already part of the earlier `0521025d` merge to main; this note was stale —
-  Phase 1/2 still open):** deleting a personal account (admin dashboard or self-service — both
-  call the identical `deleteCircle()`) never touches circles that account created/administers,
-  and silently strips that account's own admin membership from those circles as a side effect
-  of unrelated member-count-drift cleanup — bypassing the existing "cannot remove the last
-  admin" safeguard (`removeMemberAction`), which never runs on this path. **Phase 0: both
-  deletion entry points now BLOCK the deletion outright** if the account is the sole admin of
-  any circle, naming the affected circle(s) — no new orphaning can happen going forward, on
-  staging or production. **Still open:** the circles already orphaned before this fix are
-  untouched (Phase 1); no reclaim/discovery-hiding/formal-orphan-state work has been done
-  (Phase 2). Do not consider this issue closed until Phase 1/2 are addressed or explicitly
-  descoped.
-- **PRODUCT CHANGE (2026-08-02, deployed to staging):** personal-profile participation
-  (posting/commenting/messaging) now requires Community Guidelines acceptance in addition to
-  picture + About text — see dated entry below. `getVerificationReadiness` is the single
-  source of truth for this; do not add a separate guidelines check elsewhere.
-- **OPERATIONAL HAZARD (see 2026-08-02 (cont. 3) incident below):** running a bare
-  `bun run build`/`CI=1 bun run build` in this worktree AFTER a real deploy has happened will
-  silently corrupt the live standalone build (Next.js regenerates `.next/standalone` from
-  scratch, wiping the static assets a prior `deploy-staging.sh` run copied in, without
-  restarting PM2 to match) — site-wide breakage, not specific to whatever was being verified.
-  Verification builds are fine standalone; just always follow one with a real
-  `deploy-staging.sh` run before trusting staging is in a consistent, servable state again.
-  Resolved as of 2026-08-02 (cont. 4)'s own follow-up deploy — a real `deploy-staging.sh` run
-  was requested and completed (all 8 steps passed, chunk-resolution re-verified via curl
-  post-deploy), so staging is back in sync with `staging` HEAD as of that deploy.
-- See OPERATIONS.md for full architecture and deploy procedure.
+## Current Status (2026-11-02)
+- Production: https://peerify.one, on the Cleura server `peerify-prod`. Staging: https://staging.peerify.one, on the Cleura server `peerify-staging`. On both, the app runs from `/srv/peerify/app/circles` as the `peerify` user, under PM2 (`peerify` :3000, `peerify-staging` :3001). Tim deploys.
+- Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
+- The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
+- Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
+- **Open, must be redone before the V4 step on prod:** `a440d431` (see the 2026-11-02 entry).
+- **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
+- Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
+- Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
+- See OPERATIONS.md for architecture.
 
 ---
+
+## 2026-11-02 — Moved to Cleura staging; unpushed work lost with the old box
+
+Claude now works on the Cleura staging server (`peerify-staging`), in `~/work/peerify`, starting at `c600de3e`. CLAUDE.md, PEERIFY_CONTEXT.md and this log's status block were updated for the move. The deploy scripts still have their old-box branch (hostname `peerify`), which is harmless. Removing it is left for later.
+
+Lost with the old box (it was never pushed):
+- **`a440d431` (OPEN, must be redone before the V4 step on prod).** It was on local branch `hold/offer-photo-storage-refusal`: `/storage` and `/uploads` refuse `offer-photo*` names. The plan is unchanged: it goes out together with V4 (refuse verification attachment names), only after **both** moves (verification attachments and offer photos) have run on prod, delete phase included. Deployed earlier, it breaks offer photos that haven't been moved yet. Rebuild it from the 2026-10-28 (later) entry before the V4 step.
+- **Explore map commits A–D**, which are being redone.
+- **The old `~/cc-reports` files** cited in earlier entries (cutover runbook, checklists, investigations). This box's `~/cc-reports` starts empty, apart from `outbox/`.
+
+## 2026-10-31 — Item 4 steps 4–5 and tweaks round: tested on Cleura staging, all passed
+
+On origin/staging: step 4 (space photos logged-in only, `d5df472a`), step 5 (vet note, `5ed49901`) and the tweaks round, 10 commits `91dcf41f..f4c73a07`. Tim deployed `f4c73a07` to Cleura staging and ran `~/cc-reports/ITEM4-TWEAKS-CLEURA-STAGING-CHECKLIST-20261029.md`. **Everything passed** (2026-10-31).
+
+What the tweaks round changed:
+- **Create an offer:** no Show space tile. New notice: "Offers are free… Have a space for shows? Add it under Spaces instead.", with a link to Settings → Spaces.
+- **Wording:** space form "The pin will display 200–400 m from the place you pick, in a random direction."; Settings → Spaces intro; offers switch off text "Not on the map. Your offers still show on your profile."
+- **Pop-ups on the map:** a switch, then "Pin near the place (200–400 m away)" (default) or "Pin at the exact address" ("for businesses and public places"). Only with the exact address can the name show (optional). Each pop-up has its own server-only `pinOffset`, never the owner's `offerPinOffset`, so a pop-up at its exact address can't reveal where the owner's offer pins come from. Private spaces keep the owner's offset, with no option.
+- **Explore:** pills are Artists, Spaces, Events, Offers. Spaces covers venues, pop-ups and private spaces, with a Venues / Pop-ups / Private spaces row (also "Kind of space" in Advanced Filters).
+- **Markers:** an icon on an amber circle with no pointer dot: building for venues, shop for pop-ups, house for private spaces. They sit centred on their spot, and venues keep their picture in the hover.
+- **Map choice:** a new pop-up or private space asks "Show this on the map? Yes / Not now", with neither picked. New accounts start with offers off the map (`offersVisible: false` at createCircle), and the first offer, in settings or onboarding, asks the same question. Existing accounts are unchanged.
+
+One change after testing (Tim): the Spaces kind pills were too bright. They now use the markers' mustard: on is `#fde68a` with `#78350f` text and icon, off is white with a thin outline (`3a715489`).
+
+Still open for item 4: the request flow (until then, a mailto to hello@peerify.net). Prod order unchanged: `a440d431` goes out with V4, after both moves have run on prod.
+
+## 2026-10-28 (later) — Private files, item 4 steps 1–3: verification attachments and offer photos private, private spaces on the map — on origin/staging
+
+All on origin/staging (`d2e2655e`, `e78020fd`, `29df85f2`, `8c7aeadb`, `2d439637`). Reports and run sheets in `~/cc-reports` (`STORAGE-ACCESS-INVESTIGATION-20261028.md`, `VERIFICATION-MOVE-CLEURA-STAGING-20261028.md`, `OFFER-PHOTOS-MOVE-CLEURA-STAGING-20261028.md`).
+
+**Storage.** New uploads get random names (`{prefix}-{32 hex}`). `/storage` and `/uploads` limit misses per IP (60 per 10 min → 429), and middleware caps `/_next/image` requests for `/storage` files per IP.
+
+**Verification attachments (V1–V3).** New ones go to the private bucket and are shown through signed 15-minute links (`/api/private-media`). `scripts/move-verification-attachments-private.ts` moves old ones. The personal verification thread card is hidden (auto-verify, `08dc5fd7`), so only the admin view shows attachments; the Account Settings heading no longer mentions the thread (`29df85f2`).
+
+**Item 4, step 1 (`30cfa4c7`).** Private spaces get "Show this space on the Peerify map" (`publiclyListed`, off by default). When it's on, the picked point is moved by the owner's `offerPinOffset` (one offset per person, shared with offer pins) and only the moved point is stored, with `mapPinPlacedAt`. Spaces saved before stay off the map until the host picks the place again.
+
+**Step 2 (`8c7aeadb`).** Space pins on Explore for everyone, "Spaces" category, pins only. Signed-in viewers get the details and "Interested in this space? Message the Peerify team" (mailto hello@peerify.net with the space reference; the team passes requests on by hand until there's a request flow). `/admin/spaces` shows the reference.
+
+**Step 3 (`617d5f90`, `2d439637`).** Offer photos are logged-in only: new ones are private behind `/api/offer-photo/<circle id>/<file>` (session check, only while the circle still has the photo). Tim chose this stable address over signed links so the offer editor keeps photos however long it's open; verification keeps its signed 15-minute links. `scripts/move-offer-photos-private.ts` moves old ones. **Cleura staging, 2026-10-28: copy 9, browser checks OK, delete-old 9, final dry run all 0.**
+
+**ORDER FOR PROD (Tim, 2026-10-28).** `a440d431` (`/storage` and `/uploads` refuse `offer-photo*` names) stays on local branch `hold/offer-photo-storage-refusal`. It goes out together with V4 (refuse verification attachment names), only after **both** moves (verification attachments and offer photos) have run on prod after the cutover, delete phase included. Deployed earlier, it would break offer photos that haven't been moved yet.
+
+## 2026-10-28 — Offer pins 200–400 m, Show space retired from offers, Pledges toggle — pushed to origin/staging, not deployed
+
+Tim's decisions (2026-10-28), built as 6 commits `05811822..4a11f636`. Reports: `~/cc-reports/OFFERS-PINS-SHOWSPACE-PLEDGES-INVESTIGATION-20261028.md` (investigation) and `~/cc-reports/ITEMS-1-3-BUILD-20261028.md` (what was built + staging checklist), outbox `20261028-0832-items1-3-built-item4-report`.
+
+**1. Offer pins (`05811822`, `e181b488`).** Before: a deterministic snap to the 0.05° grid, up to ~3.1 km off. Now: the real point moved by `circles.offerPinOffset` `{ bearingDeg, distanceM }`, 200–400 m, crypto random, uniform by area. It's set once per circle by `ensureOfferPinOffset` (after saving offerings, after turning `offersVisible` on) and never replaced. Tim accepted that this loosens "city or coarser" for offer pins only, because individual offer pins carry no name. Profile pins, Explore and search keep the grid.
+- Why one stored offset per circle: one per offer would let the centre of a host's pins point at the address. It can't be a hash of the circle id, because that id is public in the pin `_id`. And it can never change: two offsets for the same address → two rings → two candidate points.
+- The offset must never reach a browser: offset + pin = address. It's not in `SAFE_CIRCLE_PROJECTION` or the public allow-lists, and `createCircle`/`updateCircle` strip it from client input. Tests assert the public shapes don't carry it.
+- No offset yet → grid pin, never the real point. The backfill is `circles/scripts/backfill-offer-pin-offsets.mongosh.js` (dry run by default, `EXPECT_DB`, counts only), run by Tim after deploy: staging first, prod after the cutover.
+
+**2. Show space (`a831bdf8`, `760ae155`).** Offers must be free, and hosts of stages may earn money, so Show space (`hosting_show`) is retired as an offer type (`RETIRED_OFFER_TYPES`, `isListedOffering` in `tour-team-offerings.ts`).
+- Create an offer (personal): the Show space tile opens Create → Add a space (`addSpaceDialogOpenAtom`). It's gone from the venue offer list and the pilot onboarding chips.
+- `savePresence` refuses a new one before any upload, and keeps an existing one exactly as stored.
+- Existing ones are hidden on the server from everyone but the owner: map pins, offer details by id, the public profile (`toPublicCircle`), Crew offers and the dashboard. The map filter drops the option. The owner sees them in Presence settings as "No longer shown", with Delete but no Edit. Nothing is deleted.
+- The spaces flow is open to every signed-in user on staging (saving needs a verified account). Tim: that's fine.
+
+**3. Pledges (`ca3d04be`, `4a11f636`).** `fundingPanelVisibility` is the Funding asks panel, not Pledges, so this is a new `pledgesEnabled` flag built like `crewEnabled` (absent = on, no migration).
+- The "Enable Pledges" switch is in Settings → About; Crew and Pledges share `AutoSaveSwitch`.
+- Off: fan Pledge buttons are hidden (profile, map popup / Discover), `openPledgeDialog` ignores the event and `?artistAction=pledge`, and `createPeerifyPledgeAction` plus the chat-enquiry pledge path refuse.
+- Existing pledges, the dashboard (with a note) and the pledge DM grant are kept.
+
+Checks: tsc, eslint (changed files), `bun run build` all clean. Four test files fail exactly as on `4c235a01`: act-format-save, inline-header-edit, track-rights (needs MONGODB_URI), participation-readiness. Note: running `bun test src` in one process gives many false failures from `mock.module` leaking between files; run files one by one.
+
+**Item 4 (public private spaces) investigated, waiting for Tim's answers A–H:** `~/cc-reports/PRIVATE-SPACES-PUBLIC-INVESTIGATION-20261028.md`.
+- Existing private spaces were saved under an "only you and Peerify, ~10 km area" promise.
+- Space pins and offer pins at the same home need the same offset (one per person).
+- There is no request flow yet.
+
+## Follow-up (PRIORITY, before item 4 photos) — /storage serves any file to anyone
+
+Found 2026-10-28. `src/app/storage/[...path]/route.ts` streams any MinIO object to anyone who has the URL, with no session check. Names are `{circleId}/{prefix}{Date.now()}.ext`, so they're hard to guess but not secret. For offer photos, meant for signed-in members only via `getOfferDetailsForMember`, the circle id is public in the offer pin `_id`, so only the millisecond timestamp protects them.
+
+To do (read-only investigation first, 2026-10-28):
+- unguessable random names for all new uploads
+- a plan for existing offer photos
+- whether `/storage` should check who is asking
+
+---
+
+## 2026-10-28 — Crew default by act format: investigated, PARKED (nothing built)
+
+Asked: Crew ON by default for Solo, Band/Duo and DJ, OFF for every other act format; the Enable Crew toggle stays for all artists. Read-only investigation only (report and counts script: `~/cc-reports/crew-default/`, outbox `20261028-0713-crew-default.tar.gz`).
+
+**Parked (Tim, 2026-10-28) until a Music Teachers role or a band-member profile type exists.** The act formats are Solo, Duo, Band, DJ / Producer and Ensemble, so the only format the change would turn off is Ensemble, and Ensembles should keep Crew too. Teachers and band members can't be told apart today. Crew stays ON for everyone unless the artist turns it off.
+
+What to know when picking it back up:
+- `circles.crewEnabled` is never written when a profile is created. If the field is missing, Crew is ON (every check reads `!== false`). The only thing that writes it is `setCrewEnabledAction` (the auto-saving Enable Crew toggle). So "saved the toggle" = the field exists.
+- Proposed design: one helper. A saved boolean wins; otherwise use the default for `getPeerifyActFormat(circle)`. Store nothing at creation, because the act format is picked after the profile is created, and storing a value then would lock in the Solo default. Then an untouched profile follows a later format change automatically.
+- Places to switch to that helper: `circle-tabs.tsx`, `isModuleEnabled()` (`client-auth.ts`), `home-content.tsx` (2 places), `content-preview.tsx`, `pledge-dialog.tsx`, `applyForCrewMembership` (`home/actions.ts`), and the toggle's `initialValue`. `DISCOVERY_CIRCLE_PROJECTION` would need `metadata.peerify.artistProfile.actFormat` added. Also check that no write path runs circles through `circleSchema.parse`: the zod `.default(true)` on `crewEnabled` would silently mark profiles as touched.
+- DJ and Producer are one format value. Telling them apart needs `identityType`.
+- Old-box staging copy (stale since 2026-10-25): 16 artist profiles, 0 would have changed. Cleura staging and prod were not counted; `c01-crew-default-counts.js` (read-only, prints counts only) is in the archive.
+
+## Follow-up (open) — Crew still shows in places when an artist turns it off
+
+Found 2026-10-28 during the Crew-default investigation. These gaps already exist and are separate from the parked item above. None of them is visible to the public or to people outside the crew. When `crewEnabled === false`:
+- **Admin side:** Settings → Crew Applications (nav item and page) and Settings → Crew dashboard aren't gated. Admins can still approve pending applications and Broadcast to Crew (`broadcastToCrewAction` only checks `manage_crew_applications`). The resulting `crew_application_approved` / `crew_broadcast` notifications link to `/crew`, which is blocked.
+- **Crew members:** the user toolbox "Crews" tab (`user-toolbox.tsx`) still lists the circle, and clicking it lands on the blocked page. Old Crew notifications also link to the blocked page.
+- **Feed:** `getAccessibleFeedIdsForUser` (`feed.ts`) still includes the circle's Crew feed for members tagged `crew`. Past Crew posts and broadcasts keep appearing in crew members' following feed and activity panel.
+- Not a gap: crew-context DMs stay open on purpose (`message-button.tsx`). The map's "crewOffer" pins aren't tied to Crew membership.
+
+Suggested order: gate Broadcast/approve and the toolbox list first, then the feed. Not scheduled.
+
+---
+
+## 2026-10-24 — Spaces step 1: pop-up and private spaces (owner + admin only) — on local staging, not pushed
+
+Decisions (Tim, 2026-10-24): venues stay venue circles; pop-up and home/private spaces get their own `spaces` collection. "Show space" (`hosting_show`) offers will be replaced by spaces later and were **not touched**. Nothing public in this round: no map pins, search, profile display or feed.
+
+### Commits
+| Staging | What |
+|---|---|
+| `dc889951` | Collection `spaces`, zod input schemas (`models.ts`), `lib/spaces/space-rules.ts` (`parseSpaceInput`, `toAreaOnlyLocation`), owner-scoped data layer `lib/data/space.ts`. `coarsenLngLat` takes an optional grid (default unchanged at 0.05°). The fake DB gains `Spaces`, `insertOne` and `deleteOne` |
+| `b5d9b641` | Settings → Spaces (`/circles/<own handle>/settings/spaces`): list, add, edit, delete. Server actions in `settings/spaces/actions.ts`; `SpaceFormDialog` and `SpacesSettings` in `components/spaces` |
+| `357044cd` | Create menu: "Venue Identity" → **"Add a space"**, which opens a chooser: Venue (the existing venue dialog, unchanged) / Pop-up space / Home or private space |
+| `1a229915` | Admin: a "Spaces" tab on `/admin`, linking to `/admin/spaces` (modelled on Captured emails) |
+| `e8a0f7b2` | Account erasure deletes the person's spaces; the orphan script checks `spaces.ownerDid` |
+
+### Rules
+- **Private location**: rebuilt on every save as City precision (2), with country/region/city names and the point snapped to a **0.1° grid** (~11 km N–S, ~6 km E–W here). There's no street and no `exactConfirmedAt`. The form rounds as soon as a point is picked, and the server rounds again (`parseSpaceInput`, the only way input is stored). The picker starts at City, so its search offers places, not addresses. Pop-up spaces keep the exact location as entered.
+- **Access**: every owner read and write filters on `{ _id, ownerDid }` in the query (update also on `type`, so the type can't change). The owner is always the session DID; a client-sent `ownerDid`/`_id` is dropped by zod.
+  - Adding a space needs a verified account (same gate as venue identities). The limit is **10 spaces per person**, checked before the insert.
+  - Settings → Spaces 404s for anyone but the profile's own person, platform admins included.
+  - `/admin/spaces` 404s unless the session's user row has `isAdmin`. It shows the owner's name, handle and **email**. Emails are never logged; action errors log the error name only.
+- **Fields**:
+  - Both types: capacity, deal preferences (several allowed; "none" stands alone), and the listening rule and host responsibility checkboxes, stored as `…AcceptedAt` dates and kept from the first save.
+  - Pop-up: name, show times (free text), noise limits, power, PA.
+  - Private: setting (the event tag's indoor/outdoor), acoustic/amplified, noise curfew, step-free access (the Accessibility tag's accessible / stairs involved / not specified), notes for Peerify (shown to admins).
+  - No photos. Checkbox and chooser wording comes from /hosts.
+- **Isolation**: all `spaces` reads and writes are in `lib/data/space.ts` (plus the erasure list). Circle queries, search, map feeds, events and the vector index don't read it.
+
+### Tests
+New: `space.test.ts` (21), `spaces-owner.test.ts` (11), `admin-spaces.test.tsx` (4). Added to existing: 2 tests in `captured-emails-tab.test.tsx`, plus spaces seeds and 1 new test in `account-erasure.test.ts`. The privacy tests read the raw stored documents. Each key check was mutation-tested: without the owner filter, without the rounding, without the page or admin guard, and without the erasure line, the tests fail. Full suite run file by file: 49 of 50 pass; `participation-readiness.test.ts` was already failing and is unchanged. tsc and eslint clean. `bun run build` clean; `/admin/spaces` and `/circles/[handle]/settings/spaces` are dynamic routes.
+
+**Not verified in a browser.** Tim's click-through checklist is in the outbox (`SPACES-STEP1-CHECKLIST-20261024.md`).
+
+## 2026-10-24 — "For hosts" landing section and public /hosts page — on local staging, not pushed
+
+### Commits
+| Staging | What |
+|---|---|
+| `09557009` | Landing page: new "For hosts" section between "The roles you can play" and "How it works". Uses `role-host.svg` and the idea section's `.twoCol`/`.textCol`/`.photoFrame` layout. "Join the host pilot" button → `/hosts`. New CSS: `.hostsSection`, `.hostsHeading`, `.hostsList` |
+| `b30fd48c` | Public `/hosts` page (tab title "Host a show · Peerify"), same pattern as `/privacy` and `/terms`: text in `src/content/hosts.md`, rendered with `RichText`, traced via `outputFileTracingIncludes` in `next.config.mjs`. Contact link is `mailto:hello@peerify.net?subject=Host%20pilot`. Logged-out access needs nothing extra: middleware skips the access check for single-segment paths |
+| `4915b539` | Landing page footer: "For hosts" → `/hosts`, after "For artists" |
+
+- **Left exactly as they were:** `SHOW_VENUE_SIGNUP = false`, the switched-off "For Hosts & Venues" role card and the "List a venue or space" CTA button. The new section doesn't depend on them. No data model, database, Offers or Venues changes.
+- **Copy pass needed later:** the "Host a house concert" feature card (`FEATURES`, "Home hosting" tag) still says "vet your guests, and share the address only with people you’ve approved". Guest vetting and approved-only address sharing are currently hidden features, so this copy promises things the product doesn't show right now. Left unchanged on purpose (Tim, 2026-10-24).
+- `bun run build` clean; `/hosts` is listed as a dynamic route next to `/privacy` and `/terms`, and `hosts.md` is in `.next/standalone/src/content/`. **Not verified in a browser.**
+
+### Update after Tim's browser check (same day)
+| Staging | What |
+|---|---|
+| `eecac904` | Standalone section replaced by a third **role card** ("For Hosts", heading "Living rooms, gardens & cafés after closing", "Join the host pilot →" `/hosts`), same markup and classes as the artist/fan cards. `rolesGrid` is now always three columns; the unused `rolesGrid--twoUp` rule and the section's CSS are removed. `SHOW_VENUE_SIGNUP` and the old venue card are unchanged (turning the flag on would now make four cards) |
+| `223594c9` | Tab titles: the root layout template already appends " \| Peerify", so `/hosts`, `/privacy`, `/terms` now set just "Host a show", "Privacy Policy", "Terms of Service" |
+
+- **Heading wrap check** (headless Chromium, real card CSS): the hosts heading wraps to the same number of lines as the other two, or fewer, at 1440/1280/1100/390 px with a Times-like serif. At 1100 px (tablet, three columns) its first two bullets wrap to two lines where the other cards' bullets don't; the grid keeps the cards equal height.
+- **Found, not fixed:** "Playfair Display" is named in `peerify-landing-page.css` but never loaded (no font file, no `@font-face`), so all landing headings fall back to the visitor's system serif. Also `/welcome`, `/holding` and `/donations` still set "… | Peerify" by hand and show the suffix twice.
+- **/hosts redesign:** proposal only (dark landing style, drawings per section), waiting for Tim.
+
+### Round 3: heading font, shared footer, /hosts redesign (same day)
+| Staging | What |
+|---|---|
+| `62f3f915` | **Playfair Display loaded.** The landing CSS (and the contact dialog) have named it since the June baseline `dd1f9a67`, but it was never loaded (already noted in the 2026-08 rebrand entries), so every landing heading used the visitor's system serif. **Prod is affected the same way** (`origin/main` has the same CSS). Self-hosted in `fonts.css` like the other fonts: Google's v40 subsets, upright + italic, `public/fonts/v1/playfair-display/` with `OFL.txt`. `check-release-fonts.py` passes (36 font urls). Not preloaded |
+| `3c730eac` | Landing footer moved into `PeerifyFooter` (`peerify-footer.tsx`), no visual change |
+| `9880914c` | `/hosts` redesigned in the landing page's dark style (`.peerify-home` overlay, so the app nav is covered; logo top bar links to `/`). Copy moved from `hosts.md` into `peerify-hosts-page.tsx` unchanged (all 18 lines checked against the old file); `hosts.md` and its tracing entry removed. Own CSS in `peerify-hosts-page.css`. No scroll-reveal (it needs client JS) |
+
+- **Drawings (all in `HOSTS_ART`):** intro `feature-door.svg`; Venues `defaults/hero-band-soundcheck.png` (**stand-in**: a small venue with stage, sound and lights); Pop-up `defaults/hero-venue-cafe-corner.png`; Home `defaults/offer-show-garden.png`; steps 1 `feature-map.svg`, 2 `feature-crew.svg`, 3 `defaults/offer-meal-extra-plate.png` (**stand-in**: host and artist agreeing the terms), 4 `step-3-host.svg`, 5 **text only** (needs: everyone reviewing everyone); listening rule `manifesto-lights.svg`.
+- Default PNGs (dark on cream) are shown with `filter: invert(1) hue-rotate(190deg) contrast(1.3); mix-blend-mode: lighten`: paper goes to black, lines near-white, orange lands at about rgb(223,109,0). 4:1 strips are cropped to their middle in 2:1 frames.
+- Checked with a static render of the real component (esbuild, next/image + next/link stubbed) in headless Chromium at 1440 and 390 px: no broken images, no horizontal overflow. **Not checked in the running app.**
+- **Still open:** the landing body font "Raleway" is also never loaded (system sans-serif instead); `/welcome`, `/holding`, `/donations` doubled titles.
+
+### Round 4: Raleway (same day)
+- `d1797acf`: Raleway self-hosted (Google v37, upright only, `public/fonts/v1/raleway/` + `OFL.txt`) under the family name **"Peerify Raleway"**, and the 9 landing CSS rules now name that. All 9 are `.peerify-home` rules (checked in the built CSS), so only the landing page and `/hosts` use it. The app's fonts (Wix Madefor Display, Libre Franklin, Yeseva One, the `:root` variables) are unchanged: the `fonts.css` diff is additions only. `check-release-fonts.py`: 41 urls, pass.
+- Why not plain "Raleway": `PeerifyContactDialog` names `'Raleway'` inline and is also opened outside `.peerify-home` (pilot check-email page). With the scoped name it keeps the system sans everywhere, as before. (`search-filters.tsx` only mentions the dialog in a comment.) Its Playfair headings did change with `62f3f915`, on the landing page and the check-email page only; neither is the logged-in app.
+- With Raleway, the hosts role card's first bullet wraps to two lines at 1280–1440 px where the other cards' bullets don't; wording left as is.
+
+### Round 5: /hosts edits after Tim's browser check (same day)
+| Staging | What |
+|---|---|
+| `93f8a2b1` | Join band: only "hello@peerify.net" is the link ("Email us at" is plain text) |
+| `8698f7db` | Listening rule: "…who came to listen. A café after closing, yes. A restaurant during the dinner rush, no. Our artists are not background music for diners." |
+| `548378de` | Step 3 ends "It’s all good." |
+| `72e288b4` | Landing scroll-reveal `IntersectionObserver` moved unchanged into `PeerifyReveal` (`peerify-reveal.tsx`, `selector`/`threshold` props) |
+| `5a9c83c4` | `/hosts` step numbers fill (amber, black digits, one pop to 1.18) as each row scrolls in: `<PeerifyReveal selector=".hostsStep" threshold={0.6} />` + `.hostsStep.visible .stepN`. No JS: stay outlined. `prefers-reduced-motion`: filled from the start, no animation or transition |
+| `28c8fa97` | `.stepN` gets `font-variant-numeric: lining-nums`: since Raleway loaded, its old-style figures sat unevenly in the step circles (landing and /hosts) |
+
+- **Note:** the landing page's step numbers fill on **hover**, not on scroll (`.step:hover .stepN`); only whole sections fade in on scroll. `/hosts` now fills on scroll as asked, so the two pages differ.
+- Checked with a browser bundle of the real component (esbuild, next/image + next/link stubbed) in headless Chromium: JS on (outlined → filled after scrolling, all 5), JS off (outlined, readable), reduced motion (filled, `animation: none`). Copy and the link text/href verified in the rendered page. **Not checked in the running app.**
+- Illustration specs for Tim's new /hosts drawings went out as `ILLUSTRATION-SPECS.md` in the cc-reports archive (slot sizes, 4:3 / 2:1, SVG, transparent, lines `#efe8dc`, accents `#ff811b`).
+
+### Round 6: step highlight like the landing page, placeholder drawings (same day)
+| Staging | What |
+|---|---|
+| `8c03bb94` | `/hosts` step rows carry the landing `.step` class, so the landing's own `.step:hover` rules highlight the number under the pointer (only one at a time; it follows a wheel scroll because the pointer stays still). Replaces round 5's fill-on-scroll. CSS only (works without JS); reduced motion keeps the colour change, drops lift and scale. `PeerifyReveal` is landing-only again, no props |
+| `2f42c6e8` | Eight placeholder SVGs from Tim in `public/peerify/illustrations/hosts/` (3 space cards 460×200, steps 1–5 240×150), amber `#e0822f` → `#ff811b` (landing drawings' amber; nothing else changed). `HOSTS_ART` points at them, with `standInFor` noting the hand-drawn replacements (same file names and sizes). Colour flip, crop and the text-only step row removed: nothing uses them |
+
+- **Landing step logic:** there is no step script on the landing page. `public-home-page-effects.tsx` has observers but belongs to the old Kamooni home (`.kam-home`). On touch screens `:hover` only follows taps, on both pages.
+- SVGs checked before adding: plain shapes only (no script, handlers, external refs). Each carries a C2PA provenance block (`<metadata>`, "Claude provided this file…"); left in, but the colour edit means its content hash no longer matches.
+- Fit checked at 1440 / 900 / 390 px: every drawing uncropped (`contain`, fits by width; the frames are 2:1 and 4:3, so a small empty band sits above and below). Line colour `#f3ece0` vs the landing drawings' `#efe8dc`, left as delivered.
+- Verified with a browser bundle of the real component in headless Chromium (hover with a still pointer + wheel, JS off, reduced motion). **Not checked in the running app.**
+
+---
+
+## 2026-10-18 — Default illustrations for profile heroes and offers, cover editors and rejected uploads, both live on production
+
+### What was there before (read-only investigation, 2026-10-18)
+- `getDefaultHeroImage` (`src/lib/default-heroes.ts`) picked one of 7 stock photos (`/peerify/*.jpg`, about 2 MB each) by hashing the handle. `createCircle`/`createNewUser` **saved** it into `circle.images`. It ignored the profile type entirely.
+- The Kamooni low-poly earth (`/images/default-cover.png`) was hard-coded as the fallback in about 8 components. It showed up whenever `images` was empty.
+- **Rejected uploads were silent.** In Settings → About, the wizard and the old onboarding, a `saveFile` failure (e.g. `UnsupportedImageError` for an SVG or HEIC) was caught and logged. The stock hero was then dropped from the kept list, so `images: []` was saved, and the action still reported success. The result was the earth cover and no error.
+- Offers without a photo showed a lucide icon on a tinted block. There was no default image.
+
+### Commits
+| Staging | main | What |
+|---|---|---|
+| `fbc4bf13` | `7b8c55a7` | Default hero chosen at **render time** by type: solo → waiting chair, band → soundcheck, DJ/producer → crates and lamp, venue/plain/unknown → café corner, personal → listener. Empty `images`, the 7 stock JPGs and `default-cover.png` count as "no custom hero", so existing records need no migration. Creation no longer saves a stock photo. The `default-cover.png` fallbacks, the map pin/popup fallbacks and the private-profile cover use the same logic. Offers without a photo get a default by `offering.type`: show space alternates between two images, hashed on the offering id, so a map pin and the profile tile match. 12 PNGs added under `public/peerify/illustrations/defaults/` |
+| `ad690b7d` | `563c10be` | Cover editors (Settings → About, wizard, old onboarding) start from `getCustomCoverImages`, and the saves drop stock URLs. A rejected image in those three saves, in pilot onboarding and in inline picture uploads fails the save with "This file type isn't supported. Please use JPG, PNG or WebP." (`UnsupportedImageError`) or "This image couldn't be uploaded. Please try again." (other failures). The same save's own earlier uploads are removed by `deleteUploadedFiles`, which skips any URL the circle still uses. Removed images are now deleted only **after** `updateCircle` succeeds (before, they were deleted first, so a failed write left dangling URLs). What the server accepts is unchanged |
+
+- **New helpers:**
+  - `default-heroes.ts`: `getDefaultHeroUrl`, `getCircleCoverImages`, `getCircleCoverImageUrl`, `getCustomCoverImages`, `isStockCoverUrl`, `DEFAULT_HERO_URLS`, `FALLBACK_HERO_URL`
+  - `tour-team-offerings.ts`: `getOfferDefaultImageUrl`
+  - `storage.ts`: `deleteUploadedFiles`, `getCircleFileUrls`
+  - `sanitize-image.ts`: `getImageUploadErrorMessage`
+  - `image-upload-limits.ts`: the two messages
+- **Illustrations:**
+  - Heroes are 2400×600 and offers 1200×800, 30–86 KB each.
+  - They're plain PNGs, kept byte-identical. 9 of the 12 carry a C2PA `caBX` Content Credentials chunk, which was kept on purpose.
+  - On mobile the hero box crops to the middle of the drawing; the drawings are centred.
+- **Tests:**
+  - `save-profile-authz.test.ts` grew from 4 to 7. New cases: a rejected `.svg` fails, doesn't write and only cleans up its own upload; a stock URL is dropped; deletion happens after the update.
+  - `save-presence-authz` 4/4, `auto-verify` 5/5, and the `sanitize-image` script passes.
+  - tsc and eslint are clean for both commits.
+- **Promotion:**
+  - Both commits followed the same route. A read-only check confirmed main = checkout = `/api/version`, and that the touched files were identical on main and the parent. Then a trial cherry-pick in a temporary worktree at `origin/main`: clean, byte-identical, tsc/eslint/tests OK. The cherry-pick, push, rollback file and deploy each had a yes, and Tim ran the deploys.
+  - `7b8c55a7`: prod live 2026-10-18 18:58 +02:00 (release `20261018-170054`), map checked on prod. Rollback file `prod-rollback-20261018-2.md` (target `757c3321`).
+  - `563c10be`: tested by Tim on Cleura staging (a rejected SVG shows the message and keeps the cover; a normal upload and removing an image work). **Prod live** about 20:46 +02:00 (release `20261018-184633`). Rollback file `prod-rollback-20261018-3.md` (target `7b8c55a7`).
+- **Cleanup**, each step with a yes: the `images` and `cover-editor` worktrees, local branches and GitHub branches are removed. The local source PNGs and zip on the old box are deleted.
+
+### Open; not done here
+- The old stock JPGs (`/peerify/*.jpg`) and `/images/default-cover.png` stay in `public/`. Stored records still reference them, and `peerify-landing-page.module.css` uses `everyone.jpg` as the landing page hero background. Stored stock URLs are cleared lazily on the next save of the profile; there's no migration.
+- `src/components/map/markers.tsx` still falls back to `/images/default-user-cover.png`, but nothing imports it (dead component).
+- `docs/RELEASE_NOTE_CURATED_DEFAULT_HERO_IMAGES.md` still describes the old save-at-creation behaviour.
+- The old-box staging image optimizer is still broken (two `sharp`s), so the `next/image` cards there may show no image. Cleura staging and prod are fine.
+
+## 2026-10-17/18 — Login Task 0: wrong-password hotfix, then password-login and forgot-password hardening, both live on production
+
+### Hotfix: a wrong password logged in about 1 time in 256 (found 2026-10-17)
+- `getUserPrivateKey` (`src/lib/auth/auth.ts`) treated "AES-256-CBC decryption of the key file didn't throw" as a correct password. A wrong key passes the PKCS#7 padding check about 1 time in 256 (measured: 62 of 20,000 random keys). Every account has a key file, and password login had no rate limit. So anyone who knew an account's email address could log in as that account after a few hundred tries.
+- Fix: the decrypted result must also parse as a private key (`crypto.createPrivateKey`), in the new `src/lib/auth/key-file.ts`. Test: 5,000 random wrong keys, all rejected. On the old logic it fails (19 accepted).
+- History check: no code ever wrote a plaintext `privateKey.pem` into a user directory, and every writer encrypts a PKCS#1 PEM. So the fix can't reject a correct password.
+- Staging `f414ef48` → main `d06d32d8`, prod live 2026-10-17 at about 16:18 +02:00. Rollback file `prod-rollback-20261017-2.md`. Checked on Cleura staging (throwaway `t0-login-1`) and on prod.
+- **Log check** (old box nginx logs, which only reach back to 2026-10-03): no evidence of exploitation; nothing older can be checked. The only burst on POST /login (2026-10-10) was a generic scanner whose requests ran no login code. Report: `login-log-check-20261017.md` in Tim's cc-reports.
+
+### Task 0, commits 2–5 (plan `login-hardening-plan-20261017.md`, approved with additions)
+| Staging | main | What |
+|---|---|---|
+| `a8e54af3` | `2a082050` | One generic error "Email or password is incorrect" for an unknown address, a wrong password, missing key files and a missing DID; each costs one key derivation (a dummy one when there's nothing to check); the regex fallback lookup is removed; PBKDF2 settings and the key-file read move to `key-file.ts` |
+| `e4f48273` | `1ffd0d24` | Password login needs a solved ALTCHA and claims a 5 s wait per client IP; the form shows the widget and resets it after every failure |
+| `5d62e64b` | `7ff476e5` | Login page: tab "Log in with a password you've set", a note for email-only accounts with a "Use an email link instead" button, highlighted after a failed login |
+| `8a6a65e9` | `1391c2f7` | Failed logins count per typed address (unknown ones too, in `rateLimits`): 5 free, then 30 s doubling to 15 min, no lockout, cleared on success, forgotten after 24 h |
+| `f07f57fa` | `757c3321` | Forgot-password: ALTCHA, 20 s per IP, 60 s cooldown and 5 per 24 h per address (compare-and-set), the same reply always, `trySendEmail`. `resetPassword` checks and clears the token in one `findOneAndUpdate`, so two requests can't both use it |
+
+- Tests: new bun tests for each commit (`password-login`, `key-file`, `rate-limit`, `reset-request`, `reset-password`). Each fails on the commit before and passes after. tsc, eslint and `next build` clean. `participation-readiness.test.ts` already failed before this work and is unchanged.
+- Cleura staging (`f07f57fa`, throwaways `t0-login-1` and unverified `t0-login-2`): M1–M9 all passed. That covers login, the generic error, equal timing, the IP wait, the per-address delay for known and unknown addresses, the reset cooldown with Postmark unset, the same reply for unknown and unverified addresses, and the disabled buttons until ALTCHA is solved.
+- Promotion: trial cherry-pick on `origin/main`, clean (the only difference from staging is a pre-existing comment in `models.ts`). Cherry-pick, push, rollback file `prod-rollback-20261018.md` and deploy each had a yes. **Prod live `757c3321`** (release `20261018-060852`, about 08:08 +02:00), and Tim's browser checks on prod passed: home page and session, the password-tab error, a login link to his own address arrived and worked, and the forgot-password page.
+- Behaviour changes: a failed key-file write during a reset now uses the token up (request a new link). The old "credentials need to be rebuilt" login message is gone (it revealed the account).
+
+### Open, for task 7 (login by code); not fixed here
+- The login-link page fires 4 POSTs per visit (`useEffect` on `searchParams`). Consume the code or link only on an explicit user action.
+- "Use an email link instead" doesn't carry the typed address over.
+- "Please wait 1 seconds" should be singular.
+- Rework the password wording so email-only accounts know they can set a password via the reset link (login note, "Reset password" link, forgot-password page). The forgot-password green text and pop-up don't match ("verified"). Tim will provide the wording.
+- Not changed: the Donorbox webhook compares its HMAC with `!==` and has no timestamp check (on the "delete Donorbox actions" list).
+
+## 2026-10-17 — Settings authz fix (savePresence, saveProfileAction) — promoted to production as the third and final one-time exception, security only
+
+### The two holes (found read-only on 2026-10-17)
+- **`savePresence`** (`src/app/circles/[handle]/settings/presence/actions.ts`) checked login only. Any logged-in account could overwrite offers, needs and tourTeamOfferings on another artist or venue circle, and upload offer photos under that circle. `updateCircle()` only guards user circles.
+- **`saveProfileAction`** (`src/components/onboarding/actions.ts`) deleted removed gallery images from storage **before** its `isAuthorized` check. Calling it with an empty image list permanently wiped any circle's gallery, personal profiles included.
+
+### Fix
+- Both actions now call `isAuthorized(userDid, circleId, features.settings.edit_about)` straight after the login check, before any upload or delete. This is the pattern `circle-wizard/actions.ts` already used. `savePresence` also refuses an empty circle ID.
+- New bun tests `save-presence-authz.test.ts` and `save-profile-authz.test.ts` (4 each). They fail on the old code and pass with the fix. tsc and lint clean.
+
+### Commits
+| Staging | main | What |
+|---|---|---|
+| `2cca12d4` | `83d242a4` | edit_about check in savePresence and saveProfileAction, plus tests |
+
+### Promotion (old box, a yes for each step)
+- **Why main moved:** Tim made a third and final one-time exception to the `main` freeze, for security only. `main` is **frozen again until the prod cutover, log commits included** (this entry stays on `staging`).
+- **Before:** both action files on `origin/main` were byte-identical to `2cca12d4`'s parent. A trial cherry-pick on `origin/main` in a temporary worktree applied cleanly, with files identical to `2cca12d4` by blob hash. Each test file passed 4/4 on its own, tsc was clean and lint output was identical to `main`'s.
+- **Deploy:** `83d242a4` on 2026-10-17 10:44 CEST, 9/9 steps, staging pid and uptime unchanged, no errors after the restart. Tim's owner test passed on Cleura staging (`2cca12d4`) and on peerify.one.
+- **Prod and GOSHA now:** **`83d242a4`**. Rollback file: `prod-rollback-20261017.md` (back to `3cf1f9c8`). Releases kept: `13db6697`, `00e287b2`, `999cace8`, `3cf1f9c8`, `83d242a4`.
+
+### Follow-ups
+- The rest of `settings/` was checked and is clean.
+- Delete the unused Donorbox `getSubscription`/`getPlans` actions (no auth check) so a future import can't expose them.
+- Cleura prod Phase A is done through §10. §11 and §11.4 are still open.
+
+## 2026-10-15/16 — Landing page illustrations and copy — promoted to production as two one-time exceptions to the main freeze
+
+### What changed (landing page at `/` and `/welcome` only)
+- **Photos replaced by line drawings:** 16 SVGs in `public/peerify/illustrations/` (hero, the idea ticket, 6 features, 3 roles, 4 steps, manifesto lights), all `<Image unoptimized>`. The hero drawing sits on the right on desktop and above the text on mobile. The three-photo strip and the hero overlay are gone. The old photos stay in `public/peerify/`, because `src/lib/default-heroes.ts` still uses them as default covers.
+- **Mobile hero spacing:** the drawing starts below the fixed top-right profile menu (76px top padding, with a taller box so the drawing keeps its size).
+- **Copy:** For Artists ("music and ticket sale", "Build a dedicated crew around the world"; the ticket-selling and "first 1,000 artists" items removed); "For Fans & Members" became "For Fans" (the €5 item removed, "Help co-create Peerify", logged-out CTA "Create a fan profile"); the Buy music membership sentence reworded; the house concert tag is now "Home hosting"; step 4 describes the evening instead of membership credit. New ticket drawing (a pile of tickets, No. 1000 on top).
+- **Checks on each SVG:** valid XML, no scripts or external references. One early export had an undeclared `c2pa:` namespace (invalid XML, which browsers refuse to render); Tim's re-export fixed it.
+
+### Commits
+| Staging | main | What |
+|---|---|---|
+| `fefdbe76` | `c9e2d25a` | photos → line drawings |
+| `c7437f99` | `999cace8` | mobile hero spacing |
+| `e22ddd76` | `3cf1f9c8` | copy edits and new ticket drawing |
+
+### Promotion (old box, a yes for each step)
+- **Why main moved:** Tim made two one-time exceptions to "no cherry-pick to `main` until the prod cutover". `main` is **frozen again until the cutover, log commits included** (this entry stays on `staging`).
+- **Before each one:** a trial cherry-pick on `origin/main` in a temporary worktree. Clean; files identical to staging by blob hash; tsc clean; lint output identical to `main`'s.
+- **Deploys:** `999cace8` on 2026-10-15 21:23 CEST and `3cf1f9c8` on 2026-10-16 08:43 CEST. Both 9/9 steps, staging pid and uptime unchanged, no new errors after the restart. Tim checked prod in the browser (Incognito, Mac and phone).
+- **Prod and GOSHA now:** **`3cf1f9c8`**. Rollback file: `prod-rollback-20261016.md` (back to `999cace8`). Releases kept: `84e87b37`, `13db6697`, `00e287b2`, `999cace8`, `3cf1f9c8`.
+
+### Follow-ups
+- **Post-cutover:** remove the old box's SSH key from the `akrobatim` GitHub account. Both pushes to `main` printed "Bypassed rule violations", because that account is on `main`'s ruleset bypass list.
+- Cleura prod Phase A is paused at §3 (console login test and the NOPASSWD decision still open).
+
+## 2026-10-15 — Cleura cutover runbook reviewed; count-check script n12 v2 tested — no code changes
+
+### Cutover runbook (outside the repo, `~/cc-reports/cleura-cutover-runbook.md`)
+- **Reviewed section by section with Tim and a second reviewer; nothing has run yet.** Step 10 is the go/no-go. A clean rollback ends before step 11, because the old box's forward already sends writes to the new box. After that it's fix forward, with the old data left untouched for 7 days; there is no reverse migration. Prod has a 90-minute time box.
+- **Safety in the commands:** a hostname guard on every writing command; peerify work in an interactive `sudo -iu peerify` shell (umask 077); a go/no-go check before anything on the day (Cleura's written DPA confirmation, the tested n12, the backup gate, the exact commit to deploy, no pushes until step 11).
+- **Found in the review:**
+  - the real-name certificate step would have overwritten the Phase A nginx file;
+  - webroot certificate renewals need a reload hook;
+  - per-IP limits would have counted every forwarded visitor as one client, so a temporary real-IP config now goes in, and is removed together with the forward;
+  - the old box's forward is now tested for real the day before;
+  - the temporary name answers only the box itself once real data is there.
+- **DPA:** the day-before steps may start once the confirmation has been requested. Personal data moves only after Cleura's written confirmation.
+
+### n12 v2 (the count check for the database move)
+- **What changed:** index definitions are now compared exactly for every collection. Collections with a TTL index (`rateLimits`, `usedAltchaChallenges`) are reported separately, because their documents expire between the dump and the compare; their count may only drop.
+- **Tested** with a scratch-mongod test script on peerify-staging: 15/15.
+- **Versions:** the old box and Cleura run the same MongoDB versions (8.0.23, FCV 8.0). Staging has no TTL collections yet, so prod's cutover is the first real compare that includes them.
+
+### Follow-ups
+- Prod Phase A, then the staging cutover once Cleura's written DPA confirmation has arrived. Prod dates before 2026-10-23 if possible (the Mongo auth plan's deadline).
+- **No cherry-pick to `main` until the prod cutover**, this log entry included: `main` must stay at prod's live commit, so Cleura prod's Phase A checkout isn't ahead of the commit the cutover deploys.
+- n08: change its default URL once the temporary names are gone. Possibly a `--resolve` option, depending on the day-before source-address test.
+
+## 2026-10-13/14 — Booking/Producer flags, back to draft, redirect and ICS fix, signup and login-link hardening, bot cleanup — all promoted to production
+
+### Product changes (2026-10-13)
+- **Booking enquiries and the Producer identity are behind flags**, both off (`PEERIFY_BOOKING_ENQUIRIES_ENABLED`, `PEERIFY_PRODUCER_IDENTITY_ENABLED`). The server refuses both while off. Landing copy reads "List your venue on the map". (`dbf2ea22` → `3eba1383`)
+- **Unpublish back to draft** for published non-personal circles, with a warning about upcoming events. An independent circle republishes without new verification while its name and handle are unchanged. Draft pages get a generic, noindex title, and the event artist picker skips drafts. (same commit)
+- **Redirects and ICS links use the visitor's domain.** Middleware redirects used to go to the server's own listen address. `buildPublicUrl` sets the path separately, so `//host` can't change the host; ICS UIDs use `@peerify.one`. (`8bbe9c25` → `84e87b37`)
+- **Event locations:** an empty location counts as none. New physical or hybrid events need a location or the virtual flag; existing events stay editable. Settings → About no longer stores `{}`. (same commit)
+- **Image resizing:** a duplicate `sharp` install broke `/_next/image`; deduplicated. (`bc34da00` → `68869f9f`)
+
+### Login-link limits (Batch 0, 2026-10-14)
+- **The login-link form** has ALTCHA, a per-IP wait and per-account limits. Only accounts with a verified email get a link. Every refusal gets the same neutral reply. Server logs mask email addresses, and the Donorbox webhook no longer logs payloads. (`89227841` → `33eabedc`)
+- **Following the Backstage Lounge and auto-verification wait for email verification.** Signup no longer follows the Lounge, and auto-verify needs a verified email. (`ddb04710` → `b436c66a`)
+
+### Signup friction (c) (2026-10-14)
+- **ALTCHA hardened** (single-use, bounded cost, minimum form time, honeypot); altcha-lib updated for GHSA-rx38-p542-v527. A client-sent signup `metadata` object is reduced to the keys the forms use. (`72b3def2` → `13db6697`)
+
+### Bot cleanup (2026-10-14)
+- **`purgeUnverifiedAccount` helper and a one-off script** (dry run by default, explicit list, keep list, per-account backup before deleting, counters recounted from rows). Only pending accounts with an unverified email and no activity qualify. The welcome DM and the announcements thread count as system-created, not activity. (`b8e338de` → `a239e9fc`, `3b42e252` → `00e287b2`)
+- **Resend-verification one-off for named accounts.** It shares the resend button's logic and limits (`sendVerificationEmailToSubject`), so the button's behaviour is unchanged. (`a49e9ab1` → `aa4fe795`)
+- **Production:** 21 never-verified bot accounts were removed with the script, after a reviewed dry run and a backup.
+
+### Follow-ups
+- Per-IP signup limit and nginx limits (batch (b)), then an automatic purge of unverified accounts (d). A verified email alone doesn't prove a human, since mail scanners click links.
+- The signup confirmation page shouldn't carry the email address in its URL.
+- Sweep chat rows that admin delete leaves behind (welcome DMs, announcement threads).
+- `participation-readiness.test.ts` still fails as before; not touched.
 
 ## 2026-10-10 — VibeID removed (code only); PM2 now starts with only the app's env file — both promoted to production
 
@@ -697,44 +1047,75 @@ had broken fonts; see the 2026-10-07 entry.
 
 ---
 
-## 2026-09-06 — Venue participation in Offers shipped, plus two follow-on map fixes
+## 2026-10-02 — Queue item 3, Batch 1: admin roles removed from personal profiles — promoted to production
 
-Headline: closed the venue-Offers gap flagged at the end of last night's entry (carry-forward item 33) — venues can now create and show Offers — then found and fixed two real bugs that only surfaced once real venue offer pins existed for the first time: a silent location-precision clamp, and a same-coordinate jitter that read as visually broken now that offer pins carry identity. Three separate promotions to `main` tonight, all via the file-diff/checkout method from item 32 below (reconfirmed again tonight, not just last time).
+**Shipped.** Staging commits df688c96 (c1), 85f11adf (c4) and 2a5a4104 (c2), promoted to
+`main` as a67e28cb, 041d8f46 and 8210ed3a. Prod release 8210ed3a.
+- **c1, server guard (df688c96):** `grantsOwnerOnlyGroup` (src/lib/data/member.ts) refuses to
+  ADD admins/moderators for a non-owner on a circleType "user" circle. Groups a member
+  already holds are left alone. It is enforced in both membership writers (`addMember`,
+  `updateMemberUserGroups`) and again in the action layer: `createPendingAdminInvitation`,
+  `acceptAdminInvitation` (checked at accept time, so older invitations are refused too),
+  `inviteUserToAdminAction` and `updateUserGroupsAction`. Every refusal returns the same
+  generic message. `addMember`'s empty-circle auto-admin no longer promotes a non-owner on a
+  personal profile. The owner's own auto-created membership is unchanged.
+- **c4, delete guard (85f11adf):** on a user circle, `deleteCircleAction` and
+  `getCircleDeletionStatsAction` require `userDid === circle.did`, whatever groups the caller
+  holds.
+- **c2, UI (2a5a4104):** on user circles:
+  - Invite Admin is hidden on the Followers toolbar.
+  - Settings › About doesn't show (or query) the Admins card.
+  - Edit User Groups offers admins/moderators only when the selected member already holds
+    them, so a role can be removed but not granted.
+  - `AdminInvitationBanner` doesn't render.
 
-**Venue participation in Offers.** Venues (`circleType: "circle"`, `metadata.peerify.identityType: "venue"`) can now create offers from their own Presence settings — a new "Offers" card using the same Select-based multi-toggle + removable-pills pattern the individual-profile Offers card already used, restricted to a curated subset (hosting a show, sound & equipment help, meal, custom) rather than the full six-type list personal hosts get — accommodation/transport/city-guide read as personal-hospitality gestures that don't fit a business profile, so they're excluded for venues specifically. `getOfferMapPins` (`lib/data/circle.ts`) widened to include venue rows; bands are explicitly out of scope for now, a separate decision for later. Unlike individual hosts, venue offer pins carry real identity: a name and "View profile" link, and a picture, surfaced in the hover popup and click-preview panel — but deliberately **not** on the marker face itself, which always shows the per-offer-type icon (identity-bearing or not) so a viewer can still tell offer types apart at a glance across several pins from the same venue. (This was itself a mid-session fix: the first identity-work pass swapped the marker face for the venue's picture, which visually collapsed all of a venue's different offer types into one indistinguishable pin — reverted once caught.)
+**Decision:** non-owners can no longer be admins or moderators of personal profiles. This
+reverses de05f7bd (2026-09-19). A profile co-admin could delete the owner's account, rewrite
+their identity (name, handle, picture, location via `saveAbout`) and see their exact location
+(`toPublicCircle` returns the unredacted circle to anyone with `edit_about`). Sharing login
+details covers the rare legitimate case.
 
-**Venue location-precision clamp, found and fixed.** A test venue's offer pins were rendering at a noticeably different spot than the venue's own real location — traced to `normalizePeerifyVenueLocation` (`about/actions.ts`) silently clamping the *stored* `location.precision` to city-level unless the venue's separate "public address visibility" setting was `"public"`, with no explanation to the venue owner. That conflated two different concerns: the venue's own discovery-quality signal (what `getOfferPinLocation` needs to place an accurate pin) versus what a random visitor of the general Explore map/search is allowed to see. Fixed by decoupling them — precision is now stored exactly as the venue picks it, and the same public-display ceiling is enforced separately, at read time, in a new `redactCircleLocationForViewer` (`lib/utils.ts`) used by `getSwipeCircles`, `search.ts`, and (extended further, since post/comment authors and @-mentions can also be venues) every author/mentions lookup in `feed.ts`. Investigated carefully before touching anything: confirmed live on prod that main had *not* independently diverged on any of the files this touched (a worry raised by `git log`/`git merge-tree` initially showing conflicts — turned out to be more patch-id drift, not real independent content, confirmed by reading the actual tip-to-tip diffs by hand).
+**Prod before and after:** before the deploy there was 1 non-owner admin on a user circle. It
+was granted by mistake through Edit User Groups (`updateUserGroupsAction`), not through an
+invitation; prod has had 0 adminInvitations. The admin removed themselves after the deploy. A
+re-run of `scripts/count-admin-and-notification-exposure.mongosh.js` (3c44543e) confirms 0.
 
-**Two follow-on map bugs, both found live on prod after the venue work shipped, both fixed same night.** (1) A venue with 2+ co-located offerings had its offer pins visibly jittered ~60-70m apart from its own true location by the pre-existing same-coordinate jitter (built for anonymous pins, which have no fixed reference point to look inconsistent against) — now excluded for venue-identity pins specifically; anonymous pins still jitter exactly as before. (2) Without that jitter, multiple co-located venue offerings then stacked exactly on top of each other with only the top one clickable — added `groupIdentityOfferPins` (`map-explorer.tsx`), which merges same-venue same-coordinate pins into one marker with a bare count-number badge, and extended the click-preview to list every offer type when grouped. Grouping (and jitter) both had to move from the one-time pin-fetch effect into the render-time filtered-content derivation, so the count always matches what's actually visible under the active offer-type filter rather than a venue's total unfiltered inventory.
+**Verification:** c2 was checked in the UI on staging, and non-user circles regressed OK. The
+c1 direct-call checks and the c4 check rest on code review: with the UI path closed, only
+profile owners and existing non-owner admins could still reach them, and there are now no
+existing non-owner admins.
 
-**Advanced Filters polish.** Added a new per-offer-type filter to the Explore map's Advanced Filters panel, modeled directly on the existing Genre picker (Select-as-multi-toggle + removable pills, same pattern). Generalized filter-section visibility so each section only shows when relevant to the currently selected category (or when none is selected) instead of always rendering: Genre now correctly shows for **Artists or Events** — investigated first, since Events turned out to genuinely inherit genre from their host circle server-side (`getOpenEventsForMap`, a real filter already wired up regardless of category, not the "Events have no genre" gap the 2026-07-12 Primary Genre entry describes; that note is now stale, see §0 correction), while Venues confirmed to never carry `primaryGenres` at all; Physical-events-only shows for Events; Calendar shows for Artists/Venues/Events/Offers (i.e. effectively always, since `dateRange` already filters plain circles by join date today, not just Events — Offers has no date data yet but stays visible in anticipation of a future date-availability feature). Also: checking "Offers" now nudges "Artists" off by default in the Advanced Filters checkbox grid (reversible, one-directional — checking Artists never deselects Offers; doesn't apply to Venues/Events).
+**Not fixed here: notification payload exposure.** All 186 prod notifications, across 21
+types, embed private keys (the other party's full `getUserPrivate` doc in `content.user`,
+etc.). Handed to the IMY chat with the staging and prod counts.
 
-**Promotion.** Three separate `git checkout staging -- <files>` promotions onto `main` tonight (not cherry-picks), each verified byte-for-byte against staging's tip and `tsc --noEmit`-clean before committing: (1) the full venue-participation + precision-fix + feed-redaction + offer-type-filter + Advanced-Filters-panel body of work, 11 files, one squashed commit (`eb311768`); (2) the jitter-exclusion fix alone, found and fixed after (1) was already live on prod, 1 file (`map-explorer.tsx`); (3) the co-located-grouping follow-up to (2), 4 files, squashed with (2) into one commit (`b62adf88`). Each promotion re-ran the full file-diff-comparison method from item 32 below — confirmed again tonight that `git log staging..main`/`git merge-tree` still report false main-only divergence and false conflicts on files that are actually already reconciled between the branches; the direct tip-to-tip `git diff branch..branch --stat`, read by hand, remains the only trustworthy signal. All three deployed via `deploy-peerify.sh` and verified live (HTTP checks + PM2 status) before moving to the next.
+**Item 3 decision for Batch 3:** admin invites go in the default-on "verification" push
+category.
 
-**Open follow-ups, not yet actioned:**
-- `savePresence` still has no `isAuthorized` check for non-user (band/org) circles (carried forward from last night, item 31 — unchanged, not addressed this session).
-- `git cherry -v`/ancestry-based tools (`git log branch..branch`, `git merge-base`, `git merge-tree`) remain unreliable for this repo's actual promotion workflow — reconfirmed multiple times tonight, not just once. Keep using direct file-diff comparison (`git diff branch..branch --stat`, then targeted file-checkout) for every future promotion.
-- `getShareablePostPreview`/`buildPostDisplayPreview` (`feed.ts`) has no location redaction at all — a post author's or a mentioned circle's exact location could leak via a shareable/public post preview. Different bug class from the venue-precision fix above (total absence of redaction, not a coupling bug); noticed while auditing feed.ts's other redaction call sites, not fixed.
-- Venues have no `mapVisible`-equivalent opt-in for the general Explore map/search — every published venue appears unconditionally there today, gated only by location precision (now correctly enforced, per the fix above, but still no all-or-nothing visibility toggle the way personal profiles have via `mapVisible`). Worth a future conversation on whether venues need their own general-visibility control, separate from `offersVisible`.
-- Venue settings (About/Presence) needs a cleanup pass: no nav link to the Offers/Presence settings page for venues, "Use Current Location" button color is misleading, the Venue Identity card scope-creeps into Room & Capacity/Technical setup fields with no clear save boundary, Website/Instagram render as raw text instead of the social-link icon row other circle types get, and it's unclear where a venue's Contact email actually surfaces publicly. Deliberately deferred to its own dedicated session, not touched tonight.
+**Remaining item 3 work (Batch 3):**
+- a1: a dedicated invitation page that works for unpublished circles. Today the
+  `/followers` CTA gives a non-admin Not found on a draft circle (`/api/access`).
+- a3: move admin invites to the "verification" push category.
+- a5: re-notify on a duplicate invite while one is pending.
+- Fix the `getUserPrivate` failure path after the invitation insert. The inviter sees
+  "Failed" although the invitation exists, and the invitee is never notified.
+- `acceptAdminInvitationAction` should use `invitation.circleId`, not the client-supplied
+  circle.
+- b1: after accepting, call `checkAuth` + `setUser` so the client `userAtom.memberships`
+  picks up the new role without a reload.
 
----
+**Deferred:**
+- a4: invite email (needs a template alias on both Postmark servers).
+- b3: app-wide auth refresh.
+- Consent for direct "Edit User Groups → Admin" on non-user circles.
 
-## 2026-09-05 — Location/Crew-Offers privacy fix + Offers map feature shipped to production
-
-Headline: promoted two related bodies of work to production tonight — a location/Crew-Offers privacy fix closing several previously-ungated exposure paths, and a new "Offers" map feature letting fans browse anonymous, per-offer map pins before any Crew/artist relationship exists. Both fully live and verified on prod.
-
-**Privacy fix (4 commits).** `filterLocations` (`src/lib/utils.ts`) rewritten to be non-mutating and viewer-aware (owner/platform-admin bypass, precision-capped for every other viewer), then wired into every read path that returns a circle's or member's location with no prior redaction at all — `getMembers`/`getCrewMembers` (`src/lib/data/member.ts`) and every post/comment/reaction author lookup in `feed.ts` had **zero** gating beforehand, not even the `mapVisible`/`searchable` opt-in other paths already respected. `tourTeamOfferings` (Crew Offers) binary-gated out of any response reachable by a non-crew, non-owner viewer (`DISCOVERY_CIRCLE_PROJECTION`, `searchDiscoverableCircles`, and `getCirclesByIds` behind `/api/pins`/`/api/bookmarks`). Explicit ownership re-check added to the About and Presence settings pages, on top of the pre-existing `accessRules.settings.view` gate.
-
-**Offers map feature.** New "Offers" pill on the `/explore` map (renamed from an initial "Crew Offers" working name once it was decided offers should be browsable before any Crew/artist relationship exists) — fans can browse declared offers of help (accommodation, transport, meals, sound/equipment, custom) as individual map pins, one pin per offer rather than one per person, entirely anonymous: no name, photo, handle, or profile link anywhere in the feature — not on the marker face (a hand-drawn icon per offer type instead), the hover popup, or the click-through preview, just the offer type/label and a location. Same-coordinate offers (e.g. one host with several offer types) are spread apart with a small deterministic radial jitter, since the map has no general clustering/de-densification for any pin type yet (logged as a future item, not needed at current offer density). Map visibility for offers is its own consent field, `offersVisible`, fully decoupled from the existing `mapVisible`/`searchable` profile-pin flags — a circle can show anonymous offer pins while remaining otherwise fully private. Defaults `true` for newly-created circles only, never retroactively: 2 of the 3 existing staging test circles with offerings had exact-precision locations and one had `mapVisible` explicitly off, so retroactively defaulting existing circles to visible would have exposed real coordinates with no new consent. The toggle auto-saves in Presence settings, mirroring the existing Crew-enabled-toggle pattern, and caught a real bug along the way: a save was persisting correctly but reading back as "off" every time, traced to the new field being missing from the shared circle read-projection (`SAFE_CIRCLE_PROJECTION`) rather than any problem with the save itself. Pin location no longer depends on the profile's own location-precision setting or on viewer identity at all: the real coordinate is used only when the circle's own precision is already "Exact" (the case that will matter for a future venue listing, where being precisely findable is the point); anything below Exact falls back to a fixed coarse (~1km) coordinate, so a pin always renders once the toggle is on instead of silently requiring the user to weaken their own profile's location precision just to make the feature work — a real bug found and fixed mid-session.
-
-**Promotion.** Squashed into a single commit on `main` (`99afc5fb`) representing the net diff from a longer staging history (16 commits across both bodies of work combined), rather than a straight cherry-pick. A `git cherry-pick` of the full 16-commit range hit empty-commit and merge-conflict errors: 7 of the 16 were already on `main` from an earlier, separately-successful cherry-pick under different hashes (cherry-pick mints new commit hashes even for identical content, so ancestry-based tools see them as "still missing"), and several of the remaining 9 substantially rewrote what earlier commits in the same short series had just created (`getOfferMapPins` rewritten three times across the series; the Presence-settings toggle added by one commit, then replaced wholesale by another two commits later). Diagnosed by direct file-diff comparison (`git diff branch..branch --stat`, not commit-ancestry tools) rather than assuming the commit list was the ground truth, which surfaced that only 9 files actually still differed from staging's tip. Applied via `git checkout staging -- <9 files>` directly onto a clean `main` (no patch replay at all), verified byte-for-byte against staging's tip on every file before committing, and confirmed `tsc --noEmit` clean on the combined state before pushing. Deployed and verified live.
-
-**Two open follow-ups, not yet actioned:**
-- `savePresence` (the Presence settings save action) never calls `isAuthorized` for non-user (band/org) circles — personal (`circleType: "user"`) profiles are already protected via `updateCircle`'s own ownership check, but a band/org circle's presence data (offers/needs/engagements text) may currently be writable by any authenticated user who knows its circle ID. Needs its own scoped fix.
-- `git cherry -v` (patch-id equivalence) is unreliable as a promotion-scoping tool for this repo's actual workflow — confirmed concretely tonight when 7 already-shipped commits showed as "missing" from `main` and drove a cherry-pick attempt straight into empty-commit/conflict failures. Recommend direct file-diff comparison (`git diff branch..branch --stat`, then targeted `git checkout branch -- <files>` for the files that actually differ) for future promotions instead of trusting `git cherry -v`/ancestry-based auditing.
-
-**Also flagged, not part of tonight's work:** venues (`circleType: "circle"`) still cannot create or show Offers at all — both the Presence-settings editor UI and the offer-pin map query are hardcoded to `circleType: "user"` only. Real scoping decision needed later (editor UI, whether the query should expand to include venues, whether `offersVisible` applies to them the same way).
+**New follow-ups:**
+- The mobile layout navigates profile previews to `/circle/<handle>` (singular), which is Not
+  found. Reproduced on staging at 460px from Followers (`handleRowClick` in members-table.tsx
+  when `isCompact`). Possibly the same root cause as the item 1 follow-up about
+  personal-profile cards from map/For You.
+- The `fileInfoSchema` comment in models.ts differs between `main` and `staging` (comment
+  only, no code difference).
 
 ---
 
@@ -879,99 +1260,367 @@ Headline: cleaned up the landing page's Create modal and CTA copy, built and shi
 
 **Deployed to staging** across all ten commits above (each verified live via Playwright screenshots and/or a real click-through on `staging.peerify.one`, not just lint/build). **Promoted to production**: all landing-page/CTA/Roles/contact-form commits cherry-picked cleanly to `main` (`1b8542cb` through `19fa0adf`), plus the two infra fixes applied directly to prod's `.env.local` (not code changes, so no matching commit).
 
-**Cherry-picking this doc commit itself (`68378497`) surfaced a live instance of the staging→main backlog problem it describes (see PEERIFY_CONTEXT.md item 22/27):** this file's `main` copy is missing the 2026-09-01 and 2026-09-02 entries specifically (confirmed via search — no other dates are missing), and separately, its existing entries are not in strict chronological order past the top (a 2026-08-11→08-31 block sits appended after an 2026-08-01→08-13 block rather than interleaved by date) — a pre-existing condition, not something introduced by this cherry-pick. Resolved narrowly here by inserting this entry at the top, above the existing 2026-08-13 entry, without attempting either backfill; both are real follow-up work, not something to improvise mid-conflict-resolution.
+---
+
+## 2026-09-02 — Circle creation wizard redesign, "Coming soon" gate for Independent circles, and a parent-circle authorization fix — promoted to production
+
+Headline: redesigned the Create Circle wizard per an agreed spec (it still carried Kamooni/generic-SaaS DNA — NGO-style "mission" copy, a forced-looking SDG step that was actually already unmounted dead code, a flower default picture, a location step with no skip), then two follow-up rounds of polish, then a real authorization bug found via live testing.
+
+**Wizard redesign** (`src/components/circle-wizard/*`): step order is now Basic Info → Purpose → Profile → Genre (new, optional) → Location (now skippable) → Invite (new, optional) → Summary. Renamed "Community"/generic copy to "Circle" throughout, with a one-time plain-language explainer ("a circle is a group or a community…") on the Purpose step. Dropped the NGO "what change do you want to see in the world" mission framing entirely. Genre step reuses the existing 32-item/3-max artist genre taxonomy (`PRIMARY_GENRE_OPTIONS`), via a `CheckboxGroup` newly extracted out of the About settings form into `src/components/forms/genre-checkbox-group.tsx` so both places share it — needed its own new `saveGenresAction` since the field was previously only writable from the About form. Location step gained a real skip + an independent "Show me in search" toggle, mirroring the existing personal-profile `mapVisible`/`searchable` decoupling (confirmed via code audit that no non-personal circle anywhere assumes a location must exist). Invite step, after scoping down from an initially-larger "real pending invites" design, ships as a thin wrapper around the existing `InviteButton` share-link component only — no new backend. Summary step drops the SDG row entirely (was always empty; the underlying `SdgsStep` has been unmounted dead code for a while) and shows genres/location only when set. Default circle picture replaced with a new `public/images/default-circle-picture.svg` (amber pin mark on a charcoal ground, matching the existing Peerify-managed-identity avatar palette rather than the old generic flower). Wizard shell narrowed and restyled to match the personal-onboarding card (thin brand-green progress bar instead of the shared `Progress` component's hardcoded blue fill, no more framer-motion). Post-creation redirect for circles/projects changed from `/settings/about` to `/home`, matching artist/venue identities. Guidelines step from the original spec was explicitly dropped this round — `CommunityGuidelinesSettingsCard` turned out to be the personal user's platform-wide Code-of-Conduct acceptance, not a per-circle custom-rules feature; no such feature exists in this codebase yet, so it needs its own spec later rather than a forced reuse.
+
+**Independent circles gated behind "Coming soon"** (`basic-info-step.tsx`): both Circle Type cards always render now, but "Independent circle" is disabled with a solid-amber "Coming soon" badge until payments are wired up, gated by a single module-level flag, `INDEPENDENT_CIRCLES_ENABLED = false`, OR'd with a superadmin bypass (`user?.isAdmin === true`, the same client-side check used elsewhere for admin-nav/map/search gating). Flipping that one flag re-enables the pre-existing member-based eligibility check (`isMember`/`manualMember`/`isFoundingMember`) exactly as it worked before this round, without touching any other logic.
+
+**Bug found via live testing and fixed:** the Basic Info step's "Create in:" dropdown (`CircleSelector`/`getSelectableCirclesAction`) was authorizing options via `features.communities.create` (`admins`+`moderators`+`members`), so any circle a user merely followed/joined showed up as a place they could create a new circle under — not just ones they administer. Added an optional `permissionFeature` override (backward-compatible; every other `CircleSelector` call site unaffected) and wired the wizard's own dropdown to `features.settings.edit_about` (admin-only), the same check already used for settings-edit gating and by every other save action in this wizard. **Deliberately left untouched, same session:** the actual `saveBasicInfoAction`/`authorizeCircleCreation` server-side check, and the separate pre-existing "+" sub-circle button on a circle's own Circles tab (`circles-list.tsx`) — both still authorize via the broader member-level `features.communities.create`. That's a distinct, pre-existing product decision (any member can spin up a sub-circle under a circle they belong to) that also governs that other button; tightening it would have silently broken that button's own UX (shown to members, then failing on submit) and was explicitly out of scope for this fix.
+
+**Deployed to staging** across four incremental deploys (wizard redesign, Coming-soon badge, superadmin bypass + badge styling, dropdown auth fix), each verified via `tsc --noEmit`/`bun run lint` first. **Verified live** on staging with a real non-admin test account (`cryp-tim`, via the login-link-token technique): confirmed the dropdown now shows exactly the account's own profile plus the 3 circles it actually administers (The Happy, The Rank Amateurs, The Room), correctly excluding the 6 circles where it's only a plain member (The Backstage Lounge, Tim Admin, The Venue, The First Circuit Circle, Tim Solo, A Friendly Few) — confirmed against a direct DB read of its real `Members` documents first, then screenshotted the actual dropdown to match.
+
+**Promoted to production** as a single commit (`ec83d626` on `staging` → cherry-picked cleanly as `3ca74ceb` on `main`, no conflicts). `tsc --noEmit` clean on `main`'s own codebase; content-diffed the two authorization-relevant files (`basic-info-step.tsx`, `circle-selector.tsx`) byte-for-byte identical between `staging` and `main` before deploying. `deploy-peerify.sh` — all 9 steps passed (`BUILD_ID` `c69y5opIniIrPh6_KP31n`), `peerify-staging` pid/uptime confirmed unchanged. Pushed both `staging` and `main` to `origin`.
+
+**Live-verified against real production data, read-only** (a scripted throwaway-account write against prod was attempted first but blocked by the auto-mode classifier for touching prod's DB — didn't try to route around it, asked how to proceed instead): replicated the exact shipped `isAuthorized(userDid, circleId, features.settings.edit_about)` check, including checking for any per-circle `accessRules.settings.edit_about` override (none exist), against a real account's (`tim`) actual 28 non-own `Members` documents spanning 15 member-only circles and 13 admin-owned circles. All 13 admin relationships correctly authorize, all 15 member-only relationships correctly don't — matching the staging browser test exactly, on real prod data, without writing anything.
 
 ---
 
-## 2026-08-13 — Promoted to production: superadmin visibility into private profiles
+## 2026-09-01 — Self-pledge/self-crew-application guard
 
-Headline: promoted the superadmin visibility fix to production. Deploy only — no code changes
-made in this worktree beyond the cherry-pick itself.
+Headline: a circle's own admin could pledge to their own artist profile or apply to their own
+Crew — "Pledge Interest" and "Join Crew" had no admin gating at all on the profile page, and no
+server-side guard backed either action either, so even a hidden button would have been cosmetic
+only. Investigated first (as instructed): confirmed no comment, commit message, or
+self-pledge/self-crew accommodation anywhere suggested this was deliberate (e.g. "let admins test
+the flow") — it was a plain gap, not a choice to preserve.
 
-**Scope confirmed first, as instructed.** `git log main..origin/staging` listed 39 commits, but
-by content-diff (not ancestry — cherry-picks mint new hashes) only 1 was actually still
-pending: `88c9bcf9` — "Give superadmins full visibility into private profiles." Confirmed via
-`git cherry -v main origin/staging` (patch-id equivalence) that the other 38 already have
-content-equivalent commits on `main` from earlier promotions (Backstage Lounge auto-enrollment,
-nav bar links, map-privacy fix, connection-request fixes, visual-identity pilot + corrections,
-Kamooni→Peerify rebrand, palette correction, mobile-overlap fix), and confirmed directly via
-`git diff --stat main origin/staging -- . ':!circles/SESSION_LOG.md' ':!circles/PEERIFY_CONTEXT.md'`
-that excluding each branch's own independent narrative-log/doc drift, the entire real code gap
-was exactly this one commit's 7 files. (`PEERIFY_CONTEXT.md` differs too, but in main's favor —
-main's copy is newer than staging's stale one — so left untouched.)
+**Fixed on three fronts, each independently verified live, not just by code review:**
+1. **Profile-page buttons** (`dd854730`): "Pledge Interest" and the `Join Crew` branch (only —
+   "View Crew"/"Application Pending" untouched) in `home-content.tsx` now hide behind the same
+   `authorizedToEdit` check Pledges/Crew Dashboard already use. Verified via Playwright as both
+   the circle's own admin (hidden) and a real non-admin fan (still visible, no regression).
+2. **Server-side actions** (`1a159c12`): `createPeerifyPledgeAction` and `applyForCrewMembership`
+   now independently re-check `isAuthorized(userDid, circleId, features.settings.edit_about)` and
+   reject with a clear message — so a direct action call can't bypass a hidden button. Verified
+   live by finding a still-unguarded second surface (see below) and actually submitting through
+   it as an admin: rejected with "You manage this profile, so you can't pledge to it yourself,"
+   confirmed via direct DB read that no pledge document was written.
+3. **Map-popup card** (`1c5dfbfd`): `CirclePreview` (`content-preview.tsx`) turned out to have the
+   identical unguarded Pledge/Join Crew buttons, undiscovered by the original bug report since it
+   only named the profile-page action row. Since it's a client component with no server-computed
+   `authorizedToEdit` prop, added `getViewerIsCircleAdminAction` (a thin client-callable wrapper
+   around the same `isAuthorized` check) and gated the same way, fetched via a `useEffect`
+   mirroring the existing `crewMembershipStatus` pattern. This is the surface used to prove item 2
+   above actually blocks the write, not just the message.
 
-**The fix:** an `isAdmin` bypass (resolved server-side from a trusted DB lookup on the viewer's
-did, never a client-supplied flag) added to `getSwipeCircles`/`searchDiscoverableCircles` at the
-query layer, `getProfilePreviewAccessAction` for the profile-preview lock card, and the
-client-side display-masking helpers in `map.tsx`/`search-results-panel.tsx` — so a superadmin
-can now see, search for, and open personal profiles that opted out of `mapVisible`/`searchable`.
-`publishStatus`/draft-content filtering is untouched throughout.
+**Existing data cleanup:** checked for pre-existing violations before the guard existed. Found and
+removed 2 genuine self-pledges (Tim Admin → `tim-solo`, created 2026-08-11; Tim Admin →
+`the-friendy`, created 2026-08-30) — both real, not test artifacts. Also found Tim Admin already
+had a pre-existing `admins`+`crew` membership overlap on `tim-solo` (joined 2026-06-28) —
+deliberately left untouched per instruction: that's a legitimate role combination the new guard
+only prevents going forward, not something to unwind retroactively.
 
-**Promotion:** cherry-picked `88c9bcf9` onto `main` → `65480cfe`. Applied cleanly, no conflicts.
-`npx tsc --noEmit` clean.
-
-**Deploy:** `scripts/deploy-peerify.sh` — GIT_SHA `65480cfe`, all 8 steps PASS (build, BUILD_ID
-`ClBfZYpBKQz7duTL5F0Pj`, static-asset copy/verify, PM2 restart, HTTP checks).
-
-**Post-deploy verification (beyond the script's own checks):** `pm2 jlist` confirmed `peerify`
-restarted (new pid `1730937`, fresh uptime) and `peerify-staging` untouched (pid `1657393`,
-uptime unchanged); `pm2 save` completed. `curl` confirmed HTTP 200 on both `https://peerify.one/`
-and `https://peerify.one/explore`. Grepped the deployed standalone bundle to confirm the fix
-actually shipped in the built artifact, not just the source: the literal string "This profile is
-private" found in `.next/server/chunks/6509.js`.
-
-**Carry-forward:** none — this was a scoped deploy-only promotion, no source changes made on
-`main` beyond the one cherry-pick.
-
----
-
-## 2026-08-08 (cont.) — Promoted to production: notify-on-accept, Connected badge, profile-page Respond dropdown
-
-Headline: promoted the remaining three connection-request fixes to production together. Deploy
-only — no code changes made in this worktree beyond the cherry-picks themselves.
-
-**Scope confirmed first, as instructed.** `git log main..staging` on the staging worktree listed
-20 commits, but by content-diff (not ancestry — cherry-picks mint new hashes) only 3 were
-actually still pending; the other 17 were already promoted earlier under different hashes
-(notifications-panel Respond dropdown from the 2026-08-06 promotion below, plus Backstage Lounge
-auto-enrollment/pinning, nav bar links, and the map-privacy fix — confirmed via grep that
-`contact_request_accepted` and `pendingOnly` were absent from `main` before this promotion, and
-correctly did NOT re-cherry-pick those 17):
-- `f6b8ebe0` — Notify the requester when their contact request is accepted.
-- `b19c0f54` — Show a Connected badge on MessageButton after a contact request is accepted.
-- `de7acf09` — Add Respond now to profile page for pending connection requests.
-
-A 4th related commit, `4456f397` (notifications-panel Respond dropdown), was flagged to Tim as
-found-but-not-in-the-original-3-named-fixes; confirmed already live on `main` as `ce4cc900` from
-the 2026-08-06 promotion, so nothing further to do there.
-
-**Promotion:** cherry-picked all 3 onto `main` in order → `9df424cf`, `c6d537a0`, `62792eb4`. All
-three applied cleanly, no conflicts (each touches only connection-request-family files, disjoint
-from the already-promoted Backstage Lounge/nav-bar/map-privacy commits). `npx tsc --noEmit`
-clean.
-
-**Deploy:** `scripts/deploy-peerify.sh` — GIT_SHA `62792eb4`, all 8 steps PASS (build, BUILD_ID
-`AgnCqfXwYK1Tvze4FJ0f3`, static-asset copy/verify, PM2 restart, HTTP checks).
-
-**Post-deploy verification (beyond the script's own checks):** `pm2 jlist` confirmed `peerify`
-restarted (new pid `1479560`, fresh uptime) and `peerify-staging` untouched (pid `1476796`,
-uptime unchanged at 77m); `pm2 save` completed. `curl` confirmed HTTP 200 on both `/` and
-`/explore`. Grepped the deployed standalone bundle to confirm the fixes actually shipped in the
-built artifact, not just the source: `contact_request_accepted` found in
-`.next/server/chunks/{4477,2909,6509}.js` and `.next/server/app/circles/[handle]/access-denied/page.js`;
-`pendingOnly` found in `.next/server/chunks/{7203,6509}.js` and client static chunks
-`.next/static/chunks/{798-16cfc94d71d6fb15,7114-6ee93f2c88c55e6f}.js` and
-`.next/static/chunks/app/circles/[handle]/layout-d23b8457b64f3dc2.js`; the literal string
-"Respond now" also present in both of those client chunks.
-
-**Carry-forward:** none — this was a scoped deploy-only promotion, no source changes made on
-`main` beyond the three cherry-picks. All three connection-request fixes (notifications-panel
-dropdown, notify-on-accept, Connected badge, profile-page dropdown) are now fully live in
-production.
+**Deployed to staging**, all three fixes live and re-verified after deploy. **Update (same
+session): promoted to `main`** as `2e84b252`/`4bb21fee`/`6171c7ee` — confirmed via content-diff
+that `main` and `staging` now match on every file this fix touches.
 
 ---
 
-## 2026-08-06 (cont. 3) — Respond dropdown for connection requests (accept/decline in-place)
+## 2026-09-01 (cont.) — Artist settings page cleanup: promoted to production
+
+The 5-item Artist settings cleanup built on staging 2026-08-30 (Circle→Profile rename, simplified
+Published-status card, second Save Changes button, Booking enquiries split into its own
+collapsible card, Spotify added to Music Links, "Looking for/Open to" hidden — full detail in the
+2026-08-30 entry below) had been sitting staging-only since then. Cherry-picked to `main` this
+session as `f6981f2e`/`53666651`/`d2dca13c`. One non-trivial merge conflict along the way: prod's
+`about-settings-form.tsx` had a `Dialog` import HEAD had reformatted differently, and the incoming
+commit's own new `Collapsible`/`CollapsibleContent` import — confirmed both needed to coexist (the
+`Dialog` import list was byte-identical in content on both sides, just wrapped differently; the
+`Collapsible` import is genuinely used later in the same commit's own booking-section rewrite, and
+`ui/collapsible.tsx` already exists in the prod worktree) before resolving, rather than assuming
+either side "wins." Resolved and handed back for review before the cherry-pick continued.
+
+---
+
+## 2026-09-01 (cont. 2) — Crew Dashboard: new admin overview page
+
+Headline: there was a member-facing "View Crew" but no artist/admin equivalent of the Pledge
+Dashboard — no way to see who's in your Crew, where they are, or what they've offered to help
+with, all in one place. Investigated first (as instructed): confirmed no structured per-member
+data was missing (location was trivially available but unprojected; `tourTeamOfferings` already
+existed via the same admin-aware path `CrewOffersWidget` uses), no aggregate view existed anywhere,
+and messaging had no separate Crew-specific path — it's the same generic DM actions the Pledge
+Dashboard already uses. This meant the build was comparable effort to the Pledge Dashboard rework,
+not a new-data-collection project.
+
+**Built** (`574dd368`/`609ddcf0`/`3fa80f03`): `getCrewMembers()` extended with `location`; a new
+shared icon mapping (`tourTeamOfferingTypeIcons`) added since none existed anywhere to reuse, and
+applied to `CrewOffersWidget` too so the two admin-facing surfaces don't visually diverge. New page
+at `settings/crew` renders each member as a card — avatar, location, join date, offerings as icon
+badges, an explicit caption clarifying offerings are the member's general standing offer, not
+tour-specific — with a Message action reusing the Pledge Dashboard's own DM pattern
+(`findOrCreateDMConversationAction`/`sendMongoMessageAction`). A "Crew Dashboard" button added next
+to Pledges/View Crew on the artist profile, admin-only, hidden when Crew is disabled.
+
+**Explicitly not built**, same reasoning as the Pledge Dashboard's own deferrals: map view,
+per-artist offering customization (offerings stay the member's general profile data), search/
+filter/sort (not a flagged pain point at current roster sizes).
+
+**Verified live** on staging with a real mixed roster (one member with 7 offerings including a
+custom type, one with none, one with a mixed set) — cards, icons, caption, mobile layout (no
+crowding), and the Message action (real DM created, message sent, confirmed via direct DB read)
+all checked. One process note: an early verification pass wrote test data into a wrongly-cased
+`Members` collection (this app's actual collection is lowercase `members`) — silently created a
+phantom, unused collection rather than erroring, which cost real debugging time before being
+traced and cleaned up.
+
+**Promoted to `main` same day** as `7924c1a4`/`6466a0a5`/`846817a8`.
+
+---
+
+## 2026-09-01 (cont. 3) — Currency coherence pass
+
+Headline: two separate currency problems on the Pledge Dashboard — pledges made before the
+`currency` field existed (and some after) blended different currencies into one misleading total,
+and pledge currency was always silently defaulted to the artist's own booking-settings currency
+rather than ever being the fan's actual choice.
+
+**Display fix first** (`794b014b`/`17b95357`): stat cards now group and show a subtotal per
+currency instead of summing mismatched currencies into one number; "Estimated ticket value"
+renamed to "Estimated total value" with smaller stat-card sizing.
+
+**Then the real fix** (`8cb3f6d9`): pledge currency is now genuinely fan-selected, defaulted from
+the show location's country rather than the artist's settings. Investigated first what the
+location-autocomplete component already returns before building anything — Mapbox's geocoding
+response already includes an ISO country `short_code` that this codebase was discarding; captured
+it as a new `countryCode` field on `Location`, added a `getCurrencyForCountryCode` lookup table,
+and upgraded the pledge dialog's plain fan-location text field to the same compact `LocationPicker`
+used in 13+ other places app-wide. Found and fixed a real race condition along the way: the
+location-fallback effect could briefly show a stale map pin (the fan's own profile location)
+before the "does a pledge already exist" async check resolved — added a `hasCheckedExistingPledge`
+gate so the fallback never fires before that check settles.
+
+**Then per-row display** (`380a31e7`): the currency code now shows next to the amount on every
+individual pledge row, main list and expanded Momentum view alike (e.g. "500 SEK" not just "500"),
+confirmed live for both currencies actually present in the data, no crowding on mobile.
+
+**Explicitly deferred, same as before:** real currency conversion/exchange-rate logic, and any
+single blended cross-currency total. The artist's own booking-settings currency is unaffected by
+any of this — it was never touched, only pledges' own currency source changed.
+
+**Promoted to `main` same day** as `afd7d683` (plus the display-fix and blending commits, already
+part of the earlier Pledge Dashboard promotion below).
+
+---
+
+## 2026-08-30 (evening) – 2026-09-01 — Multi-pledge duplicate fix + orphaned-pledge handling
+
+**The duplicate bug** (`84e72461`, 2026-08-30): a fan pledging more than once to the same artist
+created a new record every time, with no dedup. `createPeerifyPledge` now upserts on
+`(artistCircleId, pledgerDid)`, backed by a new DB-level unique index as a backstop against any
+future write path bypassing the upsert; the dialog now pre-fills from an existing pledge so a
+resubmit reads as an update, not a blank new pledge. Existing duplicates reconciled on both
+staging (merged) and prod (4 duplicate groups, a keep-latest rule, every group reviewed before any
+write — no blind bulk delete).
+
+**The orphaned-pledge bug** (2026-09-01): investigated a "Could not find recipient" messaging
+error first — traced to `deleteCircle()` never cleaning up `peerify_pledges` when a fan's account
+is deleted, leaving pledges pointing at a fan who no longer exists. Scoped the fix to the
+symptom, not the broader deletion-cascade gap (a deliberate choice, confirmed with Tim rather than
+assumed): `createPeerifyPledgeAction`'s messaging path now proactively checks whether the pledger's
+account still exists (`85737ad2`), and orphaned pledges now render greyed out and struck-through in
+both the plain list and Momentum cards, excluded from the two aggregate stats (so a dead account
+can't inflate "Total pledges" or the estimated-value total) while still being visible for detail,
+with a scoped one-click admin Remove action — never a general delete-any-pledge capability
+(`76b2b035`).
+
+**Both fixes promoted to `main`**: the upsert fix same-day as `98c7527a` (part of a 6-commit chain
+alongside the pledge dialog polish work), and the orphaned-pledge handling as
+`6b751ee4`/`b71b687f`.
+
+---
+
+## 2026-08-30 – 2026-09-01 — Pledge Dashboard restructure
+
+Headline: the original Pledge Dashboard forced every pledge into a location cluster with a map
+preview, even for the common case of a handful of scattered pledges with no real geographic
+signal. Rebuilt around a pledge-first list instead, with clustering only surfaced when it's
+actually meaningful.
+
+**Layout** (`8e55e9d2`..`59edcd07`, 2026-08-30/31): top summary strip slimmed to two honest numbers
+(total pledges, estimated value); the old breakdown-blocks-plus-table replaced with a compact
+pledge list; locations with 3+ pledges promoted into their own expandable "Momentum" cards instead
+of every location getting equal cluster treatment; a per-pledge detail dialog added; the map
+preview — never functional, just a static visual — demoted to a List/Map toggle and then removed
+entirely once confirmed nobody needed it.
+
+**Messaging** (`225103e8`, `9e19144e`, `462767bb`, spanning into 2026-09-01 morning): a per-pledge
+Message action replies in-place instead of navigating away, and a "Messaged" indicator is derived
+from real DM thread data (not a separate flag that could drift from reality) and persists across
+reloads.
+
+**Pledge dialog's own "Contribute to tour" section** (`b2aa2e47`, `217d1b5a`, 2026-08-30): renamed
+and pruned — Attend removed, Host renamed, "Space for 20-30 people" replaced with a conditional
+free-text capacity field that only appears once Host is selected. Pledge and Crew buttons made
+visually consistent everywhere they appear: orange for Pledge (the platform mechanic), solid
+ink-fill for Crew (`4bdc859a`).
+
+**Promoted to `main`** as a linear chain, `87da2732`..`b71b687f`, together with the multi-pledge
+fix above and the tab-filter/CTA/upload-messaging fixes below.
+
+---
+
+## 2026-08-31 — Events tab-filter removal, logged-in CTA fix, onboarding upload-card messaging
+
+Three small, unrelated fixes shipped together:
+- **`557a404f`**: removed the Events/Shifts/All tab filter from the unified event timeline — a
+  filter with nothing left worth filtering once the timeline had already been unified.
+- **`13a821ff`**: the "Join the prototype" CTA now reads "Go to profile" for viewers who are
+  already logged in, instead of dangling a signup-flavored label at someone who doesn't need it.
+- **`978f6d6c`**: added bold messaging to the artist onboarding music-upload card — "good enough
+  to upload, live recordings welcome, can replace later" — to lower the perceived bar for a
+  first upload.
+
+**Promoted to `main`** as `f6be36ca`/`7c4b6009`/`29a654e4`.
+
+---
+
+## 2026-08-08 — "Respond now" accept/decline on the profile page itself
+
+Headline: connection requests could only be accepted/declined from the notifications panel;
+visiting the requester's profile page directly gave no way to respond, forcing a trip back to
+notifications. Fixed with a one-prop extension of the existing dropdown, reused as-is. One
+commit (`de7acf09`), two files changed (`home-content.tsx`, `message-button.tsx`).
+
+**Investigation first, as instructed.** Found this already substantially implemented but
+uncommitted in the working tree at session start — `ProfileRelationshipHeaderAction`
+(`message-button.tsx`) had gained a `pendingOnly?: boolean` prop, and `home-content.tsx` already
+rendered `<ProfileRelationshipHeaderAction circle={circle} pendingOnly />` next to
+`MessageButton` in both the compact and non-compact profile-header layouts (gated on the
+existing `isUser` check, i.e. `circle.circleType === "user"`). There was also a leftover
+zombie `tsx` process (started the previous day, still running >12h later) stuck trying to
+exercise this via a throwaway-DB test script that imported the app's own `src/lib/data/db.ts`
+directly — that module's top-level Mongo client/index-creation side effects don't resolve
+cleanly outside the real Next.js runtime; killed both the stale process and a second one this
+session reproduced, and abandoned that approach rather than debugging it further, since a real
+browser E2E was more faithful anyway (this box now has Playwright's Chromium deps installed,
+per 2026-08-07). Confirmed via grep that the notifications.tsx call site (`ProfileRelationshipHeaderAction`
+without `pendingOnly`, unaffected) and the `AboutPage.tsx` RELATIONSHIP-panel `!isPeerifyArtistProfile`
+gate were both untouched by the diff.
+
+**What the diff does:** `pendingOnly` only changes one branch — `!pendingOnly &&
+connectStatus === "accepted"` — which is now skipped when `pendingOnly` is true, so the
+component renders nothing once accepted (`MessageButton` already shows its own "Connected"
+badge, avoiding a duplicate). The `pending_received` dropdown branch (amber "Respond now" →
+"Accept connection" / "Decline request") is unchanged and renders identically on both the
+profile page and the notifications panel.
+
+**Verification:** `npx tsc --noEmit` and `bun run lint` clean on both changed files.
+`deploy-staging.sh` run (BUILD_ID `4YcbTGwr6OEOhNoJ1zuke`, all 8 steps passed, prod pid/uptime
+unchanged) — staging was still serving a pre-diff build (`jRCIMQZTcYZv6J82mdAup`) before this,
+which is why the button didn't appear in the first pass of testing. Full live Playwright E2E
+against staging with two throwaway `circleType: "user"` docs (cloned from a real template,
+logged in via generated `loginLinkToken`s, no real email needed): A→B pending request set up
+directly in Mongo, B visits A's profile **directly** (typed URL, not via notifications) →
+amber "Respond now" visible in the profile header exactly where Message/Follow are → Accept →
+both `UserRelationships` edges flip to `accepted`, dropdown disappears, `MessageButton` shows
+exactly one "Connected" badge (scoped the assertion to elements with message-button.tsx's own
+`data-connect-reason` attribute after an early pass over-counted — there's a second, unrelated,
+pre-existing "Connected" chip on the same page from `AboutPage.tsx:1240`'s RELATIONSHIP panel,
+untouched by this change), and A's own view of B's profile symmetrically shows Connected too.
+Reset to pending, repeated on the profile page with Decline → both edges reset to `none`,
+dropdown disappears. Reset to pending again with a real `contact_request_received` notification
+doc inserted → opened the notification bell from B's own profile (not A's) → confirmed the
+existing notifications-panel "Respond now" still renders and Accept still works there,
+unaffected by the new profile-page path. All 8 assertions passed. Throwaway accounts,
+relationship edges, and the notification doc deleted after.
+
+**Deployed to staging**, live and tested as above. **Not promoted to prod** — holding per
+instruction pending Tim's review.
+
+**Update (2026-08-08):** promoted to production together with the 2026-08-07 fixes below —
+`de7acf09` cherry-picked onto `main` as `62792eb4`. See prod's own `SESSION_LOG.md` entry "2026-08-08
+(cont.) — Promoted to production: notify-on-accept, Connected badge, profile-page Respond
+dropdown" for the full scoping/verification record.
+
+**Carry-forward:** none new. The RELATIONSHIP-panel artist-profile suppression gate
+(`AboutPage.tsx` `shouldShowProfileStatus`) carry-forward from 2026-08-07 is still open and
+still deliberately untouched.
+
+---
+
+## 2026-08-07 — Notify requester on contact-request acceptance + Connected badge on MessageButton
+
+Headline: two follow-on gaps found while testing the 2026-08-06 Respond-dropdown fix on staging —
+accepting a contact request never notified the requester, and there was no on-profile signal of
+pending/connected state once the notification had been dismissed. Both fixed, tested end-to-end
+with three throwaway accounts, and committed as two separate commits.
+
+**Investigation first, as instructed.** `acceptConnectRequestAction`
+(`src/components/modules/home/actions.ts`) only ever flipped both `UserRelationships` edges to
+`connectStatus: "accepted"` — no notification type or dispatch existed for acceptance at all
+(confirmed: no `contact_request_accepted` type anywhere in `models.ts`, no `sendNotifications`
+call in the accept path). Separately, `MessageButton` (`message-button.tsx`) showed a disabled
+"Requested" pill while pending, correct per the existing pattern, but the pill simply vanished
+once `dmAllowed` flipped true on acceptance — no positive "Connected" signal anywhere on the
+profile page itself outside the one-time notification. The RELATIONSHIP panel in `AboutPage.tsx`
+already has fuller Connected/Requested/Following logic, but it's gated behind
+`!isPeerifyArtistProfile` — deliberately left untouched per instruction, since that suppression
+may be intentional for reasons not yet audited and was out of scope for this task.
+
+**Fix 1** (`f6b8ebe0`): added `contact_request_accepted` to the `NotificationType` union and
+`notificationTypeValues` (`models.ts`), a body-copy case in `buildNotificationBody`
+(`lib/data/notifications.ts`: `"${actorName} accepted your contact request"`), a
+`sendNotifications("contact_request_accepted", [requester], { user: accepter })` call at the end
+of `acceptConnectRequestAction`, and href/action-label render cases in `notifications.tsx`
+(links to the accepter's profile, "View" action). Follows the existing
+`sendConnectRequestAction` → `contact_request_received` pattern exactly.
+
+**Fix 2** (`b19c0f54`): `MessageButton` now renders a "Connected" `Badge` when
+`connectStatus === "accepted"`, reusing the exact style already used by
+`ProfileRelationshipHeaderAction`'s own Connected badge for visual consistency.
+
+**Verification:** full live browser E2E on staging — got Playwright's cached Chromium working
+this session (`sudo npx playwright install-deps chromium`, run by Tim; previously blocked on
+missing `libnss3.so`/`libnspr4.so` etc., see 2026-07-29 entry). Three throwaway `circleType:
+"user"` docs (`qa-test-connect-a/b/c`, cloned from a real user template, `metadata.peerify`
+empty so the artist-profile gate doesn't apply) created directly in the staging DB, logged into
+via the `loginLinkToken`/`/login-link` magic-link path (no real email needed). Ran the full
+cycle: A sends a request to B → "Requested" pill visible on B's profile → B accepts via the
+Respond dropdown → B's notification row shows "Connected" → A's `MessageButton` on B's profile
+shows the new "Connected" badge → A receives a `contact_request_accepted` notification reading
+"QA Test Connect B accepted your contact request". Cross-checked directly in Mongo: both
+`UserRelationships` edges `accepted`/`dmPermission: allowed`, exactly one notification doc for A.
+Separately, A → C request declined by C: relationship reset to `none` on both sides, zero
+notifications created for the decline (confirmed no stray `contact_request_accepted` doc). All
+three throwaway accounts and their `members`/`userRelationships`/`notifications` rows deleted
+after.
+
+One real bug found in the test harness itself, not the app: Playwright's normal/force click on
+the Respond-now dropdown trigger was being intercepted by `peerify-landing-page.tsx`'s
+`.heroOverlay` div when the notifications panel was opened from `/` (the marketing homepage) —
+its `position:relative; min-height:100vh` hero occupies the full first viewport and wins the
+hit-test at that point even though the fixed notification panel paints on top. Not an app bug:
+switched the test to open notifications from the user's own profile page instead (any other
+page works fine) and used real keyboard activation (`focus()` + `Enter`) for the dropdown to
+sidestep it entirely.
+
+**Deployed to staging:** `deploy-staging.sh` run before testing, all 8 steps passed (BUILD_ID
+`jRCIMQZTcYZv6J82mdAup`), prod pid/uptime unchanged. **Not yet promoted to prod** — holding per
+instruction pending Tim's review.
+
+**Update (2026-08-08):** promoted to production — `f6b8ebe0`/`b19c0f54` cherry-picked onto `main`
+as `9df424cf`/`c6d537a0`, part of the same scoped promotion as the 2026-08-08 entry above (prod
+`SESSION_LOG.md`, "Promoted to production: notify-on-accept, Connected badge, profile-page
+Respond dropdown").
+
+**Carry-forward:**
+1. RELATIONSHIP panel's `!isPeerifyArtistProfile` gate (`AboutPage.tsx` `shouldShowProfileStatus`)
+   still suppresses Connected/Requested/Following entirely for any profile with
+   `metadata.peerify.intent === "artist"` — likely most pilot signups. Not touched this session;
+   worth a deliberate audit of whether that suppression should exempt connection/relationship
+   state specifically.
+2. `sudo apt`-level Chromium deps are now installed on this box — future sessions can use
+   Playwright directly against staging without the install-deps step.
+
+---
+
+## 2026-08-06 (cont. 2) — Respond dropdown for connection requests (accept/decline in-place)
 
 Headline: connection requests had no explicit accept/decline control — a request could only be
 implicitly accepted by messaging the requester. One commit (`4456f397`), one file changed
@@ -1010,204 +1659,117 @@ confirm accept and decline both work, confirm messaging-based implicit access st
 (BUILD_ID `hgL8UkHCoPZuQ8r85HY2k`), prod pid/uptime unchanged, `GET /` and a static CSS asset
 both HTTP 200 post-restart.
 
-**Carry-forward:** verified on staging and promoted to production — see the dated entry below
-("Promoted to production: Respond dropdown for connection requests").
+**Carry-forward:** pending manual verification on staging by Tim (send a real connection
+request between two accounts, confirm the dropdown appears and accept/decline both work,
+confirm messaging-based implicit access is unaffected). Not yet merged to `main`/prod.
+
+**Update (2026-08-06):** verified and promoted to production the same day — `4456f397`
+cherry-picked onto `main` as `ce4cc900` (prod `SESSION_LOG.md`, "Log production promotion of
+Respond dropdown fix").
 
 ---
 
-## 2026-08-06 (cont. 4) — Promoted to production: Respond dropdown for connection requests
+## 2026-08-06 (cont.) — Pin The Backstage Lounge to new signups' sidebar by default
 
-Headline: promoted the Respond dropdown accept/decline fix to production. Deploy only — no
-code changes made in this worktree beyond the cherry-picks themselves.
+Headline: added a related but separate step to the existing Backstage Lounge auto-enrollment —
+new signups now also get it pinned to their sidebar by default. One commit (`09d7a151`), one
+file changed (`src/components/forms/signup/actions.ts`), local to `staging` only, not deployed.
 
-**Scope confirmed first, as instructed.** `git log main..staging` on the staging worktree listed
-13 commits, but by content-diff (not ancestry — cherry-picks mint new hashes) only the 3 most
-recent were actually still pending; the other 10 were already promoted earlier under different
-hashes (nav bar links, sidebar auto-pinning, map privacy fix, Backstage Lounge auto-enrollment —
-confirmed via grep that `ProfileRelationshipHeaderAction` and the "Respond dropdown" log text
-were absent from `main` before this promotion, and correctly did NOT re-cherry-pick those 10):
-- `4456f397` — Surface Respond dropdown for connection requests in notifications.
-- `a0266d8a` — Log: Respond dropdown for connection requests.
-- `b127ebb6` — Log staging deploy of Respond dropdown fix.
+**Investigation first, as instructed.** Found the existing pinning mechanism:
+`pinCircle`/`unpinCircle` (`src/lib/data/user.ts`) are plain, unprivileged functions operating on
+a user's own `pinnedCircles` array — `pinCircle` prepends the id (deduping, capped at 5) and
+`$addToSet`s to `bookmarkedCircles`; `unpinCircle` is a plain `$pull`. Confirmed there is no
+"locked"/"default" flag anywhere in this data model, and confirmed the UI already exposes a real
+pin/unpin toggle (`user-toolbox.tsx`, calling `pinCircleAction`/`unpinCircleAction` — thin
+wrappers around these exact same functions) — so a pin applied programmatically is
+indistinguishable from, and exactly as removable as, one the user creates themselves. Also used
+by `/api/pins` (the nav's own pinned-tray `PinPicker`), confirming this is the one established
+mechanism app-wide, not one of several.
 
-**Promotion:** cherry-picked all 3 onto `main` in order → `ce4cc900`, `d8848c03`, `e2b34357`.
-`4456f397` applied cleanly. The two log commits each hit the same recurring positional-artifact
-conflict in `SESSION_LOG.md` as every prior promotion (new dated entry vs. existing
-promotion-log entries competing for the same insertion point right after "Current Status");
-resolved by inserting the new entry chronologically ahead of the nav-bar-promotion entry it was
-authored after, keeping both intact. Confirmed `src/components/layout/notifications.tsx` is
-byte-for-byte identical to staging's version afterward. `bun run lint` clean (pre-existing
-warnings only, none in the changed file).
+**Fix:** added `pinCircle(user.did!, backstageLoungeCircleId)` to the exact same step that
+already auto-enrolls every new signup as a member (`ccb41bd3`) — right after the existing
+`addMember()` call, inside the same try/catch (so a missing circle or any failure still only
+logs, never blocks signup). New signups only — this only runs inside
+`submitSignupFormAction`, never touching any existing account.
 
-**Deploy:** `scripts/deploy-peerify.sh` — GIT_SHA `e2b34357`, all 8 steps PASS (build, BUILD_ID
-`uKgIGyuEwvFPMhGSfbmZT`, static-asset copy/verify, PM2 restart, HTTP checks).
+**Verification**, using the same `createUserAccount`-based methodology as the original
+enrollment fix (`createUserSession`'s `cookies()` call can't run in a standalone script): a
+fresh signup ends up with the Backstage Lounge's real `_id` as the first (and only) entry in
+`pinnedCircles`; calling `unpinCircle` afterward (the identical function the UI's own toggle
+calls) cleanly removes it (`pinnedCircles: []`); and four existing staging accounts
+(`tim-admin`, `linus`, `dave-knowles`, `akro-timothy`) had their `pinnedCircles` confirmed
+byte-for-byte identical before and after — entirely unaffected (`tim-admin`'s own pre-existing
+pins, including one for the Backstage Lounge from having created it, were untouched throughout).
+`bun run lint` and `npx tsc --noEmit -p .` both clean.
 
-**Post-deploy verification (beyond the script's own checks):** confirmed shell `$PORT` empty
-before the script ran; confirmed via `pm2 jlist` that the restarted `peerify` process's own env
-has `PORT=3000`; `pm2 save` completed ("Successfully saved in /home/tim/.pm2/dump.pm2`); `pm2
-status` shows `peerify` online (new pid, fresh uptime) and `peerify-staging` unchanged
-(pid/uptime identical to pre-deploy). `curl` confirmed HTTP 200 on both `/` (70354 bytes) and
-`/explore` (93081 bytes), zero "Application error" occurrences in either body. `pm2 logs
-peerify` showed only the same benign "Failed to find Server Action ... older or newer
-deployment" burst seen on every prior redeploy — expected, not a fault. Grepped the deployed
-standalone bundle directly (binary-safe, `grep -a`) to confirm the fix actually shipped in the
-built artifact, not just the source: `contact_request_received` and both
-`acceptConnectRequestAction`/`declineConnectRequestAction` server-action names all found
-together in the same client chunk (`.next/static/chunks/4367-5754e8e66f7d6613.js`) plus the
-server-reference manifest — `ProfileRelationshipHeaderAction` itself is not findable as a
-literal string, expected, since local component names (unlike server-action IDs) are minified
-away in production.
-
-**Carry-forward:** none — this was a scoped deploy-only promotion, no source changes made on
-`main` beyond the three cherry-picks.
+**Carry-forward:** not deployed — local to `staging` only, per instruction. Retroactively
+pinning for existing users was explicitly out of scope for this task, left as a separate future
+decision. No real click-through in an actual browser (seeing the pin actually render in the
+sidebar immediately post-signup, or using the UI's own unpin control rather than calling the
+underlying function directly) — no browser tooling available in this environment.
 
 ---
 
-## 2026-08-06 (cont. 2) — Promoted to production: nav bar (Backstage Lounge icon link + superadmin Admin link) and sidebar auto-pinning of The Backstage Lounge
+## 2026-08-06 — Nav bar: Peerify icon now links to The Backstage Lounge; added a superadmin-only Admin link
 
-Headline: promoted two more staging features to production together, per explicit request.
-Deploy only — no code changes made in this worktree beyond the cherry-picks themselves.
+Headline: two small nav bar UI changes. One commit (`e3ac57de`), one file changed
+(`src/components/layout/global-nav.tsx`), local to `staging` only, not deployed.
 
-**Scope confirmed first, as instructed.** `git log main..staging` on the staging worktree
-listed 10 commits, but by content-diff (not ancestry — cherry-picks mint new hashes) only two
-were actually still pending:
-- `e3ac57de` — Nav bar: link the Peerify icon to The Backstage Lounge; add a superadmin-only
-  Admin link (gated on `user.isAdmin`, the same field every other admin surface uses).
-- `09d7a151` — Pin The Backstage Lounge to new signups' sidebar by default (added to the same
-  signup step that already auto-enrolls new users as members, via the existing, unprivileged
-  `pinCircle` mechanism — not a locked default; users can unpin it normally).
+**Investigation first, as instructed.** The top-left icon (`global-nav.tsx`) linked to
+`/explore`. The admin page (`app/admin/page.tsx`) gates itself server-side on `user.isAdmin` — a
+boolean field on the user's own circle document — used identically throughout
+`src/components/modules/admin` (every admin action file, plus a dedicated
+`super-admins-tab.tsx`). Confirmed this is structurally distinct from a circle's own admin
+membership (`Members.userGroups` including `"admins"`, a separate collection keyed by
+user+circleId) — the permission model already cleanly distinguishes "platform superadmin" from
+"circle admin" via completely different data, so no ambiguity to report; reused `isAdmin`
+directly rather than inventing a new gate.
 
-The other two commits in that `main..staging` list (`ccb41bd3` Backstage Lounge auto-enrollment,
-`a9143e4b` map privacy fix) were already promoted earlier under different hashes (`0355c61f`,
-`79510ae1` respectively, see prior dated entries) — confirmed via `grep` that main's
-`global-nav.tsx` and `signup/actions.ts` were missing the nav/pin changes before this promotion,
-and correctly did NOT re-cherry-pick those two.
+**Fix 1:** the icon's `Link` now points to `/circles/the-backstage-lounge` (the same circle used
+for signup auto-enrollment), matching the existing pinned-tray convention of
+`/circles/{handle}` with no `/home` suffix.
 
-**Promotion:** cherry-picked `e3ac57de` → `fea0a177` and `09d7a151` → `e7981c53` onto `main`,
-both applying cleanly with no conflicts. `bun run lint` clean (pre-existing warnings only, no
-errors) before deploying.
+**Fix 2:** added a new `Link` to `/admin`, gated on `user?.isAdmin` (from the existing
+`userAtom`, populated via `checkAuth` → `getUserPrivate`, an unprojected fetch that already
+includes `isAdmin` — confirmed via `git log -S`/code reading, not assumed). Hidden on mobile and
+pinned to the bottom of the desktop sidebar via `hidden md:absolute md:bottom-4`, positioned
+against the nav's own already-`fixed` container rather than altering any existing element's
+layout classes — nothing else in the nav bar was touched. No existing "Admin" nav entry existed
+anywhere in the app chrome to mirror styling from (confirmed via search — the only `/admin`
+references in `.tsx` files are internal to the admin dashboard itself), so it follows the same
+icon+label visual pattern (colors, sizing) already used by the other nav items in
+`global-nav-items.tsx`, using lucide-react's `Shield` icon (already an in-use icon library here).
 
-**Deploy:** `scripts/deploy-peerify.sh` — GIT_SHA `e7981c53`, all 8 script steps PASS
-(build, BUILD_ID `C_NPsP4SJ7H901ylbu0l6`, static-asset copy/verify, PM2 restart, HTTP checks).
-Confirmed `PORT=3000` via `pm2 env` for the `peerify` process pre/post-restart; `pm2 save`
-completed ("Successfully saved in /home/tim/.pm2/dump.pm2"); `pm2 status` shows `peerify` online
-(new pid) and `peerify-staging` untouched (unchanged pid/uptime). `curl` confirmed HTTP 200 on
-both `/` and `/explore`. Grepped the deployed standalone bundle directly to confirm both features
-actually shipped in the built artifact (not just source): `the-backstage-lounge` found in server
-chunks `915.js`/`6509.js` and the client `app/layout` static chunk; `isAdmin` and the literal
-`Admin dashboard` aria-label found in that same nav static chunk; `pinCircle` found in the
-signup server-action chunk (`6509.js`) and the server-reference manifest.
+**Verification, against real staging accounts, not just fixtures:**
+- `tim-admin`/`linus` (`isAdmin: true`) vs. `akro-timothy` (fan signup, no `isAdmin` field) vs.
+  `dave-knowles` (artist signup, no `isAdmin` field, but *is* admin of their own personal
+  circle's `Members` row) — confirmed via direct DB query that circle-admin membership never
+  grants the platform link, since the two are governed by entirely separate data structures.
+- A fixture-based script (not committed) mirroring the exact gating expression
+  (`Boolean(user?.isAdmin)`) confirmed all three required scenarios: true superadmin sees the
+  link, a user with no `isAdmin` field doesn't, a logged-out user doesn't.
+- `/circles/the-backstage-lounge` itself confirmed to render correctly (curl, real minted
+  sessions, zero errors, correct `<title>`) for both an artist-signup account (`dave-knowles`)
+  and a fan-signup account (`akro-timothy`) — classified via each account's own
+  `metadata.signupIntent` field.
+- The mobile-hidden behavior reuses the identical `hidden ... md:flex` pattern already proven
+  elsewhere in this same file (the logo icon itself) and in `global-nav-items.tsx`'s pinned
+  tray — not independently re-verified in an actual browser, since none is available in this
+  environment, but not a new/unproven pattern either.
 
-**Carry-forward:** none — this was a scoped deploy-only promotion, no source changes made on
-`main` beyond the two cherry-picks.
+`bun run lint` and `npx tsc --noEmit -p .` both clean.
 
-## 2026-08-06 (cont.) — Promoted to production: Backstage Lounge auto-enrollment
+**Deployed to staging** (follow-up, same session): `deploy-staging.sh` run, all 8 steps passed
+(BUILD_ID `_jKF8a7ah8lh5uCrgTumt`), prod pid/uptime unchanged. Homepage curl-verified to render
+fully post-deploy (70KB, zero "Application error" occurrences). Grepped the deployed client
+bundle directly for both changes' literal strings (`"the-backstage-lounge"`, `"Admin
+dashboard"`) — both present in the root layout chunk (`GlobalNav` renders there), confirming
+the changes actually shipped rather than trusting the build log alone.
 
-Headline: promoted the Backstage Lounge auto-enrollment feature to production. Deploy only —
-no code changes made in this worktree beyond the cherry-picks themselves.
-
-**Promoted (cherry-picked `ccb41bd3` + `e4bd48ec` + `57ee13c9` onto `main`, new HEAD
-`62d34468`, rollback point `76be618c`):**
-- `ccb41bd3` — every new signup (fan or artist alike) is now auto-enrolled as a follower of The
-  Backstage Lounge via an unconditional step in `submitSignupFormAction`
-  (`src/components/forms/signup/actions.ts`), looked up by its stable handle
-  (`the-backstage-lounge`) and enrolled through the existing `addMember(...)` mechanism
-  (`["members"]`, the circle's own Follower group). try/catch-wrapped like the adjacent
-  optional/unconditional provisioning steps already there — a missing circle or any other
-  failure only logs, never blocks signup.
-- `e4bd48ec`, `57ee13c9` — SESSION_LOG entries for the above and its staging deploy.
-
-**Process:** `git log main..staging` showed 5 commits ahead, not 3 — but confirmed the other 2
-(`a9143e4b`/`e40d53ef`) were the map privacy fix already promoted last time (cherry-picking
-creates new commit objects with different hashes, so git never considers the originals "merged"
-by ancestry even though the content is already in `main` — confirmed via `diff <(git show
-a9143e4b) <(git show 79510ae1)`, identical beyond the commit metadata line). The genuinely
-remaining work was exactly the 3 commits named. Cherry-picked all 3 directly onto `main`, in
-order.
-
-**Merge conflicts:** `SESSION_LOG.md` only, on 2 of the 3 cherry-picks — the same recurring
-positional-artifact class as every prior promotion, plus a chronological-interleaving wrinkle
-this time: staging's own file has the Backstage Lounge entry sitting *between* the privacy-fix
-entry and the search-scope-decouple entry (matching real creation order), while `main` has its
-own promotion-log entries interspersed in between those same two that don't exist on staging at
-all. Resolved by inserting the new Backstage Lounge content at the equivalent chronological
-position relative to `main`'s own entries, and discarding a duplicate/renumbered header for an
-already-shared entry each time (same resolution pattern as every prior promotion). Confirmed
-`src/components/forms/signup/actions.ts` is byte-for-byte identical to staging's version
-afterward. `bun run lint` clean.
-
-**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting. `scripts/deploy-peerify.sh`,
-all 8 steps passed. GIT_SHA `62d34468`, BUILD_ID `ro-19eRfSmvF8MDAQcUns`. `pm2 save` ran inside
-the script. Staging pid/uptime unchanged throughout.
-
-**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
-`pm2 status` — both processes online, prod not crash-looping, clean "Ready in 217ms" boot.
-`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
-deployment" burst seen on every prior redeploy — expected, not a fault. Homepage and `/explore`
-both curl-verified to return full real content (70KB/93KB, zero "Application error"
-occurrences). Grepped the deployed server bundle directly for the fix's literal handle string
-(`"the-backstage-lounge"`) — present, confirming the fix is actually live, not just that the
-build succeeded.
-
----
-
-## 2026-08-06 — PRIVACY: promoted to production — map leak, mapVisible:false profiles got a real pin via search
-
-Headline: **privacy-relevant fix**, promoted to production. Deploy only — no code changes made
-in this worktree beyond the cherry-picks themselves.
-
-**Promoted (cherry-picked `a9143e4b` + `e40d53ef` onto `main`, new HEAD `661d1ce0`, rollback
-point `8dee10df`):**
-- `a9143e4b` — `searchDiscoverableCircles` (`search.ts`) now strips a personal profile's
-  `location` field whenever `circleType === "user" && mapVisible !== true`, the exact same rule
-  `getSwipeCircles` already applies at the query level for default map browsing. Since
-  `map.tsx`'s only condition for creating a marker at all is `item?.location?.lngLat`, this
-  makes a marker structurally impossible for these profiles — closing the gap where a
-  searchable-but-not-map-visible profile could still get a real, clickable "Unavailable" pin
-  revealing its approximate location, purely because search never checked `mapVisible` at all
-  (only the separate `searchable` field). Not another client-side mask — the pre-existing
-  `isSuppressedUserProfile` cosmetic-degradation helper in `map.tsx` is untouched, left as a
-  legitimate defense-in-depth layer, now correctly unreachable for this path. `searchable`
-  itself is untouched — profiles remain fully findable by search and viewable via Open exactly
-  as before, by design.
-- `e40d53ef` — SESSION_LOG entry for the above.
-
-**Process — explicitly scoped, not a plain merge:** `git log main..staging` showed staging was
-**5** commits ahead, not 2 — the other 3 (`ccb41bd3`/`e4bd48ec`/`57ee13c9`, the unrelated
-Backstage Lounge auto-enrollment feature) were **not** part of this promotion's scope. A plain
-`git merge staging` would have incorrectly bundled them in, so cherry-picked only the 2 relevant
-commits directly onto `main` instead. Confirmed afterward via `git merge-base --is-ancestor
-ccb41bd3 HEAD` that the excluded commits are genuinely absent, and that `search.ts` is
-byte-for-byte identical to staging's version.
-
-**Merge conflict:** `SESSION_LOG.md` only, on the second cherry-pick (`e40d53ef`) — a positional
-artifact: the new entry's diff context included an adjacent, pre-existing staging header (the
-excluded Backstage Lounge entry's own heading) that had to be explicitly excluded rather than
-pulled in along with the real new content. Resolved by keeping only the genuinely new
-privacy-fix entry text and restoring `main`'s own next entry unchanged. `bun run lint` clean.
-
-**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting. `scripts/deploy-peerify.sh`,
-all 8 steps passed. GIT_SHA `661d1ce0`, BUILD_ID `sz1n1-CZoNzZv9TplAcr7`. `pm2 save` ran inside
-the script. Staging pid/uptime unchanged throughout.
-
-**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
-`pm2 status` — both processes online, prod not crash-looping, clean "Ready in 186ms" boot.
-`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
-deployment" burst seen on every prior redeploy — expected, not a fault. Homepage and `/explore`
-both curl-verified to return full real content (70KB/93KB, zero "Application error"
-occurrences). Grepped the deployed server bundle directly and found the exact shipped logic
-(minified: ``"user"!==a.circleType||!0===a.mapVisible`` gating ``location:c?a.location:void
-0``) in `app/api/circles/search/route.js` — confirming the fix is actually live, not just that
-the build succeeded.
-
-**Confirmed against the real production account, not staging's synthetic test account
-(explicitly required):** staging's `tim-admin` doesn't exist on production; the real equivalent
-— same person, same precondition (`searchable: true, mapVisible: false`) — is `tim` (Tim
-Olsson, `handle: "tim"`, the same account behind the Backstage Lounge and "Peerify
-Announcements" conversation). Called the real `searchDiscoverableCircles` function directly
-against production's live database: `tim` is still found by search, but now has no location in
-the result — a map marker is no longer possible. The leak is confirmed fixed on the actual
-production account that would have been affected, not a fixture or a staging stand-in.
+**Carry-forward:** no real click-through in an actual browser (icon click, admin link
+appearance/absence per account, mobile-width check) — no browser tooling available in this
+environment; the above is the
+strongest verification available without one.
 
 ---
 
@@ -1285,49 +1847,10 @@ that the build succeeded.
 per instruction, given the privacy sensitivity (same class as the event-visibility fixes, which
 *were* already promoted earlier this week — this one is still staging-only).
 
----
-
-## 2026-08-04 (cont. 7) — Promoted to production: decouple map search scope from the active filter pill
-
-Headline: promoted the search-scoping fix below to production. Deploy only — no code changes
-made in this worktree beyond the merge itself.
-
-**Promoted (merge `c9a5b43c`, rollback point `28a33675`):**
-- `277eba2a` — a fresh search no longer inherits whichever content-type pill happens to be
-  active (including the Artists default) as a pre-scope. Searching for a friend or venue no
-  longer silently returns zero results just because a different pill was selected. Pills still
-  narrow results after a search is already running (preserved across refinements like a genre
-  pill change). Default (no-search) browsing view is completely unaffected — a different code
-  path entirely.
-- `1f38d02c`, `47a3533d` — SESSION_LOG entries for the above and its staging deploy.
-
-**Process:** confirmed via `git log main..staging` that staging was exactly these 3 commits
-ahead — matching the expected pattern (1 code + 2 log), nothing unaccounted for this time.
-`main` was not a fast-forward target (main's tip `28a33675` isn't an ancestor of `staging`), so
-merged with `git merge --no-ff`.
-
-**Merge conflict:** `SESSION_LOG.md` only, the same class as the three prior promotions.
-Resolved by interleaving in chronological order. `map-explorer.tsx` merged with no conflict and
-was confirmed byte-for-byte identical to staging's version afterward. `bun run lint` clean; no
-bare build run (per instruction) — build verified via the deploy script itself.
-
-**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting. `scripts/deploy-peerify.sh`,
-all 8 steps passed. GIT_SHA `c9a5b43c`, BUILD_ID `0tPViF_NveOXRVh_Ov1Hi`. `pm2 save` ran inside
-the script. Staging pid/uptime unchanged throughout.
-
-**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
-`pm2 status` — both processes online, prod not crash-looping, clean boot ("Ready in 212ms").
-`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
-deployment" burst seen on every prior redeploy — expected, not a fault. Homepage and `/explore`
-both curl-verified to return full real content, zero "Application error" occurrences.
-
-**Important caveat, unlike the two backend fixes promoted earlier today:** this fix is pure
-client-side React state/effects logic with no server-executed code path — there is no way to
-curl-verify the actual search-scoping behavior itself, on staging or here. These health checks
-only confirm the app is up and rendering; the fixture-based script run before the staging
-deploy (using the real `isPeerifyArtistIdentity`/`isPeerifyVenueIdentity` functions against the
-exact new logic) remains the strongest verification this fix has had. A real click-through
-(typing a query, watching results populate) in an actual browser is still outstanding.
+**Update (2026-08-06):** confirmed and promoted to production — `a9143e4b` + its log entry
+(`e40d53ef`) cherry-picked onto `main` as `661d1ce0`, verified post-deploy against the real
+production account (`tim`), not a staging stand-in. See prod's own `SESSION_LOG.md` entry
+"2026-08-06 — PRIVACY: promoted to production — map leak..." for the full record.
 
 ---
 
@@ -1402,7 +1925,7 @@ still outstanding — no browser tooling available in this environment.
 
 ---
 
-## 2026-08-04 (cont. 6) — Decoupled map search scope from the active filter pill
+## 2026-08-04 (cont. 4) — Decoupled map search scope from the active filter pill
 
 Headline: fixed the map search silently getting pre-scoped by whichever content-type pill was
 active (including the Artists default), causing a search for a friend/venue to return zero
@@ -1457,52 +1980,7 @@ live UX matches this logical verification.
 
 ---
 
-## 2026-08-04 (cont. 5) — Promoted to production: hide Topics from chat/messages UI
-
-Headline: promoted the Topics-hide fix below to production. Deploy only — no code changes made
-in this worktree beyond the merge itself.
-
-**Promoted (merge `46c1aded`, rollback point `64047344`):**
-- `2b448ef1` — removes the three Topics UI entry points (composer's "New topic" button, inline
-  Topic card, "Topics" tab in the room Info dialog) without touching the backend
-  (`mongo-actions.ts`, `mongo-chat.ts`, `mongo-types.ts`) or deleting the underlying component
-  definitions — a reversible UI-only hide, per explicit product decision (Topics is real,
-  functioning, Peerify-built chat-thread functionality, not leftover Kamooni/Circles
-  scaffolding, but fully self-contained within the chat module).
-- `afa0c641`, `f5d1fca6` — SESSION_LOG entries for the above and its staging deploy.
-
-**Process:** the task named 2 commits ("`f5d1fca6` and its parent"); confirmed via
-`git log main..staging` that staging was actually 3 commits ahead, and that a literal reading
-of "its parent" would have excluded the actual code fix (`2b448ef1`) — flagged this before
-merging and brought over all 3, matching staging's entire divergence exactly (nothing else
-bundled in). `main` was not a fast-forward target (main's tip `64047344` isn't an ancestor of
-`staging`), so merged with `git merge --no-ff`.
-
-**Merge conflict:** `SESSION_LOG.md` only, the same class as the two prior promotions. Resolved
-by interleaving in chronological order. Both chat files (`chat-room.tsx`,
-`group-settings-modal.tsx`) merged with no conflict and were confirmed byte-for-byte identical
-to staging's versions afterward. `bun run lint` clean; no bare build run (per instruction) —
-build verified via the deploy script itself.
-
-**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting. `scripts/deploy-peerify.sh`,
-all 8 steps passed. GIT_SHA `46c1aded`, BUILD_ID `AJ1LWZ1qdw08cigOxZNYJ`. `pm2 save` ran inside
-the script. Staging pid/uptime unchanged throughout.
-
-**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
-`pm2 status` — both processes online, prod not crash-looping, clean "Ready in 243ms" boot.
-`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
-deployment" burst seen on every prior redeploy — expected, not a fault. Homepage and `/explore`
-both curl-verified to return full real content, zero "Application error" occurrences. Went
-further this time and curl-verified a real **production chat conversation** directly (minted a
-JWT for the session owner's own admin account — not an arbitrary third-party user — and hit
-`/chat/6a2a62bee1871c530830cef0`, the real "Peerify Announcements" conversation): page rendered
-fully (67.7KB, zero errors), the conversation's own content still present, and zero matches
-anywhere in the output for "New topic", "Topic title", "Create Topic", or a "Topics" tab label.
-Real end-to-end confirmation on production itself, not just staging.
-
----
-
-## 2026-08-04 (cont. 4) — Hid Topics from chat/messages UI — not needed for Peerify
+## 2026-08-04 (cont. 3) — Hid Topics from chat/messages UI — not needed for Peerify
 
 Headline: investigated then hid the chat "Topics" feature from the UI, per request. One commit
 (`2b448ef1`), two files changed, local to `staging` only, not deployed.
@@ -1562,48 +2040,6 @@ inference, not an interactive confirmation.
 
 ---
 
-## 2026-08-04 (cont. 3) — Promoted to production: map filter-pill fixes
-
-Headline: promoted the map filter-pill fix below to production. Deploy only — no code changes
-made in this worktree beyond the merge itself.
-
-**Promoted (merge `a8b2dfdf`, rollback point `e7d8cb3d`):**
-- `284816d2` — category pills (Artists/Venues/Events) now correctly exclude every other content
-  type instead of always showing events alongside them; map defaults to Artists selected on
-  load instead of showing everyone.
-- `eca8b574` — SESSION_LOG entry for the above.
-
-**Process:** confirmed via `git log main..staging` that staging was exactly these 2 commits
-ahead — no discrepancy this time (unlike the prior promotion, where the named commits didn't
-cover the full gap). `main` was not a fast-forward target (main's tip `e7d8cb3d` isn't an
-ancestor of `staging`), so merged with `git merge --no-ff`.
-
-**Merge conflict:** `SESSION_LOG.md` only, the same class as the prior promotion — main's own
-promotion-log entries never sync back to staging, so both branches inserted new entries at the
-same anchor point. Resolved by interleaving in chronological order. `map-explorer.tsx` merged
-with no conflict and was confirmed byte-for-byte identical to staging's version afterward.
-`bun run lint` clean; no bare build run (per instruction) — build verified via the deploy
-script itself.
-
-**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting. `scripts/deploy-peerify.sh`,
-all 8 steps passed. GIT_SHA `a8b2dfdf`, BUILD_ID `X1mxJiIiEUVCQAi_SM-Fu`. `pm2 save` ran inside
-the script. Staging pid/uptime unchanged throughout.
-
-**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
-`pm2 status` — both processes online, prod not crash-looping, "Ready in 199ms" on boot.
-`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
-deployment" burst seen on every prior redeploy (pre-restart browser tabs referencing the
-previous build's action IDs) — expected, not a fault. Homepage and `/explore` both
-curl-verified to return full real content (70KB/93KB, correct `<title>`, zero "Application
-error" occurrences).
-
-**Not done, carried forward from the staging fix itself:** a real click-through confirming pill
-highlighting/map marker behavior in an actual browser — this fix was verified on staging via
-manual code trace + a fixture-based script (no browser tooling in this environment), not
-interactive testing, and that gap carries through to this production promotion too.
-
----
-
 ## 2026-08-04 (cont. 2) — Fixed map filter-pill bugs: events leaked through Artists/Venues pills; defaulted map to Artists
 
 Headline: two related bugs found while testing the just-promoted event-visibility fixes, but
@@ -1642,77 +2078,6 @@ clean (no bare build; not deploying this session).
 **Carry-forward:** not deployed — local to `staging` only, per instruction. Needs a real
 click-through on staging once deployed to confirm the actual UI (pill highlighting, map
 markers) matches this logical verification.
-
----
-
-## 2026-08-04 — Promoted to production: map + list event-visibility fixes
-
-Headline: promoted both event-visibility fixes below (map and list) to production in one merge.
-Deploy only — no code changes made in this worktree beyond the merge itself.
-
-**Promoted (merge `54776725`, rollback point `5e837e5e`):**
-- `6efd8066` — `getOpenEventsForMap` now requires the host circle to pass the same visibility
-  gate circles/profiles already use before an event can appear on the map: published, and
-  (for personal "user"-type profiles) `mapVisible: true`. Confirmed exploitable pre-fix via two
-  constructed test cases (draft-circle event, `mapVisible: false`-profile event, both leaked).
-- `1f5575a2` — SESSION_LOG entry for the above.
-- `7f8bdb14` — the identical fix applied to `getOpenEventsForList` (list/panel view), closing
-  the gap the map fix explicitly flagged as out of scope.
-- `cbdd865a` — SESSION_LOG entry for the above.
-
-**Process:** the two commit hashes given for this task named only the list fix
-(`7f8bdb14`/`cbdd865a`); confirmed via `git log main..staging` that staging was actually 4
-commits ahead (the map fix's `6efd8066`/`1f5575a2` too), and confirmed with the user before
-proceeding that all 4 should be promoted together — "both event-visibility fixes" wouldn't
-otherwise both end up live. `main` was not a fast-forward target for `staging` (main's tip
-`5e837e5e` isn't an ancestor of `staging`), so merged with `git merge --no-ff`.
-
-**Merge conflict:** `SESSION_LOG.md` only — a positional conflict, not a real content conflict.
-The prior promotion's "Current Status" correction was made directly on `main` and never synced
-back to `staging`, so both branches had independently inserted new dated entries at the same
-anchor point. Resolved by interleaving both branches' entries in chronological order; `event.ts`
-merged with no conflict and was confirmed byte-for-byte identical to staging's version
-afterward. `bun run lint` clean on the resulting merge commit; no bare build run (per
-instruction) — build verified via the deploy script itself.
-
-**Deploy:** confirmed `$PORT` empty in a fresh shell before restarting (per standing process).
-`scripts/deploy-peerify.sh`, all 8 steps passed. GIT_SHA `54776725`, BUILD_ID
-`UX-odmVugv4fIUWgwTapI`. `pm2 save` ran inside the script. Staging pid/uptime unchanged
-throughout.
-
-**Post-deploy health checks (verified the app is actually up, not just script exit 0):**
-`pm2 status` — both processes online, prod not crash-looping, "Ready in 197ms" on boot.
-`pm2 logs peerify` showed the same benign "Failed to find Server Action ... older or newer
-deployment" burst as the prior promotion (pre-restart browser tabs referencing the previous
-build's action IDs) — expected, not a fault. Homepage and `/explore` both curl-verified to
-return full real content (70KB/93KB, correct `<title>`, zero "Application error" occurrences).
-Grepped the deployed server bundle directly for the fix's exact query field
-(`circleDetails.mapVisible`) — present, confirming the fix actually shipped rather than trusting
-the build log alone.
-
----
-
-## 2026-08-04 (cont.) — Closed the flagged getOpenEventsForList gap: same fix as the map, its own commit
-
-Headline: applied the identical host-circle visibility fix to `getOpenEventsForList`
-(`event.ts:1454`, the list/panel view) — the gap explicitly flagged, but left out of scope, in
-the map fix above. One commit (`7f8bdb14`), one file changed, deployed to staging only.
-
-**Fix:** same host-circle lookup-based `$match` stage as `getOpenEventsForMap`'s fix
-(`6efd8066`/`1f5575a2`) — host circle must be published, and if a personal profile, must also
-have `mapVisible: true`. Same `$unset` of the gating-only projection fields immediately after, so
-`circle`'s client-facing shape on `EventDisplay` is unchanged.
-
-**Verification:** same three test cases as the map fix (constructed against the real,
-unmodified `getOpenEventsForList`, cleaned up after) — draft-circle event and
-`mapVisible: false`-profile event both correctly excluded; a published-circle control event
-still shown with an unchanged `circle` shape. `bun run lint` clean, only the one file changed.
-Build verified via `deploy-staging.sh` only — all 8 steps passed, prod untouched.
-
-No remaining known gap between circles/profiles and events for map-adjacent visibility (map +
-list). Not checked: search (events aren't part of the text-search path per the earlier
-investigation, so not applicable), and any other event-surfacing view not covered by this task's
-remit.
 
 ---
 
@@ -1756,60 +2121,34 @@ else regressed and the returned `circle` shape is unchanged. `bun run lint` clea
 via `deploy-staging.sh` only (no bare build), which also deployed the fix to staging — all 8
 steps passed, prod untouched.
 
-**Scope note:** the `getOpenEventsForList` gap flagged here was closed immediately after in the
-entry above (`7f8bdb14`) — both fixes are promoted to production together in this same merge.
+**Scope note, explicitly not fixed:** `getOpenEventsForList` (`event.ts:1454`, the list/panel
+view, not the map) has the identical gap — same visibility-gating stage, same missing host-circle
+check. Left untouched since this task's remit was the map specifically; worth its own scoped fix
+later, reusing this exact pattern.
 
 ---
 
-## 2026-08-03 — Promoted to production: Continue-setup routing fix + profile-complete notification copy fix
+## 2026-08-04 (cont.) — Closed the flagged getOpenEventsForList gap: same fix as the map, its own commit
 
-Headline: promoted two small, independently-verified staging fixes to production. Both had
-already been confirmed via real click-through/live-request testing on staging (not just
-lint/build) — see the two dated `staging`-branch entries below for the full investigations.
+Headline: applied the identical host-circle visibility fix to `getOpenEventsForList`
+(`event.ts:1454`, the list/panel view) — the gap explicitly flagged, but left out of scope, in
+the map fix above. One commit (`7f8bdb14`), one file changed, deployed to staging only.
 
-**Promoted (merge `1ce96eda`, staging HEAD `1e733b9d` → main, rollback point `0521025d`):**
-- `96cb4f37` — artist Draft-profile banner's "Continue setup" no longer routes back to Frame
-  1a via a stale client-cached `<Link>` navigation to `/onboarding/pilot`; replaced with
-  `router.push` + `router.refresh()`. This exact bug was originally discovered live on
-  production via a real signup, before being fixed and verified on staging.
-- `30b18a95` — accompanying copy (bold "public artist profile", button label to "Continue with
-  artist setup" on the artist-track explainer screen).
-- `42e771c7` — the auto-verify "profile complete" notification no longer overclaims
-  completeness when location is unset (branches on `hasLocationSet`); the actual
-  posting/commenting/messaging participation gate is unchanged — location stays genuinely
-  optional for that, by deliberate design, not by oversight.
-- Plus 4 SESSION_LOG.md-only commits documenting the above.
+**Fix:** same host-circle lookup-based `$match` stage as `getOpenEventsForMap`'s fix
+(`6efd8066`/`1f5575a2`) — host circle must be published, and if a personal profile, must also
+have `mapVisible: true`. Same `$unset` of the gating-only projection fields immediately after, so
+`circle`'s client-facing shape on `EventDisplay` is unchanged.
 
-**Process:** confirmed staging's working tree clean at `1e733b9d`, `bun run lint` and
-`CI=1 bun run build` both clean on that exact commit (re-running the build regenerated
-staging's live standalone artifacts per the known hazard — immediately restored via a real
-`deploy-staging.sh` run before proceeding, no code change). Confirmed via `git log main..staging`
-that exactly these 7 commits (3 code + 4 docs) were ahead — nothing unexpected. `main` was not a
-fast-forward target for `staging` (main's tip `0521025d` isn't an ancestor of `staging`), so
-merged with `git merge --no-ff` — auto-resolved cleanly, no conflicts. `bun run lint` and
-`CI=1 bun run build` both clean on the resulting merge commit in the production worktree.
+**Verification:** same three test cases as the map fix (constructed against the real,
+unmodified `getOpenEventsForList`, cleaned up after) — draft-circle event and
+`mapVisible: false`-profile event both correctly excluded; a published-circle control event
+still shown with an unchanged `circle` shape. `bun run lint` clean, only the one file changed.
+Build verified via `deploy-staging.sh` only — all 8 steps passed, prod untouched.
 
-**Deploy:** `scripts/deploy-peerify.sh`, all 8 steps passed. GIT_SHA `1ce96eda`, BUILD_ID
-`WbNzBMEbRxYbKiXh22vVx`. Staging pid/uptime unchanged throughout.
-
-**Post-deploy health checks:** `pm2 status` — both processes online, prod not crash-looping.
-`pm2 logs peerify` showed a burst of "Failed to find Server Action ... older or newer
-deployment" errors right after restart — expected, benign collateral of any redeploy (browser
-tabs already open from before the restart still reference the previous build's Server Action
-IDs; resolves itself as those tabs refresh or make their next request). Homepage and `/explore`
-both curl-verified to return full real content (70KB/93KB, correct `<title>`, zero
-"Application error" occurrences) — not blank/hydration-failed. Grepped the deployed server
-bundle directly for both notification message variants (the full "complete" wording and the
-trimmed one) — both present. Grepped the deployed client bundle for the Continue-setup fix's
-exact code (`router.push`/`router.refresh()`, no `<Link>`) — present, matching staging's bundle
-byte-for-byte in substance.
-
-**Not done, recommended:** a real click-through on production itself for the Continue-setup
-fix specifically — this bug was originally found live on production, and while the exact fixed
-code is confirmed present and staging's click-through passed, production's own real traffic/
-caching patterns haven't been directly exercised end-to-end this time (no browser tooling in
-this environment; verification here was via bundle inspection and curl, same method used
-throughout this investigation).
+No remaining known gap between circles/profiles and events for map-adjacent visibility (map +
+list). Not checked: search (events aren't part of the text-search path per the earlier
+investigation, so not applicable), and any other event-surfacing view not covered by this task's
+remit.
 
 ---
 
@@ -3023,56 +3362,6 @@ available, per the usual caveat.
 
 ---
 
-## 2026-07-12 — SDG feature removed platform-wide; Primary Genre built end-to-end as its replacement; map-pin race bug fixed; merged to main and deployed to prod
-
-Headline: Retired the SDG/causes feature across every surface it touched and replaced it with a new Primary Genre field + real server-side search filter, mirroring the old causes/SDG architecture (top-level `Circle` sync + Mongo `$in` queries) rather than client-side filtering. Along the way, found and fixed a pre-existing map-pin race condition, did a round of filter-UI polish, and logged one new known bug for a future design decision. All work merged `staging` → `main` (`bc14ad61`, `ebd83122`, `66721b20`, `80f4fc47`) and deployed to prod; verified live.
-
-**SDG feature removal** (commits `c2725c7e`, `60f67d6b`):
-- Removed from: search/filtering, the onboarding wizard step, the circle-creation wizard step, post/discussion composer tagging, the circles-list filter button, and the members-table filter button.
-- Onboarding-wizard and circle-creation-wizard steps were **disabled, not deleted** — dead code preserved in case SDGs (or a similar taxonomy) are wanted again later.
-- The **Matchmaking settings tab was deleted entirely** (not just hidden) — this was the last remaining SDG surface (its filter buttons), but deleting the whole tab also removed the only way to **edit a circle's Skills after creation** via Settings. Known, accepted tradeoff — Skills can still be set at circle-creation time, just not edited afterward. Flagged here in case that's ever raised as "missing" functionality.
-- Underlying schema fields (`causes`/`sdgs`) and `src/lib/data/sdgs.ts` were left **intact and untouched** — only UI and query usage were removed, not the data model or the reference data file.
-
-**Primary Genre feature, built end-to-end** (commits `bfd38004`, `9c537293`, `d37e7388`, `d8c25921`):
-- New `primaryGenres: string[]` field on artist profiles — max 3, with an "Other" option that unlocks a free-text `primaryGenreOther` field. Started as single-select, reworked to multi-select (max 3) once the design was validated.
-- Synced to the top-level `Circle` document, mirroring the pre-existing `causes`/SDG architecture, specifically so search filtering can run **server-side** via Mongo `$in` queries instead of client-side post-filtering.
-- Artist Identity settings: new checkbox group for selecting genres.
-- Advanced search: multi-select genre filter with persistent, individually-removable pills, a numbered filter-count badge, and a "Press Enter to apply" hint under pending pills.
-- Qdrant vector-search integration wired up for genre.
-- Public profile display: genre badges, including "Other (custom-genre)" formatting when the artist used the free-text option.
-
-**Bug found and fixed — stale map pins after client-side search** (part of `d37e7388`): a pre-existing race condition where map pins could silently keep showing stale/unfiltered data after *any* client-side search (this affected both the new genre filter and the existing date-range filter) — caused by a navigation-triggered RSC re-render overwriting already-filtered client state. Fixed with a guard in `ContentDisplayWrapper`.
-
-**UI polish** (commits `0a822717`, `a84236c7`, `4e9c18c7`):
-- Hid the map style switcher (globe/flat toggle) — code preserved, not deleted, in case it's wanted back later.
-- Reordered Genre before Calendar in the advanced filters panel.
-- Brought the Genre and Calendar filter cards to visual parity (hint contrast, z-index overlap fix, card tightening, matching "Select" trigger framing on Calendar's "Select dates").
-
-**Known bug logged, not yet fixed:** the genre filter only affects Artists/Venues, not Events. Selecting a genre with no matches removes artist/venue pins from the map but leaves unrelated event pins visible, which reads as inconsistent/broken. Needs a design decision before fixing — options noted: have events inherit genre from their host circle, give events their own dedicated genre field, or simply hide all events while any genre filter is active. Not fixed this session; needs product input first.
-
-**Deploy:** all of the above merged from `staging` to `main` and deployed to prod. Verified working live.
-
----
-
-## 2026-07-09 (cont. #2) — Promoted isVerified auto-verify overhaul + banner/reply-bug fixes from staging to main/prod
-
-Headline: Promoted the full day's-plus-yesterday's staging work (6 commits: `08dc5fd7`, `7e27e380`, `b072270a`, `83eafc69`, `2f4f32c9`, `3a1acc75` — the `isVerified` auto-verify overhaul and today's four follow-up fixes) into `main` and deployed to prod. Merge and build were verified before touching the live process; the actual deploy then ran clean.
-
-**Pre-promotion verification (no changes to prod yet):**
-- Confirmed local `main` matched `origin/main` after a fresh fetch, then diffed `main..origin/staging` and confirmed the commit list was exactly the expected 6 — nothing unexpected.
-- Merged `origin/staging` into local `main` (`--no-ff`, merge commit `1cd9f105`) — clean, only an auto-merge on `PEERIFY_CONTEXT.md`, no conflicts. Not pushed yet at this point.
-- **Build-only safety check, done without touching the running prod process:** inspected the live `peerify` PM2 process directly via `/proc/<pid>/cwd` and confirmed its working directory is `.next/standalone/apps/peerify-app/circles` — nested *inside* the exact `.next/` directory the prod deploy script (`scripts/deploy-peerify.sh`) deletes and rebuilds in place. Rather than build in the real prod worktree (which would have overwritten live-serving static files mid-build), built the merged `main` in an isolated detached worktree (`/tmp/peerify-prod-build-check`, same precedent as the 2026-06-28 audio-pipeline merge session) instead. Confirmed: build succeeded, all routes compiled, `.next/static`/`public` populated, the new check-email copy present in the built output, and the old amber banner markup absent — all with zero risk to the live process. Also confirmed neither existing deploy script fit a true "build-only, don't touch prod" ask: `deploy-genesis2.sh` is the stale Kamooni/Docker script (flagged separately in the carry-forward list below, not used), and `scripts/deploy-peerify.sh` has no dry-run mode (it always ends in a PM2 restart).
-
-**Promotion:**
-- Pushed local `main` to `origin/main` (`e754880a..1cd9f105`).
-- Ran `scripts/deploy-peerify.sh` for the real deploy (build, copy `.next/static`+`public`+`VERSION` into the live standalone dir, `pm2 delete`/`pm2 start`, `pm2 save`).
-- Verified after restart: `peerify` PM2 process online with a fresh pid and 0 restarts; `peerify-staging` completely unaffected (same pid, uptime unchanged); `http://localhost:3000/` and `https://peerify.one/` both 200; `peerify.one/signup/pilot/check-email` renders the new simplified copy live; the old amber "Complete your profile" banner markup confirmed absent from prod's static chunks; BUILD_ID matches between the top-level build and the standalone copy PM2 is serving from. Checked prod's error log for anything deploy-related — only pre-existing, unrelated noise (transient "Failed to find Server Action" errors from browser tabs that had the previous bundle open, which self-resolve, and a bot probing `/storage/.env`, which correctly 404s).
-- `main`, `staging`, and prod are now all in sync at `1cd9f105`.
-
-**Docs:** updated `PEERIFY_CONTEXT.md` §00 — items 16/17 and the staging→main promotion note marked resolved/promoted (previously said "staging only, not yet promoted to main").
-
----
-
 ## 2026-07-09 (cont.) — Simplified check-email popup; unified unverified-profile banners to plain red text; fixed Forum nested-reply phantom-success bug; kept the Unverified pill (confirmed functional)
 
 Headline: Four items in one pass — two straightforward copy/style changes, one investigate-then-fix bug, one investigate-then-decide-to-keep. All four verified on staging via `deploy-staging.sh` (prod confirmed untouched throughout).
@@ -3087,7 +3376,7 @@ Headline: Four items in one pass — two straightforward copy/style changes, one
 
 **Verification:** `bun run lint` (no new errors, only pre-existing warnings) and `bun run build` both clean. Deployed via `deploy-staging.sh` (all 8 steps passed — build, BUILD_ID match, static-asset copy verified, staging restarted, prod pid/uptime confirmed unaffected, HTTP root + static-asset checks 200). Confirmed live via `curl` against `staging.peerify.one`: check-email page renders the new copy and the handle-based redirect link (`/circles/{handle}/home`); the old amber "Complete your profile" box markup no longer exists anywhere in the built JS bundle. **Caveat:** the reply-composer fix is a client-side rendering/state fix, and headless-browser click-through verification was not available in this environment (Playwright's Chromium still missing system shared libraries — `libnspr4.so` etc. — same blocker as 2026-07-08/07-09 sessions; `sudo apt install` declined again without explicit go-ahead). Verified instead via clean build + exact mirroring of the already-proven `CommentSection.tsx` gating pattern, not live click-through — flag for a future session if/when headless-browser tooling becomes available.
 
-**Carry-forward:** at the time this entry was written, none of this touched `main`/prod — staged only. **Since promoted 2026-07-09** (see the "(cont. #2)" entry above) — this work is now live on prod.
+**Carry-forward:** none of this touches `main`/prod — still staged only, consistent with the existing item-16/17 promotion note in `PEERIFY_CONTEXT.md` §00.
 
 ---
 
@@ -3620,246 +3909,6 @@ Headline: UI cleanup sprint for the personal-profile settings page — removed t
 - Remove Featured Link placeholder (its future is the Peerify-hosted main track/video player; check nothing else references it before removing).
 - Move "Open To" (Shows/Festivals/Fans) into the sidebar (inside Listen & Follow card or its own small card beneath it — TBD).
 - New "Support / Get Involved" card below Listen & Follow: fan-participation invite (help make a show happen, join tour team, volunteer). This is the on-profile expression of the fan-hosted touring USP + pledge-to-bring mechanic; needs design thought on actions offered and who-sees-what.
-
-## 2026-08-11 — Visual-identity pilot promoted to production
-
-Promoted the shell portion of the visual-identity pilot (developed and iterated on the
-`peerify-staging` box's `staging` branch across five rounds: initial pilot on Tim Admin's own
-profile → Option A restrained-accent refinement → two side-by-side-against-production correction
-passes → app-wide shell extension → heading-weight tab-consistency fix) to `main`/production.
-Covers: the new orange palette on pills/badges, the settings-gear/star/megaphone action-icon
-gating (own-profile vs. administered-circle) and tint treatment, the left-sidebar divider fix, and
-the lighter heading font-weight — now consistent across every tab of a circle, not just Home. Does
-**not** cover a broader visual-identity rollout beyond this shell; page/card backgrounds and body
-text remain the site's existing white/neutral defaults everywhere, per the pilot's own scope.
-
-**Commit audit, per instruction, before touching `main` at all.** `git log main..staging` showed
-36 commits total — most of them unrelated prior work already promoted to `main` separately under
-different hashes (the Respond-dropdown/notify-on-accept/Connected-badge and Backstage-Lounge-
-auto-enrollment/nav-bar-link features, matching commit messages, different SHAs), plus the older
-Kamooni→Peerify rebrand pass (not part of this promotion either way). Of the 36, exactly 13
-belonged to the pilot (`886ce805^..793979cf` on staging) — 6 carrying actual code, 7 pure
-`SESSION_LOG.md` entries:
-
-- `886ce805` Pilot new "chrome" visual identity on Tim Admin's personal profile — **code**
-- `095090b3` Update SESSION_LOG.md for the new visual-identity pilot — log
-- `c726df9f` Refine visual-identity pilot to Option A: restrained accent — **code**
-- `ef9dca6e` Update SESSION_LOG.md for staging deploy + restrained-accent refinement — log
-- `4633b70e` Correct visual pilot per side-by-side review against production — **code**
-- `3273d58a` Update SESSION_LOG.md for the visual pilot correction pass — log
-- `d369ef3a` Second correction pass: typography reversal, sidebar full revert, action-icon consistency — **code**
-- `2728f28b` Update SESSION_LOG.md for the second visual pilot correction pass — log
-- `98ac567f` Log visual pilot deploy + final acceptance of current deployed state — log
-- `73544ddc` Extend pilot's shell-only fixes app-wide: nav divider, action-icon gating+tint, heading weight — **code**
-- `6304cb33` Update SESSION_LOG.md for the app-wide shell-fix extension — log
-- `b65fbd13` Extend lighter heading weight to every tab of a circle, not just /home — **code**
-- `793979cf` Update SESSION_LOG.md for staging deploy + heading-weight tab-consistency fix — log
-
-Listed all 13 for the user before touching `main`, per instruction, along with which 6 actually
-carry code — confirmed nothing unrelated would be bundled in.
-
-**Method.** Tested first in a disposable `git worktree` off `main`'s then-tip (`eb032786`), removed
-after: cherry-picking all 13 hit a conflict on `SESSION_LOG.md` at the very first log-only commit
-(the two branches' logs have diverged too far to replay cleanly) — but cherry-picking just the 6
-code commits applied with **zero conflicts**, and the resulting 8 touched files
-(`globals.css`, `layout.tsx`, `circles/[handle]/layout.tsx`, `global-nav.tsx`, `profile-menu.tsx`,
-`pilot-chrome-scope.tsx` + `pilot-chrome.ts` [new], `home-content.tsx`) came out **byte-identical**
-to staging's current tip. Given that, cherry-picked only the 6 code commits onto `main` for real
-(`accbd797`, `7f27f9cd`, `f3666b11`, `65ae38a6`, `f8c33c84`, `a6668a6f`) and wrote this single
-consolidated log entry instead of replaying the 7 log-only ones — re-confirmed the same
-byte-identical-to-staging result on the real `main` afterward.
-
-**Deploy.** `echo $PORT` confirmed empty in the shell before touching anything (the exact class of
-bug `deploy-peerify.sh`'s own header comment warns about). `./scripts/deploy-peerify.sh` — all 8
-steps passed: `bun install --frozen-lockfile` + a full `bun run build` (script-internal; no bare
-build command run separately), `BUILD_ID` `b-aCANQlb1n7fE87jafhL` verified nested/matching,
-`pm2 restart peerify` (staging's pid/uptime confirmed unchanged before and after), `pm2 save`,
-HTTP 200 on `/` and a static asset. Ran `pm2 status` and an explicit extra `pm2 save` again myself
-after the script, per instruction. `curl`'d `/`, `/explore`, and a real circle page directly —
-all HTTP 200 with substantial real HTML (titles, circle names present, not error/blank pages).
-
-**Bundle verification — not just "the build succeeded."** Grepped the actual deployed standalone
-output on disk: `pilot-action-icon` and `circle-home-headings` both present in the compiled server
-chunk (`.next/server/chunks/7803.js`); `pc-orange-tint` and the `#3a3129` divider hex both present
-in the compiled static CSS. Cross-checked that the exact CSS file referencing those strings
-(`db73b59984fafc3d.css`) is the one the live served HTML actually links to, and `curl`'d it
-directly — 200, real content, contains all three markers. This is what's actually running, not
-just what built.
-
-**Production spot-check, real accounts and real data (no test/throwaway accounts created on
-prod).** `tim-admin` (the staging test handle) doesn't exist on production, so asked the user
-first rather than assuming — used their real production account (`tim` / Tim Olsson) for "own
-profile," `a-friendly-few` (a circle `tim` created/administers) for "administered circle," and
-`shamanzi` (a published artist circle `tim` has no membership or creator relationship to,
-confirmed via a read-only `members`/`circles` query before picking it) for "non-admin circle" —
-all per the user's explicit choices. Login via the login-link-token technique
-(see [[project_peerify_staging_environment]]) against `tim`'s real account on prod specifically —
-token generated, used once, cleared immediately after (`loginLinkToken`/`loginLinkTokenExpiry`
-unset via a raw `MongoClient` update, confirmed `matchedCount: 1`). All three scenarios matched
-staging's already-verified behavior exactly: `tim/home` and `tim/settings/about` both show the
-settings gear only (tinted, no star/megaphone), heading weight `500` on both tabs (the fix this
-promotion was largely about — confirmed consistent across tabs on a real account, not just a
-staging test one); `a-friendly-few/home` shows all three action icons tinted with the gear
-rightmost; `shamanzi/home` shows no gear (not authorized) and a plain, untinted star/megaphone
-(regular-visitor production behavior untouched). Screenshotted all three — real profile photos,
-real bios, real audio tracks, real "Pledge Interest"/"Follow" buttons still their original green
-(money/intent actions, deliberately untouched by this pilot) — nothing looked broken or
-inconsistent.
-
-**Commits on `main`:** `accbd797`, `7f27f9cd`, `f3666b11`, `65ae38a6`, `f8c33c84`, `a6668a6f` (the
-6 pilot code commits, cherry-picked in original order) + this log entry. `peerify-staging`
-confirmed untouched throughout (pid/uptime unchanged in the deploy script's own check). **Live in
-production** as of this entry. Pushing `main` to `origin` immediately after this commit.
-
-## 2026-08-11 — Kamooni→Peerify system/error-page rebrand promoted to production
-
-Promoted the Kamooni→Peerify branding fixes for system/error pages (tested and confirmed on
-staging on 2026-08-09, but never previously promoted): the root `not-found`/`error` pages, the
-`(auth)/` `not-found`/`unauthorized`/`unauthenticated`/`logged-out` pages, the 7 circle/module-
-scoped `not-found` pages (circle-level + discussions/events/goals/issues/proposals/tasks), and the
-map-pin "Unavailable" card fallback images (`default-user-cover.png`/`default-post-picture.png`).
-Distinct, separate work from the visual-identity pilot promoted earlier today — predates it
-entirely (`13024f51`, the last of these commits, is the direct parent of the pilot's first commit
-on `staging`).
-
-**Commit audit, per instruction, before touching `main`.** `git log main..staging` (36 commits,
-same full list as this morning's pilot-promotion audit, since cherry-picking doesn't remove
-commits from that view) — isolated exactly 5 as this rebrand's:
-
-- `cc63605c` Rebrand remaining system/error graphics from Kamooni to Peerify — **code**, but mixed
-  with a `SESSION_LOG.md` update in the same commit (unlike every other commit in either
-  promotion today, which kept code and log entries in separate commits)
-- `495c3c1e` Palette correction: warm-white cards on warm-paper page background — **code**
-- `49ea07da` Update SESSION_LOG.md for palette correction follow-up — log
-- `14198857` Extend two-tone Peerify branding to circle/module not-found pages — **code**
-- `13024f51` Update SESSION_LOG.md for circle/module not-found rebrand — log
-
-Listed all 5 for the user before touching `main`, flagging the `cc63605c` code/log mix explicitly
-since it meant the conflict-resolution approach from this morning's promotion needed to handle a
-conflict *inside* an otherwise-wanted commit, not just skip a purely-unwanted one.
-
-**Method.** Tested in a disposable `git worktree` off `main`'s tip first (removed after):
-cherry-picking `cc63605c` conflicts on `SESSION_LOG.md` only — the code/asset portion (new
-`default-user-cover.png`/`default-post-picture.png`, deletes 4 old Kamooni illustration PNGs,
-touches the 4 `(auth)/*` pages) applies clean. Resolved by `git checkout --ours SESSION_LOG.md`
-(keep `main`'s log, discard the incoming hunk) before `cherry-pick --continue` — same principle as
-skipping a pure-log commit, just applied mid-commit instead of by omission. `495c3c1e` and
-`14198857` then cherry-picked with zero conflicts. Skipped `49ea07da`/`13024f51` entirely (pure
-log). All 15 resulting code/asset paths, including binary `cmp` on both PNGs, came out
-**byte-identical** to staging's current state. Repeated cherry-pick + same conflict resolution for
-real on `main` — identical result, reconfirmed byte-identical to staging afterward.
-
-**Deploy.** `echo $PORT` confirmed empty before touching anything. `./scripts/deploy-peerify.sh` —
-all 8 steps passed (GIT_SHA `216423a8`, BUILD_ID `ZKfxIinb37jZy6hwn8oql`, nested BUILD_ID matched,
-`pm2 restart peerify`, staging pid/uptime unchanged, HTTP 200 on `/` and a static asset). Ran
-`pm2 status` and an explicit extra `pm2 save` myself after, per instruction.
-
-**Production checks.** Genuine 404 (`/this-page-does-not-exist-xyz-check`) → HTTP 404, title
-"Peerify — The Next Stage of Music", zero occurrences of "Kamooni" in the response body. A
-nonexistent circle handle redirects to the root `not-found` page (also confirmed Peerify-branded).
-For the 7 circle/module not-found pages: visiting a disabled module on a real published circle
-(`shamanzi`, which only has `home`/`feed`/`followers`/`settings`/`music` enabled) redirects to
-`/circles/shamanzi/not-found?module=<name>` — checked `discussions`, `events`, and `goals` this
-way; the resulting page shows "Peerify" branding and the two-tone rebrand's specific hex markers
-(`#f7f2ea`/`#e8dfd2`/`#e8720c`) in its HTML. Map-pin fallback images: confirmed on disk in the
-live standalone bundle at the new small size (18,378 / 20,403 bytes — matching the ~18-20KB the
-original staging entry described, versus the old Kamooni assets' 1.5-2.5MB), confirmed served
-live via direct `curl` of `/images/default-user-cover.png` and `/images/default-post-picture.png`
-(200, matching sizes), and visually confirmed by rendering the actual downloaded PNG — the pin+
-person glyph in Peerify's orange, on warm paper with scattered accent dots, not the old Kamooni
-illustration. Old illustration files (`access-denied.png`, `page-not-found.png`,
-`logged-out.png`, `unauthenticated.png`) confirmed absent from the live bundle.
-
-**Commits on `main`:** `8f2ae039`, `6976a3ee`, `216423a8` (the 3 rebrand code commits, cherry-
-picked in original order, `8f2ae039`'s conflict resolved as described above) + this log entry.
-`peerify-staging` confirmed untouched throughout. **Live in production** as of this entry.
-Pushing `main` to `origin` immediately after this commit.
-
-### 2026-08-14 (late) — Bug found: Favorites navigation 404s for circles without "feed" module enabled
-
-**Symptom:** Favoriting a circle (e.g. Peerify Management Circle) and navigating to it via
-the Favorites list in the sidebar redirects to a "not found" page:
-`/circles/{handle}/not-found?redirectTo=%2Fcircles%2F{handle}&module=feed`
-with the message: `We couldn't find "feed" in {Circle Name}. The "feed" is not available
-in this circle. It may be disabled.`
-
-Direct navigation to `/circles/{handle}/home` works fine — the circle itself is not broken,
-only the Favorites-list navigation path.
-
-**Likely cause:** Favorites navigation appears to default/resolve to the circle's `feed`
-module rather than whatever module is actually enabled/default for that specific circle.
-Circles without `feed` in `enabledModules` would 404 via this path while working normally
-via direct nav.
-
-**Investigation so far:**
-- Grepped `module=feed|favorites` across src/ — hits in `bookmark-button.tsx`,
-  `post/[postId]/page.tsx`, and `user-toolbox.tsx`.
-- Checked `user-toolbox.tsx` specifically for "feed" — no match. RULED OUT as the
-  source of the hardcoded module param. Root cause not yet located.
-- Not yet checked: `bookmark-button.tsx` (bookmarking logic itself) and whatever
-  component actually renders the sidebar Favorites *list* and constructs its links
-  (may be a different file than any of the three above — worth a broader search).
-
-**Status:** Not fixed, root cause not yet found. Low urgency (edge case, not a main-flow
-break). Pick up fresh next session — needs read-only investigation prompt for CC before
-any fix, same process as other work this week.
-
-### 2026-08-15 — Feature idea: inline band audio preview from event artist list
-
-**Idea:** When clicking a band name in the "Artists" list on an event detail 
-page, open an inline slider/player showing that band's MP3s, rather than 
-navigating away to the band's own circle page. Lets a fan browse an event's 
-lineup and preview music without losing their place on the event page.
-
-**Status:** Not scoped. Genuine feature addition, not a bug — needs its own 
-investigation/scoping pass (current data model, where the band's music 
-lives, how the existing full player works) before a CC prompt is drafted. 
-Unrelated to the multi-artist permissions work; do not fold into that branch.
-
-### 2026-08-15 — UX issue: Draft status not visually prominent enough
-
-**Symptom:** On the event edit/detail page, when an event is in Draft status, 
-the "Open" button is shown in solid green and is visually prominent, while 
-"Status: Draft" is comparatively de-emphasized text nearby. At a glance this 
-gives the impression the event may already be live/public when it is not.
-
-**Suggestion (from person, not yet agreed as final):** Make Draft status 
-more visually apparent — possibly a banner across the event's hero image 
-while in Draft, not just inline text.
-
-**Status:** Not scoped, not a regression — pre-existing UI pattern, unrelated 
-to multi-artist work. Needs its own design/UX pass before a CC prompt is 
-drafted.
-
-### 2026-08-15 (afternoon) — Three items found during multi-artist staging verification, unrelated to that feature
-
-**1. Broken/unloading circle logo images on prod admin circle list**
-Observed on peerify.one/admin: some circle profile images (e.g. "Blurry
-Images") show as broken image icons with alt text, not the actual uploaded
-photo. NOT CONFIRMED to be the same root cause as the Aug 14 standalone-build
-public/ asset issue — that was specifically about static files under
-public/peerify/ not being copied into the standalone build correctly.
-User-uploaded circle logos are a different code path (uploaded via saveFile,
-stored separately, not part of the static public/ folder). Needs its own
-investigation before assuming it's already fixed or related.
-
-**2. Feature request: circle admins/owners should be visible in Circle
-Settings**
-Currently not shown in a circle's own Settings tab. Would help with
-transparency/moderation clarity, especially relevant now that events can
-have delegated admins across multiple circles. Not scoped yet.
-
-**3. Bug (higher priority): Noticeboard posts set to "Everyone" audience are
-not visible to non-followers**
-Reproduced on staging: The Venue Festival post, audience explicitly set to
-"Everyone" (not Admins/Moderators/Followers), still not visible in Feed/
-Noticeboard when viewed as a logged-in user who does not follow The Venue.
-This defeats the purpose of the "Everyone" audience setting for public event
-promotion — a core use case for the September campaign. Needs investigation
-into the actual query/visibility logic behind Noticeboard "New"/"Top" feeds,
-likely a similar visibility-gate bug to ones found in event data this week
-(gates added independently of intended-audience settings). Not yet
-investigated or scoped for a fix.
 
 ## 2026-08-09 — Kamooni→Peerify visual rebrand: last open item, system/error graphics (Phase 0 of the rebrand plan — unrelated to the orphaned-circles Phase 0 above)
 
@@ -4662,235 +4711,77 @@ Deployed via `deploy-staging.sh` — all 8 steps passed, prod pid/uptime unchang
 
 Deployed via `deploy-staging.sh` — all 8 steps passed, prod pid/uptime unchanged, staging restarted onto the new build.
 
-### 2026-08-15 (later) — Update: broken circle logo images no longer reproducing
+## 2026-08-17 — Hardened deploy-staging.sh/deploy-peerify.sh against interrupted deploys, with a self-inflicted staging outage along the way
 
-Re-checked after prod deploy; "Blurry Images" and other previously-broken 
-circle logos now display correctly (default avatar rendering as expected). 
-Likely browser cache from the prior day's asset issues, not a live bug. 
-Not investigated further — closing this item unless it recurs.
+**Background:** the same failure mode had now hit twice — staging on 2026-08-02, prod on 2026-08-17 (peerify.one served unstyled/broken images; see prod's SESSION_LOG.md for that incident's own write-up). Root cause both times: the deploy scripts did `rm -rf` on the live standalone directory's static assets (and, in prod's case, `rm -rf .next` itself, which — because the live directory was nested inside `.next` — deleted the entire live serving directory including `server.js`) immediately before copying new ones in. An interruption between the delete and the copy left the live PM2 process (never restarted, still running) with nothing on disk to serve.
 
-### 2026-08-16 — Feature request: add "Acoustic" as an artist category
+**Design proposed and approved:** replace the in-place wipe-then-copy with an atomic-release scheme:
+- `.next` becomes pure build scratch, safe to wipe unconditionally.
+- Each deploy builds a complete, self-contained release into `releases/<timestamp>-<gitsha>/`, fully isolated from anything live.
+- That release is verified in isolation (BUILD_ID match, static/public presence, `public/peerify/fans.jpg` nesting check, `server.js` present) before it's referenced by anything live.
+- A `current` symlink (living one level above the app checkout, at `dirname(PROJECT_DIR)` — see below for why) is atomically flipped to the new release via `ln -sfn` + `mv -T` (single `rename(2)`, same filesystem — no interruptible window).
+- PM2 is only restarted after the swap is verified complete, and only ever via `pm2 restart` against a process whose `--cwd` already points at `current` — a migration guard refuses to proceed (rather than silently improvising) if a process is found running with any other cwd, since changing `--cwd` requires `delete`+`start`, not `restart`.
+- Shared logic extracted into `scripts/deploy-common.sh` so `deploy-peerify.sh` doesn't have to re-derive this independently (the two scripts had already drifted once — prod's extra `rm -rf .next` existed only there — which is exactly how it got strictly more dangerous than staging's without anyone deciding that on purpose).
 
-Add "Acoustic" as a selectable category/genre for artist profiles and 
-search filtering — currently not in the list. Small, scoped addition. 
-Not yet investigated (likely touches the category enum in models.ts and 
-whatever search/filter UI reads from it). Low urgency, pick up whenever 
-convenient.
+**Bug found by testing, before it could reach prod:** the first version of `deploy-common.sh` put `releases/` *inside* the app checkout. The very next build broke for real — `next build`'s own `tsc` pass scanned into `releases/<previous-id>/src/...` (a full copy of a prior build's traced source) and tried to type-check it as project input. Fixed by moving `releases/`/`current` to `dirname(PROJECT_DIR)` — one level above the checkout, outside its tsconfig scope, and already covered by that level's own repo-root `.gitignore` (added `/releases/`, `/current`, `/current.tmp` entries there).
 
+**Self-inflicted staging outage during testing (caught and fixed same session):** staging hadn't been migrated onto the new scheme yet, so its live PM2 process was still nested inside `.next` (the old layout). The build/assemble/verify test harness's `step_build` did `rm -rf .next && bun run build` — safe *after* migration, but on the not-yet-migrated box this repeatedly deleted and regenerated the live serving directory across three test runs, and the new code (correctly, by design) no longer copies static/public into that old nested path. Result: the live standalone directory ended up with a fresh server build but no `public/` and no `.next/static` at all — same failure signature as the original incidents, this time on staging, reported by Tim as "left nav icons missing, map not rendering" before the cause was known. Confirmed via `curl` (`/favicon.ico`, `/peerify/fans.jpg` → HTTP 400, Next's own error page) and PM2 uptime (unchanged throughout — same process, silently degraded, not a bad deploy that restarted). Ruled out Mapbox/env-var causes explicitly before concluding this. No orphaned `releases/*` or stray processes were involved — the interference was direct, from `rm -rf .next` itself, not leftover artifacts.
 
-### 2026-08-16 — Self-hosted web push notifications: implemented and verified live
+**Fixed by:**
+1. Restoring the original (pre-hardening) `deploy-staging.sh` from git and running it for real — rebuilt and correctly repopulated the old nested standalone directory with matching static/public, restarted `peerify-staging` cleanly. Verified externally (favicon/fans.jpg/explore all 200, prod pid/uptime unchanged).
+2. Migrating `peerify-staging` onto the new scheme deliberately, as its own reviewed step: copied the now-known-good live standalone directory (no fresh build involved, to keep the migration itself low-risk) into `releases/<id>-migration-<gitsha>/`, verified it, created `current` pointing at it, then `pm2 delete peerify-staging` + `pm2 start .../current/server.js --cwd .../current --update-env` + `pm2 save`. Confirmed live: `pm_cwd` is reported by PM2 as the literal symlink path (not resolved to its target) — settles that the migration guard's string comparison in `deploy-common.sh` works correctly, no fix needed there.
+3. Restoring the hardened `deploy-staging.sh` wrapper and running one real deploy through the full pipeline end to end for the first time — all 9 steps passed (build → assemble → verify → atomic swap → PM2 restart → HTTP checks → prune), `current` now points at a real `main`-branch build (BUILD_ID `eLckL1PGC8LlKx_kx6I9z`), prod pid/uptime unchanged throughout.
 
-**Scope (deliberately modest per decision):** Push notifications for four 
-categories only — messages, events, verification, follow/community (off by 
-default) — mirroring the existing coarse email-preference model. Broader 
-Kamooni/Circles governance notification types (tasks, proposals, issues, 
-goals) explicitly excluded from push for now; remain in-app-bell-only.
+**Note on the `pm2 delete`/`pm2 start` gap:** `pm2 restart` can't change `--cwd`, so the one-time migration requires `delete` then `start` — a real (if brief) window where nothing listens on the port. `pm2 start` is hard-denied for autonomous execution (an intentional guardrail), so Tim ran that one command directly rather than me; everything else (including the actual hardened deploy's `pm2 restart`, run from inside `deploy-staging.sh`) executed normally.
 
-**Implementation:**
-- Schema: four pushX booleans on circleSchema (mirroring email preference 
-  fields), new pushSubscriptionSchema for per-device subscription docs.
-- Storage: new PushSubscriptions Mongo collection, unique index on endpoint, 
-  index on userId.
-- Delivery module (src/lib/data/push.ts, new): PUSH_NOTIFICATION_CATEGORIES 
-  config, isPushEnabledForRecipient, sendPushToUser (via web-push, cleans up 
-  expired 404/410 subscriptions), subscription CRUD.
-- Integration: sendNotifications (the single confirmed funnel all ~45 
-  notification wrapper functions and 9 direct callers go through) now fires 
-  push immediately, fire-and-forget, right after the existing bell-
-  notification insert — NOT on the hourly email-digest batch model.
-- Client: new usePushSubscription hook, detects support state (unsupported / 
-  ios-needs-install / supported) via PushManager presence and 
-  navigator.standalone/display-mode checks.
-- UI: new PushPreferencesSettingsCard in Account Settings, rendered above 
-  Email Preferences as intended. Includes iOS-specific "Add to Home Screen" 
-  instructions (Share → Add to Home Screen → open from Home Screen icon) 
-  when iOS Safari outside a home-screen install is detected.
-- Service worker (public/sw.js, new): push + notificationclick handlers, 
-  opens/focuses a per-notification-type URL (e.g. a message notification 
-  opens the relevant chat directly, not a general notification center).
-- VAPID keys generated, added to staging .env.local.
+**Status:** staging fully migrated and verified on the new scheme; committed (`716630fe`, "Harden deploy-staging.sh against interruption with atomic releases"). Prod's equivalent migration is intentionally not yet done — held for its own separate, explicit approval, now with the design, the exact procedure, and the `pm_cwd`-reporting behavior all already proven live on staging.
 
-**Bug found and fixed during deployment:** PushPreferencesSettingsCard was 
-initially wired into an unreachable code branch (gated on subscriptionAttempted, 
-which can only become true via a dialog-close flow that's currently commented 
-out pending an unrelated redesign) — the component existed correctly in the 
-codebase and the build, but was never actually rendered. Fixed by moving it 
-into the default/always-reached branch, directly above EmailPreferencesSettingsCard 
-as intended.
+## 2026-08-18 — Song ovations (claps), Phase 2a: tap + animation + artist-only aggregate, implemented and verified live
 
-**Verified live, end-to-end, by a human on a real device (not just automated 
-testing):** Real OS-level browser permission prompt fired in Chrome (desktop 
-Sun Aug 16). Subscription persisted correctly through a hard refresh. Sent a 
-real direct message from a second account → real OS notification appeared in 
-Chrome with correct app name, subdomain, and message content. iOS Safari 
-correctly detected and displayed the "Add to Home Screen" instructions on a 
-real iPhone (older iPhone SE — "Add to Home Screen" option not immediately 
-found in the iOS share sheet on that device; full iOS PWA install flow not 
-yet completed, to be retried on a more modern device).
+Follow-up to the song-comments work above ([[project_peerify_song_comments_ovations_plan]] — Phase 0/1/1b). Phase 2a scope, per the decisions locked 2026-08-17: a repeatable/uncapped ovation tap on a track, animation-only feedback for the tapping fan (no count ever shown, theirs or anyone else's), and an aggregate count visible only to the owning artist/admin. Notifications deliberately deferred to Phase 2b until real clap volume is observed.
 
-**Explicitly NOT built, and would need separate scoping:** home-screen icon 
-badge count (requires the separate Badging API — navigator.setAppBadge — 
-with its own, historically inconsistent iOS support; unrelated to the Push 
-API used here). Currently, tapping a push notification opens the specific 
-relevant content (e.g. a chat) rather than a general notification center.
+**Implementation (`src/lib/data/track.ts`, new `src/components/modules/music/ovation-actions.ts` + `ovate-button.tsx`, `Music.tsx`, `track-row.tsx`, `track-preview-row.tsx`, `post-list.tsx`):**
+- `ovateTrack()` upserts a `Reaction` doc (`contentType: "track"`, `reactionType: "ovation"`) keyed by `(userDid, trackId)` and `$inc`s `count` — one doc per fan per track regardless of tap count, per the Phase 0 schema design. `getTrackOvationCount()` sums `count` across all of a track's ovation docs on demand; no new field was added to `Track` itself (unlike `commentCount`, which is denormalized and explicitly public) — keeping the aggregate off the public track document was deliberate, since this number must never leak.
+- `ovateTrackAction` (server action) authorizes via `features.music.react` (added in Phase 0) and returns only `{success, message}` — never a count, so there's no numeric payload to leak even by accident.
+- Fan-facing `OvateButton`: a repeatable-tap clap icon (`react-icons/pi` `PiHandsClapping`/`PiHandsClappingFill` — lucide has no clap icon) reusing `LikeButton`'s existing burst animation rather than a new one. Extracted `LikeButton`'s inline burst `motion.div` (`post-list.tsx`) into a small shared `ReactionTapBurst` component, keyed by a re-triggerable counter so it replays on every tap instead of only once on a toggle — a behavior-preserving refactor for `LikeButton` itself (verified via lint/tsc, no visual/behavioral change).
+- Dropped the button next to the existing comment icon on both places comments reached: `track-row.tsx` (artist's own page, via `Music.tsx`) and `track-preview-row.tsx` (map-popup `TrackPreviewList`) — confirmed before writing any UI code that the `DISCOVERY_CIRCLE_PROJECTION` `accessRules`/`enabledModules` fix from the map-popup comments bug (see the 2026-08-17-ish entry above) was still in place, so the same client-side `isAuthorized(user, circle, feature)` gating pattern comments use was safe to reuse here too.
+- Artist-only aggregate: `Music.tsx` computes `canManageMusic` via `features.music.manage` (deliberately the same feature `deleteTrackCommentAction` already uses for moderation — a real admin boundary, not the looser `music.upload` permission `canManage`/`canUpload` elsewhere in this same file actually gates) and only then calls `getTrackOvationCount()` per track, passing the result to `TrackRow` as `ovationCount`. Never computed for non-owners. The public map-popup payload (`getTracksForCirclePreviewAction`/`TrackPreview` in `map-explorer-actions.ts`) was deliberately left untouched — no ovation field was ever added there.
 
-**Status:** Deployed and verified on staging.peerify.one. Not yet promoted 
-to production.
+**Deployed:** committed on `main` (`6e4e3405`), pushed; cherry-picked onto `staging` (`0c44ac26`, clean, no conflicts), `tsc --noEmit`/`bun run lint` both clean; `deploy-staging.sh` — all 9 steps passed, prod pid/uptime unchanged (BUILD_ID `nr4w1MPeffkiMNlBJ2RkA`). Pushed `staging` to `origin` afterward too.
 
+**Verified live** with real Playwright `chromium` against real staging DB data, on `the-band` ("A Friendly Few")'s track "Alca" — login-link-token technique as both a non-owner fan (`linus`) and the circle's sole admin (`tim-admin`):
+- Confirmed the clap button renders and works on **both** anchor points — the artist's own page directly, and the map-popup surface reached via `/explore`'s search-results list (clicking a search result sets `contentPreviewAtom` the same way a real map-pin click would, without needing pixel-perfect Mapbox marker clicking — a reusable technique for this widget going forward).
+- Tapped 3× on the music page + 2× via the map popup as the same fan → landed in a single `Reaction` doc with `count: 5`, confirming the upsert-and-`$inc` design actually behaves as repeatable/uncapped/single-counter in production, not just in the schema comment.
+- The fan's track-row text was byte-identical before and after tapping (`"Alca\n2:17\n0"`, the `0` being the unrelated comment count) — no number appeared anywhere, and no captured network response ever carried a bare `count` or "ovation" in live (non-bundle) data.
+- The admin's same page showed a muted "5 ovations" line matching the DB aggregate exactly, next to the existing Delete button. For the non-owner fan, the RSC payload showed the prop literally serialized as `"ovationCount":"$undefined"` — the server never computed a value for them at all, not merely hid it client-side.
+- Captured `BUILD_ID` matched the just-deployed `nr4w1MPeffkiMNlBJ2RkA`, confirming the live test wasn't hitting a stale cache.
+- Cleaned up afterward: deleted the test `Reaction` doc, confirmed both login-link tokens were already nulled by the real consume-on-login flow.
 
-### 2026-08-16 — Future features discussed: Telegram forwarding & weekly performance summary
+**Process note:** writing the login-link token directly to the `circles` collection (the established technique for passwordless Playwright test logins on this box) was blocked by the harness's auto-mode action classifier as a sensitive action, even scoped to the staging DB — Tim ran that one step himself each time a fresh token was needed. Everything else (build, cherry-pick, deploy, Playwright driving, DB cleanup) ran unattended.
 
-**1. Telegram message forwarding (like Kamooni)**
-Idea: let users link a Telegram account/bot to receive message forwards, 
-closing the iOS gap that web push can't solve (iOS requires Home Screen 
-install; Telegram works instantly on iOS with no install friction). Real 
-integration lift, not a toggle — needs a Telegram bot, a per-user linking 
-flow (user must /start the bot and link their Peerify account; Telegram 
-doesn't allow pushing to unlinked users). Scope as its own investigation, 
-separate from the push notification work.
+**Status:** Phase 2a complete and verified live on staging. Phase 2b (periodic ovation-digest notification) remains deliberately not started — still waiting on real clap volume before guessing at a digest cadence.
 
-Explicit decision: do NOT disable Postmark email digests for users who set 
-up Telegram. Email is the one channel that doesn't depend on live 
-third-party infrastructure staying up — it's the safety net, not a 
-redundant channel to prune. If Telegram has an outage or a link breaks 
-silently, a user with email fully disabled would get nothing until they 
-noticed. Keep the digest running as background safety net regardless of 
-which real-time channels (push, Telegram) are active.
+## 2026-08-18 (later) — Ovation tap: pre-prod polish, two rounds based on live feedback
 
-**2. Weekly artist performance summary email — distinct from missed-activity 
-digest**
-Idea (person's): a weekly email like "Your song 'X' was played 45 times 
-fully, 239 times partially, by fans from 13 countries; you received 15 new 
-pledges, 3 new crew members, 6 comments." This is a RE-ENGAGEMENT/retention 
-email, conceptually different from the existing "here's what you missed" 
-digest — keep them as two separate features, not one system. Needs new 
-aggregated data (play counts by country, weekly pledge/crew/comment counts) 
-that doesn't currently exist in reportable form. Not yet scoped.
+Before considering ovations ready for prod, Tim asked for three UI/UX refinements on top of Phase 2a, then — after trying them live on staging — two more corrections based on what that testing actually surfaced. Investigated existing conventions before writing any code both times, per the usual practice on this feature.
 
-**Cost/architecture note carried into both:** push (browser push service) 
-and Telegram (Bot API) are both free at reasonable volume; Postmark has a 
-real per-email cost — keep any new email sends batched/digest-style, not 
-per-event, consistent with the existing digest design.
+**Round 1 (three refinements, committed `3f5e29e4` main / `43dd0e68` staging):**
+- **Persistent larger active icon:** the burst pulse (`scale:[1,1.3,1]`) was transient and always settled back to idle size — no lasting size difference once tapped, only the color/fill change persisted. Added a real persistent size bump (`h-4 w-4` → `h-5 w-5`) once tapped, on top of the existing transient pulse.
+- **Tick sound:** no sound-effect infra exists anywhere in this app (confirmed by grep — the only `<audio>` usage is track playback itself). Added a synthesized tone via Web Audio API rather than sourcing an asset. iOS-critical detail: the shared `AudioContext` is created/resumed *inside the tap's click handler itself*, not on mount — WebKit starts a fresh `AudioContext` suspended until resumed from within a real user-gesture callback. Deliberately skipped a dedicated mute toggle (relies on the OS silent switch, which WebKit's default "ambient" audio session category already respects) and skipped sourcing an audio file, both per Tim's explicit call when asked.
+- **First-time explainer:** the real "show once" convention in this codebase turned out not to be `UNVERIFIED_PROFILE_EXPLAINER` (that's just always-visible static text) but the `localStorage`-gated pattern used in `presence-settings-form.tsx`/`about-settings-form.tsx` (fail-open on storage errors — show the explainer anyway rather than suppress it). Reused that convention with the existing `Tooltip` primitive (already supports a controlled `open` prop; every usage site already wraps its own local `TooltipProvider`, no root-level one exists) rather than inventing a new coach-mark. One wrinkle specific to this component: a track list renders one `OvateButton` per row, so without a guard every row would independently read `localStorage` as "not dismissed" in the same tick and pop open simultaneously — added a plain module-level "claimed this page load" latch (not persisted) so only the first button on a page ever shows it.
 
-**Status:** Both ideas discussed and captured, not yet scoped or 
-implemented. Pick up separately, after Telegram gets its own investigation 
-pass given the real integration complexity.
+**Live verification of round 1** surfaced a real, unrelated bug worth its own callout: a "Minified React error #418" hydration-mismatch console error on the music page. Traced it (via a throwaway local `bun run dev` server on port 3099, symlinked to the real staging `.env.local`, pointed at the same staging Mongo DB, never touching the live pm2-served directory — same "isolated local server against real data" technique as the entries above) to `FollowButton`/`HomeContent`, the circle's shared header chrome that wraps *every* circle sub-page — triggers whenever a logged-in viewer looks at someone else's circle (so a real Follow button renders), completely unrelated to `OvateButton`/`TrackRow`. Confirmed by reproducing (or not) across guest/own-home/other-circle sessions — the error only appears in the "viewing someone else's circle while logged in" case, with `FollowButton` literally named in the diffed React tree. Not fixed (out of scope for this task) — flagged here for whoever picks up `FollowButton` next.
 
+**Round 2 (two corrections from manual testing, committed `11d403f5` main / `a708bc53` staging):**
+- **Sound quality:** the synthesized sine-tone read as a soft "boop," not a click — inherent to using a pitched oscillator at all, however its envelope was shaped. Replaced it with the standard no-asset technique for a percussive click: a short buffer of synthesized white noise (`Math.random()` samples, not a decoded file) through a bandpass (~2.2kHz, for "snap" character over raw hiss) + highpass (~700Hz, cuts low rumble) filter chain, with a much sharper envelope (~2ms attack, full decay by ~45ms, versus the old tone's 100ms). Same shared-`AudioContext`/gesture-unlock handling as before, untouched.
+- **Missing "already clapped" state on load:** `OvateButton` reset to its idle look on every mount even when the fan's `Reaction` doc already existed from a prior visit — the count persisted correctly server-side, the icon just never reflected it. Split what had been a single `tapCount`-driven state into two: a new persistent `isActive` boolean (drives the size bump + which icon renders, restored via a new `hasUserOvatedTrack(trackId, userDid)` existence check — scoped strictly to the caller's own authenticated did, returns only a boolean, never a count) and the original `tapCount`, now used purely as the transient per-tap burst-replay key. Mount-time restoration sets `isActive` with no animation attached; a real tap still sets it too (covers same-session first-tap) and still increments `tapCount`/plays the burst+sound/fires the server action exactly as before — the repeatable/uncapped mechanic itself is unchanged.
 
-### 2026-08-16 (later) — Push notifications promoted to production
+**Verified live both rounds**, via the established login-link-token + real Playwright `chromium` technique (login-link token writes are auto-mode-classifier-blocked even scoped to the staging DB — Tim ran each token-setup script himself when a fresh one was needed):
+- Round 1: DOM class check confirmed `h-4 w-4` → `h-5 w-5` on first tap, staying `h-5 w-5` across further taps. An instrumented `AudioContext` (subclassed via `page.addInitScript` to log constructor/resume/oscillator calls) confirmed exactly one start/stop pair fired per tap with no exceptions. The one-time hint appeared unhovered on first load and did not reappear on reload.
+- Round 2: reused a real leftover `Reaction` doc (`count: 3`, from round-1 testing, not cleaned up until this round) to test restoration without needing a fresh tap — confirmed the icon rendered `h-5 w-5 text-[#FE801B]` immediately on a fresh page load with zero taps that session. Re-instrumented the `AudioContext` for the new noise-burst path (`biquad-filter-created` ×2, `noise-start`/`noise-stop`, zero `oscillator-*` events) confirming the old tone path is genuinely gone. Tapped once more post-restoration to confirm the mechanic still works unchanged. The pre-existing `FollowButton` hydration error reappeared once (expected, unrelated) with no new errors from the tap itself.
+- Cleaned up after both rounds: deleted the test `Reaction` docs, confirmed login-link tokens nulled by the real consume-on-login flow each time.
 
-Deployed to peerify.one. Two commits (77ec08b7, 3a3f90f3) were initially 
-missed on the main branch during promotion — staging had them, main didn't 
-— caught because the settings card was confirmed working on staging but 
-absent on prod despite a "successful" deploy. Cherry-picked onto main, 
-prod-specific VAPID keys generated and added to prod's .env.local (separate 
-key pair from staging, as intended), redeployed. Confirmed working live on 
-peerify.one: settings card renders, subscribe flow completes, and a real 
-notification was received end-to-end.
-
-
-### 2026-08-16 (later still) — Hid redundant "Submit for review" button for reviewers
-
-Investigated the draft-status action row on the event detail page 
-(event-detail.tsx). Found the row showed both "Submit for review" and 
-"Open" to any viewer with canReview (e.g. a circle admin), even though 
-draft->review is pointless for someone who can already open the event 
-directly. Root cause: the button's visibility condition was `isAuthor || 
-canReview`, so canReview alone was enough to show it regardless of 
-authorship. Changed to `isAuthor && !canReview` — reviewers now see only 
-"Open" while a draft event is theirs or anyone else's; non-admin authors 
-without canReview are unaffected and still see only "Submit for review." 
-No changes to changeEventStageAction, the review->open transition, or 
-notification logic.
-
-**Known issue surfaced, not fixed (out of scope for this change):** 
-`notifyEventSubmittedForReview` (eventNotifications.ts) silently no-ops 
-when the resolved reviewer set is empty after excluding the submitter — 
-no error, no log line, nothing. This happens whenever the submitter is the 
-circle's only admin/moderator (the default case, since events.create and 
-events.review share the same default user groups). Worth adding at least 
-a log line for this case someday so a submitted-for-review event that 
-reaches nobody isn't completely silent.
-
-
-### 2026-08-17 — Prod incident: peerify.one served unstyled, root cause was an interrupted deploy
-
-**Symptom:** peerify.one was reachable and rendering page structure/text, 
-but with no CSS applied and at least one broken image icon.
-
-**Diagnosis:** Prod's PM2 process (`peerify`, pid 1851614) had an uptime 
-that exactly matched a baseline captured earlier the same day — the app 
-process itself never crashed or restarted, ruling out a bad deploy that 
-got restarted into and pointing at a static-asset problem instead. Direct 
-`curl` checks against `https://peerify.one/_next/static/css/*.css` 
-returned HTTP 400, served by Next.js itself (not nginx, not a plain 404) — 
-confirming every static asset request was failing at the app layer.
-
-Root cause: `~/apps/peerify-app/circles/.next/standalone/apps/peerify-app/circles/.next/static/` 
-did not exist on disk at all. `scripts/deploy-peerify.sh` had been run 
-manually (found as the last command in shell history) inside a `screen` 
-session named `peerify-work`, immediately followed by `pkill screen` — 
-which killed the deploy mid-run. Step 2 (`rm -rf .next && bun run build`) 
-had completed, regenerating a fresh `.next/standalone` tree (which never 
-includes static assets by itself), but Step 4 (copying `.next/static` and 
-`public/` into the standalone dir) and Step 6 (`pm2 restart`) never ran. 
-The still-running old PM2 process was left with zero static assets to 
-serve. This is the same failure mode logged on 2026-08-02 for staging 
-("stale standalone build broke staging site-wide") — now confirmed to 
-also be able to hit prod when a deploy is interrupted between build and 
-copy/restart.
-
-Side note during investigation: `~/apps/peerify/circles` is a stale, 
-unused clone with no `deploy-peerify.sh` and is not what backs the running 
-`peerify` PM2 process — the real prod repo/working tree is 
-`~/apps/peerify-app/circles` (confirmed via `pm2 describe peerify`'s exec 
-cwd). Worth remembering to avoid re-diagnosing in the wrong directory next 
-time.
-
-`autoMode.hard_deny` rules for `deploy-peerify.sh`/`pm2 restart`/`pm2 start` 
-were confirmed present and correctly configured; they were not implicated, 
-since this was an interactive manual run, not an agent-initiated one.
-
-**Fix:** Re-ran `./scripts/deploy-peerify.sh` to completion from 
-`~/apps/peerify-app/circles`. All 8 steps passed: fresh build from current 
-`main` HEAD (4f074b54), BUILD_ID verified, static assets copied into the 
-standalone dir and verified present, PM2 `peerify` restarted (new pid 
-1880856) with staging's pid/uptime confirmed unchanged, HTTP root check 
-200, static asset check 200. Independently verified from outside the box 
-afterward: `GET https://peerify.one/` → 200, and a CSS bundle 
-(`8342e51e453e2131.css`) → 200 with real content (36,468 bytes).
-
-**Status:** Resolved and verified live on peerify.one.
-
-## 2026-08-17/18 — Hardened deploy-peerify.sh against interrupted deploys, migrated prod onto atomic releases; migration hit a real duplicate-process incident along the way
-
-**Background:** the interrupted-deploy incident logged above, plus an identical failure mode on staging (2026-08-02), prompted a redesign: replace the in-place "wipe the live standalone dir's static assets, then copy new ones in" approach with an atomic-release scheme — build into a fresh, fully isolated `releases/<timestamp>-<gitsha>/` directory, verify it completely before it's referenced by anything live, then atomically flip a `current` symlink to it via a single `rename(2)` (`ln -sfn` + `mv -T`, same filesystem — no interruptible window), and only restart PM2 after the swap is confirmed. `releases/`/`current` live one level above the app checkout (`/home/tim/apps/peerify-app/`) rather than inside `.next`, deliberately outside `next build`'s tsconfig scan scope — an in-checkout placement broke a build for real during testing on staging before this fix. Shared logic lives in `scripts/deploy-common.sh`, identical between prod and staging (copied byte-for-byte). Full design writeup and staging's version of this migration: staging's own `SESSION_LOG.md`, commits `716630fe`/`c6eb4360` in that repo.
-
-**Migrating prod's PM2 process onto this scheme required delete+start** (not `restart`, which can't change `--cwd`), planned deliberately as a low-risk migration: copied the already-verified-good live standalone directory (no fresh build involved) into `releases/20260818-043400-migration-6e4d0f9e/`, verified it (BUILD_ID `08d-ZQGE83ho1z0ACrcbe` matched live, static/public present, `server.js` present), created `current` pointing at it — all read-only with respect to the live process, zero risk up to this point.
-
-**First attempt (real incident, caught immediately, no user-facing outage):** handed off a single `pm2 delete peerify && ... && pm2 start ... && pm2 save` block for Tim to run (since `pm2 start`/`pm2 restart` are hard-denied for autonomous execution — an intentional guardrail). `pm2 delete peerify` silently failed to remove the existing process (`pm2.log` shows no stop/exit event for it at all at that timestamp — root cause of the delete failure itself was never fully determined), so the subsequent `pm2 start` created a **second** PM2 entry also named `peerify` (new pm_id) while the original (pm_id 1, pid 1880856) kept running and kept holding port 3000. The new entry crash-looped on `EADDRINUSE: address already in use 0.0.0.0:3000` sixteen times before PM2 gave up and marked it `errored` (pid 0). Confirmed via `ss -tlnp` (exactly one real listener on :3000, the original process), `ps` (the pid the duplicate briefly had was already dead by the time it was checked), and `peerify-error.log` (repeated `EADDRINUSE` stack traces). `peerify.one` was serving correctly throughout, unaffected, the whole time — the old process never stopped.
-
-**Fix and retry, with a process change:** deleted the dead duplicate entry by explicit PM2 id (`pm2 delete 3` — safe, it wasn't running or serving anything), `pm2 save`d the cleaned state, then switched from one blind chained block to an explicit split-step procedure: (1) run `pm2 delete peerify` alone, (2) independently verify via `pm2 list`/`pm2 jlist` that zero `peerify` entries remain *before* proceeding, (3) only then hand over the `pm2 start` command. Step 1 succeeded cleanly this time (`pm2.log` showed the expected `Stopping app:peerify id:1` / `process tree killed` pair) and step 2 confirmed zero `peerify` entries — but the handed-off `pm2 start` in step 3 then left **zero trace at all** in `pm2.log` (not even a failed/crash-loop entry, unlike the first attempt) and prod went fully down (`HTTP 502`, no `peerify` process running) for the gap until it was re-run. Root cause of that specific failure was never conclusively identified — `pm2.log` staying completely silent means whatever went wrong happened upstream of PM2 itself (most likely shell-level: the multi-line block not fully executing, or a stale terminal/session state), not anything wrong with `current`, the symlink, or `deploy-common.sh` — `current` was confirmed intact immediately before and after this failed attempt, and the identical command succeeded moments later without any change on this end.
-
-**Resolved:** re-ran the same `pm2 start ... --cwd .../current --update-env` command; this time it started cleanly (pid `1913444`, 0 restarts) with real, directly-observed PM2 output (unlike the prior "Done" report with no pasted output — worth treating as a standing practice going forward: always capture and share the literal output of any `pm2 start`/`delete` during a migration, since PM2's own log can't explain a failure that never reached the daemon). Verified end to end: `pm_cwd` reported as the literal `/home/tim/apps/peerify-app/current` path (not resolved — settles that `deploy-common.sh`'s migration guard's string comparison works correctly), BUILD_ID on disk (`08d-ZQGE83ho1z0ACrcbe`) matches the verified release exactly (confirms only the serving path changed, not the code), `peerify-staging` pid/uptime (`1891820`/`1786993450348`) unchanged from the very first baseline captured before any of this began — confirmed untouched through the entire multi-hour ordeal — `GET https://peerify.one/` and `/favicon.ico` both 200, `pm2 save` successful.
-
-**Status:** prod fully migrated onto the atomic-release scheme and confirmed stable; code committed (`836206bc`, "Harden deploy-peerify.sh against interruption with atomic releases"). Two real near-misses during the migration itself (a duplicate crash-looping process, then a full but brief outage) were both caused by the manual `pm2 delete`/`pm2 start` handoff step specifically — not by the atomic-release design, which behaved exactly as intended throughout (the live directory was never touched or put at risk by any of this; every failure mode here was about swapping PM2's process registration, not about the release/build/verify pipeline). Worth remembering for any future PM2 identity migration on this box: split delete and start into independently-verified steps, and always capture literal command output rather than a "done" summary.
-
-## 2026-08-18 — Song ovations (Phase 2a) promoted to prod, first real use of the hardened deploy-peerify.sh pipeline
-
-Promotion of the ovation-tap feature (built and iteratively refined on staging across several sessions — see staging's own `SESSION_LOG.md` for the full build/refinement/verification history) plus its two pre-prod polish rounds. Comments (Phases 0/1/1b) were already live on prod from an earlier promotion; this was ovations-only.
-
-**Pre-flight check, per the documented "Merge workflow for staging → prod" above:** every ovation-related commit was made on `main` first this cycle and only cherry-picked *onto* staging (never the reverse), so `main`'s history already contained everything staging had verified — confirmed concretely, not just assumed from commit history, via a byte-for-byte diff of all 8 touched files (`ovate-button.tsx`, `ovation-actions.ts`, `ovation-tick.ts`, `track.ts`, `Music.tsx`, `track-row.tsx`, `track-preview-row.tsx`, `post-list.tsx`) between the `main` and `staging` worktrees — all identical. No cherry-pick/merge action was actually needed, just this verification. Also confirmed exactly where the gap was: prod's then-current release (`migration-6e4d0f9e`) already included Comments (via `4f074b54`, several commits before the migration) but predated every ovation commit (`6e4e3405` onward) entirely.
-
-**Baseline captured before touching anything:** `peerify` pid `1913444` (0 restarts), `peerify-staging` pid `1926926` (unaffected by anything below), `PORT` env var empty (safe, per the deploy-safety rule above), `main` HEAD `11d403f5`, working tree clean.
-
-**Deploy:** `./scripts/deploy-peerify.sh` from `~/apps/peerify-app/circles` — all 9 steps passed. Fresh build from `main` HEAD `11d403f5`, BUILD_ID `VEj-gyJvWE1CMgXn7I8Jd`, assembled into `releases/20260818-145451-11d403f5`, verified in isolation before the atomic swap, `pm2 restart` (not delete+start — this repo is already on the atomic-release scheme from the migration logged above, so no identity-swap risk here) brought up pid `1928490` (1 restart, exactly as expected from a normal restart), `peerify-staging` pid/uptime (`1926926`/`1787060116371`) confirmed unchanged throughout.
-
-**Verified independently from outside the deploy script itself:** external `curl` (not just the script's own localhost checks) — `GET https://peerify.one/` → 200, a static CSS asset → 200. Grepped the raw `/explore` HTML response directly for the literal BUILD_ID string (`VEj-gyJvWE1CMgXn7I8Jd`) rather than trusting only the deploy script's own on-disk verification — found it, confirming the live site is actually serving this build, not a stale cache.
-
-**Docs updated:** `PEERIFY_CONTEXT.md` §0 Build Status — added Comments (0/1/1b) and Ovations Phase 2a to the "live on production" list, explicitly noting Phase 2b (ovation-digest notifications) remains deliberately deferred until real clap volume is observed in production; bumped the "last updated" date.
-
-**Status:** live on peerify.one, verified. Next: watch real prod clap volume to inform Phase 2b's digest-notification design, whenever that gets picked up.
+**Still open, called out explicitly rather than claimed as verified:** the sound's actual character (does the noise-burst genuinely read as "click" rather than "boop" now) needs Tim's own ear on a real listen — headless verification can only confirm the correct code path fires, not judge timbre. Likewise, true iOS Safari gesture-unlock behavior for the `AudioContext` hasn't been confirmed on a real device/simulator, only reasoned from documented WebKit behavior and confirmed analogous in Chromium.
 
 ## 2026-08-20 — Events cleanup (Batches A/B/C), event host-change feature, and personal-profiles Events-module fix — all four shipped to prod
 
@@ -4928,9 +4819,10 @@ A large stretch of events work landed and was promoted to production tonight, ac
 - **Rework "Public event" into a clearer Public/Private toggle**, with draft-time invitee selection for private events (currently `visibility` exists on the model but the create-flow UX around it hasn't been redesigned to make the distinction obvious to a creator).
 
 **Status:** all four pieces of work (Batches A/B/C, the host-change feature, and the personal-profiles Events-module fix) are live on `main`/prod as of tonight. `staging` and `main` are in sync for everything covered here.
+
 ## 2026-08-22 — Standing rule: explicit confirmation required before any prod-touching action
 
-Tim's instruction, to persist across sessions regardless of which repo/terminal a future session starts in: **before any action that deploys to, pushes to, or otherwise touches prod** (`git push origin main`, running `scripts/deploy-peerify.sh`, restarting the `peerify` pm2 process, or writing to the prod Mongo db `circles`), explicitly state that the target is prod and wait for explicit go-ahead before proceeding. This applies even if an earlier message in the same conversation already seemed to authorize a prod action — a prior "deploy to prod" is not standing authorization for a later one; ask again, every time. Recorded in both repos' `CLAUDE.md` under "Deploy Safety — Prod Confirmation Required".
+Tim's instruction, to persist across sessions regardless of which repo/terminal a future session starts in: **before any action that deploys to, pushes to, or otherwise touches prod** (`git push origin main`, running `scripts/deploy-peerify.sh` in `peerify-app`, restarting the `peerify` pm2 process, or writing to the prod Mongo db `circles`), explicitly state that the target is prod and wait for explicit go-ahead before proceeding. This applies even if an earlier message in the same conversation already seemed to authorize a prod action — a prior "deploy to prod" is not standing authorization for a later one; ask again, every time. Recorded in both repos' `CLAUDE.md` under "Deploy Safety — Prod Confirmation Required".
 
 ## 2026-08-26 — Mobile Explore header overhaul: avatar embedded into search bar, iOS scroll/zoom fixes, Advanced Filters polish — all shipped to prod
 
@@ -4997,1320 +4889,482 @@ stage restriction — only the button's visibility did). 13 commits (staging `83
 deploy.
 
 **Open follow-ups, not yet scoped:**
-- RSVP status can't be changed once set — bug, not yet investigated.
+- ~~RSVP status can't be changed once set — bug, not yet investigated.~~ **Correction
+  (2026-09-01): already resolved, same day as this entry** — `6e140d69` added an RSVP withdrawal
+  option for non-"going" statuses, and `6b2dbb84`/`6eb44014`/`9426a888` fixed stale RSVP status
+  rendering across the map-explorer, mobile, and desktop events panels. This note simply never got
+  updated when those later same-day commits landed.
 - Tag-based event search/filter — feature request, not yet scoped.
 
 **Status:** live on `main`/prod as of 2026-08-28.
 
-## 2026-08-29 — Venue event-tags gating fix, second Save button, Artist type simplification + rename, and legacy-data migration — shipped to prod
-
-**Venue event-tags gating bug fix (commit `7499b04f` staging → `4ffc8c3f` main):** the "Default event tags" settings card (built 2026-08-28, see that entry) was rendering/applying unconditionally for every circle type — personal profiles, Artist/Band/DJ/Producer, Venue, plain circles, and Projects — instead of Venue-only as intended. Investigated and gated across every consumer found: the settings UI card (`about-settings-form.tsx`), the event create/edit pre-fill (`event-form.tsx`), `createEventAction`'s persistence fallback (`actions.ts`), and a 4th consumer surfaced only during the fix — `getCircleDefaultEventTagsAction` (`actions.ts:1882`), which had the same unconditional behavior and would have kept leaking defaults into non-Venue events even with the other three sites fixed. Deployed to staging, then cherry-picked to `main` and deployed to prod.
-
-**Second "Save Changes" button (commit `790d3c0e` staging → `4a43aadf` main):** added a second Save button below the Default event tags section on the About settings form, Venue circles only — the only circle type where the form is now long enough to need one. Reuses the existing submit handler; no duplicate save logic.
-
-**Artist type field simplification + rename (commit `ff4bcb6c` staging → `afed1458` main):** renamed the signup form's "Band name" field label/placeholder to "Performing name" — confirmed no schema rename was needed, since it's a shared `bandOrVenueName` variable, not a dedicated field. Simplified the Artist Identity settings "Artist types" checkbox list from 9 options (Solo artist, DJ, Singer-songwriter, Acoustic act, Band, Musician, Live electronic, Collective, Cover artist) down to 4 (Solo artist, Band, DJ, Other). Selecting "Other" reveals a multi-tag chip input (`artistTypeOtherLabels: string[]`) supporting multiple free-text labels — built as a general-purpose capability, not a migration-only shim.
-
-**Data migration:** ran a dry-run-then-write migration mapping legacy checkbox values onto the new schema — `Collective` → `Band`; `Singer-songwriter`/`Acoustic act`/`Live electronic`/`Cover artist`/`Musician` → `Other`, each preserved as its own distinct label in `artistTypeOtherLabels` rather than merged into a single string. Ran against staging (2 circles affected: `the-band`, `mingeltrubaduren`) and separately against prod (1 circle affected: `mingeltrubaduren` — prod's own distinct document, confirmed a different `_id` from staging's same-handle circle). Both runs were dry-run-reviewed and approved before writing. Verified 0 circles remain with legacy values in either environment post-migration.
-
-**Deploy-script path correction:** resolved recurring confusion over deploy-script locations — `deploy-peerify.sh`/`deploy-staging.sh` live in a `scripts/` subdirectory inside each worktree (`/home/tim/apps/peerify-app/circles/scripts/`, `/home/tim/apps/peerify-staging/circles/circles/scripts/`), not at the worktree root. Flagged a stale legacy copy at `/home/tim/apps/peerify/circles/scripts/` (the deprecated pre-split checkout) to avoid it being confused with the real prod path.
-
-**Status:** all of the above is live on `main`/prod as of 2026-08-29. `staging` and `main` are in sync for everything covered here.
-
-## 2026-08-30 — Artist settings page cleanup (5 items)
-
-**Published status card simplified** (commit `86c990c2`): investigated whether a draft↔published toggle exists anywhere (admin or artist-facing) before changing anything — confirmed `publishStatus` is strictly one-way, draft → (pending_verification →) published, with the only other write path being an admin's verification-rejection reverting a still-*pending* request back to draft, never touching an already-published circle. The card now hides entirely once published instead of showing a static "Published" no-op; for the simple one-way pilot-publish flow specifically, the Draft-state copy collapses to a minimal "Draft — not visible to others yet" plus the existing publish action (the richer pending-verification/readiness-checklist UI used by admin-reviewed circles was left untouched).
-
-**Second "Save Changes" button** (commit `86c990c2`): added immediately after Primary Genre/Genre selection on Artist Identity settings, same pattern as the earlier Venue circle fix — reuses the existing `renderSaveButton()`, no duplicate submit logic.
-
-**Booking enquiries split into its own card** (commit `86c990c2`): previously inline inside the Artist Identity card, now its own card/section positioned after the new Save button. Dependent fields (Local bookings only, Travel radius, Preferred event types, fee/currency, technical needs/notes) collapse automatically when the public booking-enquiry checkbox is off, via the same `Collapsible` component used for event-creation's "More options" disclosure.
-
-**Spotify added to Music Links** (commit `86c990c2`): new field alongside Bandcamp/SoundCloud/Apple Music/YouTube/Linktree/Website in settings, plus an icon (`SiSpotify`) on the public artist profile's Listen & Follow row — the public page previously had no icon mapping for a Spotify link at all.
-
-**"Looking for / Open to" hidden** (commit `86c990c2`): investigated first, before removing anything — confirmed `hasPeerifyArtistProfileContent()` (the only function referencing `lookingFor`) has zero callers, and the public artist profile component only ever renders `primaryGenres`/`genres`/booking status, never `lookingFor`. So this was settings-only dead UI with no public-facing counterpart to also hide. Removed the settings card only; schema/data left untouched (hide-not-delete, consistent with the earlier personal-profile Artist Profile section removal), pending a future "Open to collaboration" module.
-
-**"Publish Circle" → "Publish Profile" copy rename** (commits `c6fd82db`, `1c945059`): investigated whether the Draft/Publish card's copy and button are shared across circle types before renaming — confirmed the same button/copy path is reachable by Artist/Band/DJ/Producer/Venue *and* by plain community Circles and Projects (`usesPilotPublishFlow` isn't type-scoped). Renamed to "Profile" only for Peerify-managed identities (Artist/Band/DJ/Producer/Venue, via the existing `isPeerifyManagedCircle` flag); plain Circles/Projects keep "Circle," since "Profile" read oddly there. Also fixed a now-stale server-action guard message that named the old "Publish circle" button by name.
-
-**Status:** all of the above is live on `staging` as of 2026-08-30. Not yet cherry-picked to `main`/prod.
-
-## 2026-08-30/31 — Pledge dialog overhaul (Tier 1 + follow-ups)
-
-**Willingness-to-help collapsed by default** (commit `b2aa2e47` staging → `c36db9b0` main): same collapsible pattern as Booking enquiries, collapsed by default, shows a "(N)" selection count in the trigger when closed.
-
-**Currency investigation + shared constant** (commits `b2aa2e47`→`c36db9b0`, `4bdc859a`→`cfb540b3`): the initial ask was to replace a "free-text currency input" on the Pledge popup with a dropdown — investigation found there was never a free-text input there at all, only a read-only badge showing the artist's configured currency (blank if unset), and the Booking settings Currency field had already been converted to a dropdown in a prior session. Extracted that dropdown's option list into a shared `PEERIFY_CURRENCY_OPTIONS` constant (`artist-profile.ts`) for reuse rather than leaving it duplicated. Later, the read-only badge was changed to default to **EUR** when the artist hasn't configured a currency, instead of showing nothing — display-only, never written to the artist's own profile data.
-
-**"Event type" investigated, then removed** (commits `b348c5d6`→`165ef616` relabel, `f169aa70`→`bb280ab1` full removal): confirmed it fed the Pledge Dashboard's own column and the chat-enquiry fallback message before touching it, so it wasn't dropped blind. First relabeled ("Preferred event type" → "Event type," matching the Dashboard's own column header). Later, by explicit decision, removed from the popup entirely — both downstream readers already rendered a blank/missing value gracefully (`"-"` / `"Not specified"`, verified via `asString`'s `typeof`-guard, never a literal "undefined"), so no consumer-side code changes were needed; historical records and schema untouched.
-
-**Join Crew button added to the popup** (commit `b2aa2e47`→`c36db9b0`): reuses the existing `JoinCrewDialog`/`getCrewMembershipStatusAction` flow and its three states (Join/View/Application Pending) — no new Crew logic. Omitted entirely when the artist has Crew disabled or isn't an artist-type identity. Later repositioned (commit `4bdc859a`→`cfb540b3`) to its own centered row below the Optional note field, separated from Cancel/Add Pledge — someone already in the dialog has shown intent, making it the highest-relevance moment to prompt Crew membership.
-
-**Alignment + copy polish** (commit `4bdc859a`→`cfb540b3`): fixed the location/ticket-amount row drifting toward mid-height once the "Select different location?" link made the location column taller (`self-start` on the amount row). Intro copy changed to "A pledge is not a ticket purchase. It helps signal local demand and support."
-
-**Pledge/Crew button color consistency** (commit `4bdc859a`→`cfb540b3`): audited every Pledge-related button/chip against the existing design convention that Peerify orange (`#FE801B`) is reserved for platform mechanics — the map-slider chip already used it correctly; the dialog's submit button and the profile page's "Pledge Interest" button were both on the default green button style and are now orange too. Separately audited every Crew button (map popup, full artist page, Pledge dialog, and the Crew tab's own landing/gate page) to a solid dark-ink fill (`#1A1612`) instead of outline/default-green, so Crew reads as a distinct, deliberate action without competing with orange (Pledge) or green (Save/confirm elsewhere).
-
-**"Willingness to help" renamed and pruned** (commits `4bdc859a`→`cfb540b3`, `217d1b5a`→`205e4445`): header renamed to "Contribute to tour"; "Attend" removed (redundant — pledging already implies interest in attending); "Maybe host" renamed to "Host." The "Space for 20-30 people" checkbox was investigated before removal (same discipline as "Event type" above) — confirmed it fed the Pledge Dashboard's help-option breakdown and the chat-enquiry message — and rather than dropping that data, was replaced with a conditional free-text "Approximate capacity" field that reveals under "Host" (same automatic-collapse pattern as Booking enquiries), threaded through the same consumers it replaced (pledge record, chat-enquiry message, and a new per-pledge Dashboard display).
-
-**Status:** live on `staging` as of 2026-08-31; cherry-picked to `main` and deployed to prod together with the multi-pledge fix below (see that entry).
-
-## 2026-08-31 — Multi-pledge bug fix + data reconciliation
-
-**Investigation:** checked what actually happens when the same fan pledges to the same artist more than once, by reading the real save path rather than inferring from the UI. `createPeerifyPledge` (`peerify-pledges.ts`) did a plain `insertOne` with no prior lookup, upsert, or uniqueness check of any kind — confirmed empirically too: staging's `peerify_pledges` collection had an actual duplicate pair from real testing, and prod had 16 total pledges across 4 duplicate `(artist, fan)` groups, one with 6 separate submissions from the same fan to the same artist over roughly two months.
-
-**Fix** (commit `84e72461` staging → `98c7527a` main): `createPeerifyPledge` now upserts on `(artistCircleId, pledgerDid)` — a repeat pledge updates the existing record in place (fields overwritten, `updatedAt` bumped, `createdAt`/`_id` preserved) instead of creating a new row. Added a DB-level unique index on the same pair as a backstop against any future write path that bypasses `createPeerifyPledge`. The Pledge dialog now looks up the fan's existing pledge on open and pre-fills the form (location, amount, help options, hosting capacity, note) instead of showing blank, and switches its copy/button/toast text to an editing frame ("You've already pledged — update it below" / "Update Pledge" / "Pledge updated").
-
-**Data reconciliation:** staging's one duplicate pair was merged (kept the earlier submission's ticket amount, folded in the later submission's Host/capacity/note) after an initial merge attempt was blocked by the auto-mode classifier and retried successfully on a second attempt. Prod's 4 duplicate groups (16 → 8 records) were resolved under a different, explicitly-agreed rule — **keep the single most recent submission per group, discard all earlier ones, no field-merging** — since these represented a genuinely evolving ask over weeks/months (one fan pledged from three different real locations across ~2 months) rather than an accidental double-submit. Every group's full field-by-field detail was dumped and reviewed before any write; the dry-run was explicitly approved (including one flagged tradeoff — an earlier submission's $50 amount and note being discarded under the no-merge rule) before the deletes ran. Verified 0 duplicate `(artist, fan)` pairs remain on both environments post-reconciliation, and the unique index built successfully on both.
-
-**Promotion:** the pledge-dialog overhaul above plus this fix were cherry-picked to `main` as a 6-commit chain (`b2aa2e47`→`c36db9b0`, `b348c5d6`→`165ef616`, `4bdc859a`→`cfb540b3`, `217d1b5a`→`205e4445`, `f169aa70`→`bb280ab1`, `84e72461`→`98c7527a`), one merge conflict (a stale `Collapsible` import carried in as unrelated diff context from a not-yet-promoted commit, resolved by dropping the unused import) — typecheck/lint/build all clean throughout. Deployed to prod via the standard pipeline; live and verified via manual pledge testing including the repeat-pledge upsert behavior.
-
-**Status:** live on `main`/prod as of 2026-08-31.
-
-### 2026-09-04
-
-**Landing page copy pass — "The idea" and manifesto sections**
-
-- Rewrote "The idea" section (previously "A map of music happening near you") to
-  lead with the 1,000-true-fans thesis instead of restating the hero's mechanics:
-  new heading "1,000 fans is all it takes" + supporting copy on why streaming/
-  touring economics fail artists and what Peerify's infrastructure does instead.
-- Rewrote the manifesto pull-quote to shift its job from restating the fan-count
-  thesis (now covered earlier) to the intimacy/trust angle: "Music was never
-  meant to be a stream of anonymous plays listened to alone. It's a room, a
-  couch, a song, a space where strangers become friends." Background/styling of
-  the manifesto section left unchanged (dark, not plum — confirmed against the
-  live deployed version before editing).
-- Net effect: hero (what), "the idea" (why, economically), manifesto (what it
-  feels like) are now three distinct beats instead of the same message repeated
-  twice.
-- Also included in this promotion: earlier copy pass covering idea intro,
-  membership bullets, crew/tour-team copy, "Coming soon: Peerify Player" callout,
-  final CTA heading (prototype language removed), and removal of the dead
-  "About" footer link.
-- Verified on staging.peerify.one (desktop + mobile) before promotion.
-- Cherry-picked to `main` (`bbcf0494`, `eab89b1e`) and deployed to prod via
-  `./scripts/deploy-peerify.sh`. Verified live on peerify.one.
-
-**Staging/main drift check**
-
-- Ran `git cherry -v main staging` expecting a short list; got ~100 commits,
-  suggesting large unshipped batches (Crew, Pledge Dashboard, event tags,
-  category search, mobile Explore overhaul, etc.).
-- Manually confirmed against prod: all of the above are actually live. Direct
-  `git log` on the `main` worktree shows equivalent commits already present
-  (Crew Dashboard, Pledge Dashboard currency code, Circle wizard redesign, etc.)
-  under different hashes.
-- Root cause: `git cherry` matches by patch-id (patch content), not by feature.
-  Where a staging commit was re-authored, squashed, or lightly edited before
-  landing on `main` — rather than cherry-picked byte-for-byte — the patch-ids
-  don't match, so `git cherry` reports it as "still on staging only" even though
-  the feature is live on prod.
-- Conclusion: no actual promotion gap. Daily shipping habit is intact and prod
-  is up to date. `git cherry -v main staging` is not a reliable audit tool for
-  this workflow going forward — prefer checking `SESSION_LOG.md` "shipped to
-  prod" notes or spot-checking live behavior when verifying sync between
-  branches.
-
-  ### 2026-09-04
-
-**Bug fix: intermittent crash saving artist About settings (unseeded Spotify
-music-link field)**
-
-- Original report: unchecking "Show a public booking enquiry flow" on the
-  Booking enquiries card (after filling in dependent fields) threw
-  `Cannot read properties of undefined (reading 'trim')`. Turned out to
-  reproduce on plain saves too (no edits, or edits to unrelated fields like
-  Location/Genre), and intermittently — not on every attempt.
-- Root cause: `buildArtistProfileFormDefaults` never seeded a default for the
-  `spotify` key in `musicLinks` (all other music-link platforms — bandcamp,
-  soundcloud, appleMusic, youtube, linktree, website — were seeded with `""`,
-  spotify was missed). Its Controller field therefore started `undefined`.
-  `onSubmit`'s music-links mapping ran
-  `Object.entries(musicLinks).filter(([, value]) => value.trim().length > 0)`
-  with a bare `.trim()` — this threw client-side, before `saveAbout()` (the
-  server action) was ever called.
-  - Explains every prior red herring: no server log entry (crash never
-    reached the server), no network request at the moment of crash, and the
-    intermittency (timing of React Hook Form's Controller registration
-    populating the `spotify` key, not which fields were edited).
-- Fix: seeded `spotify: artistProfile.musicLinks.spotify || ""` in
-  `buildArtistProfileFormDefaults`; defense-in-depth guard on the filter
-  itself (`value?.trim().length ?? 0) > 0`); added `console.error` logging to
-  both the client `onSubmit` catch block and the server `saveAbout()` catch,
-  so any future recurrence surfaces a real stack trace instead of a generic
-  toast.
-- Also included: second "Save Changes" button after the Booking enquiries
-  card, since the section gets long once expanded (from the same session's
-  earlier, incomplete fix attempt).
-- Verified via a repro loop on staging (fill/no-fill, toggle Booking on/off,
-  save repeatedly) on Chrome and Brave, then re-verified live on prod against
-  the original circle where this was first reported (marsmallowvalentine).
-- Cherry-picked to `main` (`8961ccab`, `733040fd`) and deployed to prod via
-  `./scripts/deploy-peerify.sh`. Confirmed live and stable.
-
-### 2026-09-09 — Offer visibility widened to all authenticated members + EXIF stripping + panel polish
-
-**Shipped to production** (main HEAD c917af7c, cherry-picked from staging, deployed via deploy-peerify.sh, verified live):
-
-- `930ef20e` (staging: `7bb5a7f4`) — EXIF/ICC metadata stripping via `sharp` in
-  `resolveOfferingPhotos` (orientation baked in via `.rotate()` before
-  re-encoding), scoped to this call site only, not the shared `saveFile()`.
-  One-time reprocessing script (`scripts/strip-offer-photo-exif.ts`) run
-  against staging's live data: 1 circle affected, 6 offerings, 9 photos,
-  0 failures. **Prod had zero existing offer photos at deploy time, so no
-  reprocessing pass was needed there** — going-forward stripping alone
-  covers it.
-- `623fdff6` (staging: `5019582c`) — `getOfferDetailsForMember(offerId)`:
-  new session-required, single-offer-by-id server action re-deriving the
-  same published/circleType/offersVisible eligibility `getOfferMapPins`
-  uses. Pin popup now fetches lazily on open and swaps the anonymous-host
-  icon for the offer's first photo when one exists (venue pins untouched).
-  Pin-click side panel (`CrewOfferMapPreview`) shows full photo carousel,
-  description, type-specific fields, and a static "Contact currently
-  disabled" placeholder. Grouped venue markers (2+ offerings) intentionally
-  show the type list, not single-offer detail. Client-side cache
-  (`use-offer-member-details.ts`) prevents double-fetch on hover-then-click.
-- `cd6e99e4` (staging: `41f38dcb`) — Offer detail panel visual polish:
-  swapped small inline thumbnail strip for the same full-width hero
-  `ImageCarousel` component already used by the artist-profile and
-  event-detail panels, for visual consistency across all three slider
-  surfaces.
-- `822ecf65` (staging: `14353842`) — Labeled type-specific offer fields
-  (e.g. "Route notes") separately from the freeform description in the
-  member-facing panel, matching the admin edit modal's existing field
-  separation.
-- `c917af7c` (staging: `76c157d4`) — Added `offersPanelVisibility`
-  scaffolding to the About/home page's data fetch (new `circleForAboutPage`
-  variable alongside the original `circle`). Default chosen: `"visible"`
-  unconditionally, not derived from `viewerDid` — deliberately reproduces
-  today's actual behavior exactly (`TourTeamOfferingsCard` already renders
-  for any visitor regardless of session), so tying it to `viewerDid` would
-  have silently narrowed existing exposure. **This commit is scaffolding
-  only** — the flag and its trim function are wired correctly, but the
-  trim branch never fires today since the default is wide open. A future
-  pass changes what computes the flag's value, not this code.
-
-**Manually verified in browser on both staging and prod**: individual
-offer photos/description render correctly with contact placeholder and
-separated field labels; venue pins and grouped venue markers unaffected;
-carousel matches artist/event panel layout; About page renders normally.
-
-**Investigated, explicitly NOT implemented — two follow-ups identified,
-both deferred:**
-
-1. **About/home page offer-photo exposure gap** (pre-existing, adjacent to
-   but not caused by this session's work): the About page's data fetch
-   uses `SAFE_CIRCLE_PROJECTION` (same as the admin editor) and ships the
-   full `tourTeamOfferings` array — including photos — into every
-   visitor's page payload today, regardless of session or `offersVisible`.
-   The current UI (`TourTeamOfferingsCard`) just doesn't render photos, so
-   this is a rendering choice sitting on top of already-exposed data, not
-   a data restriction.
-
-2. **First proposed fix was wrong — corrected by CC investigation.**
-   Initial instinct was to gate the whole About/home page behind
-   authentication. CC investigated first and correctly refused: page-level
-   access is already governed centrally by `middleware.ts` + `/api/access`
-   against `circle.accessRules[moduleHandle].view`, and the `home` module
-   defaults to `"everyone"` (`constants.ts:620`) — a deliberate,
-   platform-wide, per-circle-configurable default for public profile
-   browsing (discovery/SEO/sharing), not an oversight. Blanket-gating
-   would have broken that default for every circle on the platform.
-
-   **Actual narrow fix, scaffolded tonight (see `c917af7c` above), not yet
-   activated:** Offers now has its own visibility flag matching the
-   existing `fundingPanelVisibility`/`upcomingShiftsVisibility` pattern
-   (`visible` | `sign_in` | `members_only`), intended to trim
-   `tourTeamOfferings` photos/detail server-side in the About page's data
-   fetch for viewers who don't qualify — same enforcement style as those
-   two panels, not a page-level gate. Next pass: decide the real default
-   per-circle-admin-configurable value and wire the trim to actually fire.
-
-**Backlog, own future session:** Facebook-style "Contacts-only" private
-profile tier (some content visible only to mutual contacts, gated behind
-a Contact request) — `isAcceptedConnectionForUserDid` assessed as a solid
-foundation (mature `UserRelationships` collection, proper
-pending/accepted state machine, indexed both directions, symmetric writes
-on accept). Distinct from the narrow Offers-visibility-flag work above;
-do not conflate the two when scoping.
-
-**Also shipped this session, same arc:** small visual fix labeling
-type-specific offer fields separately from the freeform note (folded into
-`822ecf65` above).
-
-**Status:** fully deployed to prod and staging, both branches pushed to
-origin. Nothing pending from this session.
-
-### 2026-09-10 — Offer text limits + validation, fileInfoSchema null fix (+ dormant Funding Asks bug), offer-field content pass, per-offer Unsaved marker
-
-Six pieces of work, same overall arc, all shipped and verified on both
-staging and `main`/prod by end of session.
-
-**1. Offer text limits raised, real server-side enforcement added.**
-`tourTeamOfferingSchema`'s five freeform fields (`detail`,
-`spaceDescription`, `dietaryNotes`, `routeNotes`, promotion `notes`)
-raised from 300 to 1000 chars. Previously the 300-char cap was enforced
-client-side only (a plain `maxLength` attribute) — `savePresence()` wrote
-straight to Mongo via `updateCircle()` with no schema validation at all.
-Added a real `tourTeamOfferingSchema.safeParse()` gate before the write,
-so an oversized/malformed offering is now rejected with a message instead
-of silently persisted. (staging `22680804`, prod `7c47f819`)
-
-**2. Live character counter added.** "Used / max" counters on the same
-five fields, reusing the existing muted-foreground counter pattern
-(`text-destructive` for an already-over-limit legacy value). Extracted
-`OFFER_NOTES_MAX_LENGTH` as a shared constant so the schema's `.max()`
-calls, the UI's `maxLength` props, and the counters all read one number —
-the cap only needs changing in one place going forward. (staging
-`a19c8c93`, prod `f926ba2b`)
-
-**3. Bug: the new safeParse gate's error message was generic and
-misdiagnosed a real bug as a length issue.** It rejected saves on the
-`tim-admin` staging circle with a hardcoded "one of your offers has
-invalid or too-long details" message — none of that circle's fields were
-actually over the limit. Fixed to report the real `ZodError.issues`
-(offering name, field path, reason) instead of a guessed-at generic
-string, so a mismatch between symptom and message can't happen again.
-(staging `bc20d65d`, prod `770f675b`)
-
-**4. Root cause, found via item 3's fix: `fileInfoSchema.fileName`/
-`originalName` were optional but not nullable, while real persisted data
-stores literal `null`.** Confirmed by running
-`z.array(tourTeamOfferingSchema).safeParse()` directly against the real
-`tim-admin` circle data pulled from Mongo: 3 legacy
-`tourTeamOfferings.photos` entries had `fileName: null, originalName:
-null` instead of omitting the field — `z.string().optional()` allows
-`undefined`, not `null`. Checking prod data (not just this one staging
-circle) found the same shape in 33 circles' worth of `Circle.images` —
-this is `fileInfoSchema`'s real historical output, not a one-off glitch.
-Widened both fields to `.nullable().optional()` to match.
-
-This also closed a **separate, independently-discovered dormant bug in
-Funding Asks** (legacy Kamooni code, not yet used by any real Peerify
-user — `fundingAsks` has 0 documents with a `coverImage` on prod).
-`funding/actions.ts`'s `getCoverImageInput()` calls
-`fileInfoSchema.safeParse()` on every funding-ask edit (the client
-resubmits the existing `coverImage` unchanged as JSON when it isn't being
-replaced); under the old non-nullable schema, a `coverImage` with a null
-`fileName`/`originalName` would silently fail that parse, read as "no
-image provided," and delete the ask's existing cover image via
-`deleteFile()` on an unrelated edit, no error shown. Retroactive check —
-`deleteFile()` (`storage.ts`) logs every attempt/success via plain
-`console.log`, object name embedding the `saveFile()` caller's label
-(`"funding-ask-cover"` for this feature); searched
-`~/.pm2/logs/peerify-{out,error}.log` (no rotation configured, content
-spans 2026-06-15 through today) for that label and every `deleteFile`
-line: zero matches, so this never actually fired — a real negative
-within the log's retention window, not provable further back (MinIO's
-`circles` bucket has versioning disabled, so the log is the only
-forensic trail, not a cross-checkable one).
-
-Given the data-loss risk, this fix was pushed and deployed to **prod
-ahead of the offers work**, isolated in its own commit rather than
-bundled with the offers-arc commits that also needed it (staging
-`4ac44aa0`, prod `cd135d22` — prod's version built independently in that
-repo, not a cherry-pick of staging's, per instruction to keep the two
-promotable/revertable on separate timelines).
-
-**5. Content pass on the offer type forms**, following the
-Meal/Accommodation pattern (structured fields for distinctly different
-kinds of input, freeform text for genuine open-ended notes). Accommodation
-gained *Guest capacity* (number) and *Typical check-in time* (short
-text); Show space gained a *Space type* (Home / Private venue) toggle;
-Promotion's two overlapping freeform fields collapsed into one (the
-promotion-specific "anything else about how you'd promote it?" removed —
-the universal "Tell people more about this offer" field already covered
-it); Transport's `routeNotes`/"Route notes" renamed to
-`usageDetails`/"Usage details" with a placeholder prompting for range
-limits, borrowing rules, and driver-included vs. self-drive; a static
-privacy reminder added to the top of the offer form. No data migration —
-only one account (`tim-admin`) had posted offers, so fields were
-changed/renamed directly rather than kept backward-compatible. **Known
-consequence:** the Transport rename meant existing `routeNotes` content
-would be silently dropped on next save (Zod strips unrecognized keys) —
-`tim-admin`'s real content under the old field was manually re-entered
-under `usageDetails` before this went to prod. (staging `e9594b4f`, prod
-`0a5830ab`)
-
-**6. Per-offer "Unsaved" badge on the Presence settings page**, so users
-can tell which offer cards have edits pending before clicking Save
-Changes (offers save as one atomic write, not per-offer). First attempt
-used object-reference equality between rendered offerings and a
-last-saved-offerings baseline — seemed sound given how `OfferManager`
-builds its arrays (`addOffering`/`saveOffering` only ever replace the one
-offering that changed, so untouched offerings keep their object
-reference) — but shipped broken: every card showed "Unsaved" always,
-including right after a successful save. Root cause: react-hook-form
-deep-clones (`cloneObject`) form values both at `useForm` init (from
-`defaultValues`) and on every `reset()` call (confirmed by reading
-`node_modules/react-hook-form/dist/index.esm.mjs` directly) — so
-`field.value`'s objects are never the same references as anything held
-outside RHF's internal store, not even the exact array just passed into
-`reset()`. (staging `1a359f8d`, prod `1e10f51c` — the broken version)
-
-Fixed with an explicit `touchedIds` (`Set<string>`) tracked at the actual
-edit points (`addOffering`/`saveOffering`), cleared via a `saveVersion`
-counter prop incremented by the page on successful save — records the
-real user action directly rather than inferring "changed" from object
-identity or a content diff, which also sidesteps needing to
-content-compare in-flight photo `File` objects. Verified via a
-logic-level simulation (no browser tooling in this environment) mirroring
-`OfferManager`'s exact state machine against the real `tim-admin`
-offering ids — fresh load (0 pills), editing one offer (pill only on
-that one), simulated save (clears all) — then manually click-tested
-after deploy. (staging `76019125`, prod `19728d3e`)
-
-**Promotion.** All six prod commits above cherry-picked from staging in
-dependency order (the `fileInfoSchema` widening had to land before the
-offers-arc commits that assumed it) — one expected merge conflict in a
-comment block during the cherry-pick, resolved by keeping the more
-detailed prod-side comment.
-
-**Status:** fully shipped and verified on both staging and prod. `main`
-@ `19728d3e`, deployed (`current` → `releases/20260910-144456-19728d3e`).
-
-**Backlog, carried forward unchanged — none touched today:** venue offer
-creation (`TourTeamOfferingsEditor` is `circleType:"user"`-only, the pin
-query hardcoded the same way — needs its own scoping session);
-`offersPanelVisibility` activation on the About page (scaffolded 2026-09-09,
-default still unconditionally `"visible"`, trim logic never fires); About
-page visual polish for Offers (thumbnails + slider); Contacts-tier private
-profiles; general profile access rules.
-
-**Next session:** detour to scope a new card-based discovery/search
-feature (separate chat) before returning to venue offers.
-
-### 2026-09-11 — Feature shipped: artist-discovery "Discover" screen
-
-Replaced the bottom-nav Events icon with a new Discover screen for
-browsing artists (and optionally events) via search/filters, presented as
-a scrollable list of compact, expandable cards. Built across several
-staging sessions, then cherry-picked to `main` and deployed.
-
-**Commits cherry-picked to `main`, in order:**
-1. `caaa7f56` — Add server-side visibility check to toggleBookmarkAction
-2. `633e0493` — Extract Advanced Filters into a standalone search-filters component
-3. `f5343dec` — Replace bottom-nav Events entry with Discover
-4. `b5b93578` — Add /discover screen: search input, filters, and persisted defaults
-5. `dc56fcf8` — Add compact/expandable artist card for Discover, wire Follow/Bookmark
-6. `beed2cee` — Make ArtistCard's play button fetch tracks lazily, not on mount
-7. `333a37cb` — Fix ArtistCard play button: wire into shared audio-manager, pause on scroll-away
-
-**Key decisions/context worth preserving:**
-
-- Removing the Events nav icon was confirmed safe before touching it — it
-  was one of three independent entry points into `/explore`'s
-  event-browsing feature (the others: the "View on map" link in the
-  Events side panel, and address-clicks on event-detail pages). Event
-  browsing remains fully reachable via Explore's own filter row; this was
-  a deliberate trade, not an oversight.
-- `SearchFilters` was extracted from `MapExplorer` into a standalone
-  module (`src/components/modules/search/search-filters.tsx`) as a small
-  cohesive set of exports (trigger/modal, `CategoryFilterCarousel`,
-  `GenreFilterChips`, `OfferTypeFilterChips`, the `SearchFiltersValue`
-  type, `getActiveSearchFilterCount`) rather than one drop-in component —
-  the real UI has non-contiguous DOM insertion points (a trigger nested in
-  a search pill, a pill-row sibling, chip rows as column siblings), so a
-  single mountable widget wasn't realistic without changing Explore's own
-  layout. Explore's behavior is unchanged after the extraction (verified
-  on staging and prod).
-- No distance/radius filtering exists anywhere in the codebase — confirmed
-  absent by investigation before building, deliberately out of scope for
-  this feature.
-- Filter defaults persist per-user via localStorage
-  (`discover-filters:<did>`), modeled on the tasks-list view-state
-  persistence pattern rather than `userSettingsAtom`, since
-  `SearchFiltersValue` is a richer shape (a Date-bearing range, several
-  arrays) than `UserSettings` supports, and per-user scoping fits a
-  genre/date preference better than one global shared key.
-- `ArtistCard`'s play button was changed to fetch tracks lazily (on tap,
-  not on mount, to avoid 8-11 unnecessary auth checks/DB fetches/signed
-  tokens on every page load) — but that broke `useExclusiveAudio`'s
-  registration: the `<audio>` element only mounted once a track finished
-  loading, and that hook's registration effect only runs once, on first
-  commit, and only if the element already exists at that point — so the
-  button was never actually registered with the shared `audio-manager.ts`
-  singleton at all. Caused three bugs: the play icon never synced to real
-  playback state, the same track could play twice at once (compact button
-  + expanded CirclePreview's song list), and two different artist cards
-  could play simultaneously. Fixed by always mounting `<audio>` and
-  leaving `src` unset until a track exists, matching `TrackPreviewRow`'s
-  own pattern.
-- Known minor limitation, not fixed: the compact card and the expanded
-  `CirclePreview` are separate `<audio>` elements for the same track —
-  switching between them restarts playback from 0 rather than resuming
-  position. Accepted as low priority.
-
-**Status:** shipped and verified on staging, cherry-picked to `main` and
-deployed to prod (`current` → `releases/20260911-111918-333a37cb`). Both
-branches pushed to origin.
-
-**Open follow-ups, not yet scoped/built:**
-- Artists-only default presentation: hide the Artists/Events pill row when
-  the filter is Artists-only, show a "Search artists" placeholder, reveal
-  the pill row only when a mixed/non-artist search is active.
-- Card richness: the current compact card (avatar, name, distance) feels
-  sparse; considering a small thumbnail + one-line bio addition without
-  adding a second full-size image fetch per card.
-- No-track icon: artists with zero uploaded tracks should show a distinct
-  icon instead of the play button, to avoid implying something's broken.
-  Requires adding a cheap `hasTracks` boolean/count to the initial
-  Discover list query, since track data is now fetched lazily and isn't
-  known upfront.
-- Sort tabs (Top/Near/New, possibly Activity/Resonates) for the Discover
-  list, modeled loosely on Feed's existing sort options — needs
-  investigation into what each sort criterion actually means today before
-  assuming it transfers to artist discovery. Resonates in particular is
-  confirmed not linked to any criteria yet.
-
-### 2026-09-12 — Discover card richness, featured-track selection, and scroll-away audio fade shipped
-
-Continuation of the 2026-09-11 Discover screen work (previous entry) —
-three independent features plus two smaller polish fixes carried over
-from that entry's open-follow-ups list, all built and verified on
-staging first, then cherry-picked to `main` in small isolated batches
-and deployed to prod.
-
-**Commits cherry-picked to `main`, in order:**
-1. `ceb8aa7f` — Default Discover to Artists-only, hide Artists/Events pill row to match
-2. `f9b0583c` — Discover: banner only shows on a real difference from default, restyled neutral
-3. `348ac90d` — Restrict Discover's Advanced Filters Category checklist to Artists/Events
-4. `8a330813` — Discover: add bio snippet + slightly larger avatar to ArtistCard row
-5. `0b0fb1ae` — Revert ArtistCard avatar to 56px, keep bio line
-6. `caefc8f7` — Add featuredTrackId schema field + featured-first track ordering
-7. `c082d1ce` — Add "mark as featured" control to Music tab's TrackRow
-8. `937b2ea1` — Circle home page: make featuredTracks actually respect featuredTrackId
-9. `7752259f` — deleteTrack: clear Circle.featuredTrackId when the deleted track was featured
-10. `476591bb` — Swap featured-track icon to radio-style Circle/CircleDot
-11. `8e2fa7a4` — Swap Feature/Featured control to the existing Switch primitive
-12. `3b51a778` — Fade audio out on scroll-away instead of an abrupt stop
-13. `f97404fe` — Reset volume to 1 whenever an <audio> element starts playing
-14. `b95a4ec6` — Increase scroll-away fade duration from 350ms to 450ms
-
-**Card richness.** Added a one-line bio snippet (`artist.mission ||
-artist.description`) to the compact ArtistCard row — free, since both
-fields were already in `searchDiscoverableCircles`'s existing
-`SAFE_CIRCLE_PROJECTION`-backed payload, no new fetch. Tried a slightly
-larger avatar (56px → 64px) alongside it, but reverted after visual
-review — the bio line did the real work; the size bump wasn't
-perceptible enough to justify keeping as a separate variable. Final
-state: bio line only, avatar unchanged at 56px. Also confirmed (as
-investigation, not a fix) that no thumbnail/image-pipeline work is
-needed for this or future card-image work: no pre-sized image variants
-exist anywhere in the app — every `CirclePicture` render downloads the
-same full-resolution original, cropped via CSS only. A pre-existing
-characteristic of the whole app, not specific to Discover, not touched.
-
-**Featured track selection.** Problem: track order was previously
-most-recently-uploaded-first with no artist control, so a new upload
-could silently bump an artist's intended lead track out of the "plays
-first" position everywhere it's previewed. Added an optional
-`featuredTrackId` field to `circleSchema` (included in
-`SAFE_CIRCLE_PROJECTION`); `getTracksByCircleId` now sorts the featured
-track first when set and valid, falling back to `createdAt: -1`
-otherwise — silently, with no "not found" case callers need to handle
-(covers both an unset field and a stale reference to a deleted track).
-`getTracksForCirclePreviewAction` — the single call site already feeding
-both Discover's ArtistCard play button and `CirclePreview`'s
-`TrackPreviewList` — picked up the new sort automatically, confirmed one
-fix covers both surfaces. Also fixed the circle home page's
-misleadingly-named `featuredTracks` variable (previously just "3 most
-recent uploads," not artist-chosen) to actually respect the real field.
-Added a "mark as featured" control to each `TrackRow` on the artist's own
-Music management page (`/circles/[handle]/music`) — only one track can
-be featured at a time, selecting a new one un-features the previous one
-by construction (single field on the circle document, nothing extra to
-clear). `deleteTrack` now also clears `Circle.featuredTrackId` when the
-deleted track was the featured one, as a best-effort follow-up write
-(not atomic with the delete — this codebase doesn't use Mongo
-transactions anywhere; matches the existing sequential-write convention
-`createTrackComment`/`deleteTrackComment` already use), filtered on
-`{ _id: circleId, featuredTrackId: trackId }` so it can't clobber a
-concurrent re-feature and is a no-op when deleting a non-featured track.
-
-The control's visual design went through two rejected iterations before
-landing: a star icon (rejected — visually collided with the unrelated
-Favorites star already in nav) → radio-style `Circle`/`CircleDot` icons
-(semantically correct for a mutual-exclusivity control, but too subtle
-at the small size these render) → final: a real toggle switch using the
-existing `Switch` UI primitive (`src/components/ui/switch.tsx`, the same
-Radix-based component `presence-settings-form.tsx`'s offers-visible
-toggle already uses), landing on a "mixer board, one channel live"
-mental model. Each iteration was a visual swap only — confirmed no
-underlying logic changed across any of the three.
-
-**Scroll-away audio fade.** Problem: playback on a scrolled-away
-Discover card cut off abruptly (the existing IntersectionObserver-
-triggered instant `.pause()`), feeling harsh against the page's dwell-
-oriented scrolling flow. Replaced the instant pause with a volume
-fade-out — ramping `.volume` to 0 over the fade duration via
-`requestAnimationFrame`, then pausing — inside `ArtistCard`'s existing
-observer callback, kept isolated to the scroll-away path only.
-`audio-manager.ts`'s exclusivity-triggered pause (a different track
-starting elsewhere) intentionally stays an instant stop, not a fade,
-since a new track is about to play immediately there. The fade is
-cancelable: it stops cleanly if the exclusivity mechanism pauses the
-same element mid-fade, if the component unmounts mid-fade, or if the
-card scrolls out/in/out again before a fade completes (never more than
-one fade loop per `<audio>` element at a time, verified for all three
-cases). Critical companion fix: `audio-manager.ts`'s `handlePlay` now
-resets `el.volume = 1` unconditionally whenever any track starts playing
-— without it, a track faded to 0 would have silently resumed at 0 volume
-on replay, since `.volume` is a persistent property that never resets
-itself. This also affects `TrackPreviewList` and `Music.tsx`'s
-standalone `AudioPlayer` as a harmless, intended side effect (any track
-starting should always be at full volume). Fade duration tuned by feel
-on staging: started at 350ms, increased to 450ms for a calmer feel.
-
-**Discover polish fixes** (smaller, carried over from the 2026-09-11
-open-follow-ups list, done early this session before the two features
-above): fixed the "Showing your saved filters" banner appearing even
-when restored filters exactly matched the Artists-only default — it now
-does a real structural comparison against `DEFAULT_DISCOVER_FILTERS`
-instead of a hand-maintained "does this look empty" check that could
-drift from the actual default, and restyled from orange/alert to
-neutral gray. Also restricted Discover's Advanced Filters Category
-checklist to Artists/Events only — it previously also listed
-Venues/Offers, which were silently non-functional here (no pill, no
-results, looked broken). Explore's own Advanced Filters modal confirmed
-unaffected, still shows all four categories.
-
-**Investigated, explicitly deferred:** distinguishing musical performers
-(musicians) from other performer types (jugglers, comedians, etc.) on
-Discover. No `performerType`/category field exists on `Circle`; the
-"is this an artist" check (`isPeerifyArtistIdentity`) is built entirely
-around `intent`/`identityType` values that are all implicitly musical by
-product design, with genre never used as a gate. The closest existing
-"type" tag (`artistProfile.artistTypes`, includes "Other") is free-text
-and display-only, not a filter. Real support would require a new
-categorization system — deciding what genre/tracks/Discover-card layout
-even mean for a non-musical act — and auditing every place that
-currently conflates "artist identity" with "musician." Matches the scope
-of the already-logged, deliberately-deferred "Musicians as a profile
-flag" backlog item. Not started.
-
-**Process note, worth remembering:** before cherry-picking a commit that
-depends on earlier staging work, always verify with `git log <hash>
-main` (or the actual current tip via `git log --oneline -3`) that the
-dependency genuinely landed on `main` — don't infer it from a prior
-session's summary. An incorrect assumption here caused two rounds of
-merge conflicts and required a `git reset --hard` recovery earlier this
-session (safe only because nothing had been pushed yet). Also noted: a
-`next build` can occasionally die silently mid-build with no error and
-no orphaned process — if `deploy-peerify.sh` appears frozen at "Creating
-an optimized production build..." for several minutes, check `ps aux |
-grep "next build"` in a second terminal before waiting further; if no
-process is found, it already died and a clean retry is the right move.
-
-**Status:** all work verified on staging before promotion, cherry-picked
-to `main` in small isolated batches, deployed to production via
-`deploy-peerify.sh`, and spot-checked live on peerify.one before pushing
-both branches to origin.
-
-**Open follow-ups still on the list, not yet scoped:**
-- No-track icon for artists with zero uploaded tracks (needs a cheap
-  `hasTracks` field added to the initial Discover list query, since track
-  data is fetched lazily and isn't known upfront).
-- Sort tabs (Top/Near/New, possibly Activity/Resonates) for the Discover
-  list — needs investigation into what each sort criterion means in Feed
-  today before assuming it transfers to Discover; Resonates confirmed not
-  linked to any real criteria yet.
-- Musician vs. other performer type distinction (see above — deferred,
-  larger scope).
-
-### 2026-09-13 — Fade-out on navigate (Open/View Crew/followers-count) shipped
-
-Extended the scroll-away audio fade (see 2026-09-12 entry) to also apply
-when `CirclePreview` closes to navigate (clicking Open, View Crew, or the
-followers-count link), instead of audio cutting off abruptly the instant
-the panel's exit animation unmounts it.
-
-**Extraction.** Pulled `fadeOutAndPause` out of `artist-card.tsx`'s
-private scroll-away-fade scope into a shared utility
-(`src/lib/audio/fade.ts`), moving cancel-tracking from a per-component ref
-to a module-level map keyed by element. Confirmed byte-for-byte identical
-behavior for the original scroll-away fade after the extraction.
-
-**Wiring.** Hooked the shared fade into `content-preview.tsx`'s existing
-`closeAndNavigate` flow — a pre-existing 400ms delay-before-navigate
-pattern, built ~Nov 2025 purely to let the panel's slide-away animation
-finish before routing, with no prior awareness of audio. Fade duration:
-250ms, comfortably under the untouched 400ms delay so playback is fully
-paused before `router.push` actually fires.
-
-**Bug found during testing, then fixed.** Open appeared not to fade while
-View Crew appeared to work. Investigation showed both buttons ran
-identical code — the real bug was that `closeAndNavigate` swept
-`CirclePreview`'s own DOM subtree for `<audio>` elements, but Discover's
-compact card play button (`ArtistCardPlayButton`) is a sibling of the
-expanded `CirclePreview` block, not a descendant of it — so starting
-playback via the compact row's button, then expanding and clicking Open,
-left that audio element unreached by the sweep. View Crew only appeared to
-work because it was normally tested after starting playback via
-`TrackPreviewList`, which does live inside the swept subtree — not a real
-behavioral difference between the buttons. Fixed by sweeping
-`audio-manager.ts`'s existing exclusivity registry instead (every
-`<audio>` element in the app already registers there via
-`useExclusiveAudio`, regardless of which component started it) — correct
-by construction, since the registry guarantees at most one element is
-ever playing regardless of origin, and more robust than a DOM-shape-
-specific fix since it doesn't depend on any particular component's
-container structure.
-
-Applies uniformly everywhere `CirclePreview`'s Open/View Crew/
-followers-count buttons are used — map pins, search results, members
-list, admin views, Discover — not just Discover-specific.
-
-**Process note, worth remembering:** a deploy mixup occurred mid-session
-— code was committed and pushed to staging's git history but the staging
-PM2 process was never actually rebuilt/restarted (`deploy-staging.sh`
-wasn't run after committing), so testing against staging.peerify.one was
-silently testing a 12-hour-old build. Confirmed via `git log` (showing
-the new commits present) vs. PM2 uptime (12h, predating the commits).
-Resolved by simply running `deploy-staging.sh`. Worth remembering:
-committing/pushing to a branch does not deploy it — always confirm via
-the deploy script's own `GIT_SHA` in its summary output matches the
-commit actually being tested, especially if behavior seems unexpectedly
-unchanged after a fix.
-
-**Status:** all work verified on staging before promotion, cherry-picked
-to `main`, deployed to production via `deploy-peerify.sh`, confirmed live
-on peerify.one, both branches pushed to origin.
-
-### 2026-09-14 — Venue settings fixes: presence nav link, location-button affordance, and Presence/Offers page simplified for venues
-
-Six pieces of work, all investigated read-only first (two separate
-investigation-only passes, no code touched until findings were reported
-back), then implemented and verified on staging before being
-cherry-picked to `main` individually.
-
-**1. Presence nav link restored, Questionnaire stays hidden.** The
-"Offers and needs" settings nav entry was filtered out by the same
-condition hiding the legacy Kamooni Questionnaire item, even though the
-Presence page itself worked fine — a first-time venue owner had no way to
-reach it except via edit-pencil icons on the About page's Offers cards,
-and only once offer content already existed. Split the filter so only
-Questionnaire (confirmed legacy Kamooni pre-join screening, not relevant
-to Peerify) stays hidden. (staging `30edc46b`, prod `aca8afa4`)
-
-**2. "Use Current Location" button affordance fixed.** Investigation
-found this was a UX bug, not the data-loss bug it was reported as: the
-button's green was the app's default button color everywhere, never tied
-to save state, and the location field was already included correctly in
-the form's save payload. Fixed the false affordance instead of the
-(already-working) data path — switched the button to a neutral outline
-style, increased the size of the real confirmed/unconfirmed pin
-indicator (previously easy to miss), and added a transient "Location set
-— remember to save" message on click. Save/submit wiring untouched.
-(staging `604ba2a5`, prod `41061e53`)
-
-**3. Kamooni-legacy Opportunities/Needs cards hidden for venues.**
-Second investigation (specifically on the Presence/Offers page) found
-the "Opportunities" and "What we need help with" cards — skill-tag
-needs picker under Kamooni-era category headings — were only gated to
-exclude individual profiles, not venues, even though no venue circle in
-staging has ever populated those fields. Narrowed `!isUser` to
-`!isUser && !isVenue` on both cards. Generic circles and Peerify
-artist-type circles unaffected — neither condition ever referenced
-`isVenue`. (staging `654b0d8e`, prod `cab9d324`)
-
-**4. Pre-existing copy bug fixed: `OffersVisibleToggle` claimed
-anonymity venues don't have.** Found during the same investigation, not
-part of the original ask: the toggle rendered identical copy for
-individual and venue circles, claiming offer pins are always anonymous —
-but `getOfferMapPins`/`OfferMapPin` explicitly attach name/handle/picture
-to venue rows, and this same page's own explainer dialog already said so
-correctly a few lines above. Added an `isVenue` prop and branched the
-copy; the underlying `offersVisible` field/action is unchanged, copy-only
-fix. (staging `dfc2c4fe`, prod `e8289606`)
-
-**5. New venue Offers card intro copy.** Replaced the venue Offers
-card's description with plain-language copy explaining the feature (free
-perks for touring artists, e.g. a meal or promotion) and linking "your
-settings page" to the venue's About settings (`/settings/about`) for
-booking-related fields (Room & Capacity, Booking terms, Hospitality,
-etc.) — confirmed no anchor/deep-link infrastructure exists for that
-card's subsections, so it links to the top of the page as-is.
-Individual-profile copy untouched. (staging `b02fcdff`, prod `5a62119d`)
-
-**6. Venue presence page label reads "Offers", not "Offers and needs."**
-Follow-up now that Needs is hidden for venues (item 3): updated all
-three places the stale label appeared — nav sidebar entry, page `<h1>`,
-and the post-save success toast — to read "Offers" for venues only,
-everywhere else unchanged. The nav sidebar entry needed a different
-approach than a plain ternary: `settingsForms` is a static config array
-shared by all circle types, and its existing user/circle name split
-already goes through the general-purpose `UserAndCircleInfo`/
-`getUserOrCircleInfo` (also used for unrelated form-field labels
-elsewhere) — special-cased the venue override at render time instead of
-widening that shared type. (staging `accdfae5`, prod `65bbf957`)
-
-**Promotion.** All six commits cherry-picked from staging to `main`
-individually (not squashed), verified via `deploy-staging.sh` after each
-staging commit before promotion.
-
-**Process note, worth remembering:** the prod deploy hit the same
-intermittent `next build` failure mode already documented in the
-2026-09-12 entry above — died silently mid-build, no error, no orphaned
-process. Resolved the same way: a clean `.next` removal and retry
-succeeded. No release directory was left behind by the failed attempt,
-consistent with that entry's description.
-
-**Status:** all six shipped and verified on staging before promotion,
-cherry-picked to `main`, deployed to production via `deploy-peerify.sh`,
-confirmed live on peerify.one (`current` → `releases/20260914-111108-65bbf957`),
-both branches pushed to origin.
-
-**Open follow-ups, not yet scoped:** the broader About page / "Venue
-Identity" card work — items 3-6 from the original venue settings
-investigation list (Venue Identity card's scope-creep into Room &
-Capacity with no per-section save; Website/Instagram rendered as raw
-text instead of the existing social-link pattern; contact email
-captured but never surfaced anywhere; general About page structural
-overhaul) — is scoped for its own future investigation-first session.
-Not started; `AboutPage.tsx` is a single ~1700-line component shared by
-every circle type, so that session should expect a wider blast radius
-than this one.
-
-### 2026-09-15 — Venue About page restructured: VenueAboutSection extracted, sidebar Contact/Venue Info/Events cards shipped
-
-Eleven pieces of work, all investigated read-only first (four separate
-investigation-only passes across the session), then implemented and
-verified on staging before being cherry-picked to `main` individually
-in dependency order.
-
-**1. `VenueAboutSection` extracted from the ~1700-line `AboutPage.tsx`
-monolith.** That component renders all four profile types (user,
-generic circle, Peerify artist, Peerify venue) via ~40 derived boolean
-flags computed at the top of the function. The venue profile card, its
-entire derivation block, and a `renderVenueDetailSection` helper were
-confirmed 100% venue-exclusive with zero reuse elsewhere in the file —
-extracted into its own component taking `circle` + a few props,
-mirroring the `TourTeamOfferingsCard`/`OffersCard` externalization
-pattern already in the same render tree. Pure refactor, zero behavior
-change — confirmed via server-rendered output before/after for venue,
-artist, and generic circles. (staging `92de7548`, prod `9f6f3959`)
-
-**2. Venue website/Instagram display via adapter, no schema change.**
-Superseded the raw-text website/Instagram box with a small adapter
-reusing the same platform → icon registry `SocialLinks` is driven by
-(`socialPlatforms`, extended with one new "website" entry) — display-
-only, `peerifyVenueProfile.website`/`.instagram` stay flat strings,
-no settings-form or schema change. Deliberately not a literal
-`<SocialLinks>` drop-in, since that component's plain icon-row pattern
-didn't match this card's labeled-box layout. (staging `fde3756d`,
-prod `c31c8cbe`)
-
-**3. Venue sidebar layout groundwork.** Added `hasVenueContactContent`
-as a new disjunct to `hasSidebarContent` — confirmed the shared grid
-mechanism (main/sidebar column-span toggle) required no structural
-changes, since it already generically keyed off one boolean rather
-than assuming only non-venue circles have a sidebar. Purely additive;
-re-added `peerifyVenueProfile` to `AboutPage.tsx` (removed in the
-extraction, needed again for the new flag). (staging `f35001cd`,
-prod `593d2a6c`)
-
-**4. New venue "Contact" sidebar card (website + email).** Mirrors the
-artist profile's inline sidebar-card convention (Band Info/Booking/Get
-Involved) — confirmed those aren't componentized in this codebase, just
-copy-pasted inline blocks sharing a wrapper style string, so this
-followed the same pattern rather than inventing a new one. Contact
-email renders as a `mailto:` link — its first real display path
-anywhere in the app; previously captured in settings and never read
-back. (staging `8adb32ac`, prod `53865785`)
-
-**5. Pre-existing bug fixed: generic `Circle.websiteUrl` field
-editable by venues despite being dead on read.** `AboutPage.tsx`
-already correctly excluded venues from ever displaying this field
-(`hasOverviewDetails` gated `!isPeerifyVenueProfile`), but the
-settings-form write-side gate (`!isIndependentCircle`) didn't exclude
-them — every venue circle has `circleLevel: "profile_child"`, making
-`isIndependentCircle` false and the field visible/editable regardless.
-Added the missing venue exclusion to the same condition; confirmed the
-one-line fix requires no `defaultValues`/`onSubmit` changes, since this
-field has exactly one write path in the whole codebase (a plain scalar
-assignment, not a subdocument merge) with no out-of-band writer that
-could get silently reverted. (staging `2ead8272`, prod `d6a3ccb5`)
-
-**6. Added `phone` and `otherInfo` fields to `PeerifyVenueProfile`.**
-Followed the exact three-spot pattern every existing field already
-uses (type, `DEFAULT_VENUE_PROFILE`, `normalizePeerifyVenueProfile`,
-via the existing `asString` helper — confirmed safe, no risk of the
-undefined-vs-null Zod bug class documented elsewhere in this codebase,
-since this schema isn't Zod-validated at all). Phone renders as a
-`tel:` link; other info as plain free text, matching the
-`bookingNote`/`houseRules` precedent. (staging `c17ff48b`,
-prod `8719cd6a`)
-
-**7. Removed the venue-specific `instagram` field properly, not just
-its display.** Left in place, it would have become a fourth dead field
-alongside `contactEmail`'s original state and `Circle.websiteUrl`'s
-write-side leak (item 5). Re-confirmed the "no venue circle has
-meaningful data" precondition before deleting, since staging data can
-change between sessions — it no longer held: one venue circle had
-picked up a real Instagram value since the original investigation.
-Flagged and confirmed before proceeding (staging test data, low
-stakes). Required an in-session, narrowly-scoped deviation from the
-original plan: removing the field broke `venue-about-section.tsx`'s
-`venueLinks` construction with a real TypeScript compile error, not
-the "empty value" the investigation had anticipated — `next build`
-fails on TS errors by default here, so leaving it as originally planned
-("defer the fix to the next commit") would have made this and every
-subsequent commit undeployable. Made only the minimal type-compat fix
-needed (removed the one broken array entry), leaving the actual
-`venueLinks` removal for the next commit as intended. (staging
-`a9cb9d21`, prod `911df3fa`)
-
-**8. Removed the now-superseded `venueLinks` display from the main
-"Venue overview" card.** Correctness fix, not optional cleanup:
-removed `venueLinks.length > 0` from both `hasVenueProfileContent`'s
-OR-chain and the Venue-overview grid's own render condition, so a
-venue whose only content was a website link no longer shows an
-empty/near-empty overview card — that information lives in the sidebar
-Contact card now. Verified all four combinations (overview content
-only, contact-only, both, neither) on staging with temporary data.
-(staging `aa33d36e`, prod `a943a6d3`)
-
-**9. Removed the now-orphaned "website" `socialPlatforms` entry.** Its
-only consumer was the adapter removed in item 8; also passively added
-"Website" as a selectable platform in the unrelated generic Social
-Links dropdown, a side effect flagged but not acted on when it first
-shipped. Searched the entire database for any `circle.socialLinks`
-entry with `platform: "website"` before removing — zero matches, no
-real data orphaned. (staging `bcedc96b`, prod `1fedd76c`)
-
-**10. Moved "Venue type" to a dedicated "Venue Info" sidebar card.**
-Removed it from `venueOverviewDetails`' construction (Location stays
-exactly where it was, unchanged) and added a new `hasVenueInfoContent`
-flag mirroring the Contact card's pattern exactly. Simpler than item
-8's equivalent fix: `venueOverviewDetails` was already a generic array
-feeding both length-checks, so no separate OR-chain edit was needed —
-just stop putting the field into the array. `md:order-[12]`, no
-collision with existing slots. (staging `fa267cc2`,
-prod `69c72ec1`)
-
-**11. Moved "Upcoming events" into a condensed sidebar card — desktop-
-only reorder, explicitly accepted as such.** Removed the full
-header-plus-list section from `VenueAboutSection`'s main content;
-added a condensed version (same 3 events already fetched — confirmed
-`home/page.tsx` already caps this, no fetch change needed — single
-"View all" link replacing the two-button header, "Create event"
-dropped from the sidebar slot entirely) at `md:order-[5]`, above Venue
-Info and Contact. Investigated first whether reordering would actually
-achieve "Events visible early on mobile": confirmed via literal
-byte-offset inspection of server-rendered HTML that `md:order` has no
-effect below the `md:` breakpoint, and no non-prefixed `order` class
-exists anywhere in the file — so on mobile the entire sidebar still
-renders after the full main column regardless of internal ordering.
-True mobile-first visibility would need venue-specific
-`isCompact`-driven conditional rendering (a real, separately-scoped
-change), not an `md:order` tweak — deferred. This move also happened
-to fix a latent gap: events previously sat behind
-`hasVenueProfileContent` (which never referenced them), so a venue with
-events and nothing else showed nothing at all; the new independent
-flag means it now correctly shows just the Events card. (staging
-`926c7270`, prod `2d555ac7`)
-
-**Promotion.** All eleven commits cherry-picked from staging to `main`
-individually in dependency order, no conflicts. Prod deploy via
-`deploy-peerify.sh` succeeded cleanly, all 9 verification steps
-passing.
-
-**Status:** all eleven shipped and verified on staging (build + live
-scenario checks with temporary test data, reverted after each) before
-promotion, cherry-picked to `main`, deployed to production, confirmed
-live on peerify.one (`current` → `releases/20260915-103741-2d555ac7`),
-both branches pushed to origin.
-
-**Open follow-ups, not yet scoped:**
-- Duplicate "Venue overview" card content: `circle.description` is
-  read in both the profile hero and the venue card's own heading —
-  a pre-existing soft redundancy, now more visible with the page
-  otherwise cleaner. Location's eventual destination (own card vs.
-  sidebar vs. folded into About) still needs deciding.
-- Venue tags/pills, matching the artist genre/mood pill convention —
-  should be the venue's own profile field, explicitly *not* a
-  repurposing of the existing `EventTagVenueType` mechanism (which
-  tags individual events, not venues, and is unrelated to
-  `PeerifyVenueProfile` despite the similar name). Logged as its own
-  backlog item, not yet scoped.
-- Mobile-first Events visibility (see item 11) — confirmed to require
-  venue-specific `isCompact`-driven conditional rendering, not an
-  `md:order` change. Deferred; current mobile behavior shows the full
-  main column before any sidebar content.
-- `canCreateVenueEvent` is now unused dead plumbing in
-  `AboutPage.tsx`/`home/page.tsx` since the sidebar Events card dropped
-  the "Create event" button — harmless (no TS error), flagged for
-  optional cleanup.
-
-### 2026-09-16 — Venue tags shipped (multi-select), Location display bug fixed, redundant per-event "Venue type" hidden for venues
-
-Ten commits, investigated first wherever a real design decision was involved (three separate investigation-only passes this round), then implemented and verified on staging before being cherry-picked to `main` individually in dependency order, no conflicts.
-
-**1. Removed duplicate "Venue overview" description text.** `circle.description` was rendered twice — once in the shared profile hero, once again in the venue card's own heading — flagged as an open follow-up in last night's entry. Removed the venue-card copy and the required companion fix: `!!circle.description` also had to come out of `hasVenueProfileContent`'s OR-chain, or a venue whose only content was its description would have shown an empty card instead of nothing — the same empty-card gating bug this project has hit and fixed identically twice before. (staging `5487b9b6`, prod `3f7e6c44`)
-
-**2. `venueType` replaced with multi-select `venueTags`.** Second half of last night's other open follow-up: venue tags now get their own profile field rather than repurposing `EventTagVenueType` (re-confirmed to be a genuinely separate per-event mechanism, unrelated despite the similar name). Seeded a new flat `VENUE_TAG_OPTIONS` constant from the same options the old single-select `venueType` dropdown used, then replaced that dropdown with a `CheckboxGroup` following the artist profile's `primaryGenres`/`primaryGenreOther` pattern exactly — uncapped, with a free-text "Other" reveal. A read-time-only fallback in the normalizer (no DB writes, no migration script) means every venue's pre-existing `venueType` value keeps displaying correctly as a single tag. (staging `619e1480`/`d95ff491`, prod `3714be41`/`86857c03`)
-
-**3. Location and the new tags pill row folded into the "Venue Info" sidebar card.** Resolved the tension flagged in last night's entry (Location's eventual destination "still needs deciding") by giving that card two genuinely independent pieces of content instead of the single field it held before. (staging `c3065bbe`, prod `8cbe544b`)
-
-**4. Real display bug found right after item 3 shipped, fixed as its own follow-up commit.** Location stopped rendering in the Venue Info card despite venues having real, saved location data — root-caused to reading the wrong field (a stale `peerifyVenueProfile.address`/`publicCity` pair instead of the actual `circle.location` the settings form's map picker writes to) and fixed at the source. (staging `36521031`, prod `340d61d3`)
-
-**5. Redundant per-event "Venue type" tag hidden for registered venues.** Now that venues have their own `venueTags`, also asking for the separate, smaller `EventTagVenueType` vocabulary on every new event was duplicated effort with no real decision being made — hidden specifically for venue circles, left completely unchanged for individual/artist/generic circles. Needed care across three converging flows that all render the same shared tag-picker component (circle-level defaults, event creation via the circle picker, event editing), since only the creation flow initially had a venue-identity boolean available at render time. The edit-flow fix was the one that actually mattered — confirmed via a live check against a real staging event that already had a saved `Venue type` value, not just a fresh-create smoke test. (staging `e326795d`/`9655f5e3`/`336ba83b`/`46514d81`, prod `cca0605f`/`90c61cea`/`22f1f857`/`70967216`)
-
-**6. Venue Contact card's website link now shows the actual URL.** Replaced the generic "Visit website" label with the domain/URL itself (protocol and trailing slash stripped for display only, full URL kept in the href) — confirmed no existing URL-to-display-text utility existed anywhere in the codebase before writing the small one this needed. Scoped to the venue Contact card only; the artist Band Info card's own website link is untouched. (staging `34504bd2`, prod `9e2d0f8d`)
-
-**Promotion.** All ten commits cherry-picked from staging to `main` individually in dependency order, no conflicts. Prod deploy via `deploy-peerify.sh` succeeded cleanly on the first attempt, all 9 verification steps passing.
-
-**Process note, worth remembering:** mid-session, a venue tags selector appeared to be missing from settings — investigated as a possible regression, but found no code defect at all. The `CheckboxGroup` was correctly implemented and wired from the moment it was committed; the settings page being checked simply hadn't had a fresh `deploy-staging.sh` run yet, so the live bundle under test still predated that commit. Resolved by re-deploying — no code change was needed for that particular report. Same underlying lesson as the 2026-09-13 entry's deploy-mixup note: committing to a branch is not the same as that code being live, worth re-confirming via the deploy script's own `GIT_SHA` output before treating an unexpected result as a real bug.
-
-**Status:** all ten shipped and verified on staging (build + live scenario checks with temporary test data, reverted after each) before promotion, cherry-picked to `main`, deployed to production, confirmed live on peerify.one (`current` → `releases/20260916-084444-9e2d0f8d`), both branches pushed to origin.
-
-**Open follow-ups, not yet scoped:**
-- **Now flagged as a priority for its own dedicated session:** the "Venue Identity" settings card's scope-creep — Room & Capacity, Technical setup, Booking terms, Hospitality, House rules — still displays on the About page ahead of general venue presentation content, and the settings form itself remains large and unsplit. This is the same scope-creep first flagged in the 2026-09-14 entry's investigation as mechanically tractable to split but never fully addressed; only the read-side `VenueAboutSection` extraction and this round's Location/tags sidebar work have actually happened since. Tim's direction: separate booking/technical/policy information (relevant to artists/crews actively booking) from general public-facing venue presentation, most likely via a dedicated page/module rather than continuing to grow the current About/Settings pages. Needs its own investigation-first session before any implementation.
-
-## 2026-09-19 — Admin invitation flow (invite-and-accept)
-
-Replaced the "must already be a follower" constraint on granting admin rights with a
-proper invite-and-accept flow, following up on the earlier investigation (2026-09-18)
-that confirmed this was a genuine data-model constraint (role and follow-relationship
-are the same document — Members, keyed by {userDid, circleId}), not a UI limitation.
-
-**Decisions made going in:**
-- Candidate pool: inviting admin's direct accepted connections only
-  (isAcceptedConnectionForUserDid/listAcceptedConnectionsForUserDid — already live,
-  already indexed), not shared-circle members or platform-wide search. Deferred
-  broadening this pool as a separate future task if direct-connections-only proves
-  too narrow in practice.
-- Pending-state model: no Member doc created until the invitee accepts, mirroring the
-  event host-change-request pattern (the cleanest fully-working request→approve
-  precedent found in the investigation) rather than the half-built/dead event-invitation
-  accept-decline path or the zero-consent "additional artists" instant-add pattern.
-
-**Implementation (5 commits, staging → main):**
-1. `ced71c8c` — Added AdminInvitation schema/collection (circleId, invitedUserDid,
-   invitedByUserDid, offered userGroups, status pending/accepted/declined, timestamps),
-   named/structured following the EventHostChangeRequests convention as instructed,
-   flagging that the codebase has two competing conventions for this shape.
-2. `8b6f3c6c` — Server actions: inviteUserToAdminAction (authorizes caller as an
-   existing circle admin via isCircleAdmin — a direct group check, not the
-   isAuthorized+hasHigherAccess pair used elsewhere, since that pair needs an existing
-   target member to compare against, which doesn't exist pre-acceptance), confirms
-   candidate is an accepted connection server-side (not just UI-enforced),
-   acceptAdminInvitationAction (calls existing addMember unchanged), declineAdminInvitationAction,
-   and cancelAdminInvitationAction (added as a trivial mirror of decline, though no UI
-   button wired for it — no "manage sent invitations" list exists, out of scope). Two
-   extra safety checks added beyond spec: offered roles clamped via
-   safeModifyMemberUserGroups so an admin can't offer a role above their own clearance,
-   and the original inviter's admin status is re-verified at accept time so a stale
-   invite from someone since demoted/removed can't be honored. New notification types
-   admin_invitation_received/_decided added, with an explicit case in
-   getNotificationHref from the start — avoiding the exact dead-CTA bug already logged
-   against event_submitted_for_review.
-3. `b657a592` — UI: "Invite Admin" button next to the existing Followers-page "Invite"
-   (copy-link) button. UserPicker extended with optional fetchInitial/fetchSearch
-   override props (existing event-invite usage untouched) to feed it the inviting
-   admin's own connections via two new lightweight actions. Role selection reused
-   MemberUserGroupsGrid. Accept/decline surfaces as an AdminInvitationBanner directly
-   on the Followers page (modeled on the existing AdminRoleRemovalBanner pattern found
-   mid-build as a closer fit than the settings-page or notification-tray patterns) —
-   requires an explicit Accept/Decline click rather than a one-click inline action,
-   given real admin rights are being granted.
-4. `5744eb01` — Fixed an infinite re-render loop in InviteAdminDialog surfaced during
-   manual click-through ("Application error" on the Followers page): candidateRows was
-   rebuilt as a new array on every render while the dialog also useWatch'd the same
-   form field that MemberUserGroupsGrid's own useEffect wrote to on mount, creating a
-   render→setValue→render loop. Fixed by memoizing candidateRows on selected alone and
-   reading offered roles imperatively via methods.getValues() at submit time instead of
-   subscribing to them.
-5. `b91c97ff` — Restricted the Invite Admin dialog's role picker to Admin/Moderator only
-   (was showing all four userGroup options inherited from the shared
-   MemberUserGroupsGrid component, including Followers/Crew, which don't make sense as
-   grantable options in an admin-invitation context). Existing Edit User Groups dialog
-   elsewhere continues to show all four, unaffected.
-
-**Verified end-to-end on staging, then spot-checked on prod:** full accept path
-(invite → notification with working "Review" CTA → deep-link to Followers page → banner
-with correct circle name/role/inviter → Accept → Member doc created with correct
-userGroups); already-a-member case correctly rejected server-side with a message
-pointing at the existing Edit User Groups row (no automatic redirect built — noted as a
-scope trade-off); self-invite blocked; non-connection candidates don't appear in the
-picker and are rejected server-side if attempted directly; non-admin senders rejected.
-tsc --noEmit and eslint clean throughout.
-
-**Deferred / follow-up:**
-- Settings-page admin list (so admins can see who else holds admin rights without
-  reading the Followers list's User Groups column) + a second "Invite Admin" entry
-  point there, reusing the same modal — scoped as its own follow-up task, not yet built.
-- Broadening the candidate pool beyond direct connections (e.g. shared-circle
-  membership) — explicitly deferred; investigation confirmed this would need a new,
-  currently-nonexistent aggregation over Members, not a cheap addition.
-- No UI for cancelling a sent-but-not-yet-responded-to invitation, though the
-  server action (cancelAdminInvitationAction) already exists.
-
-Deployed to prod (a2d4e1e6). Both branches pushed to GitHub.
-
-## 2026-09-22 — Admin invitation flow: completed and fully shipped
-
-Closed out the admin-invitation feature (started 2026-09-19) by shipping its two
-remaining pieces — a Settings-page admin list with a second invite entry point, and a
-Remove-admin action — plus a follow-up Cancel-invite UI, then reconciling and deploying
-everything to prod as one complete unit.
-
-**Admins list + second invite entry point (commit 2f02a3c2, previously built but
-unshipped, promoted today):**
-- New `AdminsListCard` on `/circles/[handle]/settings/about` — chosen deliberately over
-  the "User Groups" settings sub-page, since that page is hidden entirely for
-  personal-profile circles and would have broken the feature for exactly the circle
-  type used in testing. `/settings/about` is the only settings sub-page guaranteed to
-  exist for every circle type.
-- New `getAdminMembers()` query, a structural clone of the existing `getCrewMembers`
-  aggregation, filtered to "admins" instead of "crew" — `joinedAt` came along for free
-  from the same projection, powering the "Since [date]" display with no extra cost.
-- Embeds the same `InviteAdminDialog` used on the Followers page directly — no fork, no
-  duplicated logic. Sending from here goes through the identical
-  `inviteUserToAdminAction` → notification → `AdminInvitationBanner` flow already
-  verified on prod.
-- No new authorization check: inherits the About page's existing
-  `features.settings.edit_about` gate.
-
-**Remove-admin button (commit 943e3bc0, previously built but unshipped, promoted
-today):**
-- Per-row "Remove admin" action in `AdminsListCard`, reusing `updateUserGroupsAction`'s
-  existing demotion logic and admin-role-removal-request branching — no new demotion
-  logic written.
-- Last-admin guard: found already in place (`countAdmins(circle._id) <= 1` check in
-  `updateUserGroupsAction`, blocking with "Cannot remove the last admin.") — no new
-  guard needed.
-- Self-removal: intentionally asymmetric from other-admin removal. Removing another
-  admin creates a pending admin-role-removal-request they must approve themselves
-  (reusing the existing request/approve state machine, confirmed end-to-end: requester
-  sees "Admin removal request created," target gets a real-time notification with a
-  working "Review" CTA, sees an Admin Role Removal banner with Approve/Decline on their
-  Followers page). Removing yourself applies immediately (no self-approval needed), but
-  requires a genuinely separate extra warning step ("Remove your own admin access?" →
-  Continue) before the normal confirm dialog, per the task's "at minimum require extra
-  confirmation for self-removal" instruction.
-- Confirmation dialogs reused verbatim from members-table.tsx's existing
-  `removeMemberAction` two-dialog pattern (plain confirm + the existing
-  `AdminRoleRemovalDialog` acknowledgment dialog), with only the new self-target warning
-  step added on top.
-- Verified live on staging across all three scenarios: non-self removal (pending
-  request + notification + approval flow, confirmed from both sides), self-removal
-  (extra warning step required), and last-admin block (correctly refused with a clear
-  error).
-
-**Cancel-invite UI (commit fb275c9e, built and shipped same day):**
-- New "Pending invitations" sub-section inside `AdminsListCard`, below the Admins list,
-  showing each pending sent invite (candidate, role offered, sent date) with a Cancel
-  action. New query `getPendingAdminInvitationsSentByUser`, scoped to
-  `{circleId, invitedByUserDid, status: "pending"}`.
-- Cancel button calls the existing `cancelAdminInvitationAction` directly — no new
-  server logic. Confirmation UX: inline two-step "Cancel invite" → Keep/Confirm swap
-  rather than a modal dialog, reasoned that cancelling a still-pending offer doesn't
-  strip anyone's existing access (unlike Remove-admin), so a lighter-weight
-  confirmation than `RemoveAdminButton`'s modal is appropriate while still guarding
-  against a stray click.
-- Visibility scoped sender-only (an admin sees only invitations they personally sent,
-  not ones sent by other admins on the same circle) — deliberate choice, reasoned from
-  the fact that `cancelAdminInvitation` already enforces "only the sender can cancel"
-  server-side; a circle-wide pending list would have surfaced Cancel buttons that throw
-  for every admin except the actual sender.
-- Verified live on staging with two admins and two invitees: each admin sees only their
-  own sent invites; Keep aborts cleanly (row/DB unchanged); Confirm cancels
-  (`cancelAdminInvitation` hard-deletes the record — noted as current behavior, not a
-  "cancelled" status, meaning no audit trail today if that's ever wanted); invitee-side
-  confirmed via reload that the banner disappears and Accept/Decline are gone after
-  cancellation.
-
-**Deploy note:** the Admins-list and Remove-admin commits had been built and verified
-on staging in a prior session but were never actually pushed/deployed — caught before
-today's push by diffing files against staging rather than trusting the cherry-pick
-marker alone. All three commits (2f02a3c2, 943e3bc0, fb275c9e) shipped to prod together
-in one deploy after a clean rebase reconciling a one-commit divergence between local and
-origin `main`. Confirmed live on prod.
-
-**Feature now complete end-to-end:** schema, server actions, notification wiring (with
-an explicit `getNotificationHref` case from the start, avoiding the known dead-CTA
-pattern), picker/banner UI, an infinite-render-loop fix, a role-picker scope fix
-(Admin/Moderator only), a Settings-page admin list with its own invite entry point,
-Remove-admin with proper approve/decline semantics, and Cancel-invite. No further
-follow-ups outstanding on this feature.
-
-## 2026-09-22/23 — Privacy fix: private account fields removed from the shared circle projection (search stopgap + commit A1), shipped to prod
-
-**Background:** an investigation into location handling in post previews, started on the evening of 2026-09-22, traced private account fields reaching logged-out visitors. `SAFE_CIRCLE_PROJECTION` (`src/lib/data/circle.ts`) — the projection behind the single-record circle/user getters (`getCircleByHandle`/`ById`/`ByDid`, `getUser*`, `getCirclesByIds`/`ByDids`, `getCircles`/`getCirclesWithMetrics`) and embedded in the event/issue/task/goal author and circle lookups — included `email`, `officialEmail`, `bookmarkedCircles`, `pinnedCircles` and `hiddenCancelledEventIds`. Records fetched through it reached public page renders and the anonymous search endpoint. The projection was inherited from the upstream Circles code base. The exposure was confirmed live on staging and production on the morning of 2026-09-23.
-
-**Stopgap (staging `26885df2` → main `d3608a2c`):** `searchDiscoverableCircles` (`src/lib/data/search.ts`) now omits the five private fields at its return point. Verified live afterwards: a logged-out request to `/api/circles/search` returned no email addresses. Left in place deliberately after A1 as defence in depth.
-
-**Commit A1 (staging `ffda445a` → main `00b0a2c8`, deployed 2026-09-23 19:21 UTC):**
-- Removed the five fields from `SAFE_CIRCLE_PROJECTION`; nothing else in it changed. A pre-change audit confirmed no reader of `email`, `bookmarkedCircles`, `pinnedCircles` or `hiddenCancelledEventIds` depended on this projection — self reads all go through `getUserPrivate`/`getPrivateUserByDid` (including everything that populates the client `userAtom`), and auth, password reset, email verification, admin user management, all `sendEmail` call sites and web-push use their own queries.
-- `officialEmail` had three owner/admin readers that did depend on it. Added `getCircleOfficialEmail(circleId)` (targeted `findOne`, projection `{ officialEmail: 1 }`, no auth of its own) and call it only after each site's existing check:
-  - `settings/about/page.tsx` — merged into the circle passed to `AboutSettingsForm` after the `edit_about` check. **Without this, the form would have seeded an empty field and `saveAbout` would have cleared the stored `officialEmail` on the next save** (data loss, not just a display gap).
-  - `submitCircleForVerificationAction` (`settings/about/actions.ts`) — the login + `edit_about` check moved above all field checks, then `officialEmail` read via the helper.
-  - `getAdminVerificationRequestDetail` (`verification-workflow.ts`) — `targetCircle` gets `officialEmail` so the organization-claim review works; its only caller runs `requireAdminDid` first.
-- Typecheck and lint clean.
-
-**Verified:**
-- Prod: logged-out profile page source contains no email addresses or bookmark lists.
-- Staging: logged-out circle, profile and event page source contain no email addresses or bookmark lists; `officialEmail` persists through save + reload on the About settings page; pinning still works.
-
-**Not yet tested:** submit-for-verification (needs a new draft organization circle on staging — the existing staging org circle is already published, so the button is hidden) and the admin Verification Requests detail view.
-
-**Still open — planned follow-up commits (high level only):**
-- **A2:** per-viewer location handling on circle pages; stop sending unused private profile fields to the client.
-- **A3:** authentication on two server actions that return circle records.
-- **B:** viewer-aware event location handling.
-- **C:** access checks and validation for internal link previews.
-- **D:** location handling in post previews; post page data loading.
-- **E:** image metadata stripping for post images, plus a dry-run backfill.
-
-**To-do list (found this session):**
-- Duplicate "Save Changes" buttons on the About settings page.
-- Admin Verification Requests: no past/approved-requests view; active-queue row isn't clickable; an orphaned request shows "Unknown circle" and a raw submitter ID.
-- Product decision needed: should pending accounts have publicly viewable profiles?
-- Review the location picker's default precision (consider a city-level default).
-- Test submit-for-verification on staging with a new draft organization circle.
-
-**Previously logged, still open:**
-- Slimmer feed projections break some UI (badges, Message button, "profile is private" shown to non-followers).
-- Mention-click discoverability check.
-- Deleted-post visibility needs a check.
-- Proposal/issue/goal pages need URL-to-circle consistency checks.
-- Authorization checks need to consider publish and module state.
-- Shift posts' audience handling needs review.
-- Link preview batches need input validation.
-- Stale code comment in the create-offer modal.
-
-**Handoff:** a brief was written for checking Kamooni (same code base) for the same class of issue.
-
-**Status:** stopgap and A1 are live on both staging and prod. A2–E not started.
-
-## 2026-09-24 — IMY incident remediation: unauthenticated server actions (A3/A3b)
-- Production: e65d5f0f, 4a623bee — auth added to admin circle/user preview, circle deletion stats, manual membership toggle, Donorbox subscription refresh.
-- Checks: 0 records with VibeID metadata; 0 circles lacking a settings access rule.
-
-## 2026-09-25 — A2 shaping, privilege escalation fix, IMY report filed
-- Production: 17e52687, 70bf282f (A2: toPublicCircle on circle layout + home page); abc9ee7d, 3cc308e7 (0a/0b: field allow-list in updateUser/updateCircleField; strict isAdmin === true). All admins confirmed team accounts; no evidence of exploitation.
-- IMY report filed (diarienummer IMY-2026-19477). Follow-ups promised by 2026-10-09.
-
-## 2026-09-26/27 — A2c embeds; log archive
-- Production (main): 2ede9b5b, b19951ee, 9085633f, cafa5a4a — identity-only projections for event author embeds, task embeds, proof-of-humanity verifier, parent circle; Verified Contributions data no longer loaded while panel is hidden (shared VERIFIED_CONTRIBUTIONS_PANEL_ENABLED constant).
-- nginx + PM2 logs archived to ~/incident-IMY-2026-19477/logs/ with SHA256SUMS (earliest access log 2026-09-13; 14-day retention).
-
-## 2026-09-28/29 — Link previews (C1), location ceiling, A2b
-- Production (main top b47f5ed5): C1 viewer-gated allow-listed preview hydration; public location ceiling for feed payloads (authors, geotags, shared posts, single post page); A2b getPublicCircleForViewer on all /circles/[handle] routes; city-level ceiling for member/crew lists; child circle location redaction.
-- Verified logged out with ~/loc-trace.cjs (0 leaking location objects on feed, profile, artist and sub-pages).
-- Production counts: 6 posts with internal previews (all demo events); 10 circles with discussions enabled.
-
-## 2026-09-29 — Discussions (B), comment scrub, SSRF (C4), feed DID trust (A)
-- Production (main 94705d7a): discussion detail page gated by canUserViewPost; unmounted discussion actions removed (incl. unsanitised upload path); raw comment reader removed. Scope: 1 discussion, 6 restricted posts.
-- Data: stored comment author snapshots scrubbed of email/officialEmail (prod 2/2, staging 22/22), backups first. Script: scripts/scrub-comment-author-snapshots.mongosh.js.
-- Production (main fecb9e26): getLinkPreviewAction SSRF-hardened (auth, own fetch, DNS/IP validation per redirect hop, pinned IP, 5 s deadline, 1 MB cap). New module src/lib/net/safe-fetch.ts.
-- Production (main 12892bcb): aggregate/global feed actions take the viewer from the session (previously trusted a client DID — admin DID bypassed the location ceiling); internal DID-taking helpers no longer exported as actions; unused createCircleAction removed. Sweep of 379 actions: no other reachable instance.
-- Staging CIRCLES_JWT_SECRET rotated after a token was exposed in chat (production uses a separate secret, unaffected).
-
-## 2026-09-30 — Image metadata (E)
-- Production (main 1c16783a): metadata stripped on every upload (src/lib/media/sanitize-image.ts inside saveFile; format from bytes; rotation applied; SVG/undecodable rejected). One-off script scripts/strip-image-metadata.ts.
-- Buckets backed up (/home/tim/backups/), then rewritten: prod 140 images (GPS 7 → 0), staging 97 (GPS 15 → 0). Independent scan: 0 EXIF, 0 GPS.
-- Verification attachments: 0 on production (never requested); move to private bucket still planned.
-
-## Learnings (24–30 Sept)
-- Production MongoDB database is `circles`; staging is `peerify_staging` (`peerify` is a near-empty leftover).
-- Staging .env.local lives at /home/tim/apps/peerify-staging/circles/.env.local (one level above the app folder).
-- Next.js notFound() after streaming returns HTTP 200 with the not-found body — check page content, not status.
-- Deploy script Step 8 can hang without a timeout; add `curl -m 20`. If it hangs, check localhost:3001/3000 in a second tab before Ctrl+C.
-- Scripts that load sharp must run from an app folder; use `set +H` before shell helpers containing `!!`.
-- mc alias `peerify-local` was out of date after a MinIO password rotation; it's now set from the app's env file.
-
-## Open (security) — continue in the incident chat
-- C2 composer preview lookup; remaining SAFE embeds (single post author, funding creator/activeSupporter); verification attachments to private bucket; /storage nosniff + no SVG; C3, C5, D; systematic sweep (logged-out crawl + server-action auth review); Kamooni check.
-- IMY follow-up due 2026-10-09 (log review, subscription count, scope figures, fix dates, user notification).
-- Delete log archive, comment backups and bucket backups when the case is closed.
-
-## 2026-09-30 — Events visible to logged-out visitors (queue item 1)
-
-Root cause: not caused by the Sept privacy fixes. Logged-out visitors only got
-events on managed-identity circles (gate dates from Aug 2025, widened Jun 2026),
-while map / events panel / foryou surfaced events from any published non-personal
-circle, so discovery cards led to "Not found" (e.g. the-backstage-lounge on prod).
-
-Fix (Option B): canAnonymousViewCircleEvents(circle) in src/lib/data/event.ts:
-managed identity OR (published-or-missing, circleType != "user", events.view
-includes everyone). Used at all four gates (Events.tsx, [eventId]/page.tsx,
-getEventsAction, getEventAction). Public queries and sanitizer unchanged.
-Personal profiles keep the "sign in" wall.
-- staging 4318f7b4, main 2ba3ea6b, deployed to prod and verified logged out.
-- Helper mirrors the Mongo host-circle filter in getOpenEventsForMap /
-  getOpenEventsForList via cross-referencing comments; they can drift.
-
-Gotchas:
-- Orphaned jest-worker from a 14 Sept build held ~1.6 GB RAM; staging build
-  died silently at "Generating static pages". Killed it, rebuild passed.
-  Check `ps aux | grep -E "next|bun"` when a build dies.
-- Event detail pages: curl+grep is unreliable (not-found text is in every page's
-  payload). Verify logged-out behaviour in Incognito.
-
-Open follow-ups:
-- Personal-profile event cards/pins (mapVisible) and cancelled-event cards still
-  lead to Not found via map and /foryou. Decision pending prod count query.
-- Logged-out noticeboards stuck on "Feed loading…" (getFeedByHandleAction returns
-  null with no session, since Mar 2025). Pair with the Noticeboard "Everyone" bug.
-- Explore map opens with only Artists selected; logged-out visitors may think
-  there are no events.
-
-## 2026-10-01 — Verification email recovery (queue item 2) + onboarding React #310
-
-Investigation: the app sends fine. Every logged verification send on prod
-(25 Jun–30 Sep) was accepted by Postmark (ErrorCode 0), including sends after
-the privacy fixes, so losses are recipient-side (spam, bounces, typos,
-suppression). The real gap was recovery: no resend existed, check-email was a
-dead end, and verify-email promised a resend that didn't exist. Privacy fixes
-(A1/A2b/A2c/A3) ruled out: the recipient comes from form input and no
-privacy commit touches the send path.
-
-Shipped (staging 4318f7b4..b0e76613; prod release cf507614, main merge 8dbf9772):
-- sendEmail returns a real result (no more silent no-op when Postmark is
-  unconfigured); trySendEmail never throws; send logs keyed by user DID, no
-  addresses, Postmark error text redacted.
-- Login-link lookup case-insensitive ($in of trimmed + lowercased input).
-- resendVerificationEmailAction: session-only, no email input, recipient from
-  the user's own record; new token invalidates the old link; 60 s cooldown
-  (emailVerificationLastSentAt, also set at signup) + 5 resends per 24 h
-  window (emailVerificationSendCount24h / emailVerificationSendWindowStart).
-- "Resend email" button with countdown on check-email and the expired-link
-  screen.
-- Copy: removed every promise of a non-existent resend; deleted the dead
-  commented-out "email not verified" login gate.
-- "Still nothing? Contact us" on check-email opens the contact dialog, with a
-  new "Trouble signing up or logging in" reason preselected.
-- Tests: bun mocks for the DB and Postmark client (src/lib/testing/); run
-  `bun src/lib/data/email.test.ts` and
-  `bun test src/components/forms/login/login-link.test.ts "src/app/(auth)/verify-email/resend.test.ts"`.
-
-Config (env files, not commits):
-- Staging now uses its own "Peerify Staging" Postmark server (templates
-  copied), so staging no longer shares prod's suppression list or reputation.
-- Sender display names: "Peerify" on prod, "Peerify Staging" on staging,
-  quoted in the env files.
-
-Onboarding React #310 (staging 8e5897ea, 69ec5da6, 95949fff; main 0e88ad61,
-22d07416, f642ce38):
-- Root cause: a router.refresh() still in flight when an end screen
-  (explainer, fan-done, artist-ready) called router.push() crashed Next's
-  AppRouter. Fix: skip the refresh when advancing onto an end screen.
-- Artist end-screen buttons push straight to the circle's default module path
-  instead of bare /circles/<handle> (which only server-redirects).
-- New app/onboarding/error.tsx ("Try again" / "Continue to your profile").
-  Note: error.tsx doesn't catch router-level crashes like this one, so it's a
-  backstop, not the fix.
-
-Open follow-ups:
-- Log hygiene: pm2 logs have no timestamps or rotation; the login-link
-  "non-existent email" log line prints the address; check-email carries the
-  address in ?email= in the URL.
-- No rate limit on login-link requests.
-- The login-link email reuses the email-verification template (needs its own
-  template, or merge fields for actionText/introText).
-- Message reminders record "sent" when Postmark is unconfigured (they ignore
-  sendEmail's not_configured result).
-- DKIM for socialsystems.io unconfirmed (Return-Path CNAME and DMARC p=none
-  exist). Possible move of the sender to peerify.one, which has a null MX and
-  no SPF/DMARC; fix that first.
-- 22 router.push and 15 <Link> calls go to bare /circles/<handle> (redirect
-  hop, same pattern as the #310 path).
+### 2026-09-07 — Offer `details`/`photos` schema (Phase 1 of "Create an offer" work)
+
+**Schema-only commit.** Extended `TourTeamOffering` (`src/models/models.ts`) — the existing
+Crew-offer model (`Circle.tourTeamOfferings`), not a new collection — with:
+- `details`: an optional Zod discriminated union on its own `type` field (`accommodation`,
+  `hostingShow`, `meal`, `transport`, `promotion`), mapped from `offering.type`'s existing
+  snake_case values (`spare_room`, `hosting_show`, `home_cooked_meal`, `local_transport`, and a
+  newly added `promotion` value). `city_guide`/`sound_equipment_help`/`custom` ("Other") never
+  carry `details`. Optional end-to-end so every existing (demo) offering with no `details` at all
+  still parses and reads fine — renders bare-bones until the owner edits it via the upcoming
+  modal.
+- `photos`: `fileInfoSchema.array().max(10).optional()` — reuses the same embedded-FileInfo shape
+  already used by `Event.images`/`Circle.images`, not a new "photoIds referencing a photo
+  collection" concept (no such collection exists anywhere in this codebase to reference by id).
+- `hosting_show`'s label (`tourTeamOfferingTypeLabels`, `lib/data/tour-team-offerings.ts`) changed
+  from "Hosting a show" to **"Show space"** — copy-only, enum value unchanged. This offering type
+  is a pitch/contact mechanism only; it does not link to or create a Home Show event (no
+  `linkedEventId`, no event-creation handoff) — the rename is to stop it reading like it does.
+- Added `promotion` as a new top-level offering type (label "Promotion", icon `Megaphone`) since
+  it's one of the six types in the new "Create an offer" modal's Step 1 grid and didn't exist
+  before.
+
+**Known follow-up — privacy, not yet built:** `photos` has **no EXIF-stripping** on upload.
+Checked the entire upload pipeline (`MultiImageUploader` + `saveFile` in `lib/data/storage.ts`) —
+there is no EXIF/metadata stripping anywhere in this codebase for any image upload today, not
+just offers. Deferred deliberately for this pass (limited resources, current offer data is
+demo-only, no real users' photos at stake yet) — the upload nudge copy (interior-shot guidance for
+Accommodation, "avoid faces/identifying details" elsewhere) ships without it as a stopgap. **Must
+revisit before real users start uploading offer photos with any regularity** — an accommodation
+photo with embedded GPS EXIF data would leak the exact address the coarse map-pin grid
+(`getOfferPinLocation`) is deliberately designed to hide. Flag this again once traction on Offers
+picks up; not a forgotten TODO.
+
+Typecheck clean. Next: propose an entry point for the new "Create an offer" modal (Presence
+settings page is the leading candidate — see that page's existing `TourTeamOfferingsEditor`), then
+build the modal (Step 1 type grid, Step 2 form) and photo/nudge wiring as separate commits.
+
+**Status:** schema commit only, on `staging`. Not yet built: the modal UI, entry point, or photo
+upload wiring.
+
+### 2026-09-07 — "Create an offer" modal + photo/nudge wiring (Phase 2)
+
+**Entry point (`bbbddfd6`):** replaced the Presence settings page's checkbox-grid
+`TourTeamOfferingsEditor` with a new `OfferManager` (offering list + "Add an offer" button) +
+`CreateOfferModal` (Step 1 icon grid, Step 2 per-type form), in both of that page's "Offers" cards
+(personal + venue). Promotion is venue-eligible per Tim's decision (flyers/regulars/local listings
+is a natural venue offer). Predefined types the circle already has are shown disabled ("Already
+added") in Step 1 — editing an existing offering stays out of scope for this pass. `city_guide`/
+`sound_equipment_help` are no longer creatable from the new modal (not part of the fixed 6-tile
+Step 1 grid) — existing offerings of those types still render/persist fine, just not addable fresh
+via this UI. `VENUE_TOUR_TEAM_OFFERING_TYPES` renamed to `VENUE_OFFER_MODAL_TYPES` and repointed
+at the new modal (dropped `sound_equipment_help`, added `promotion`).
+
+**Photo picker + upload nudge (follow-up commit):** wired `MultiImageUploader` into Step 2 (up to
+10 photos, carousel preview), plus type-aware nudge copy below the picker — interior/room-shot
+guidance for Accommodation, generic "avoid faces and identifying details" for every other type.
+`savePresence` (settings/presence/actions.ts) now resolves each offering's photo drafts (new
+`File` uploads via `saveFile`, prefix `offer-photo`) into persisted `FileInfo[]` at save time —
+same deferred-upload-at-submit pattern as `saveAbout()`'s `Circle.images` handling, not an
+upload-on-pick call inside the modal.
+
+**Still no EXIF-stripping** (see the schema-commit entry above) — the nudge copy is the only
+mitigation in place for now. Flagging again here since this is the commit that actually makes
+photo upload reachable by real users, not just the schema.
+
+Typecheck, lint, and a full production build all clean throughout. **Not verified in a browser** —
+this environment has no browser-testing tooling available for peerify-staging, so the modal's
+actual click-through/save flow has not been manually exercised. Recommend a manual pass (create an
+offer of each type incl. Other, verify Step 1 disabling, upload photos, Save Changes, reload and
+confirm persistence) before treating this as done.
+
+**Status:** 3 commits on `staging` (`665f01a9` schema, `bbbddfd6` modal UI, `e2b50793`
+photo/nudge wiring). Not yet deployed to staging or cherry-picked to main.
+
+**Decision:** the `city_guide`/`sound_equipment_help` narrowing (no longer creatable as their own
+Step 1 tiles, only reachable as "Other"/custom going forward) is accepted as-is — existing
+offerings of those types keep rendering unchanged.
+
+**Bug found + fixed during self-review, before any manual testing (`784f9521`):** `CreateOfferModal`'s
+Back button didn't reset Step 2 field state. `photos` isn't type-scoped in the data model, so
+picking a type, uploading photos, hitting Back, and picking a *different* type would silently
+carry the first type's photos onto the second type's offering — `MultiImageUploader` itself
+remounts looking empty (it only ever seeds from a hardcoded `initialImages={[]}`), which would
+have made this easy to miss on a quick click-through since the picker visually shows nothing.
+Fixed by resetting all Step 2 fields whenever a type tile is selected (covers both
+Back-then-different-type and Back-then-same-type-again). Caught by re-tracing the component's
+state transitions, not by running it — still recommend hitting this exact path (pick a type,
+add a photo, Back, pick a different type, submit without touching photos again) during manual
+verification, along with the rest of the click-through.
+
+### 2026-09-07 — Offer modal follow-ups from manual testing: universal detail field, check-in helper text, edit-in-place
+
+Manual pass on the schema/modal/photo work above confirmed uploads, save, and reload-persistence
+all work. Three follow-ups from that testing, plus one fix found while implementing them:
+
+**Universal "Tell people more about this offer" field:** the base schema already had a generic
+`detail` field (used only by "Other" before this), but Accommodation had no freeform text at all.
+Exposed the same `detail` field on every type's Step 2 form, not just Other's — it's independent
+of each type's own structured `details` fields (spaceDescription, dietaryNotes, routeNotes,
+promotion's channels/notes), so both can now show together in the Presence-settings offer list
+where previously `detail` only rendered as a fallback when there was no structured summary.
+Reworded promotion's own `notes` field label to "Anything else about how you'd promote it?" so it
+reads distinctly from the new universal field instead of two near-identical "Anything else?" boxes.
+
+**"Flexible check-in" helper text:** one line under the toggle — "Lets a visiting artist arrive or
+leave outside your usual check-in/check-out times, instead of a fixed schedule."
+
+**Edit-in-place:** `CreateOfferModal` now takes `editingOffering`/`onSave` alongside the existing
+`onAdd` — non-null `editingOffering` opens straight to a pre-filled Step 2 with the type locked (no
+Step 1 grid, no Back button), reusing the exact same form as creation. `OfferManager` adds a pencil
+icon per offering card (next to the existing remove ✕) that opens the modal in edit mode. Type is
+not changeable during edit — reassigning a predefined offering's type mid-edit would collide with
+the one-per-type invariant and the type-specific `details` shape, so this is scoped to "edit this
+offering's own fields," not "convert it to a different type." Existing photos round-trip correctly
+whether touched or not (seeded into both the uploader's display and this component's own submit
+state, since MultiImageUploader never fires `onChange` for its initial seed).
+
+**Fix found while wiring this up:** `resolveOfferingPhotos` (savePresence) was reconstructing
+already-resolved photos as a bare `{url}`, silently dropping `fileName`/`originalName` — on
+*every* offering in the array, not just the one being edited, since this function runs
+unconditionally on save. Harmless today (nothing reads those two fields), but real metadata loss
+on every save cycle. Fixed to pass already-resolved photos through unchanged.
+
+Typecheck, lint, and build all clean. Still not manually verified in a browser — recommend
+covering: Accommodation's new detail field survives a save+reload, the check-in helper text
+renders, opening edit on each offer type pre-fills correctly (including an offering with no
+`details` yet — legacy/bare-bones case), editing an offering with existing photos without
+touching the picker doesn't drop them, and editing one while adding a new photo keeps both.
+
+**Status:** 1 further commit on `staging`, stacked on the 4 above. Still not deployed or
+cherry-picked to main.
+
+### 2026-09-07 — Bug found on staging after deploy: edit-in-place photos disappearing / rendering broken
+
+**Report:** editing an Accommodation offer that already had a photo — after Save, the existing
+photo was gone. Uploading a new photo while editing showed a broken/placeholder thumbnail
+("Uploaded image 1", no image) even before saving, and it didn't persist either.
+
+**Investigation (no fix applied until diagnosis was confirmed):** `resolveOfferingPhotos`
+(savePresence) was verified correct in isolation — given a real `FileInfo` (`{url,...}`), an
+`existingMediaUrl` string, or a fresh `File`, it resolves/passes through properly. The actual bug
+is upstream and single-rooted: `PresenceSettingsForm.onSubmit` only calls `router.refresh()` after
+a successful save — it never calls `form.reset()` or otherwise re-syncs the mounted
+`react-hook-form` instance's `tourTeamOfferings` field with the server-resolved data.
+`useForm({ defaultValues })` only applies `defaultValues` once, at initial mount; a
+`router.refresh()` re-renders the server component tree but doesn't touch already-mounted client
+form state. Consequence: after saving an offering with photos (via Add, or a first Edit) within
+one page load, the form's in-memory copy of that offering's `photos` stays the pre-save draft
+shape (`{id, file, preview: blob:...}` or `{id, preview, existingMediaUrl}`), never the persisted
+`FileInfo[]` (`{url, fileName, originalName}`) actually in Mongo. Editing that *same* offering
+again in the same session then seeds `CreateOfferModal` from this stale draft — the seeding
+helpers assume every photo has `.url`, so a draft entry produces `{id: undefined, preview:
+undefined, ...}` (the broken thumbnail), and on the next save `resolveOfferingPhotos` can't match
+any of its branches against the malformed entry, silently dropping it (the "disappearing" photo).
+One bug, not two — both symptoms are downstream of the same stale-form-state gap, and it only
+reproduces when editing an offering within the same page session it was last touched in, without
+an intervening hard reload. Pre-existing gap on this page (not introduced by the offer-modal
+commits) — just never previously exposed, since no other field here has a draft-vs-persisted
+shape distinction that needs to round-trip within a session.
+
+**Fix:** `savePresence` now returns the server-resolved `tourTeamOfferings` in
+`FormSubmitResponse.data`; `onSubmit` calls `form.setValue("tourTeamOfferings",
+result.data.tourTeamOfferings)` on success, before `router.refresh()`, so the form's in-memory
+state matches Mongo after every save. Typecheck, lint, and build all clean.
+
+**Status:** 1 further commit on `staging`. Still not deployed or cherry-picked to main. Recommend
+re-testing the exact repro (add/edit an Accommodation photo, Save, then Edit that same offering
+again without reloading) to confirm the fix holds.
+
+### 2026-09-07 — form.setValue fix didn't fully hold; switched to form.reset(); reload-vs-hard-refresh still open
+
+**Report (confirmed on a genuinely fresh/hard-refreshed load, not a stale tab):** editing the same
+offering again immediately after a successful save (zero reloads, zero network calls in between)
+still showed the photo gone from the picker. Separately: a normal browser reload also lost the
+photo from the offer card entirely; only a hard/cache-bypassing refresh recovered it.
+
+**Re-investigated the `form.setValue` path.** Traced `savePresence`'s return shape
+(`data: { tourTeamOfferings: resolvedOfferings } `) against the client's consumption
+(`result.data?.tourTeamOfferings`) — they match exactly. Confirmed `resolvedOfferings` is the
+literal same array reference used for both the Mongo write and the response, so if a hard refresh
+proves Mongo has the photo, the response necessarily carried it too. Could not find a definitive
+logical flaw in `setValue`'s notification path via static analysis (Controller subscriptions
+should pick up any `setValue` call for a registered field). Rather than keep chasing that specific
+edge case, switched to `form.reset({...data, tourTeamOfferings: result.data.tourTeamOfferings})` —
+the more forceful, canonical RHF pattern for "re-sync the whole form to server truth after a
+successful submit," which unconditionally replaces all form values and forces every subscribed
+Controller to re-render, sidestepping whatever `setValue`'s issue might have been. Also clears
+`isDirty` now that the save succeeded, which `setValue` didn't. Typecheck/lint/build clean.
+
+**Reload-vs-hard-refresh discrepancy: still open, confirmed NOT explained by this fix.** This fix
+is purely in-memory client React state — it cannot affect a genuine full-page reload, which
+destroys all JS state and re-mounts everything fresh from a new server fetch. Re-swept every
+caching layer looking for what could explain "normal reload stale, hard refresh fresh":
+- No `unstable_cache` anywhere relevant (only one unrelated use in `platform-stats.ts`).
+- `getCircleByHandle`/`getCircleById` are plain uncached `Circles.findOne` calls — no `fetch()`,
+  no React `cache()`, no route-segment `revalidate`/`dynamic`/`fetchCache` config.
+- `next.config.mjs` has no `headers()` override.
+- nginx (`/etc/nginx/sites-available/staging.peerify.one`) is a bare reverse proxy — no
+  `proxy_cache`, no cache-control injection.
+- `public/sw.js` has no `fetch` event listener at all — can't be intercepting navigation.
+- Live-curled `https://staging.peerify.one/` and confirmed Next is sending
+  `Cache-Control: private, no-cache, no-store, max-age=0, must-revalidate` (its standard
+  dynamic-route header, since that page also reads cookies via the same
+  `getAuthenticatedUserDid()`/`cookies()` path presence-settings uses) — this should prevent a
+  browser from serving a cached copy on a plain reload. Could not curl the settings page itself
+  directly (requires an authenticated session).
+- MongoDB is a single local `mongod` (`127.0.0.1:27017`), not a replica set, so there's no
+  read-lag/eventual-consistency window to blame either.
+
+Every app-level and infra-level caching mechanism checked comes back clean. Given `no-store` is
+confirmed live for at least one dynamic route, the leading remaining hypothesis is a **browser-level
+reload/bfcache quirk** (documented to vary by browser, e.g. Safari has known bfcache-eligibility
+edge cases around reload actions) rather than an application bug — but this is unconfirmed without
+seeing the actual request/response headers for the settings page during a real repro. Asked for a
+DevTools Network-tab check (status code + Cache-Control on the document request, normal vs. hard
+reload) as the most direct next step, since it can't be verified further via code/config
+inspection alone.
+
+**Status:** 2 further commits on `staging` total for this investigation thread. Reload discrepancy
+remains an open, distinct issue pending browser-side diagnostic info.
+
+### 2026-09-07 — Fixed pre-existing hydration mismatch (React #418) in global ProfileMenu
+
+Investigated a browser-console hydration error (`Minified React error #418`) found via DevTools
+while chasing the reload-vs-hard-refresh photo issue above. **Confirmed pre-existing and app-wide,
+not specific to presence-settings or the offers work**: `ProfileMenu` (`src/components/layout/
+profile-menu.tsx`), part of the global nav rendered on every authenticated page, seeded
+`const [loadStateKey] = useState(Date.now().toString())` and used it as `key={loadStateKey}` on
+`ProfileMenuBar`. That expression evaluates once during the server render and again during the
+client's initial hydration render — necessarily producing two different timestamps, so server and
+client disagree on that element's identity from the first paint. A `setTimeout` then bumped it
+again 100ms after mount ("Force re-render after component mount to ensure proper hydration") —
+this reads as an earlier, incomplete attempt to paper over a hydration issue by forcing a
+client-side remount, rather than fixing whatever actually caused it.
+
+Checked whether removing this would re-expose a real problem: `ProfileMenuBar` already has its own
+correct, standard hydration guard — `const [isMounted, setIsMounted] = useState(false)` flipped to
+`true` in a mount-only effect, with `if (!isMounted) return null;` before any content that depends
+on client-only state (auth atoms, `useIsMobile()`, unread counts, acting-identity). That guard
+alone is sufficient — server and initial client render both produce `null`, so there's nothing
+uniquely fixed by the outer key-remount trick. Removed `loadStateKey`, its effect, and the `key`
+prop entirely (not just seeded from something stable) per the earlier decision to drop the pattern
+rather than patch it; also dropped the now-unused `logLevel`/`LOG_LEVEL_TRACE` import. Typecheck,
+lint, and build all clean.
+
+**Not claiming this resolves the offer-photo reload/hard-refresh discrepancy** — that's a separate
+open issue (see above) that still needs the DevTools Cache-Control comparison once this is
+deployed and retested. The mismatch here was scoped to `ProfileMenuBar` inside its own `Suspense`
+boundary, a different part of the tree from the Offers card, so there's no strong reason to expect
+it explains the photo issue — but re-test from scratch to confirm either way.
+
+Mapbox `"process is not defined"` console error, raised in the same DevTools session, confirmed
+unrelated: `NEXT_PUBLIC_MAPBOX_TOKEN`/`process` usage is isolated to `KamooniMap.tsx`, only
+imported by the standalone `/map-test` page — not part of presence-settings or any shared layout.
+No action taken.
+
+### 2026-09-08 — Real root cause found: broken thumbnail was never about reload/caching
+
+Tim's own repro work eliminated the reload/caching thread entirely: the broken "Uploaded image 1"
+placeholder reproduces immediately after clicking the *modal's own* Add/Save button, zero reload
+or even a real server round-trip involved, on every offer with a newly-added photo (never on
+already-saved ones) — response-body comparisons across reload types showed already-saved photos
+identical either way. That ruled out everything in the two entries above; the actual bug was back
+in `create-offer-modal.tsx`'s edit-seeding helpers.
+
+**Root cause:** `TourTeamOffering.photos` is typed as the persisted `fileInfoSchema[]` shape
+(`{url, fileName?, originalName?}`), but at runtime it can still be MultiImageUploader's *draft*
+ImageItem shape (`{id, file, preview}`, no `.url` at all) — specifically for any offering added or
+edited via the modal's own "Add offer"/"Save changes" button that has never yet been through the
+page's real Save Changes button (the only thing that round-trips it through
+savePresence/resolveOfferingPhotos into a real, resolved FileInfo). `offeringPhotosToMediaSeed`/
+`offeringPhotosToImageItems` assumed `.url` was always present; for a still-draft photo this
+produced `{preview: undefined}` seeds — an `<img src={undefined}>`, i.e. exactly the broken
+placeholder with visible alt text ("Uploaded image N" is MultiImageUploader's own alt string,
+which is how re-editing before ever hitting the real page-level save surfaced this).
+
+**Fix:** both seeding helpers now check the runtime shape (`isResolvedOfferPhoto`, keyed on
+whether `.url` is a string) rather than trusting the type. A still-draft photo seeds the picker's
+display from its blob `.preview` (renders fine, it's a valid object URL) instead of a nonexistent
+`.url`, and is passed through unchanged (preserving `.file`) into the component's own submit-time
+`photos` state, so an untouched submit still uploads the pending file correctly. Added a
+server-side backstop in `resolveOfferingPhotos`: reject any `url`/`existingMediaUrl` starting with
+`"blob:"` — a real persisted URL is never a blob URL, so this guards against ever writing a dead,
+page-session-scoped URL into Mongo if a draft photo gets flattened into an "existing" entry by
+further picker interaction before its first real save. Typecheck, lint, and build all clean.
+
+**Status:** fix committed on `staging`, on top of the reload/hydration investigation commits
+(which stand on their own merit — the ProfileMenu hydration fix is real and worth keeping — but
+are now confirmed unrelated to this specific bug).
+
+### 2026-09-08 — Modal button rename + unsaved-changes guard (scoped down)
+
+**UX gap found in testing:** the offer modal's own confirm button read "Save changes" in edit
+mode, implying it persists to the server — it only updates the in-memory `tourTeamOfferings`
+array. Only the page's own "Save Changes" button calls `savePresence`. Tim hit this himself
+(closed the modal, assumed the edit was saved, then reloaded/navigated away and lost it).
+
+**Shipped:**
+- Renamed the modal's edit-mode confirm button from "Save changes" to "Update" (`create-offer-modal.tsx`)
+  — "Add offer" for new offers was already fine, left unchanged.
+- Added a `beforeunload` guard to `PresenceSettingsForm`, gated on `form.formState.isDirty` —
+  warns on tab close, reload, or typing a new URL if anything on the page (offers, needs,
+  engagements, any Controller-bound field) changed since the last successful save.
+  `form.reset()` on a successful submit already clears `isDirty` (from the earlier photo-fix
+  work), so this can't false-positive right after saving — confirmed this before relying on it.
+
+**Deferred, not forgotten — in-app navigation interception:** investigated intercepting
+client-side navigation too (e.g. clicking a sidebar settings link while this page is dirty).
+Confirmed Next.js's App Router (this app is on 15.5.18) has **no built-in hook for this** — no
+`router.events` (that was Pages Router only), no `usePrompt`/`useBlocker` equivalent. The only
+way to cover it would be a global capture-phase `click` listener on `document` (detect internal
+`<a>` clicks, `preventDefault()`, confirm, then manually `router.push()`) plus a separate
+`popstate` handler for browser back/forward — real, buildable, but genuinely new reusable
+infrastructure (~60-100 lines), not a quick add-on to this page. Deferred by explicit decision —
+scope/time for this session, not a doubt about its value. Revisit when either: (a) a second
+settings-style page wants the same unsaved-changes guard (better justifies building it as shared
+infrastructure rather than one-off), or (b) the `beforeunload`-only version proves insufficient in
+practice (someone actually loses work by clicking a sidebar link away from a dirty presence
+settings page, despite this session's fix covering the specific mistake — tab close/reload —
+that prompted it).
+
+Typecheck, lint, and build all clean.
+
+### 2026-09-08 — Built the deferred in-app-navigation guard after all
+
+Picked this back up the same session — built `useUnsavedChangesGuard(isDirty, message?)`
+(`src/components/utils/use-unsaved-changes-guard.ts`) as a small, standalone, reusable hook rather
+than one-off page code, per the note above.
+
+Covers all three ways to leave a dirty page from one hook call:
+- **Tab close/reload/typing a new URL:** `beforeunload`, browser's own fixed prompt wording.
+- **Clicking an internal `<a>`/`<Link>`:** a capture-phase `click` listener on `document` (runs
+  before Next's own Link handler), skips modified clicks (new-tab), `target≠_self`, `download`
+  links, external origins, and same-URL/anchor no-ops; otherwise `preventDefault()` +
+  `window.confirm()`, then `router.push()` if confirmed.
+- **Browser back/forward:** the "history buffer" trick — while dirty, keep one extra history
+  entry pushed on top of the current one, duplicating its own URL (never a different route, so
+  Next's router never needs to resync to an arbitrary URL the way a raw `pushState` to a
+  *different* page would). The first back-press only consumes that duplicate (invisible — same
+  URL), giving a chance to confirm; a second, real `router.back()` only fires if confirmed,
+  otherwise the buffer is pushed again so the next back-press is caught too.
+
+Replaced `PresenceSettingsForm`'s standalone `beforeunload`-only `useEffect` (from earlier this
+session) with a single `useUnsavedChangesGuard(form.formState.isDirty)` call — same `isDirty`
+source of truth, now all three mechanisms instead of just one. A second settings-style page
+wanting the same protection is a one-line addition, not a copy-paste job.
+
+**Known, accepted limitations** (documented in the hook's own comment, not silent gaps):
+- Only catches real `<a>`/`<Link>` clicks and back/forward — a hypothetical future
+  `router.push()`/`router.replace()` call made outside of a link click wouldn't be caught. Next.js's
+  App Router has no hook for that (no `router.events`, no `usePrompt`/`useBlocker` equivalent as of
+  Next 15.5.18). Not an issue for any current caller.
+- A confirmed "leave via link click" while a back/forward history-buffer entry is still pushed
+  leaves that duplicate entry behind in the stack (since `router.push()` doesn't consume it) —
+  results in one extra, harmless back-press being needed if the user later navigates back through
+  this page via forward/back cycling from the new page. Cosmetic history-stack bookkeeping only,
+  not a rendering or data bug.
+
+Typecheck, lint, and build all clean.
+
+### 2026-09-08 — Offer modal button color: found it was already conflicting, fixed the modal side
+
+Asked to make the page's real "Save Changes" button visually distinct (green) from the offer
+modal's own confirm button. Checked first: the page's Save Changes button already uses the plain
+`<Button>` default variant, which is already green (`--button-primary: 145 36% 32%` in
+globals.css) — no change needed there. The actual conflict was the *modal's* confirm button also
+defaulting to that same variant/color with no explicit `variant` set, so both buttons looked
+identical. Set the modal's confirm button to `variant="secondary"` (light neutral gray) instead —
+deliberately doesn't look like the button that persists, since it doesn't.
+
+### 2026-09-08 — Unsaved-changes guard: closed the global-nav gap (Feed/Events)
+
+Tim found the guard didn't cover clicking Feed/Events in the main sidebar while presence settings
+was dirty. Checked `global-nav-items.tsx` directly:
+
+- **Feed and Events: confirmed programmatic navigation, exactly the flagged caveat.** Both are
+  plain `<div onClick={...}>` — no `<a>`/`<Link>` at all — calling `router.push(...)` directly,
+  plus real side-effect logic (`setSidePanelMode`/`setDrawerContent`, a mobile-only "skip push if
+  already on /explore" branch). Kept them onClick-driven rather than converting to `<Link>`
+  (option 1) — that logic isn't incidental, and reworking navigation semantics in this shared,
+  heavily-tuned global nav component carries more risk than this task warrants.
+- **Explore: is a real `<Link href="/explore">`.** No `stopPropagation`/`preventDefault` anywhere
+  nearby, and no second "Explore" implementation exists elsewhere (checked `side-panel.tsx`, which
+  only mentions it in a comment) — the existing click interceptor should already catch it. Could
+  not confirm live (no browser access this session) — asked Tim to re-test Explore on its own to
+  settle whether it was a false alarm or genuinely broken for a reason not visible from the code.
+
+**Fix (option 2, as scoped):** added `hasUnsavedFormChangesAtom` (`src/lib/data/atoms.ts`) — a
+jotai atom mirroring the same `isDirty` signal `useUnsavedChangesGuard` already uses, since
+`global-nav-items.tsx` lives in the root layout with no prop path to any specific page's form
+state. The guard hook now syncs this atom whenever `isDirty` changes, and clears it on unmount
+(a separate effect from the sync, so a save-then-edit-again sequence on the same page doesn't
+briefly flash it back to false between the two). Feed/Events' `onClick` handlers now call a new
+`confirmLeaveIfDirty()` helper that checks the atom and shows the same `window.confirm(...)`
+before proceeding — same UX as the click/popstate paths, just reached differently since there's no
+anchor for the generic interceptor to catch.
+
+Typecheck, lint, and build all clean.
+
+### 2026-09-09 — Offer photos/description made member-visible from the map; EXIF stripping
+
+**Investigation first (no code changes) confirmed:** the admin editor (Presence settings page)
+fetches offers via `getCircleByHandle`/`SAFE_CIRCLE_PROJECTION` (which includes full
+`tourTeamOfferings`), gated by an explicit `isAuthorized(..., features.settings.edit_about)`
+circle-admin check in the page itself — not something that already works for an arbitrary
+authenticated session. `OFFER_MAP_PIN_PROJECTION`/`getOfferMapPins` genuinely strips photos and
+`detail`/`details` server-side before ever building an `OfferMapPin` — not just UI-hidden. No
+route was found that returns full offer detail to an unauthenticated caller, or to an
+authenticated non-admin/non-crew member. `getOfferMapPinsAction` itself is callable without auth
+(by design — map pins are meant to be public), but only ever carries the trimmed pin shape.
+
+**EXIF stripping (`7bb5a7f4`):** `resolveOfferingPhotos` (presence/actions.ts) now runs every
+newly uploaded offer photo through `sharp` (`.rotate()` to bake in EXIF orientation, then
+re-encode without metadata) before `saveFile`. Scoped here rather than in `saveFile()` itself,
+which is shared by ~15 other upload paths with no privacy need for this. This closes the gap
+flagged in the 2026-09-07 entries above (no EXIF stripping anywhere in the codebase; an
+accommodation photo's embedded GPS EXIF would leak the exact address the map's coarse-jitter grid
+is designed to hide) — now that offer photos are becoming visible to any member (see below), not
+just the circle's own admin, that revisit condition is met.
+
+**One-time reprocessing:** before writing a bulk migration, checked how many circles actually had
+offer photos already saved — staging had exactly 1 circle (`tim-admin`, a test/demo account), 6
+offerings, 9 photos total. Small enough to run in-session: `scripts/strip-offer-photo-exif.ts`
+(dry-run by default, `--apply` to write) re-fetches each photo from MinIO by its existing object
+key, strips it the same way, and re-uploads to the *same* key — no Mongo write needed since
+`url`/`fileName` never change. Ran dry-run then `--apply` against staging; all 9 rewritten, 0
+failures, verified one rewritten object is still readable with its original content-type intact.
+
+**Member-facing offer visibility (`5019582c`):** any authenticated member can now view an offer's
+full details (photos, description, type-specific fields) from the map, not just the circle's own
+admin. Map pins/`OFFER_MAP_PIN_PROJECTION` are untouched — still icon-only/anonymous for
+individual hosts, same jitter as before.
+- `OfferMemberDetails` (models.ts) + `getOfferDetailsForMember` (lib/data/circle.ts): single-
+  offer-by-id, re-deriving the same published/circleType/offersVisible eligibility
+  `getOfferMapPins` uses — an offer that was never actually pin-eligible (owner has offersVisible
+  off, unpublished circle, wrong circleType) can't be read this way either, even by a logged-in
+  member. Prevents ID-enumeration of `circleId:offeringId` pairs from reaching hidden offers.
+- `getOfferDetailsForMemberAction` (map-explorer-actions.ts): the exposed server action.
+  Explicitly requires a session and returns `null` otherwise (no reliance on obscurity).
+  Deliberately single-offer-by-id only, no bulk/list variant, to limit scraping surface to one
+  click at a time.
+- `use-offer-member-details.ts`: shared client-side cache/hook (keyed by offerId) so hovering a
+  pin and then clicking it open never double-fetches the same offer.
+- Pin popup (map.tsx): an anonymous individual-host offer's popup now fetches on open (not
+  preloaded for every pin) and swaps its icon for the offer's first photo if one exists. Venue-
+  sourced pins, which already show the venue's own picture here, are untouched.
+- `CrewOfferMapPreview` (the pin-click side panel — despite the "Crew" name, this is the generic
+  offer-pin preview, see its own module comment) now shows the full photo carousel (reusing
+  `ImageThumbnailCarousel`/the app-wide `ImageGallery` lightbox), the freeform description,
+  type-specific structured fields (via `getOfferDetailsSummary`, widened to accept just
+  `{ details }` so this member-facing shape can reuse it without needing the rest of
+  `TourTeamOffering`), and a static "Contact currently disabled" placeholder — no working
+  form/role/tier gating yet, deliberately out of scope this pass. Skipped entirely for grouped
+  venue markers (2+ merged offerings), rather than showing detail for just one of several.
+
+Typecheck, lint, and a full production build all clean throughout. **Not verified in a browser** —
+same caveat as every other Offers-feature entry above; this environment has no browser-testing
+tooling for peerify-staging. Recommend a manual pass (hover an anonymous individual-host offer pin
+and confirm the photo swap, click it open and confirm the full panel — photos, description,
+type-specific fields, contact placeholder — then repeat for a venue pin and a grouped venue
+marker) before treating this as done.
+
+**Status:** 2 commits on `staging` (`7bb5a7f4` EXIF stripping + one-time reprocessing,
+`5019582c` member-facing offer visibility + UI). Not deployed to staging, not cherry-picked to
+main. Reprocessing script's `--apply` run already happened against staging's live MinIO/Mongo
+(see above) — that part is not a no-op to re-run, though it's idempotent-safe if repeated
+(re-stripping an already-stripped photo just re-encodes it once more).
+
+**What's next:** manual browser verification (see above); the real "Contact currently disabled"
+flow (role/tier-gated messaging) is a separate future task, out of scope here by design.

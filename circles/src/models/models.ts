@@ -49,14 +49,10 @@ export const getImageSchema = (maxSize?: number) => {
 };
 
 // originalName/fileName are nullable, not just optional — a lot of persisted FileInfo records
-// (Circle.images especially, 33 circles' worth as of 2026-09) store an explicit `null` here
-// rather than omitting the field. That's the real historical shape this data has, not a one-off
-// glitch, so the schema should accept it. Concretely, funding/actions.ts's getCoverImageInput()
-// re-parses an existing funding ask's coverImage via fileInfoSchema.safeParse() on every edit
-// (the client resubmits it unchanged as JSON when the cover image isn't being replaced) — with
-// the old non-nullable fields, a coverImage with a null fileName/originalName would silently fail
-// that parse, read as "no image provided", and delete the ask's existing cover image on an
-// unrelated edit. See SESSION_LOG.md 2026-09-10 for the investigation.
+// (Circle.images especially, 33 circles' worth on prod as of 2026-09) store an explicit `null`
+// here rather than omitting the field. That's the real historical shape this data has, not a
+// one-off glitch, so the schema should accept it rather than every save path having to normalize
+// null -> undefined before validating.
 export const fileInfoSchema = z.object({
     originalName: z.string().nullable().optional(),
     fileName: z.string().nullable().optional(),
@@ -297,6 +293,10 @@ export const trackSchema = z.object({
     originalMimeType: z.string().optional(),
     rightsConfirmed: z.literal(true), // artist confirmed they own/control the rights
     rightsConfirmedAt: z.date(),
+    // Which rights statement was ticked, and its full text (see lib/peerify/track-rights.ts).
+    // Missing on tracks uploaded before 2026-10-27: those agreed to version "2026-06-26".
+    rightsAttestationVersion: z.string().optional(),
+    rightsAttestationText: z.string().optional(),
     createdAt: z.date(),
     createdBy: didSchema,
     commentCount: z.number().default(0), // denormalized count, public (shown next to the track)
@@ -750,6 +750,101 @@ export const eventTagsSchema = z.object({
 
 export type EventTags = z.infer<typeof eventTagsSchema>;
 
+// Spaces (collection "spaces", lib/data/space.ts): places a person offers for shows that aren't venue
+// circles. "popup" is a business or room that hosts now and then (a café after closing, a shop), so
+// its location is kept as entered; "private" is a home or other private place, and only its rough
+// area is ever stored (lib/spaces/space-rules.ts rounds the location before anything is saved).
+// A private space whose owner turns on publiclyListed goes on the map: its stored point is then the
+// point the owner picked, moved by the owner's circle offerPinOffset (the same 200–400 m shift as
+// their offer pins), and mapPinPlacedAt says when. Without mapPinPlacedAt the stored point is the
+// rounded area (every space saved before 2026-10-28), which is never shown.
+// A pop-up whose owner turns on publiclyListed goes on the map too. Its stored location stays the
+// exact one as entered; the pin is worked out when the map loads (getSpaceMapPins). By default the
+// pin is that point moved by the space's own pinOffset (200–400 m, server-only); with
+// pinAtExactAddress it sits at the point itself, and only then may showNameOnMap put the name on
+// the pin. A pop-up gets its own offset, not the owner's offerPinOffset: a pop-up moved from
+// "near" to "exact" shows both the moved and the real point, which gives its offset away, and the
+// owner's would then unlock their home's pin. For the same reason pinOffset is dropped when a
+// pop-up goes to "exact", and a new one is made if it goes back to "near".
+// Setting and step-free access reuse the event tags' vocabularies (indoor/outdoor, accessible/
+// stairs involved/not specified) so the words match what hosts already see on events.
+export const SPACE_TYPES = ["popup", "private"] as const;
+export const SPACE_DEAL_PREFERENCES = ["takings_share", "fixed_fee", "food_drinks", "none"] as const;
+export const SPACE_AMPLIFICATION_OPTIONS = ["acoustic_only", "amplified_ok"] as const;
+export const SPACE_NAME_MAX_LENGTH = 80;
+export const SPACE_TEXT_MAX_LENGTH = 500;
+export const SPACE_SHORT_TEXT_MAX_LENGTH = 100;
+export const SPACE_NOTES_MAX_LENGTH = 1000;
+export const SPACE_CAPACITY_MAX = 5000;
+
+const spaceCommonInputFields = {
+    capacity: z.number().int().positive().max(SPACE_CAPACITY_MAX),
+    // Several may be picked; "none" stands alone (checked in parseSpaceInput).
+    dealPreferences: z.array(z.enum(SPACE_DEAL_PREFERENCES)).min(1),
+    listeningRuleAccepted: z.literal(true),
+    hostResponsibilityAccepted: z.literal(true),
+};
+
+export const popupSpaceInputSchema = z.object({
+    type: z.literal("popup"),
+    name: z.string().trim().min(1).max(SPACE_NAME_MAX_LENGTH),
+    location: locationSchema,
+    showTimes: z.string().trim().min(1).max(SPACE_TEXT_MAX_LENGTH),
+    noiseLimits: z.string().trim().max(SPACE_TEXT_MAX_LENGTH).optional(),
+    powerAvailable: z.boolean(),
+    paAvailable: z.boolean(),
+    // Off unless the owner turns it on, like a private space's.
+    publiclyListed: z.boolean().optional(),
+    // "Pin at the exact address" (for businesses and public places); otherwise the pin is moved.
+    pinAtExactAddress: z.boolean().optional(),
+    // Only with pinAtExactAddress (parseSpaceInput drops it otherwise).
+    showNameOnMap: z.boolean().optional(),
+    ...spaceCommonInputFields,
+});
+
+export const privateSpaceInputSchema = z.object({
+    type: z.literal("private"),
+    location: locationSchema,
+    setting: z.array(eventTagSettingSchema).min(1),
+    amplification: z.enum(SPACE_AMPLIFICATION_OPTIONS),
+    noiseCurfew: z.string().trim().max(SPACE_SHORT_TEXT_MAX_LENGTH).optional(),
+    stepFreeAccess: eventTagAccessibilitySchema,
+    // Read by platform admins only; the form asks people not to put an address here.
+    notesForPeerify: z.string().trim().max(SPACE_NOTES_MAX_LENGTH).optional(),
+    // Off unless the owner turns it on: spaces saved before this existed were saved as "only you
+    // and the Peerify team can see this".
+    publiclyListed: z.boolean().optional(),
+    ...spaceCommonInputFields,
+});
+
+// What a client may send. Anything else (ownerDid, _id, dates) is dropped by zod's default strip.
+export const spaceInputSchema = z.discriminatedUnion("type", [popupSpaceInputSchema, privateSpaceInputSchema]);
+export type SpaceInput = z.infer<typeof spaceInputSchema>;
+export type SpaceType = SpaceInput["type"];
+export type SpaceDealPreference = (typeof SPACE_DEAL_PREFERENCES)[number];
+
+type StoredSpaceFields<T> = Omit<T, "listeningRuleAccepted" | "hostResponsibilityAccepted"> & {
+    _id?: any;
+    ownerDid: string;
+    // When the owner ticked the two checkboxes; kept from the first save.
+    listeningRuleAcceptedAt: Date;
+    hostResponsibilityAcceptedAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
+};
+export type SpaceDoc =
+    | (StoredSpaceFields<z.infer<typeof popupSpaceInputSchema>> & {
+          // Server-only, never sent to a browser (see the Spaces comment above). Set while the
+          // pop-up's pin is a moved one.
+          pinOffset?: { bearingDeg: number; distanceM: number };
+      })
+    | (StoredSpaceFields<z.infer<typeof privateSpaceInputSchema>> & {
+          mapPinPlacedAt?: Date;
+          // Their /api/space-photo addresses (lib/media/space-photo.ts); never in the client input
+          // schema, the spaces actions resolve uploads into these.
+          photos?: FileInfo[];
+      });
+
 export const circleSchema = z.object({
     _id: z.any().optional(),
     did: didSchema.optional(),
@@ -776,6 +871,10 @@ export const circleSchema = z.object({
     // true (missing/true = enabled) so existing circles are unaffected. Pure visibility gate —
     // toggling this off never touches Members docs, "crew" userGroup tags, or Post documents.
     crewEnabled: z.boolean().default(true).optional(),
+    // Artist's own on/off switch for Pledges (PledgesEnabledToggle), like crewEnabled: absent or
+    // true means on. Off hides the Pledge button and refuses new pledges; existing pledges are
+    // kept and stay on the Pledges dashboard.
+    pledgesEnabled: z.boolean().default(true).optional(),
     isPublic: z.boolean().optional(),
     showAdminsPublicly: z.boolean().optional(),
     mapVisible: z.boolean().optional(),
@@ -785,14 +884,17 @@ export const circleSchema = z.object({
     // identity of the offering circle (see OfferMapPin below), so this consent gate is
     // deliberately its own thing, not reused from either existing flag. See getOfferMapPins.
     // No schema .default() (matches mapVisible/searchable) — the real default lives in
-    // createCircle (lib/data/circle.ts), and is TRUE for newly-created circles only, an explicit
-    // product decision made after finding two of three existing staging circles with offerings
-    // had exact-precision locations (one with mapVisible explicitly false) — retroactively
-    // defaulting existing circles to visible would have exposed their real coordinates via an
-    // anonymous pin with no new consent from them. Existing circles stay excluded from
-    // getOfferMapPins (its query is an exact match on offersVisible: true, so an absent field
-    // never matches) until their owner explicitly turns the Presence-settings toggle on.
+    // createCircle (lib/data/circle.ts): false for new personal profiles since 2026-10-29 (Tim:
+    // map display is opt-in; the first Create an offer asks "Show this on the map?" and the answer
+    // sets it). It was true for profiles created before that, and those keep what they have.
+    // Circles without the field stay excluded from getOfferMapPins (its query is an exact match on
+    // offersVisible: true, so an absent field never matches) until their owner turns it on.
     offersVisible: z.boolean().optional(),
+    // Server-only, never sent to a browser: the offer pin is the real point moved by this offset,
+    // so the offset plus a pin gives the address back. Set once by ensureOfferPinOffset
+    // (lib/data/circle.ts), never changed, and stripped from client input by createCircle and
+    // updateCircle. Not in SAFE_CIRCLE_PROJECTION or the public allow-lists.
+    offerPinOffset: z.object({ bearingDeg: z.number(), distanceM: z.number() }).optional(),
     userGroups: z.array(userGroupSchema).default([]).optional(),
     enabledModules: z.array(z.string()).default([]).optional(),
     accessRules: accessRulesSchema.optional(),
@@ -982,13 +1084,26 @@ export type VerificationRequest = z.infer<typeof verificationRequestSchema>;
 export type VerificationRequestStatus = z.infer<typeof verificationRequestStatusSchema>;
 export type VerificationRequestType = z.infer<typeof verificationRequestTypeSchema>;
 
+// A verification attachment in the private bucket (savePrivateFile): stored by key, never by URL.
+// Viewers get a signed 15-minute link at serialise time (serializeVerificationMessage). movedFrom
+// is the old public /storage URL while scripts/move-verification-attachments-private.ts is between
+// its copy and delete phases. Attachments saved before the move are plain FileInfo ({ url }).
+export const privateVerificationAttachmentSchema = z.object({
+    key: z.string(),
+    originalName: z.string(),
+    contentType: z.string(),
+    size: z.number(),
+    movedFrom: z.string().optional(),
+});
+export type PrivateVerificationAttachment = z.infer<typeof privateVerificationAttachmentSchema>;
+
 export const verificationMessageSchema = z.object({
     _id: z.any().optional(),
     requestId: z.string(),
     senderDid: didSchema,
     senderRole: verificationMessageSenderRoleSchema,
     body: z.string(),
-    attachments: z.array(fileInfoSchema).optional(),
+    attachments: z.array(z.union([privateVerificationAttachmentSchema, fileInfoSchema])).optional(),
     createdAt: z.date(),
 });
 
@@ -1073,10 +1188,11 @@ export type ServerSettings = z.infer<typeof serverSettingsSchema>;
 // hidden until they choose to reveal it via a reply (see the anonymized-contact-thread design,
 // not yet built). _id is a stable per-pin key (`${circleId}:${offeringId}`), not a real document
 // id. location is NOT the same viewer-precision-redacted Location other map pins use — it's
-// deliberately not viewer-aware at all: real coordinate if the circle's own location.precision is
-// already Exact (e.g. a venue), otherwise a fixed coarse (~1km) fallback so a pin always renders
-// regardless of what precision the profile happens to have set for unrelated purposes. See
-// getOfferPinLocation (lib/data/circle.ts).
+// deliberately not viewer-aware at all: the real coordinate only for a confirmed exact location
+// (e.g. a venue with a public address), otherwise the real point moved 200–400 m by the circle's
+// stored offerPinOffset (or the ~5 km grid until it has one), so a pin always renders regardless
+// of what precision the profile happens to have set for unrelated purposes. See
+// getOfferPinLocation (lib/utils.ts).
 // Consent to appear on the map at all is gated by offersVisible — a field independent of
 // mapVisible/searchable, so a circle can show offer pins while otherwise fully private.
 // Exception: pins sourced from a venue circle (metadata.peerify.identityType === "venue") DO
@@ -1119,7 +1235,46 @@ export type OfferMemberDetails = {
     photos: FileInfo[];
 };
 
-export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin;
+// A space on the map (getSpaceMapPins, lib/data/space.ts): the space's own _id, its kind, the area
+// names and the pin point, nothing else. No owner and no space details; a name only for a pop-up
+// pinned at its exact address whose owner chose to show it. Duck-typed on spaceKind, which nothing
+// else in the Content union has.
+export type SpaceMapPin = {
+    _id: string;
+    spaceKind: SpaceType;
+    location: Location;
+    // A pop-up pinned at its exact address (its owner's choice); every other pin is moved.
+    atExactAddress?: true;
+    name?: string;
+};
+
+// Fetched by a signed-in viewer who opens a space pin (getSpaceDetailsForMember). Still nothing
+// about the owner, never notesForPeerify (meant for the Peerify team only), and a pop-up's name
+// only when its pin shows it anyway.
+export type SpaceMemberDetails = {
+    _id: string;
+    capacity: number;
+    dealPreferences: SpaceDealPreference[];
+    photos: FileInfo[];
+} & (
+    | {
+          spaceKind: "private";
+          setting: z.infer<typeof eventTagSettingSchema>[];
+          amplification: (typeof SPACE_AMPLIFICATION_OPTIONS)[number];
+          noiseCurfew?: string;
+          stepFreeAccess: z.infer<typeof eventTagAccessibilitySchema>;
+      }
+    | {
+          spaceKind: "popup";
+          name?: string;
+          showTimes: string;
+          noiseLimits?: string;
+          powerAvailable: boolean;
+          paAvailable: boolean;
+      }
+);
+
+export type Content = Circle | MemberDisplay | PostDisplay | EventDisplay | OfferMapPin | SpaceMapPin;
 
 // Define Permissions type based on what IssuesModule passes
 export type IssuePermissions = {
@@ -1189,6 +1344,8 @@ export type ContentPreviewData =
     // circle (see OfferMapPin above), rendered by CrewOfferMapPreview, never CirclePreview (whose
     // Offers section is deliberately gated to the owner/a circle admin).
     | { type: "crewOffer"; content: OfferMapPin; props?: never }
+    // A pop-up or private space pin (SpaceMapPin), rendered by SpaceMapPreview.
+    | { type: "space"; content: SpaceMapPin; props?: never }
     | { type: "proposal"; content: ProposalDisplay; props: { circle: Circle } }
     | { type: "issue"; content: IssueDisplay; props: { circle: Circle; permissions: IssuePermissions } }
     | { type: "task"; content: TaskDisplay; props: { circle: Circle; permissions: TaskPermissions } }

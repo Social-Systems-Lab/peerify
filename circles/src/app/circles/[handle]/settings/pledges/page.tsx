@@ -89,6 +89,19 @@ export default async function PeerifyPledgesPage({ params }: PageProps) {
                 </div>
             </div>
 
+            {/* Turning Pledges off keeps every existing pledge here, so say why new ones stop. */}
+            {circle.pledgesEnabled === false && (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                    Pledges are turned off. Fans don&apos;t see the Pledge button and can&apos;t add new pledges.
+                    Existing pledges stay here, and you can still message the people who made them. Turn Pledges
+                    back on in{" "}
+                    <Link href={`/circles/${handle}/settings/about`} className="font-medium underline underline-offset-2">
+                        Settings → About
+                    </Link>
+                    .
+                </div>
+            )}
+
             {pledges.length === 0 ? (
                 <Card className="rounded-lg border-dashed border-slate-300 bg-slate-50 shadow-none">
                     <CardContent className="flex min-h-40 flex-col items-center justify-center px-6 py-10 text-center">
