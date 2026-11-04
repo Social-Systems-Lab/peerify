@@ -321,28 +321,61 @@ The number should match the survey (staging 13, prod 59), plus any accounts made
 
 ### 5.6 The buckets
 
-This makes an `mcli` alias with silo's restored root login (from `/etc/default/minio`, never shown), recreates the buckets and copies the files in. Then it restores the public bucket's public-read setting, and the app's own silo login (from app.env, never shown) with access to its two buckets.
+This block does six things:
+1. It makes an `mcli` alias with silo's restored root login, taken from `/etc/default/minio` and never shown.
+2. It recreates the two buckets and copies the files in.
+3. It gives the public bucket back its anonymous download setting. The private bucket stays private.
+4. It recreates the app's silo policy under its live name.
+5. It recreates the app's own silo user, with the login from app.env (never shown), and attaches the policy.
+6. It first checks that app.env names the expected user, and stops if it doesn't.
 
-**Box: the new VM** · **User: root shell**
+Use the block for the box you're restoring. Nothing in either block needs editing.
+
+**Box: the new VM, restoring staging** · **User: root shell**
 
 ```
 (set -a; . /etc/default/minio; mcli --config-dir /root/.mcli alias set restore http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null) && echo "alias ok"
-for b in circles-staging peerify-media-staging; do mcli --config-dir /root/.mcli mb --ignore-existing restore/$b; mcli --config-dir /root/.mcli mirror --quiet /root/restore/var/backups/peerify/buckets/$b restore/$b; mcli --config-dir /root/.mcli ls --recursive restore/$b | wc -l; done
+for b in circles-staging peerify-media-staging; do mcli --config-dir /root/.mcli mb --ignore-existing restore/$b; mcli --config-dir /root/.mcli mirror --quiet /root/restore/var/backups/peerify/buckets/$b restore/$b; echo "$b: $(mcli --config-dir /root/.mcli ls --recursive restore/$b | wc -l) objects"; done
 mcli --config-dir /root/.mcli anonymous set download restore/circles-staging
+mcli --config-dir /root/.mcli anonymous get restore/peerify-media-staging
 cat > /root/app-rw.json <<'EOF'
 { "Version": "2012-10-17", "Statement": [ { "Effect": "Allow",
   "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket", "s3:GetBucketLocation"],
   "Resource": ["arn:aws:s3:::circles-staging", "arn:aws:s3:::circles-staging/*",
                "arn:aws:s3:::peerify-media-staging", "arn:aws:s3:::peerify-media-staging/*"] } ] }
 EOF
-mcli --config-dir /root/.mcli admin policy create restore peerify-app-rw /root/app-rw.json
-(set -a; . /srv/peerify/env/app.env; mcli --config-dir /root/.mcli admin user add restore "$MINIO_ROOT_USERNAME" "$MINIO_ROOT_PASSWORD" >/dev/null && mcli --config-dir /root/.mcli admin policy attach restore peerify-app-rw --user "$MINIO_ROOT_USERNAME") && echo "app login ok"
+mcli --config-dir /root/.mcli admin policy create restore peerify-staging-rw /root/app-rw.json
+(set -a; . /srv/peerify/env/app.env
+ if [ "$MINIO_ROOT_USERNAME" != "pf-staging-media" ]; then echo "STOP: app.env names silo user '$MINIO_ROOT_USERNAME', expected pf-staging-media. Send me this line."; exit 1; fi
+ mcli --config-dir /root/.mcli admin user add restore "$MINIO_ROOT_USERNAME" "$MINIO_ROOT_PASSWORD" >/dev/null && mcli --config-dir /root/.mcli admin policy attach restore peerify-staging-rw --user "$MINIO_ROOT_USERNAME" >/dev/null) && echo "app user pf-staging-media ok"
 ```
 
-**What to check:**
-- The counts should match the survey: staging 207 and 17, prod 266 and 103, plus any uploads since.
-- For prod, use prod's bucket names in the `for` line, the `anonymous` line and the policy.
-- If "app login" fails because the name is silo's own root user, that's fine: the app then logs in as root, and needs no user of its own.
+**Box: the new VM, restoring prod** · **User: root shell**
+
+```
+(set -a; . /etc/default/minio; mcli --config-dir /root/.mcli alias set restore http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null) && echo "alias ok"
+for b in circles peerify-media; do mcli --config-dir /root/.mcli mb --ignore-existing restore/$b; mcli --config-dir /root/.mcli mirror --quiet /root/restore/var/backups/peerify/buckets/$b restore/$b; echo "$b: $(mcli --config-dir /root/.mcli ls --recursive restore/$b | wc -l) objects"; done
+mcli --config-dir /root/.mcli anonymous set download restore/circles
+mcli --config-dir /root/.mcli anonymous get restore/peerify-media
+cat > /root/app-rw.json <<'EOF'
+{ "Version": "2012-10-17", "Statement": [ { "Effect": "Allow",
+  "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket", "s3:GetBucketLocation"],
+  "Resource": ["arn:aws:s3:::circles", "arn:aws:s3:::circles/*",
+               "arn:aws:s3:::peerify-media", "arn:aws:s3:::peerify-media/*"] } ] }
+EOF
+mcli --config-dir /root/.mcli admin policy create restore peerify-prod-rw /root/app-rw.json
+(set -a; . /srv/peerify/env/app.env
+ if [ "$MINIO_ROOT_USERNAME" != "pf-prod-media" ]; then echo "STOP: app.env names silo user '$MINIO_ROOT_USERNAME', expected pf-prod-media. Send me this line."; exit 1; fi
+ mcli --config-dir /root/.mcli admin user add restore "$MINIO_ROOT_USERNAME" "$MINIO_ROOT_PASSWORD" >/dev/null && mcli --config-dir /root/.mcli admin policy attach restore peerify-prod-rw --user "$MINIO_ROOT_USERNAME" >/dev/null) && echo "app user pf-prod-media ok"
+```
+
+**You should see:**
+- `alias ok`.
+- Object counts close to the survey: staging 207 and 17, prod 266 and 103, plus any uploads since.
+- The private bucket's access is `private`.
+- `app user pf-staging-media ok` (or `pf-prod-media`).
+
+If a `STOP:` line appears instead, send it to me. It contains only the user name, never the password.
 
 ### 5.7 Re-apply erasures
 
