@@ -1,0 +1,12 @@
+# Installed as /etc/logrotate.d/peerify-backup. One file a day, 30 kept (the lines hold counts,
+# sizes and snapshot ids, not personal data or secrets).
+/var/log/peerify-backup/backup.log {
+    daily
+    rotate 30
+    dateext
+    missingok
+    notifempty
+    compress
+    delaycompress
+    create 0600 root root
+}

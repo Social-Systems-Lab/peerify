@@ -1,0 +1,30 @@
+# Installed as /etc/systemd/system/peerify-backup.service. Started by peerify-backup.timer.
+[Unit]
+Description=Peerify nightly backup (encrypted, off-box to Cleura Kna1)
+Documentation=file:///usr/local/share/doc/peerify-backup/RESTORE-RUNBOOK.md
+Wants=network-online.target
+After=network-online.target mongod.service silo.service
+OnFailure=peerify-backup-failure.service
+
+[Service]
+Type=oneshot
+Environment=HOME=/root
+ExecStart=/usr/local/sbin/peerify-backup
+TimeoutStartSec=3h
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+RuntimeDirectory=peerify-backup
+RuntimeDirectoryMode=0700
+
+# Hardening: root, but it can only write to its own folders.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/backups/peerify /var/log/peerify-backup /var/cache/peerify-backup /etc/peerify-backup/mcli
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true

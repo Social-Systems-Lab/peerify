@@ -1,0 +1,47 @@
+# peerify-backup config for STAGING (peerify-staging). Installed as /etc/peerify-backup/backup.conf,
+# owner root, mode 600. No secrets in here: they are separate files in SECRETS_DIR (see INSTALL.md).
+# This file is sourced by bash, so keep the VAR="value" form.
+
+BOX="staging"
+APP_PORT="3001"
+
+# MongoDB: the app database, and admin (all Mongo users with their password hashes, so a rebuilt
+# box gets tim_admin and the app's user back unchanged). Dumped by peerify_backup, which has
+# Mongo's built-in read-only `backup` role (INSTALL.md step 4a).
+MONGO_DBS="peerify_staging admin"
+MONGO_USER="peerify_backup"
+MONGO_AUTH_DB="admin"
+
+# silo buckets (space-separated), read through the read-only alias in SECRETS_DIR/mcli.
+BUCKETS="circles-staging peerify-media-staging"
+SILO_ALIAS="backupro"
+
+DATA_DIR="/srv/peerify/data"
+
+CONFIG_PATHS_REQUIRED=(
+    /srv/peerify/env/app.env
+    /etc/nginx
+    /etc/default/minio
+    /etc/mongod.conf
+)
+CONFIG_PATHS_OPTIONAL=(
+    /etc/letsencrypt
+    /var/www/acme
+    /etc/systemd/system/silo.service.d
+    /etc/systemd/system/pm2-peerify.service
+    /etc/systemd/system/pm2-peerify.service.d
+    /home/peerify/.pm2/dump.pm2
+    /etc/peerify-backup/backup.conf
+)
+
+# Cleura object storage, Kna1 (Karlskrona), project peerify-backup-staging.
+RESTIC_REPOSITORY="s3:https://s3-kna1.citycloud.com/peerify-backup-staging"
+
+# Never more than 30 (the script refuses more).
+KEEP_DAYS="29"
+DEEP_CHECK_WEEKDAY="7"   # Sunday
+DEEP_CHECK_SUBSET="10%"
+
+# Postmark: ALERT_FROM must be a sender signature or domain verified in Postmark.
+ALERT_TO="CHANGE-ME"
+ALERT_FROM="CHANGE-ME"

@@ -1,0 +1,9 @@
+# Installed as /etc/systemd/system/peerify-backup-failure.service. Started by systemd when
+# peerify-backup.service fails (OnFailure=); emails the last log lines through Postmark.
+[Unit]
+Description=Email an alert that the Peerify backup failed
+
+[Service]
+Type=oneshot
+Environment=HOME=/root
+ExecStart=/usr/local/sbin/peerify-backup --notify-failure

@@ -1,0 +1,13 @@
+# Installed as /etc/systemd/system/peerify-backup.timer. Prod runs at 02:30 Stockholm time;
+# staging moves to 03:30 with peerify-backup.timer.d/staging.conf.
+[Unit]
+Description=Nightly Peerify backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 Europe/Stockholm
+RandomizedDelaySec=5min
+# A run missed while the box was off happens soon after it starts again.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

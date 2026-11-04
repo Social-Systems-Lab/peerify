@@ -15,6 +15,48 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
 - Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
 - See OPERATIONS.md for architecture.
+- **Backups (top roadmap risk):** automated, encrypted, off-box backups are built on branch `backup/automated-backups` (`circles/scripts/backup/`). Rollout is next, staging first. Then the erasure log, then the registry question. See the 2026-11-04 entry.
+
+---
+
+## 2026-11-04 — Automated backups: survey, design, step 2 built (branch `backup/automated-backups`)
+
+**Before:** backups were manual. Before each release Tim ran mongodump (and sometimes a tar of `/srv/peerify/data`) into `~/backups` on the same box, with a DELETE-BY date. None of it was automated, nothing was copied off the box, and the buckets weren't covered. On 2026-11-04 prod's `~/backups` held only Mongo dumps, so prod's 59 accounts' key files had no backup at all. Tim made an interim on-box copy the same day.
+
+Reports: `~/cc-reports/outbox/20261104-1140-backup-survey.tar.gz` (survey and design) and `20261104-1242-backup-step2.tar.gz` (real values, flags, step 2, erasure-log proposal).
+
+**Tim's decisions (2026-11-04):**
+- **Tool:** restic.
+- **Off-box copy:** Cleura object storage in **Kna1** (Karlskrona). Tim asked Cleura to confirm in writing that the DPA covers Kna1; **no `restic init` before that confirmation.**
+- **Projects:** two Kna1 projects/buckets, `peerify-backup-prod` and `peerify-backup-staging`.
+- **Retention:** 29 days (the code refuses more than 30).
+- **Missing-run alert:** healthchecks.io. Failure emails go through Postmark with a separate ops token.
+- **Restore tests:** the full restore rehearsal is on a temporary VM, **staging only**. Prod gets the on-box check (runbook §6: `restic check --read-data`, then a restore into a temporary folder and a temporary mongod on :27099, counts compared, all deleted the same day).
+
+**What was built** (`circles/scripts/backup/`):
+- **The script, `peerify-backup.sh`.** It makes nightly snapshots tagged `mongo` (the app database and `admin`, so Mongo users come back with their passwords), `data` (`/srv/peerify/data`), `buckets` (a plain-file mirror of both silo buckets via a read-only silo user) and `config`. Then it applies the calendar-date retention and `prune --max-unused 0`, and runs `restic check` (on Sundays reading 10% of the data).
+- **Refuses unconfigured alerts:** the script refuses to run while `ALERT_TO`/`ALERT_FROM` still say `CHANGE-ME`, and points to INSTALL step 5b.
+- **Per-box configs:** `backup.conf.prod` and `backup.conf.staging`.
+- **systemd units:** 02:30 on prod, 03:30 on staging (Stockholm time).
+- **logrotate:** daily, 30 files kept.
+- **Tests:** `peerify-backup.test.ts` uses stand-ins, never the box.
+- **`INSTALL.md`:** rollout steps 3–7, with STOP points; every value is asked for with prompts, so no block needs editing before pasting.
+- **`RESTORE-RUNBOOK.md`.**
+- **Before a release:** `sudo peerify-backup --tag pre-release` replaces the manual dump.
+- **Shredding `~/backups`:** Tim deletes prod's manual folders after 7 good nights on prod plus a passing on-box restore check, and never past their DELETE-BY dates.
+
+**Next, in order:**
+1. **Backup rollout, steps 3–7 on staging,** per `INSTALL.md`. Then the **staging rehearsal** (step 8), which needs a small `deploy-staging.sh` change for the rehearsal VM's host name (`peerify-staging-restore`). Then prod (steps 10–12).
+2. **Erasure log: the next task after the backup rollout. Its own branch; not built yet. Approved by Tim on 2026-11-04.**
+   - **Why:** a restore brings back accounts erased after the snapshot, and today nothing records an erasure outside the database. Self-service only logs `[ERASURE <8 characters of the DID>…]` to PM2.
+   - **The file:** `APP_DIR/erasures/erasures.jsonl`, one line per erasure: full DID, `erasedAt`, `source` (`self-service`/`purge`). Nothing else.
+   - **When it's written:** at the start of `applyAccountErasure` and of the purge script's apply step. It fails closed: no line, no erasure.
+   - **Off-box gap:** an **hourly `erasures` snapshot** (`peerify-backup --only erasures`, its own timer).
+   - **Retention:** lines older than **31 days** are pruned, both when a line is added and **nightly** by the backup run.
+   - **Re-applying:** `scripts/reapply-erasures.ts` (dry run, then `APPLY=1`) re-applies every line after a restore, before the app starts. Runbook §7 gets rewritten, and §2 checks the log before restoring a key folder.
+   - **Privacy policy:** add a sentence to `src/content/privacy-policy.md` saying that after deletion an identifier with no other data is kept for up to 31 days, only so the account isn't brought back from a backup.
+   - **Details:** `ERASURE-LOG-PROPOSAL.md` in the step-2 report.
+3. **OPEN IMY QUESTION: does erasure reach the registry?** `registerUser` (`src/lib/data/user.ts`) sends DID, name and email to the registry (`registryUrl`). Find out whether account erasure, or the purge, removes them there. Read-only investigation later, not now.
 
 ---
 
