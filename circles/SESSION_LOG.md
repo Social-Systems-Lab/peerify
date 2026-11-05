@@ -16,6 +16,40 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
 - See OPERATIONS.md for architecture.
 - **Backups (top roadmap risk):** automated, encrypted, off-box backups are built on branch `backup/automated-backups` (`circles/scripts/backup/`). Rollout is next, staging first. Then the erasure log, then the registry question. See the 2026-11-04 entry.
+- **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):** Tim is likely to notify IMY by Sun 2026-11-08 05:28 UTC. Containment C1–C4 is built on branch `fix/leaks-r3-containment` (not committed). See the 2026-11-05 entry.
+
+---
+
+## 2026-11-05 — Leak round 3: audit, prod counts, containment C1–C4 built (branch `fix/leaks-r3-containment`)
+
+Reports: `~/cc-reports/outbox/20261105-0528-location-leaks-r3.tar.gz` (audit), `20261105-0544-leaks-r3-counts.tar.gz` (count script and containment plan), and the containment package from the same day.
+
+**What leaked:**
+- **Notifications** stored whole user and circle documents, and `/api/notifications` returned them.
+- **The signed-in event list** was unshaped.
+- **Feed and post payloads** carried full author, circle and mention `metadata`.
+- **Issues and goals** could be read and changed by id from any circle, and their exact locations reached every viewer.
+
+Tim treats this as a likely new personal-data breach, found 2026-11-05 at about 05:28 UTC.
+
+**Prod counts (Tim, 2026-11-05 05:51Z, read-only, as `tim_admin`):**
+- **Notifications:** 98 shown via `/api/notifications` carried another person's full record, to 30 recipients, holding 29 distinct records. That exposed 21 people's exact locations (none opted in) and 13 email addresses; no Matrix credentials and no venue contacts. Oldest 2026-07-15, newest 2026-11-04. Another 56 `pm_received` notifications hold full records but are stored only, not shown.
+- **Events:** 5 saved before 2026-10-20 with a hidden street (4 not cancelled, 1 upcoming), 2 private organiser notes, 3 drafts, 1 members-only.
+- **Venues:** 2 with a contact email or booking note, but no feed exposure.
+- **Issues and goals:** 0 issues, 2 goals, no outside edits recorded.
+- **Personal profiles:** 59, of which 28 have an exact location and can be followed without approval.
+
+**Containment (built, not committed):** one change per fix, each with a unit test that fails on the old code. tsc, eslint and `bun run build` are clean; tsc shows only the two errors that already exist on staging.
+- **C1:** notification content is identity only, when stored and when read. Mentions only reach people who can see the post.
+- **C2:** the event list is shaped per viewer (`shapeEventsForViewer`): no drafts or members-only events for non-managers, and no invitee DIDs.
+- **C3:** feed and comment metadata goes through `toPublicMetadata`; shared-post embeds are identity only; the post page author goes through `toPublicCircle`.
+- **C4:** issue and goal by-id reads and writes are scoped to the URL circle. Issue and goal locations are city level for viewers other than the author, the assignee and moderators.
+
+### Next (not now)
+1. **Cleanup of stored notification content**, after IMY has been told. Do a dry run first, with counts only. Then staging, then prod, each with Tim's yes. Cover every notification that still holds full records, `pm_received` included. Tim's figure is 224 notifications. The count script's figures were 98 shown + 56 `pm_received` = 154, so reconcile the two before the dry run.
+2. **Remove the legacy Matrix chat** from the codebase, and the `matrix*` fields (`matrixPassword`, `matrixAccessToken`, …) from user records. They have been unused since early 2026.
+3. **Prod Mongo user `peerify_prod_ro`:** find out whether anything uses it. Its password is unknown, so the 2026-11-05 counts ran as `tim_admin`. If nothing uses it, remove it; otherwise reset its password and store it.
+4. **The remaining round-3 findings**, starting with H3 to H9: the invitee list (H3), private events in the ICS feeds (H4), event audience on the public list and `getEventById` (H5), `getMembersAction` (H6), requester emails (H7) and the Donorbox `getSubscription` (H9). H8 (comment metadata) is covered by C3. Then the medium and low findings.
 
 ---
 
