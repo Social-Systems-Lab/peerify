@@ -4,7 +4,7 @@
 // module imports, so this lists every export of db.ts; keep it in sync when collections are added.
 // aggregate() has no pipeline engine: a test sets the documents a collection's aggregate returns.
 
-import { createFakeCollection, type FakeCollection } from "./fake-collection";
+import { createFakeCollection, matchesFilter, type FakeCollection } from "./fake-collection";
 
 const COLLECTION_NAMES = [
     "Circles",
@@ -61,11 +61,14 @@ type Doc = Record<string, any>;
 export const createFakeDb = () => {
     let cols = {} as Record<CollectionName, FakeCollection>;
     let aggregateResults = {} as Partial<Record<CollectionName, Doc[]>>;
+    // Collections whose preset aggregate results get the pipeline's leading $match applied.
+    let aggregateLeadingMatch = new Set<CollectionName>();
 
     // Fresh, empty collections; seed some with documents.
     const reset = (seed: Partial<Record<CollectionName, Doc[]>> = {}) => {
         cols = Object.fromEntries(COLLECTION_NAMES.map((n) => [n, createFakeCollection(seed[n] ?? [])])) as typeof cols;
         aggregateResults = {};
+        aggregateLeadingMatch = new Set();
     };
     reset();
 
@@ -80,7 +83,14 @@ export const createFakeDb = () => {
         deleteMany: (...a: any[]) => (cols[n] as any).deleteMany(...a),
         updateOne: (...a: any[]) => (cols[n] as any).updateOne(...a),
         findOneAndUpdate: (...a: any[]) => (cols[n] as any).findOneAndUpdate(...a),
-        aggregate: () => ({ toArray: async () => (aggregateResults[n] ?? []).map((d) => ({ ...d })) }),
+        aggregate: (pipeline: Doc[] = []) => ({
+            toArray: async () => {
+                const firstMatch = aggregateLeadingMatch.has(n) ? pipeline[0]?.$match : undefined;
+                return (aggregateResults[n] ?? [])
+                    .filter((d) => !firstMatch || matchesFilter(d, firstMatch))
+                    .map((d) => ({ ...d }));
+            },
+        }),
         // Some modules create indexes at import time.
         createIndex: async () => "fake-index",
         createIndexes: async () => [],
@@ -99,8 +109,12 @@ export const createFakeDb = () => {
         module: dbModule,
         reset,
         col: (n: CollectionName) => cols[n],
-        setAggregateResult: (n: CollectionName, docs: Doc[]) => {
+        // options.applyLeadingMatch: the preset docs stand for the pipeline's output, but a leading
+        // $match stage is still applied to them (e.g. a by-id read scoped to a circle).
+        setAggregateResult: (n: CollectionName, docs: Doc[], options?: { applyLeadingMatch?: boolean }) => {
             aggregateResults[n] = docs;
+            if (options?.applyLeadingMatch) aggregateLeadingMatch.add(n);
+            else aggregateLeadingMatch.delete(n);
         },
     };
 };

@@ -256,7 +256,14 @@ export const getActiveIssuesByCircleId = async (circleId: string): Promise<Issue
  * @param issueId The ID of the issue
  * @returns The issue display data or null if not found
  */
-export const getIssueById = async (issueId: string, userDid?: string): Promise<IssueDisplay | null> => {
+// circleId: the circle the caller checked permissions on (the URL circle). When given, an issue of
+// any other circle is not found, so a permission on one circle can't read or change another's
+// issues by id (leak round 3, 2026-11-05).
+export const getIssueById = async (
+    issueId: string,
+    userDid?: string,
+    circleId?: string,
+): Promise<IssueDisplay | null> => {
     try {
         if (!ObjectId.isValid(issueId)) {
             return null;
@@ -264,7 +271,7 @@ export const getIssueById = async (issueId: string, userDid?: string): Promise<I
 
         const issues = (await Issues.aggregate([
             // 1) Match the specific Issue by _id
-            { $match: { _id: new ObjectId(issueId) } },
+            { $match: { _id: new ObjectId(issueId), ...(circleId !== undefined ? { circleId } : {}) } },
 
             // 2) Lookup author details, only match if circleType = "user" and did = createdBy
             {

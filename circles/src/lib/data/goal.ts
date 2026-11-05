@@ -292,7 +292,14 @@ export const getCompletedGoalsByCircleId = async (circleId: string, userDid: str
  * @param goalId The ID of the goal
  * @returns The goal display data or null if not found
  */
-export const getGoalById = async (goalId: string, userDid?: string): Promise<GoalDisplay | null> => {
+// circleId: the circle the caller checked permissions on (the URL circle). When given, a goal of
+// any other circle is not found, so a permission on one circle can't read or change another's
+// goals by id (leak round 3, 2026-11-05).
+export const getGoalById = async (
+    goalId: string,
+    userDid?: string,
+    circleId?: string,
+): Promise<GoalDisplay | null> => {
     // Renamed function, params, return type
     try {
         if (!ObjectId.isValid(goalId)) {
@@ -303,7 +310,7 @@ export const getGoalById = async (goalId: string, userDid?: string): Promise<Goa
         const goals = (await Goals.aggregate([
             // Changed Issues to Goals, variable issues to goals
             // 1) Match the specific Goal by _id
-            { $match: { _id: new ObjectId(goalId) } }, // Renamed param
+            { $match: { _id: new ObjectId(goalId), ...(circleId !== undefined ? { circleId } : {}) } },
 
             // 2) Lookup author details, only match if circleType = "user" and did = createdBy
             {

@@ -14,6 +14,7 @@ import {
     didSchema, // Import didSchema for assignedTo validation
 } from "@/models/models";
 import { getCircleByHandle } from "@/lib/data/circle";
+import { shapeItemLocationsForViewer } from "@/lib/data/item-location";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate } from "@/lib/data/user"; // Added getUserPrivate
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage"; // Import isFile
@@ -75,7 +76,7 @@ export async function getIssuesAction(
 
         // Get issues from the database (Placeholder data function)
         const issues = await getIssuesByCircleId(circle._id as string, userDid, includeCreated, includeAssigned);
-        return issues;
+        return shapeItemLocationsForViewer(issues, userDid, String(circle._id), features.issues.moderate);
     } catch (error) {
         console.error("Error getting issues:", error);
         // Return empty array on error to avoid breaking the UI
@@ -110,7 +111,7 @@ export async function getIssueAction(circleHandle: string, issueId: string): Pro
 
         // Get the issue from the database first (Placeholder data function)
         // We need the issue data to check its specific userGroups for visibility
-        const issue = await getIssueById(issueId, userDid);
+        const issue = await getIssueById(issueId, userDid, String(circle._id));
         if (!issue) {
             return null;
         }
@@ -130,8 +131,9 @@ export async function getIssueAction(circleHandle: string, issueId: string): Pro
             // throw new Error("Not authorized to view issues");
         }
 
-        // If authorized and issue exists, return it
-        return issue;
+        // If authorized and issue exists, return it, its location shaped for the viewer
+        const [shapedIssue] = await shapeItemLocationsForViewer([issue], userDid, String(circle._id), features.issues.moderate);
+        return shapedIssue;
     } catch (error) {
         console.error("Error getting issue:", error);
         return null; // Return null on error
@@ -410,7 +412,7 @@ export async function updateIssueAction(
         }
 
         // Get the existing issue (Placeholder data function)
-        const issue = await getIssueById(issueId, userDid);
+        const issue = await getIssueById(issueId, userDid, String(circle._id));
         if (!issue) {
             return { success: false, message: "Issue not found" };
         }
@@ -565,7 +567,7 @@ export async function deleteIssueAction(
         }
 
         // Get the issue (Placeholder data function)
-        const issue = await getIssueById(issueId, userDid);
+        const issue = await getIssueById(issueId, userDid, String(circle._id));
         if (!issue) {
             return { success: false, message: "Issue not found" };
         }
@@ -638,7 +640,7 @@ export async function changeIssueStageAction(
         }
 
         // Get the issue (Placeholder data function)
-        const issue = await getIssueById(issueId, userDid);
+        const issue = await getIssueById(issueId, userDid, String(circle._id));
         if (!issue) {
             return { success: false, message: "Issue not found" };
         }
@@ -686,7 +688,7 @@ export async function changeIssueStageAction(
         }
 
         // --- Trigger Notifications ---
-        const updatedIssue = await getIssueById(issueId, userDid); // Get updated issue for context
+        const updatedIssue = await getIssueById(issueId, userDid, String(circle._id)); // Get updated issue for context
         if (updatedIssue) {
             if (currentStage === "review" && newStage === "open") {
                 notifyIssueApproved(updatedIssue, user); // User is the approver here
@@ -742,7 +744,7 @@ export async function acknowledgeIssueAction(
             return { success: false, message: "Circle not found" };
         }
 
-        const issue = await getIssueById(issueId, userDid);
+        const issue = await getIssueById(issueId, userDid, String(circle._id));
         if (!issue) {
             return { success: false, message: "Issue not found" };
         }
@@ -783,7 +785,7 @@ export async function acknowledgeIssueAction(
             return { success: false, message: "Failed to acknowledge issue" };
         }
 
-        const updatedIssue = await getIssueById(issueId, userDid);
+        const updatedIssue = await getIssueById(issueId, userDid, String(circle._id));
         if (updatedIssue) {
             notifyIssueApproved(updatedIssue, user);
         }
@@ -838,7 +840,7 @@ export async function assignIssueAction(
         }
 
         // Get the issue (Placeholder data function)
-        const issue = await getIssueById(issueId, userDid);
+        const issue = await getIssueById(issueId, userDid, String(circle._id));
         if (!issue) {
             return { success: false, message: "Issue not found" };
         }
@@ -859,7 +861,7 @@ export async function assignIssueAction(
         }
 
         // --- Trigger Notification ---
-        const updatedIssue = await getIssueById(issueId, userDid); // Get updated issue
+        const updatedIssue = await getIssueById(issueId, userDid, String(circle._id)); // Get updated issue
         if (updatedIssue && assigneeDid && assigneeDid !== "unassigned") {
             const assigneeUser = await getUserPrivate(assigneeDid); // Use getUserPrivate for UserPrivate type
             if (assigneeUser) {
@@ -916,7 +918,14 @@ export async function ensureShadowPostForIssueAction(issueId: string, circleId: 
             return null;
         }
 
-        const issue = await Issues.findOne({ _id: new ObjectId(issueId) });
+        // Only a signed-in viewer of this circle, and only for this circle's own issue: the shadow post
+        // copies the title into the circle's feed (leak round 3, 2026-11-05).
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid || !(await isAuthorized(userDid, circleId, features.issues.view))) {
+            return null;
+        }
+
+        const issue = await Issues.findOne({ _id: new ObjectId(issueId), circleId });
 
         if (!issue) {
             console.error(`Issue not found: ${issueId}`);

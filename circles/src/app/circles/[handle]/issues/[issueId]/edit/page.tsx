@@ -49,7 +49,7 @@ export default async function EditIssuePage(props: PageProps) {
     }
 
     // Get the issue
-    const issue = await getIssueById(issueId);
+    const issue = await getIssueById(issueId, userDid, String(circle._id));
     if (!issue) {
         notFound();
     }

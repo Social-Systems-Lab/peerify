@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { Media, Goal, GoalDisplay, GoalStage, locationSchema, GoalMember } from "@/models/models";
 import { getCircleByHandle } from "@/lib/data/circle";
+import { shapeItemLocationsForViewer } from "@/lib/data/item-location";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid } from "@/lib/data/user";
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
@@ -78,7 +79,7 @@ export async function getGoalsAction(
         // Removed ranking logic
 
         return {
-            goals: allGoals, // Return goals directly without rank info
+            goals: await shapeItemLocationsForViewer(allGoals, userDid, circleId, features.goals.moderate),
         };
     } catch (error) {
         console.error("Error getting goals:", error); // Updated message
@@ -124,7 +125,7 @@ export async function getCompletedGoalsAction(circleHandle: string): Promise<Get
         const completedGoals = await getCompletedGoalsByCircleId(circle._id as string, userDid);
 
         return {
-            goals: completedGoals,
+            goals: await shapeItemLocationsForViewer(completedGoals, userDid, circleId, features.goals.moderate),
         };
     } catch (error) {
         console.error("Error getting completed goals:", error);
@@ -160,7 +161,7 @@ export async function getGoalAction(circleHandle: string, goalId: string): Promi
 
         // Get the goal from the database first (Data function)
         // We need the goal data to check its specific userGroups for visibility
-        const goal = await getGoalById(goalId, userDid); // Renamed function call, param, variable
+        const goal = await getGoalById(goalId, userDid, String(circle._id)); // Renamed function call, param, variable
         if (!goal) {
             // Renamed variable
             return null;
@@ -181,8 +182,9 @@ export async function getGoalAction(circleHandle: string, goalId: string): Promi
             // throw new Error("Not authorized to view goals"); // Updated message
         }
 
-        // If authorized and goal exists, return it
-        return goal; // Renamed variable
+        // If authorized and goal exists, return it, its location shaped for the viewer
+        const [shapedGoal] = await shapeItemLocationsForViewer([goal], userDid, String(circle._id), features.goals.moderate);
+        return shapedGoal;
     } catch (error) {
         console.error("Error getting goal:", error); // Updated message
         return null; // Return null on error
@@ -448,7 +450,7 @@ export async function updateGoalAction(
         if (!userDid) return { success: false, message: "User not authenticated" };
         const circle = await getCircleByHandle(circleHandle);
         if (!circle) return { success: false, message: "Circle not found" };
-        const goal = await getGoalById(goalId, userDid);
+        const goal = await getGoalById(goalId, userDid, String(circle._id));
         if (!goal) return { success: false, message: "Goal not found" };
         const isAuthor = userDid === goal.createdBy;
         const canModerate = await isAuthorized(
@@ -589,7 +591,7 @@ export async function deleteGoalAction( // Renamed function
         }
 
         // Get the goal (Data function)
-        const goal = await getGoalById(goalId, userDid); // Renamed function call, param, variable
+        const goal = await getGoalById(goalId, userDid, String(circle._id)); // Renamed function call, param, variable
         if (!goal) {
             // Renamed variable
             return { success: false, message: "Goal not found" }; // Updated message
@@ -666,7 +668,7 @@ export async function changeGoalStageAction( // Renamed function
         }
 
         // Get the goal (Data function)
-        const goal = await getGoalById(goalId, userDid); // Renamed function call, param, variable
+        const goal = await getGoalById(goalId, userDid, String(circle._id)); // Renamed function call, param, variable
         if (!goal) {
             // Renamed variable
             return { success: false, message: "Goal not found" }; // Updated message
@@ -712,7 +714,7 @@ export async function changeGoalStageAction( // Renamed function
         }
 
         // --- Trigger Notifications ---
-        const updatedGoal = await getGoalById(goalId, userDid); // Get updated goal for context, Renamed function call, variable, param
+        const updatedGoal = await getGoalById(goalId, userDid, String(circle._id)); // Get updated goal for context, Renamed function call, variable, param
         if (updatedGoal) {
             // Renamed variable
             if (currentStage === "review" && newStage === "open") {
@@ -770,7 +772,14 @@ export async function ensureShadowPostForGoalAction(goalId: string, circleId: st
             return null;
         }
 
-        const goal = await Goals.findOne({ _id: new ObjectId(goalId) });
+        // Only a signed-in viewer of this circle, and only for this circle's own goal: the shadow post
+        // copies the title into the circle's feed (leak round 3, 2026-11-05).
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid || !(await isAuthorized(userDid, circleId, features.goals.view))) {
+            return null;
+        }
+
+        const goal = await Goals.findOne({ _id: new ObjectId(goalId), circleId });
 
         if (!goal) {
             console.error(`Goal not found: ${goalId}`);
@@ -865,7 +874,7 @@ export async function followGoalAction(
         }
         const circleId = circle._id.toString();
 
-        const goal = await getGoalById(goalId, userDid);
+        const goal = await getGoalById(goalId, userDid, String(circle._id));
         if (!goal) {
             return { success: false, message: "Goal not found" };
         }
@@ -929,7 +938,7 @@ export async function unfollowGoalAction(
         const circleId = circle._id.toString();
 
         // Goal existence check (optional for unfollow, but good for consistency)
-        const goal = await getGoalById(goalId, userDid);
+        const goal = await getGoalById(goalId, userDid, String(circle._id));
         if (!goal) {
             // If goal doesn't exist or user can't see it, they can't be following it.
             // Or, we could allow unfollowing even if the goal is deleted/hidden.
@@ -1036,7 +1045,7 @@ export async function completeGoalAction(
         if (!circle || !circle._id) return { success: false, message: "Circle not found" };
         const circleId = circle._id.toString();
 
-        const goal = await getGoalById(goalId, userDid);
+        const goal = await getGoalById(goalId, userDid, String(circle._id));
         if (!goal) return { success: false, message: "Goal not found" };
 
         if (goal.stage !== "open") {
@@ -1138,7 +1147,7 @@ export async function completeGoalAction(
         }
 
         // --- Trigger Notification ---
-        const completedGoal = await getGoalById(goalId, userDid); // Fetch the fully updated goal
+        const completedGoal = await getGoalById(goalId, userDid, String(circle._id)); // Fetch the fully updated goal
         if (completedGoal && user) {
             notifyGoalCompleted(completedGoal, user); // User is the one who completed it
         } else {

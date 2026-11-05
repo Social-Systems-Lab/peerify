@@ -45,7 +45,7 @@ export default async function EditGoalPage(props: PageProps) {
         notFound();
     }
 
-    const goal = await getGoalById(goalId);
+    const goal = await getGoalById(goalId, userDid, String(circle._id));
     if (!goal) {
         notFound();
     }
