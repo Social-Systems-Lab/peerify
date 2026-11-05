@@ -40,7 +40,9 @@ export const getAllCrewApplications = async (
                 approvedAt: 1,
                 message: 1,
                 name: "$userDetails.name",
-                email: "$userDetails.email",
+                // Leak round 3, H7 (2026-11-05): never the requester's email; managers, and the
+                // owner of an approval-required personal profile, see name, handle and picture.
+                handle: "$userDetails.handle",
                 picture: "$userDetails.picture",
             },
         },

@@ -81,7 +81,7 @@ const MembershipRequestsTable: React.FC<MembershipRequestsTableProps> = ({ circl
             <TableHeader>
                 <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>Handle</TableHead>
                     <TableHead>Requested At</TableHead>
                     <TableHead>Actions</TableHead>
                 </TableRow>
@@ -98,7 +98,7 @@ const MembershipRequestsTable: React.FC<MembershipRequestsTableProps> = ({ circl
                 {requests.map((request) => (
                     <TableRow key={request._id}>
                         <TableCell>{request.name}</TableCell>
-                        <TableCell>{request.email}</TableCell>
+                        <TableCell>{request.handle ? `@${request.handle}` : ""}</TableCell>
                         <TableCell>{new Date(request.requestedAt).toLocaleDateString()}</TableCell>
                         <TableCell>
                             <div className="flex flex-row gap-2">
@@ -147,7 +147,7 @@ const MembershipRequestsTable: React.FC<MembershipRequestsTableProps> = ({ circl
                                             <div className="py-4">
                                                 <h3 className="font-semibold">Applicant Information</h3>
                                                 <p>Name: {request.name}</p>
-                                                <p>Email: {request.email}</p>
+                                                <p>Handle: {request.handle ? `@${request.handle}` : "-"}</p>
                                                 <p>Requested At: {new Date(request.requestedAt).toLocaleString()}</p>
                                             </div>
                                             {request.questionnaireAnswers && (
