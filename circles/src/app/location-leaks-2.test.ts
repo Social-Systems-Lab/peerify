@@ -319,16 +319,20 @@ describe("event artists, invited users and the member picker", async () => {
         fakeDb.setAggregateResult("Members", [
             { _id: "m1", circleId: HOST_ID, userDid: OWNER, userGroups: ["members"] },
         ]);
+        // getEventById (the invitee list's event check, leak round 3 H3).
+        fakeDb.setAggregateResult("Events", [
+            { _id: EVENT_ID, circleId: HOST_ID, title: "Show", stage: "open", createdBy: "did:test:host" },
+        ]);
         for (const did of [STRANGER, OWNER, ADMIN]) {
             grants.add(grantKey(did, HOST_ID, features.events.view));
         }
     });
 
-    test("a stranger gets the invitee and member without private data", async () => {
+    test("a stranger gets the member without private data, and no invitees (leak round 3 H3)", async () => {
         signedInAs(STRANGER);
         const invited = await getInvitedUsersAction("host", EVENT_ID);
         const members = await getCircleMembersAction("host");
-        expect(invited.users.map((u) => u.did)).toEqual([OWNER]);
+        expect(invited.users).toEqual([]);
         expect(members.members.map((u) => u.did)).toEqual([OWNER]);
         expect(leaks(invited)).toEqual(NO_LEAKS);
         expect(leaks(members)).toEqual(NO_LEAKS);

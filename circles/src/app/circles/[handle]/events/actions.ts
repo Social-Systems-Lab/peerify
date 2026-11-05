@@ -1822,9 +1822,16 @@ export async function getInvitedUsersAction(
         const canView = await isAuthorized(userDid, circle._id as string, features.events.view);
         if (!canView) return defaultResult;
 
+        // Leak round 3, H3 (2026-11-05): the event must be one this viewer can open and must belong
+        // to the URL circle; only its managers see who is invited, anyone else only themselves.
+        const scope = await getAttendeeListScope(circle, eventId, userDid);
+        if (!scope) return defaultResult;
+
         // Invitations are stored in EventInvitations collection (not on the event document)
         const invitations = await EventInvitations.find({ eventId }).toArray();
-        const invitedDids = Array.from(new Set(invitations.map((inv: any) => inv.userDid).filter(Boolean)));
+        const invitedDids = Array.from(new Set(invitations.map((inv: any) => inv.userDid).filter(Boolean))).filter(
+            (did) => scope === "all" || did === userDid,
+        );
         if (invitedDids.length === 0) return defaultResult;
 
         const users = await getCirclesByDids(invitedDids, { viewerDid: userDid });
