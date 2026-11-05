@@ -46,7 +46,12 @@ Tim treats this as a likely new personal-data breach, found 2026-11-05 at about 
 - **C4:** issue and goal by-id reads and writes are scoped to the URL circle. Issue and goal locations are city level for viewers other than the author, the assignee and moderators.
 
 ### Next (not now)
-1. **Cleanup of stored notification content**, after IMY has been told. Do a dry run first, with counts only. Then staging, then prod, each with Tim's yes. Cover every notification that still holds full records, `pm_received` included. Tim's figure is 224 notifications. The count script's figures were 98 shown + 56 `pm_received` = 154, so reconcile the two before the dry run.
+1. **Cleanup of stored notification content**, after IMY has been told. Do a dry run first, with counts only. Then staging, then prod, each with Tim's yes.
+   - **Which notifications:** every notification of **every** type, `pm_received` included, whose stored `content` differs from `shapeNotificationContent(content)` (`lib/data/notifications.ts`).
+   - **What it writes:** `content` = the shaped content. That is exactly what `/api/notifications` already returns since C1. It reaches records at any depth and drops every object outside the allow-list.
+   - **Don't use the count script's test:** it found records only at the top level of `content` and one level below, not inside arrays. A raw user document's `memberships` array holds whole circle documents, and post geotags weren't counted either. So 98 shown + 56 `pm_received` = 154 is a minimum.
+   - **Before the dry run:** reconcile the cleanup's own count with Tim's figure of 224.
+   - **Erasure:** the shaped content keeps every key account erasure matches on (`content.user.did`, `content.post.createdBy`, `content.comment.createdBy`, `content.*._id`), so erasure still finds these notifications afterwards.
 2. **Remove the legacy Matrix chat** from the codebase, and the `matrix*` fields (`matrixPassword`, `matrixAccessToken`, …) from user records. They have been unused since early 2026.
 3. **Prod Mongo user `peerify_prod_ro`:** find out whether anything uses it. Its password is unknown, so the 2026-11-05 counts ran as `tim_admin`. If nothing uses it, remove it; otherwise reset its password and store it.
 4. **The remaining round-3 findings**, starting with H3 to H9: the invitee list (H3), private events in the ICS feeds (H4), event audience on the public list and `getEventById` (H5), `getMembersAction` (H6), requester emails (H7) and the Donorbox `getSubscription` (H9). H8 (comment metadata) is covered by C3. Then the medium and low findings.
