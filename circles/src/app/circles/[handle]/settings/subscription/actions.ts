@@ -6,8 +6,6 @@ import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { redirect } from "next/navigation";
 import { savePushSubscription, removePushSubscription, getPushSubscriptionCountForUser } from "@/lib/data/push";
 
-const DONORBOX_API_KEY = process.env.DONORBOX_API_KEY;
-const DONORBOX_API_URL = "https://donorbox.org/api/v1";
 const emailPreferenceLabels = {
     emailMissedMessages: "Missed-message digest emails",
     emailTaskAssigned: "Task assignment digest emails",
@@ -43,35 +41,10 @@ export async function createSubscription(circleId: string, planId: string) {
     redirect(checkoutUrl);
 }
 
-export async function getSubscription(subscriptionId: string) {
-    const response = await fetch(`${DONORBOX_API_URL}/subscriptions/${subscriptionId}`, {
-        headers: {
-            Authorization: `Basic ${Buffer.from(`${process.env.DONORBOX_EMAIL}:${DONORBOX_API_KEY}`).toString("base64")}`,
-        },
-    });
-
-    if (!response.ok) {
-        throw new Error("Failed to fetch subscription");
-    }
-
-    return response.json();
-}
-
-export async function getPlans() {
-    const response = await fetch(`${DONORBOX_API_URL}/plans`, {
-        headers: {
-            Authorization: `Basic ${Buffer.from(`${process.env.DONORBOX_EMAIL}:${DONORBOX_API_KEY}`).toString("base64")}`,
-        },
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Failed to fetch plans:", errorText);
-        throw new Error(`Failed to fetch plans: ${errorText}`);
-    }
-
-    return response.json();
-}
+// Leak round 3, H9 (2026-11-05): getSubscription(subscriptionId) and getPlans() were removed. Nothing
+// called them, but as exports of a "use server" file they were registered as server actions with no
+// login check, and getSubscription fetched any Donorbox subscription (donor name, email, address)
+// with the platform's API credentials.
 
 export async function updateEmailPreferenceSetting(preference: EmailPreferenceKey, enabled: boolean) {
     if (!(preference in emailPreferenceLabels) || typeof enabled !== "boolean") {
