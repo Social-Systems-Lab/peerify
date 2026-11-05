@@ -1,10 +1,10 @@
 import { ObjectId } from "mongodb";
 import { Events } from "@/lib/data/db";
 import { getCircleByHandle, isCirclePublished } from "@/lib/data/circle";
-import { canViewerSeeCircleEvents, getEventLocationForViewer } from "@/lib/data/event";
+import { canViewerSeeCircleEvents, filterEventsForCalendar, getEventLocationForViewer } from "@/lib/data/event";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getPublicOrigin, ICS_UID_DOMAIN } from "@/lib/utils/public-origin";
-import type { Event as EventModel, Location } from "@/models/models";
+import type { Event as EventModel, EventDisplay, Location } from "@/models/models";
 
 // Helpers for ICS formatting
 function pad(n: number): string {
@@ -108,6 +108,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string;
             event.stage !== "open" ||
             (!userDid && event.visibility === "private")
         ) {
+            return new Response("Event not accessible", { status: 404 });
+        }
+        // Leak round 3, H4: a private event only for the people who may open it, and the event's
+        // audience (userGroups) respected.
+        const [visible] = await filterEventsForCalendar([event as unknown as EventDisplay], userDid);
+        if (!visible) {
             return new Response("Event not accessible", { status: 404 });
         }
 

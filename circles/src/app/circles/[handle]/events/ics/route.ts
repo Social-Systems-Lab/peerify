@@ -1,6 +1,7 @@
 import { Events } from "@/lib/data/db";
 import { getCircleByHandle, isCirclePublished } from "@/lib/data/circle";
-import { canViewerSeeCircleEvents, getEventLocationForViewer } from "@/lib/data/event";
+import { canViewerSeeCircleEvents, filterEventsForCalendar, getEventLocationForViewer } from "@/lib/data/event";
+import type { EventDisplay } from "@/models/models";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getPublicOrigin, ICS_UID_DOMAIN } from "@/lib/utils/public-origin";
 
@@ -89,7 +90,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string 
         // Only include published, upcoming events for this circle; private ones only for signed-in viewers.
         const now = new Date();
         const circleIdStr = String(circle._id);
-        const events = await Events.find({
+        const found = await Events.find({
             circleId: circleIdStr,
             stage: "open",
             endAt: { $gte: now },
@@ -98,6 +99,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string 
             .sort({ startAt: 1 })
             .limit(500)
             .toArray();
+        // Leak round 3, H4: a private event only for the people who may open it, and each event's
+        // audience (userGroups) respected.
+        const events = await filterEventsForCalendar(found as unknown as EventDisplay[], userDid);
 
         // Not new URL(req.url).origin: behind nginx that is the app's own listen address.
         const origin = getPublicOrigin(req.headers, req.url);

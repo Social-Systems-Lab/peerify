@@ -1513,6 +1513,31 @@ export const shapeEventsForViewer = async <T extends EventDisplay>(events: T[], 
 };
 
 /**
+ * The events a calendar (ICS) feed may include for this viewer, as stored (leak round 3, H4,
+ * 2026-11-05). Only the events shapeEventsForViewer keeps: no drafts or events in review, and the
+ * audience (userGroups) respected, except for the event's managers. A private event only for the
+ * people the event page lets open it: its managers, its invitees, people who RSVPed and admins of a
+ * listed artist circle (getEventById's rule). The caller still shapes locations with
+ * getEventLocationForViewer.
+ */
+export const filterEventsForCalendar = async <T extends EventDisplay>(events: T[], viewerDid?: string): Promise<T[]> => {
+    const kept = new Set((await shapeEventsForViewer(events, viewerDid)).map((event) => String(event._id)));
+    const visible = await Promise.all(
+        events.map(async (event) => {
+            if (!kept.has(String(event._id))) return false;
+            if (event.visibility !== "private") return true;
+            if (!viewerDid) return false;
+            if (await canManageEvent(event, viewerDid)) return true;
+            const eventId = String(event._id);
+            if (await EventInvitations.findOne({ eventId, userDid: viewerDid })) return true;
+            if (await EventRsvps.findOne({ eventId, userDid: viewerDid })) return true;
+            return isCircleAdminOfAny(viewerDid, event.additionalArtistCircleIds);
+        }),
+    );
+    return events.filter((_, index) => visible[index]);
+};
+
+/**
  * Get open events across all circles for map display.
  * Filters by optional date range overlap or, if no range provided, to upcoming (endAt >= now).
  * Ensures events have either an exact location or a Peerify public-safe map location with lngLat.
