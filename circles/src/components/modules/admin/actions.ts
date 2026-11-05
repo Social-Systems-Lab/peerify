@@ -8,7 +8,7 @@ import { Circle, UserPrivate } from "@/models/models";
 import { ObjectId } from "mongodb";
 import { getAuthenticatedUserDid, getServerPublicKey } from "@/lib/auth/auth";
 import { getUserPrivate } from "@/lib/data/user";
-import { sendNotifications } from "@/lib/data/notifications";
+import { sendNotifications, shapeNotificationContent } from "@/lib/data/notifications";
 import { sendUserVerificationRejectedNotification, sendUserVerifiedNotification } from "@/lib/data/notifications";
 import { sendEmail } from "@/lib/data/email";
 import { GlobalServerSettingsFormData, globalServerSettingsValidationSchema } from "./global-server-settings-schema";
@@ -1242,7 +1242,7 @@ export async function sendReminderEmailForHandle(handle: string) {
             templateAlias: "notification-reminder",
             templateModel: {
                 name: user.name,
-                notifications: unreadNotifications.map((n: any) => n.content),
+                notifications: unreadNotifications.map((n: any) => shapeNotificationContent(n.content)),
                 actionUrl: process.env.CIRCLES_URL || "http://localhost:3000",
             },
         });

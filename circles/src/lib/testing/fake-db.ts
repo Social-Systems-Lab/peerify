@@ -75,6 +75,7 @@ export const createFakeDb = () => {
         findOne: (...a: any[]) => (cols[n] as any).findOne(...a),
         countDocuments: (...a: any[]) => (cols[n] as any).countDocuments(...a),
         insertOne: (...a: any[]) => (cols[n] as any).insertOne(...a),
+        insertMany: (...a: any[]) => (cols[n] as any).insertMany(...a),
         deleteOne: (...a: any[]) => (cols[n] as any).deleteOne(...a),
         deleteMany: (...a: any[]) => (cols[n] as any).deleteMany(...a),
         updateOne: (...a: any[]) => (cols[n] as any).updateOne(...a),

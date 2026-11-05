@@ -183,6 +183,13 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             docs.push(stored);
             return { acknowledged: true, insertedId: stored._id };
         },
+        async insertMany(many: Doc[]) {
+            const insertedIds: unknown[] = [];
+            for (const doc of many) {
+                insertedIds.push((await this.insertOne(doc)).insertedId);
+            }
+            return { acknowledged: true, insertedCount: many.length, insertedIds };
+        },
         async deleteOne(filter: Doc) {
             queries.push(filter);
             const index = docs.findIndex((d) => matchesFilter(d, filter));

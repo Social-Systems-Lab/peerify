@@ -24,7 +24,8 @@ import {
 import { DefaultNotificationSettings, Notifications, UserNotificationSettings } from "./db";
 import { sanitizeObjectForJSON } from "../utils/sanitize";
 import { getUser, getUserPrivate } from "./user";
-import { getFeed, getPost } from "./feed";
+import { canUserViewPost, getFeed, getPost } from "./feed";
+import { toIdentityCircle } from "../utils/public-circle";
 import { getCircleById, findProjectByShadowPostId, getCirclesByDids } from "./circle";
 import { getMembers } from "./member";
 import { getProposalById, getProposalReactions } from "./proposal"; // Use getProposalReactions
@@ -40,6 +41,79 @@ import { getConnectionNotificationBody } from "../connection-copy";
 Notifications?.createIndex({ userId: 1, isRead: 1, createdAt: -1 });
 Notifications?.createIndex({ userId: 1, type: 1, "content.roomId": 1, isRead: 1, createdAt: -1 });
 Notifications?.createIndex({ userId: 1, type: 1, actorDid: 1, createdAt: -1 });
+
+// --- Notification content shape (leak round 3, 2026-11-05) -----------------------------------
+// Notification payloads used to carry whole circle/user documents (getCircleById, getUser,
+// getUserPrivate), and /api/notifications sent them to the recipient's browser: other people's
+// exact location, email, memberships, venue contacts. Content is now reduced to what the bell
+// renders, both when a notification is stored and when stored ones are read (old documents keep
+// the full records until they are cleaned up).
+//  - any object with a `did` (a person or a circle) -> toIdentityCircle: _id, did, handle, name,
+//    picture, circleType
+//  - the few other objects notifications embed -> the fields listed below. Kept on purpose:
+//    everything the bell reads (post.postType/parentItemType/parentItemId) and everything account
+//    erasure matches on (content.post.createdBy, content.comment.createdBy, content.*._id).
+//  - any other object is dropped. Strings, numbers, booleans, dates, ids and arrays of those pass.
+const NOTIFICATION_OBJECT_FIELDS: Record<string, readonly string[]> = {
+    post: ["_id", "createdBy", "feedId", "postType", "parentItemType", "parentItemId"],
+    comment: ["_id", "postId", "createdBy", "parentCommentId"],
+    event: ["_id", "title", "circleId", "startAt", "endAt"],
+    task: ["_id", "title", "stage", "circleId"],
+    issue: ["_id", "title", "stage", "circleId"],
+    goal: ["_id", "title", "stage", "circleId"],
+    proposal: ["_id", "name", "stage", "circleId"],
+    project: ["_id", "name", "handle", "circleId"],
+};
+
+// A value with no fields of its own to leak: primitives, dates and BSON values (ObjectId).
+const isScalar = (value: unknown): boolean =>
+    value === null ||
+    typeof value !== "object" ||
+    value instanceof Date ||
+    "_bsontype" in (value as object);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === "object" && !Array.isArray(value) && !isScalar(value);
+
+const shapeNotificationValue = (key: string, value: unknown): unknown => {
+    if (Array.isArray(value)) {
+        return value
+            .map((item) => (isScalar(item) ? item : shapeNotificationValue(key, item)))
+            .filter((item) => item !== undefined);
+    }
+    if (!isRecord(value)) {
+        return value;
+    }
+    if (typeof value.did === "string") {
+        return toIdentityCircle(value as Circle);
+    }
+    const fields = NOTIFICATION_OBJECT_FIELDS[key];
+    if (!fields) {
+        return undefined;
+    }
+    const picked: Record<string, unknown> = {};
+    for (const field of fields) {
+        const fieldValue = value[field];
+        if (fieldValue !== undefined && isScalar(fieldValue)) {
+            picked[field] = field === "_id" && fieldValue !== null ? String(fieldValue) : fieldValue;
+        }
+    }
+    return picked;
+};
+
+export function shapeNotificationContent<T>(content: T): T {
+    if (!isRecord(content)) {
+        return content;
+    }
+    const shaped: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(content)) {
+        const next = shapeNotificationValue(key, value);
+        if (next !== undefined) {
+            shaped[key] = next;
+        }
+    }
+    return shaped as T;
+}
 
 const getSummaryNotificationType = (type: string): SummaryNotificationType | null => {
     const directMatch = Object.keys(summaryNotificationTypeDetails).find((summaryType) => summaryType === type);
@@ -276,10 +350,13 @@ export async function sendNotifications(
     }
 
     const createdAt = new Date();
-    const notificationContent = sanitizeObjectForJSON({
-        ...(payload || {}),
-        body: payload?.body || payload?.messageBody || buildNotificationBody(type, payload),
-    });
+    // The body is built from the full payload; only the shaped content is stored.
+    const notificationContent = sanitizeObjectForJSON(
+        shapeNotificationContent({
+            ...(payload || {}),
+            body: payload?.body || payload?.messageBody || buildNotificationBody(type, payload),
+        }),
+    );
 
     const docs = [];
     for (const recipient of uniqueRecipients) {
@@ -378,10 +455,15 @@ export async function listNotificationsForUser(
     limit: number = 50,
     options?: NotificationQueryOptions,
 ) {
-    return await Notifications.find(buildNotificationQuery(userDid, options))
+    const notifications = await Notifications.find(buildNotificationQuery(userDid, options))
         .sort({ createdAt: -1, _id: -1 })
         .limit(limit)
         .toArray();
+    // Stored before 2026-11-05, content can still hold whole user/circle documents.
+    return notifications.map((notification) => ({
+        ...notification,
+        content: shapeNotificationContent(notification.content),
+    }));
 }
 
 export async function getUnreadNotificationCountForUser(userDid: string, options?: NotificationQueryOptions) {
@@ -1065,6 +1147,11 @@ export async function notifyCommentLike(
     );
 }
 
+const filterRecipientsWhoCanViewPost = async (post: Post, recipients: UserPrivate[]): Promise<UserPrivate[]> => {
+    const allowed = await Promise.all(recipients.map((recipient) => canUserViewPost(post, recipient.did)));
+    return recipients.filter((_, index) => allowed[index]);
+};
+
 /**
  * Send notifications when someone is mentioned in a post
  */
@@ -1081,7 +1168,10 @@ export async function notifyPostMentions(post: Post, author: Circle, mentionedCi
         (up): up is UserPrivate => up !== null,
     );
 
-    if (mentionedUserPrivates.length === 0) return;
+    // Only people who may see the post hear about it (a members-only post's title and link would
+    // otherwise reach a mentioned contact outside the circle).
+    const allowedRecipients = await filterRecipientsWhoCanViewPost(post, mentionedUserPrivates);
+    if (allowedRecipients.length === 0) return;
 
     // Get post circle
     let feed = await getFeed(post.feedId);
@@ -1090,7 +1180,7 @@ export async function notifyPostMentions(post: Post, author: Circle, mentionedCi
     // Send notifications to all mentioned users
     await sendNotifications(
         "post_mention",
-        mentionedUserPrivates,
+        allowedRecipients,
         sanitizeObjectForJSON({
             circle,
             user: author,
@@ -1122,6 +1212,9 @@ export async function notifyCommentMentions(
     );
 
     if (mentionedUserPrivates.length === 0) return;
+
+    const allowedRecipients = await filterRecipientsWhoCanViewPost(post, mentionedUserPrivates);
+    if (allowedRecipients.length === 0) return;
 
     // TODO: Enhance mention notifications for parent items (Goals, Tasks, etc.)?
     // Currently, it links to the shadow post. We might want it to link to the parent item.
@@ -1167,7 +1260,7 @@ export async function notifyCommentMentions(
     // Send notifications to all mentioned users
     await sendNotifications(
         "comment_mention",
-        mentionedUserPrivates,
+        allowedRecipients,
         sanitizeObjectForJSON({
             circle,
             user: author,
