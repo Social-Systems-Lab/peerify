@@ -1963,6 +1963,7 @@ export async function getEventWithCommentsAction(eventId: string) {
         throw new Error("Event not found");
     }
     const event = await shapeEventForViewer(found, userDid);
+    if (!event) throw new Error("Event not found");
     if (!event.commentPostId) return { ...event, comments: [] };
 
     // Same read, gate and author shaping as the event page's CommentSection (login + view access,

@@ -92,6 +92,10 @@ const PUBLIC_EVENT_PROJECTION = {
 } as const;
 
 type Range = { from?: Date; to?: Date };
+// Events whose audience (userGroups) includes everyone; an empty or missing list is the schema
+// default from before the audience picker existed. The logged-out paths only ever serve these
+// (leak round 3, H5, 2026-11-05).
+const OPEN_AUDIENCE_MATCH = { $or: [{ userGroups: null }, { userGroups: { $size: 0 } }, { userGroups: "everyone" }] };
 const RECURRING_INSTANCE_ID_PATTERN = /^([a-f\d]{24})_(\d+)$/i;
 const DEFAULT_PUBLIC_LOCATION_DISCLOSURE: PeerifyEventLocationDisclosure = "public";
 const DEFAULT_PUBLIC_VENUE_DISCLOSURE: PeerifyEventVenueDisclosure = "public";
@@ -727,6 +731,7 @@ export const getPublicEventsByCircleId = async (circleId: string, range?: Range)
             circleId,
             stage: "open",
             visibility: { $ne: "private" },
+            $and: [OPEN_AUDIENCE_MATCH],
         };
 
         if (Object.keys(dateMatch).length > 0) {
@@ -999,6 +1004,7 @@ export const getPublicEventByIdForCircle = async (circleId: string, eventId: str
                 circleId,
                 stage: "open",
                 visibility: { $ne: "private" },
+                $and: [OPEN_AUDIENCE_MATCH],
             }),
         ).toArray()) as EventDisplay[];
 
@@ -1451,11 +1457,13 @@ export const canManageEvent = async (
 /**
  * The event as a viewer-facing page or action may send it: unchanged for the event's managers;
  * everyone else gets sanitizePeerifyPublicEventDisplay, so a hidden address (non-public
- * locationDisclosure) and the private organiser note never reach them. getEventById itself stays
- * unshaped for the server-side callers that write the event back.
+ * locationDisclosure) and the private organiser note never reach them. null when a non-manager may
+ * not see it at all: a draft or an event in review, or an audience (userGroups) that leaves them out
+ * (shapeEventsForViewer's rules; leak round 3, H5). getEventById itself stays unshaped for the
+ * server-side callers that write the event back.
  */
-export const shapeEventForViewer = async <T extends EventDisplay>(event: T, viewerDid?: string): Promise<T> =>
-    (await canManageEvent(event, viewerDid)) ? event : (sanitizePeerifyPublicEventDisplay(event) as T);
+export const shapeEventForViewer = async <T extends EventDisplay>(event: T, viewerDid?: string): Promise<T | null> =>
+    (await shapeEventsForViewer([event], viewerDid))[0] ?? null;
 
 const EVENT_STAGES_FOR_MANAGERS_ONLY = new Set(["draft", "review"]);
 
@@ -1510,6 +1518,23 @@ export const shapeEventsForViewer = async <T extends EventDisplay>(events: T[], 
         }),
     );
     return shaped.filter((event): event is Awaited<T> => event !== null) as T[];
+};
+
+const hasOpenAudience = (event: Pick<EventDisplay, "userGroups">): boolean =>
+    !event.userGroups?.length || event.userGroups.includes("everyone");
+
+/**
+ * Drops the events whose audience (userGroups) leaves this viewer out, unless they manage the event
+ * (shapeEventsForViewer's rule; leak round 3, H5, 2026-11-05). Events open to everyone cost no
+ * queries and come back as given.
+ */
+export const filterEventsByAudience = async <T extends EventDisplay>(events: T[], viewerDid?: string): Promise<T[]> => {
+    const restricted = events.filter((event) => !hasOpenAudience(event));
+    if (restricted.length === 0) return events;
+    const visible = new Set(
+        (await shapeEventsForViewer(restricted, viewerDid || undefined)).map((event) => String(event._id)),
+    );
+    return events.filter((event) => hasOpenAudience(event) || visible.has(String(event._id)));
 };
 
 /**
@@ -1797,7 +1822,7 @@ export const getOpenEventsForMap = async (
         ]).toArray()) as EventDisplay[];
 
         // TODO: Visually differentiate approximate/secret/TBD Peerify event markers on the map.
-        return events.map(sanitizePeerifyPublicEventDisplay);
+        return filterEventsByAudience(events.map(sanitizePeerifyPublicEventDisplay), userDid);
     } catch (error) {
         console.error("Error getting open events for map:", error);
         throw error;
@@ -2038,7 +2063,7 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
 
         // This list reaches anonymous visitors (events panels): same public shape as the map —
         // locationDisclosure applied, privateLocationNote and other private metadata dropped.
-        return events.map(sanitizePeerifyPublicEventDisplay);
+        return filterEventsByAudience(events.map(sanitizePeerifyPublicEventDisplay), userDid);
     } catch (error) {
         console.error("Error getting open events for list:", error);
         throw error;
