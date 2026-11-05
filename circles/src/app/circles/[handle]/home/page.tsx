@@ -14,7 +14,7 @@ import { getFundingCirclePermissions, isFundingEnabledForCircle, listFundingAsks
 import { getMembers } from "@/lib/data/member";
 import { getHumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
 import { isPeerifyArtistIdentity, isPeerifyManagedIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
-import { getEventsByCircleId, getPublicEventsByCircleId } from "@/lib/data/event";
+import { getEventsByCircleId, getPublicEventsByCircleId, shapeEventsForViewer } from "@/lib/data/event";
 import { getTracksByCircleId } from "@/lib/data/track";
 import { signAudioToken } from "@/lib/audio/audio-token";
 import { toPublicCircle } from "@/lib/utils/public-circle";
@@ -177,8 +177,12 @@ export default async function CircleHomePage(props: PageProps) {
         } else {
             const canViewEvents = await isAuthorized(viewerDid, circle._id as string, features.events.view);
             if (canViewEvents) {
+                // Shaped for the viewer: getEventsByCircleId returns events unshaped (leak round 3).
                 venueUpcomingEvents = (
-                    await getEventsByCircleId(circle._id as string, viewerDid, eventRange, true, true)
+                    await shapeEventsForViewer(
+                        await getEventsByCircleId(circle._id as string, viewerDid, eventRange, true, true),
+                        viewerDid,
+                    )
                 ).slice(0, 3);
             }
         }

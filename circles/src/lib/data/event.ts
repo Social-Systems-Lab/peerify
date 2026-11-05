@@ -1,4 +1,4 @@
-import { Circles, Events, EventRsvps, Feeds, Posts, EventInvitations } from "./db";
+import { Circles, Events, EventRsvps, Feeds, Posts, EventInvitations, Members } from "./db";
 import { migrateEventTasksToCircle } from "./task";
 import { ObjectId } from "mongodb";
 import { RRule, RRuleSet, rrulestr } from "rrule";
@@ -26,7 +26,7 @@ import { isAuthorized } from "../auth/auth";
 import { features } from "./constants";
 import { getCircleById, resolveViewerIsAdmin } from "./circle";
 import { isAcceptedConnectionForUserDid } from "./relationships";
-import { isCircleAdminOfAny } from "./member";
+import { isCircleAdmin, isCircleAdminOfAny } from "./member";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 
 // Safe projection for event queries
@@ -218,7 +218,9 @@ function sanitizePeerifyPublicEventMetadata(event: EventDisplay): EventDisplay["
     return { peerify: publicPeerify };
 }
 
-export function sanitizePeerifyPublicEventDisplay(event: EventDisplay): EventDisplay {
+export function sanitizePeerifyPublicEventDisplay(fullEvent: EventDisplay): EventDisplay {
+    // Invitee DIDs are for the event's managers only (leak round 3, 2026-11-05).
+    const { invitations: _invitations, ...event } = fullEvent;
     const locationDisclosure = getPeerifyEventLocationDisclosure(event);
     const metadata = sanitizePeerifyPublicEventMetadata(event);
     const publicMapLocation = sanitizePeerifyPublicMapLocation(getPeerifyEventMetadata(event).publicMapLocation);
@@ -1454,6 +1456,61 @@ export const canManageEvent = async (
  */
 export const shapeEventForViewer = async <T extends EventDisplay>(event: T, viewerDid?: string): Promise<T> =>
     (await canManageEvent(event, viewerDid)) ? event : (sanitizePeerifyPublicEventDisplay(event) as T);
+
+const EVENT_STAGES_FOR_MANAGERS_ONLY = new Set(["draft", "review"]);
+
+/**
+ * A list of events as a viewer-facing page or action may send it (leak round 3, 2026-11-05;
+ * getEventsByCircleId returns them unshaped). Per event, its managers (the canManageEvent rules:
+ * creator, platform admin, events.moderate on the event's circle, admin of a delegated artist
+ * circle) get it unchanged. Everyone else never gets drafts or events in review, nor an event whose
+ * audience (userGroups) leaves them out, and gets the rest through sanitizePeerifyPublicEventDisplay.
+ * The admin check runs once and the per-circle checks are cached, so a list costs a few queries.
+ */
+export const shapeEventsForViewer = async <T extends EventDisplay>(events: T[], viewerDid?: string): Promise<T[]> => {
+    if (viewerDid && (await resolveViewerIsAdmin(viewerDid))) return events;
+
+    const cache = new Map<string, Promise<unknown>>();
+    const cached = <V>(key: string, load: () => Promise<V>): Promise<V> => {
+        if (!cache.has(key)) cache.set(key, load());
+        return cache.get(key) as Promise<V>;
+    };
+    const canModerate = (circleId: string) =>
+        cached(`moderate:${circleId}`, () => isAuthorized(viewerDid, circleId, features.events.moderate));
+    const isArtistAdmin = (circleId: string) => cached(`artist:${circleId}`, () => isCircleAdmin(viewerDid!, circleId));
+    const memberGroups = (circleId: string) =>
+        cached(`groups:${circleId}`, async () => {
+            const member = await Members.findOne({ userDid: viewerDid, circleId }, { projection: { userGroups: 1 } });
+            return (member?.userGroups ?? []) as string[];
+        });
+
+    const isManager = async (event: T): Promise<boolean> => {
+        if (!viewerDid) return false;
+        if (event.createdBy === viewerDid) return true;
+        if (event.circleId && (await canModerate(event.circleId))) return true;
+        for (const circleId of event.artistAdminCircleIds ?? []) {
+            if (await isArtistAdmin(circleId)) return true;
+        }
+        return false;
+    };
+    const inAudience = async (event: T): Promise<boolean> => {
+        const audience = event.userGroups ?? [];
+        if (audience.length === 0 || audience.includes("everyone")) return true;
+        if (!viewerDid || !event.circleId) return false;
+        const groups = await memberGroups(event.circleId);
+        return audience.some((group) => groups.includes(group));
+    };
+
+    const shaped = await Promise.all(
+        events.map(async (event): Promise<T | null> => {
+            if (await isManager(event)) return event;
+            if (EVENT_STAGES_FOR_MANAGERS_ONLY.has(event.stage)) return null;
+            if (!(await inAudience(event))) return null;
+            return sanitizePeerifyPublicEventDisplay(event) as T;
+        }),
+    );
+    return shaped.filter((event): event is Awaited<T> => event !== null) as T[];
+};
 
 /**
  * Get open events across all circles for map display.

@@ -49,6 +49,7 @@ import {
     applyEventHostChange,
     canAnonymousViewCircleEvents,
     shapeEventForViewer,
+    shapeEventsForViewer,
     canManageEvent,
 } from "@/lib/data/event";
 import { getCirclesByDids } from "@/lib/data/circle";
@@ -488,7 +489,9 @@ export async function getEventsAction(
             includeCreated,
             includeParticipating,
         );
-        return { events };
+        // Unshaped from the data layer: hidden addresses, private notes, drafts and members-only
+        // events must not reach viewers who don't manage them (leak round 3, 2026-11-05).
+        return { events: await shapeEventsForViewer(events, userDid) };
     } catch (error) {
         console.error("Error in getEventsAction:", error);
         return defaultResult;
