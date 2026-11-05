@@ -897,6 +897,13 @@ export const getMembersAction = async (circleId: string) => {
         return { success: false, message: "User data not found" };
     }
 
+    // Leak round 3, H6 (2026-11-05): only for people who may assign issues in this circle, the only
+    // ones the list is for (the assign dialog). Anyone else gets an empty list, not an error, so the
+    // detail page doesn't show a toast.
+    if (!(await isAuthorized(userDid, circleId, features.issues.assign))) {
+        return [];
+    }
+
     // get members of circle
     let members = await getMembers(circleId);
     return members;
