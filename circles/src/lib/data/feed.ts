@@ -28,7 +28,7 @@ import {
     resolveViewerIsAdmin,
 } from "./circle";
 import { redactCircleLocationForViewer, viewerBypassesLocationRedaction, type LocationViewerContext } from "../utils";
-import { toPublicLocation } from "../utils/public-circle";
+import { toIdentityCircle, toPublicLocation, toPublicMetadata } from "../utils/public-circle";
 import { getUserByDid } from "./user";
 import { getMetrics } from "../utils/metrics";
 import { deleteVbdPost, upsertVbdPosts } from "./vdb";
@@ -402,10 +402,12 @@ async function buildPostDisplayPreview(post: Post): Promise<PostDisplay | null> 
     const { sdgs: sdgIds, ...restOfPost } = post;
     const populatedSdgs = sdgIds ? sdgs.filter((sdg) => sdgIds.includes(sdg._id)) : [];
 
+    // Shared-post embeds render the author's and circle's name, handle and picture only
+    // (SharedPostPreview); getUserByDid/getCircleById are whole documents (leak round 3).
     return {
         ...restOfPost,
-        author,
-        circle,
+        author: toIdentityCircle(author),
+        circle: toIdentityCircle(circle),
         feed,
         circleType: "post",
         sdgs: populatedSdgs,
@@ -486,14 +488,27 @@ function toFeedGeotagLocation(
     )!;
 }
 
+// An author, circle or mentioned circle embedded in a post or comment, shaped for the viewer: its
+// location as toFeedProfileLocation allows, and (leak round 3, 2026-11-05) its `metadata` reduced to
+// toPublicMetadata — the feed aggregations project the whole metadata, which held venue addresses,
+// contact emails and phones, and signup/auth fields. The record's owner and platform admins keep
+// both. Returns the same reference when nothing changes.
 function redactAuthorLocation<A extends LocationBearingAuthor | null | undefined>(
     author: A,
     viewer: LocationViewerContext,
 ): A {
-    if (!author?.location) return author;
-    const redacted = toFeedProfileLocation(author, viewer);
-    if (redacted === author.location) return author;
-    return { ...author, location: redacted };
+    if (!author) return author;
+    let next: LocationBearingAuthor = author;
+    if (author.location) {
+        const redacted = toFeedProfileLocation(author, viewer);
+        if (redacted !== author.location) next = { ...next, location: redacted };
+    }
+    if (author.metadata !== undefined && !viewerBypassesLocationRedaction(author.did, viewer)) {
+        const { metadata: _metadata, ...rest } = next;
+        const publicMetadata = toPublicMetadata(author.metadata, !!viewer.viewerDid);
+        next = publicMetadata ? { ...rest, metadata: publicMetadata } : rest;
+    }
+    return next as A;
 }
 
 function redactMentionsLocations<M extends LocationBearingMention>(
@@ -504,11 +519,11 @@ function redactMentionsLocations<M extends LocationBearingMention>(
     let changed = false;
     const next = mentionsDisplay.map((mention) => {
         const circle = mention?.circle;
-        if (!circle?.location) return mention;
-        const redacted = toFeedProfileLocation(circle, viewer);
-        if (redacted === circle.location) return mention;
+        if (!circle) return mention;
+        const shaped = redactAuthorLocation(circle, viewer);
+        if (shaped === circle) return mention;
         changed = true;
-        return { ...mention, circle: { ...circle, location: redacted } };
+        return { ...mention, circle: shaped };
     });
     return changed ? next : mentionsDisplay;
 }

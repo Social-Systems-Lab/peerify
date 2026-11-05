@@ -1,5 +1,5 @@
 // /src/app/circles/[handle]/post/[postId]/page.tsx
-import { getCircleByHandle } from "@/lib/data/circle";
+import { getCircleByHandle, resolveViewerIsAdmin } from "@/lib/data/circle";
 import { getPublicCircleForViewer } from "@/lib/data/public-circle-for-viewer";
 import {
     canUserViewPost,
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { PostItem } from "@/components/modules/feeds/post-list";
 import { getUserByDid } from "@/lib/data/user";
+import { toPublicCircle } from "@/lib/utils/public-circle";
 
 type SinglePostPageProps = {
     params: Promise<{ handle: string; postId: string }>;
@@ -59,7 +60,16 @@ export default async function SinglePostPage(props: SinglePostPageProps) {
 
     // Get all comments for the post
     const comments = (await getAllComments(postId, userDid)) as CommentDisplay[];
-    const author = await getUserByDid(post.createdBy);
+    // A whole document (SAFE_CIRCLE_PROJECTION): allow-listed like a profile page before it reaches
+    // the client (leak round 3, 2026-11-05). Unchanged for the author and platform admins.
+    const storedAuthor = await getUserByDid(post.createdBy);
+    const author = storedAuthor
+        ? toPublicCircle(storedAuthor, {
+              viewerDid: userDid,
+              viewerIsPlatformAdmin: await resolveViewerIsAdmin(userDid),
+              viewerCanManage: false,
+          })
+        : storedAuthor;
     const sharedPostData = post.sharedPostId ? await getShareablePostPreview(post.sharedPostId, userDid) : null;
 
     // Only what's serialised to client components is shaped; everything above reads the full circle.
