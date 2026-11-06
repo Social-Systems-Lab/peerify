@@ -50,6 +50,14 @@ type UpdateCrewApplicationResponse = {
     message?: string;
 };
 
+// Leak round 3, integrity (2026-11-06): the permission check is made on the circle the client
+// sends, so the application must belong to that same circle. Without this, an admin of one circle
+// could approve another circle's applicant into their own Crew, or reject another circle's
+// application, by sending its id.
+const NOT_THIS_CIRCLE_MESSAGE = "This application isn't for this circle.";
+const belongsToCircle = (application: CrewApplication, circleId: string): boolean =>
+    !!circleId && String(application.circleId) === String(circleId);
+
 export const approveCrewApplicationAction = async (
     applicationId: string,
     circle: Circle,
@@ -68,6 +76,9 @@ export const approveCrewApplicationAction = async (
 
         const application = await getCrewApplication(applicationId);
         const circleId = circle._id ?? "";
+        if (!belongsToCircle(application, circleId)) {
+            return { success: false, message: NOT_THIS_CIRCLE_MESSAGE };
+        }
 
         // Self-heal: guarantee this circle has a "crew" userGroup before assigning anyone to it
         // — see ensureCrewUserGroupOnCircle for why this replaces a one-off migration.
@@ -120,6 +131,9 @@ export const rejectCrewApplicationAction = async (
         }
 
         const application = await getCrewApplication(applicationId);
+        if (!belongsToCircle(application, circle._id ?? "")) {
+            return { success: false, message: NOT_THIS_CIRCLE_MESSAGE };
+        }
 
         let circlePath = await getCirclePath(circle);
         revalidatePath(`${circlePath}`);
