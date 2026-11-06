@@ -8,7 +8,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `0c637397`** (tree = staging `8ab88b39`), released 2026-11-02. `main` now contains `staging`, so the next release is a fast-forward. Only Tim can push `main` (from his Mac). See the "Release" entry below.
+- **Prod = `44bb7e4b`** (staging), live since 2026-11-06 05:52 UTC. The 2026-11-02 release was `0c637397` (tree = staging `8ab88b39`); since then `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry below.
 - **Next on prod:** storage steps 2–5 (run sheet `~/cc-reports/outbox/20261102-1640-prod-runsheet.tar.gz`). Then step 6: rebuild `a440d431` (the `/storage` refusal of `offer-photo*` names) as a new staging commit together with V4.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
@@ -16,7 +16,49 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
 - See OPERATIONS.md for architecture.
 - **Backups (top roadmap risk):** automated, encrypted, off-box backups are built on branch `backup/automated-backups` (`circles/scripts/backup/`). Rollout is next, staging first. Then the erasure log, then the registry question. See the 2026-11-04 entry.
-- **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):** Tim is likely to notify IMY by Sun 2026-11-08 05:28 UTC. Containment C1–C4 is built on branch `fix/leaks-r3-containment` (not committed). See the 2026-11-05 entry.
+- **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):** Tim is likely to notify IMY by Sun 2026-11-08 05:28 UTC. Containment C1–C4 is live on prod since 2026-11-05 08:51 UTC (`f67ab5ea`); H3–H7 and H9 since 2026-11-06 05:52 UTC (`44bb7e4b`). Left: M1–M9, L1–L9, the approve/reject `circleId` check. See the 2026-11-05 and 2026-11-06 entries.
+
+---
+
+## 2026-11-06 — Leak round 3: H3–H7 and H9 fixed and live on prod (`550fedcc`..`44bb7e4b`)
+
+Reports: `~/cc-reports/outbox/20261105-1447-r3-high.tar.gz` (plan, patches, tests, staging checklist) and `20261105-1502-r3-high-counts.tar.gz` (read-only count script and the H4 nginx check).
+
+**The fixes** (branch `fix/leaks-r3-high`, fast-forwarded onto `staging`; one commit per finding, each with a unit test that fails on the old code; managers and owners still see everything):
+- **`550fedcc` H3, invitee list:** `getInvitedUsersAction` returns the full list only to the event's managers (`getAttendeeListScope` = "all"), scoped to the URL circle. Others get at most themselves.
+- **`1abe3eb5` H4, calendar files:** both ICS routes go through the new `filterEventsForCalendar`: same shaping as the event list, and a private event only for its managers, invitees, RSVPs and co-hosting artist admins. Otherwise the single-event file is a 404.
+- **`2b31b6c4` H5, event audience (`userGroups`):** enforced on the event page and `getEventWithCommentsAction` (this also closes M1's draft part), in the logged-out list and event page (database filter: open audience only), and on the Explore map and events list (`filterEventsByAudience`).
+- **`60a5cd32` H6, member lists:** `getMembersAction` in tasks and issues only for people with `assign`; the unused goals copy was removed.
+- **`43cd400a` H7, requester emails:** membership requests and crew applications project the requester's handle instead of the email; the tables show `@handle`.
+- **`44bb7e4b` H9, Donorbox:** the unused `getSubscription`/`getPlans` server actions were removed. They weren't reachable in practice (no client chunk held their ids, and ids change per build).
+
+**Checks:** tsc (only the two errors staging already had), eslint clean, `bun run build` clean, full test suite unchanged apart from the new tests (`participation-readiness` fails on staging too). Tim ran the staging checklist, then deployed to prod; live since **2026-11-06 05:52 UTC**.
+
+**What may already have been exposed on prod (read-only, Tim, 2026-11-06 04:58Z, as `tim_admin`, `r3-high-counts.mongosh.js`; output `~/cc-reports/inbox/r3-high-counts-prod.txt`):**
+- **H3 (invitee lists):** 3 events with invitations, 6 invitations, all created before C2 (2026-11-05 08:51Z); 5 distinct invitees in all.
+  - **Private:** 1 event (published), 1 invitation, 1 invitee. Only 1 person could open it (invitees + RSVPs), so its list reached nobody beyond that person. Tim: the private events are his own.
+  - **Not private:** 2 events (1 published), 5 invitations, so at most 5 people. Anyone allowed to view the circle's events could see these lists; how many did isn't countable.
+- **H4 (calendar files):** nginx access logs cover 2026-10-23 to 2026-11-06, and hold **no** calendar-file requests (feed or single event) in that period. Anything before 2026-10-23 can't be checked.
+- **H5 (members-only event):** 1 members-only event, created 2026-08-16 by a platform admin account; never published, not private, not upcoming, not on the map. Nothing exposed through H5.
+- **H7 (requester emails):** no membership requests stored at all (0).
+  - **Crew applications:** 9 stored (5 approved, 4 pending). Not counted: 2 with no email or account gone, 1 to a deleted circle, 1 where the requester is the only manager.
+  - **Email shown:** 5 applications, all to artist circles, from 2 distinct requesters, seen by 5 distinct managers (excluding the requester), all managing artist circles, **none managing a personal profile**. None to a circle whose rule allows "everyone". Dates 2026-08-21 to 2026-10-28.
+  - Roles are as they are today, so past or departed moderators aren't counted.
+- **H6:** not measurable (no record of who called `getMembersAction`). **H9:** very unlikely, see above.
+
+### Left from round 3 (`20261105-0528-location-leaks-r3.tar.gz`, REPORT.md)
+- **M1:** the rest of it: `preview/page.tsx` redirects to a draft event's host before the author/moderator check; `sanitizePeerifyPublicEventDisplay` still keeps `invitations`, `userGroups` and `virtualUrl` for non-managers.
+- **M2:** follower lists public by default (also approval-required circles and personal profiles); `userGroups` reveals hidden Crew.
+- **M3:** hidden Crew members hidden only in the browser.
+- **M4:** post and comment mentions send members-only posts to mentioned contacts without `canUserViewPost` (C1 trimmed the stored content; the access check is still missing).
+- **M5:** task and shift exact locations and workflow notes in `SAFE_TASK_PROJECTION`.
+- **M6:** `checkAuth`/`getUserPrivate` include legacy chat peers' exact location.
+- **M7:** settings layout passes the raw SAFE circle to a client component (unconfirmed whether any circle is affected).
+- **M8:** `getPostsAction` checks the client's `circleId`, not `feed.circleId`.
+- **M9:** issue review stage and item `userGroups` enforced only in the UI.
+- **L1–L9:** goal follower DIDs; shadow-post actions without auth; `getReactionsAction` without a view check; unused unauthenticated `"use server"` exports; `"use server"` on module components; own hashed tokens and Matrix credentials sent to the browser; self- and admin-directed notifications storing whole user documents; SAFE circle on the requests pages for moderators; `fetchMissionStatements` ignoring `searchable`.
+- **Integrity:** approve/reject of membership requests and crew applications never checks `request.circleId === circle._id`.
+- Still open from 2026-11-05: the stored-notification cleanup (after IMY), Matrix removal, `peerify_prod_ro`.
 
 ---
 
