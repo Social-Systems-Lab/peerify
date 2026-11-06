@@ -16,7 +16,8 @@ import { features } from "@/lib/data/constants";
 import { CircleTabs } from "@/components/layout/circle-tabs";
 import { getHumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
 import { appConfig } from "@/config/app";
-import { getPeerifyMetadata } from "@/lib/peerify/artist-profile";
+import { getPeerifyMetadata, isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
+import { getPendingCrewApplicationCountForViewer } from "@/lib/data/crew-review";
 import { PilotChromeScope } from "@/components/layout/pilot-chrome-scope";
 import { toPublicCircle } from "@/lib/utils/public-circle";
 import { canViewUnpublishedCircle } from "@/lib/data/member";
@@ -92,6 +93,13 @@ export default async function RootLayout(props: Props) {
         ? await isPilotArtistCircleReadyToPublish(circle)
         : true;
 
+    // Badge on the Crew Dashboard button: only looked up when that button shows (same gating
+    // as showCrewDashboardButton in HomeContent), and 0 unless the viewer manages applications.
+    const pendingCrewApplicationCount =
+        authorizedToEdit && isPeerifyManagedIdentity(circle) && circle.crewEnabled !== false
+            ? await getPendingCrewApplicationCountForViewer(userDid, circle._id)
+            : 0;
+
     const pageContent = (
         <>
             <>
@@ -105,6 +113,7 @@ export default async function RootLayout(props: Props) {
                     isOwnAutoProvisionedArtistCircle={isOwnAutoProvisionedArtistCircle}
                     hasAutoProvisionedArtistCircle={viewerHasAutoProvisionedArtistCircle}
                     pilotArtistCirclePublishReady={pilotArtistCirclePublishReady}
+                    pendingCrewApplicationCount={pendingCrewApplicationCount}
                 />
             </>
             <CircleTabs circle={plainCircle} />

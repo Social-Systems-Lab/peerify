@@ -72,6 +72,9 @@ type HomeContentProps = {
     // met the auto-publish completion bar. Defaults to true so it never blocks the "Publish
     // profile" button for manually-created (CircleWizard) managed identities.
     pilotArtistCirclePublishReady?: boolean;
+    // Pending Crew applications, for the badge on the Crew Dashboard button. Server-computed and
+    // 0 for anyone who can't manage applications (getPendingCrewApplicationCountForViewer).
+    pendingCrewApplicationCount?: number;
 };
 
 export default function HomeContent({
@@ -83,6 +86,7 @@ export default function HomeContent({
     hasAutoProvisionedArtistCircle,
     isOwnAutoProvisionedArtistCircle,
     pilotArtistCirclePublishReady = true,
+    pendingCrewApplicationCount = 0,
 }: HomeContentProps) {
     const isUser = circle?.circleType === "user";
     const isKamooniRootCircle = circle?.handle === "default" || circle?.handle === "kamooni";
@@ -692,6 +696,15 @@ export default function HomeContent({
                                                 <Link href={`/circles/${circle.handle}/settings/crew`}>
                                                     <Users className="mr-2 h-4 w-4" />
                                                     Crew Dashboard
+                                                    {pendingCrewApplicationCount > 0 ? (
+                                                        <span
+                                                            className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground"
+                                                            aria-label={`${pendingCrewApplicationCount} pending Crew ${pendingCrewApplicationCount === 1 ? "application" : "applications"}`}
+                                                            data-testid="crew-dashboard-pending-badge"
+                                                        >
+                                                            {pendingCrewApplicationCount}
+                                                        </span>
+                                                    ) : null}
                                                 </Link>
                                             </Button>
                                         ) : null}

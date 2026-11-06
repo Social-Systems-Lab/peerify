@@ -8,7 +8,10 @@ import { getCircleByHandle } from "@/lib/data/circle";
 import { features } from "@/lib/data/constants";
 import { getCrewMembers, getCrewOfferings } from "@/lib/data/member";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
-import { ArrowLeft, LockKeyhole } from "lucide-react";
+import { toIdentityCircle } from "@/lib/utils/public-circle";
+import { getAllCrewApplicationsAction } from "@/components/modules/crew-applications/actions";
+import CrewApplicationsTable from "@/components/modules/crew-applications/crew-applications-table";
+import { ArrowLeft, ArrowRight, LockKeyhole } from "lucide-react";
 import { CrewDashboardClient } from "./crew-dashboard-client";
 
 type PageProps = {
@@ -19,8 +22,14 @@ export default async function CrewDashboardPage({ params }: PageProps) {
     const { handle } = await params;
     const circle = await getCircleByHandle(handle);
 
-    if (!circle?._id || !isPeerifyManagedIdentity(circle)) {
+    if (!circle?._id) {
         notFound();
+    }
+    // The crew_application notification's Review button comes here for every circle. Circles that
+    // aren't managed artist identities (e.g. personal profiles with Crew) have no Dashboard; their
+    // applications stay on the Crew Applications settings page, which checks access itself.
+    if (!isPeerifyManagedIdentity(circle)) {
+        redirect(`/circles/${handle}/settings/crew-applications`);
     }
 
     const userDid = await getAuthenticatedUserDid();
@@ -34,10 +43,16 @@ export default async function CrewDashboardPage({ params }: PageProps) {
     // the roster (the source of truth for who's a Crew member at all) and the offerings lookup
     // are fetched separately and left-joined below rather than derived from one query — a member
     // with no offerings must still show up as a card, just with an empty offerings section.
-    const [members, offerers] = await Promise.all([
+    const [members, offerers, applications] = await Promise.all([
         getCrewMembers(circle._id, userDid),
         getCrewOfferings(circle._id, undefined, true),
+        // Same action and permission check (manage_crew_applications) as the Crew Applications
+        // settings page; anyone without it gets success: false and no section.
+        getAllCrewApplicationsAction(circle._id),
     ]);
+    const pendingApplications = applications.success ? (applications.pendingApplications ?? []) : null;
+    // The table's approve/reject actions need only the circle's id, handle and name.
+    const identityCircle = JSON.parse(JSON.stringify(toIdentityCircle(circle)));
 
     const offeringsByDid = new Map(offerers.map((offerer) => [offerer.userDid, offerer.tourTeamOfferings]));
     const roster = members.map((member) => ({
@@ -76,6 +91,31 @@ export default async function CrewDashboardPage({ params }: PageProps) {
                     </div>
                 </div>
             </div>
+
+            {pendingApplications ? (
+                <section id="applications" className="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
+                        <h2 className="text-xl font-semibold text-[#231f1a]">
+                            Crew applications
+                            {pendingApplications.length > 0 ? (
+                                <Badge className="ml-2 rounded-full px-2.5 py-0.5 align-middle">
+                                    {pendingApplications.length} pending
+                                </Badge>
+                            ) : null}
+                        </h2>
+                        <Link
+                            href={`/circles/${handle}/settings/crew-applications`}
+                            className="inline-flex w-fit items-center gap-1 text-sm font-medium text-primary hover:underline"
+                        >
+                            Rejected applications and Crew settings
+                            <ArrowRight className="h-3.5 w-3.5" />
+                        </Link>
+                    </div>
+                    <div className="mt-4">
+                        <CrewApplicationsTable circle={identityCircle} applications={pendingApplications} />
+                    </div>
+                </section>
+            ) : null}
 
             {roster.length === 0 ? (
                 <Card className="rounded-lg border-dashed border-slate-300 bg-slate-50 shadow-none">

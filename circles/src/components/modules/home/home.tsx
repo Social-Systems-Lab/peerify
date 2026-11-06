@@ -7,6 +7,8 @@ import HomeContent from "./home-content";
 import ContentDisplayWrapper from "@/components/utils/content-display-wrapper";
 import { getCirclesWithMetrics, hasAutoProvisionedArtistCircle } from "@/lib/data/circle";
 import { getMembersWithMetrics } from "@/lib/data/member";
+import { getPendingCrewApplicationCountForViewer } from "@/lib/data/crew-review";
+import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 
 type HomeModuleProps = {
     circle: Circle;
@@ -35,7 +37,18 @@ export default async function HomeModule(props: HomeModuleProps) {
             ? await hasAutoProvisionedArtistCircle(userDid)
             : false;
 
+    // Same as the circle layout: badge count only when the Crew Dashboard button shows.
+    const pendingCrewApplicationCount =
+        authorizedToEdit && isPeerifyManagedIdentity(circle) && circle.crewEnabled !== false
+            ? await getPendingCrewApplicationCountForViewer(userDid, circle._id)
+            : 0;
+
     return (
-        <HomeContent circle={circle} authorizedToEdit={authorizedToEdit} hasAutoProvisionedArtistCircle={ownsArtistCircle} />
+        <HomeContent
+            circle={circle}
+            authorizedToEdit={authorizedToEdit}
+            hasAutoProvisionedArtistCircle={ownsArtistCircle}
+            pendingCrewApplicationCount={pendingCrewApplicationCount}
+        />
     );
 }

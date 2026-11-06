@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { getCrewApplicationsReviewPath } from "@/lib/utils/crew-paths";
 import { notificationUnreadCountAtom, userAtom } from "@/lib/data/atoms";
 import { useAtom } from "jotai";
 import { useRouter } from "next/navigation";
@@ -545,9 +546,7 @@ export const Notifications = ({
                         ? `/circles/${notification.circle.handle}/settings/membership-requests`
                         : null;
                 case "crew_application":
-                    return notification.circle?.handle
-                        ? `/circles/${notification.circle.handle}/settings/crew-applications`
-                        : null;
+                    return notification.circle?.handle ? getCrewApplicationsReviewPath(notification.circle.handle) : null;
                 case "crew_application_approved":
                 case "crew_broadcast":
                     return notification.circle?.handle ? `/circles/${notification.circle.handle}/crew` : null;

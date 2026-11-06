@@ -1,4 +1,5 @@
 // src/lib/data/push.ts - Web push delivery, fired synchronously from sendNotifications
+import { getCrewApplicationsReviewPath } from "@/lib/utils/crew-paths";
 import webpush from "web-push";
 import { PushSubscriptions, Circles } from "./db";
 import { NotificationType, PushSubscriptionDoc } from "@/models/models";
@@ -121,7 +122,7 @@ export const resolvePushUrl = (type: string, payload: any): string | undefined =
         case "follow_request":
             return circleHandle ? `/circles/${circleHandle}/settings/membership-requests` : undefined;
         case "crew_application":
-            return circleHandle ? `/circles/${circleHandle}/settings/crew-applications` : undefined;
+            return circleHandle ? getCrewApplicationsReviewPath(circleHandle) : undefined;
         case "crew_application_approved":
         case "crew_broadcast":
             return circleHandle ? `/circles/${circleHandle}/crew` : undefined;

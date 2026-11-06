@@ -10,6 +10,7 @@ import { createPendingCrewApplication } from "@/lib/data/crew-applications";
 import { getCircleById, getCirclePath, updateCircle, getCircleByDid, getCirclesByIds, isCirclePublished } from "@/lib/data/circle";
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { getAuthenticatedUserDid, getAuthorizedMembers, isAuthorized } from "@/lib/auth/auth";
+import { getCrewApplicationReviewers } from "@/lib/data/crew-review";
 import { features } from "@/lib/data/constants";
 import { saveFile } from "@/lib/data/storage";
 import { getImageUploadErrorMessage } from "@/lib/media/sanitize-image";
@@ -215,7 +216,8 @@ export const applyForCrewMembership = async (circle: Circle, message: string): P
 
         await createPendingCrewApplication(userDid, updatedCircle._id ?? "", message);
 
-        let members = await getAuthorizedMembers(updatedCircle, features.general.manage_crew_applications);
+        // Only people who can open the Crew Dashboard, where the notification's Review button goes.
+        let members = await getCrewApplicationReviewers(updatedCircle);
         let user = await getUser(userDid);
         const recipientUsers: UserPrivate[] = [];
         for (const memberCircle of members) {

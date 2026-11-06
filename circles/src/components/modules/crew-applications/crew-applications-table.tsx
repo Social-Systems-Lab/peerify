@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Circle, CrewApplication } from "@/models/models";
@@ -22,6 +23,9 @@ interface CrewApplicationsTableProps {
 // than a stripped-down reuse of that multi-question dialog.
 const CrewApplicationsTable: React.FC<CrewApplicationsTableProps> = ({ circle, applications }) => {
     const { toast } = useToast();
+    // revalidatePath in the actions doesn't reach the page this table is on (Crew Dashboard,
+    // Crew Applications settings), so refresh it: the row goes, the badge and roster update.
+    const router = useRouter();
     const [loadingStates, setLoadingStates] = useState<{ [key: string]: boolean }>({});
     const [openDialogs, setOpenDialogs] = useState<{ [key: string]: boolean }>({});
     // Only reachable from the View Details dialog's Approve button — the row's quick-Approve
@@ -36,6 +40,7 @@ const CrewApplicationsTable: React.FC<CrewApplicationsTableProps> = ({ circle, a
 
         if (result.success) {
             toast({ title: "Application Approved", description: result.message });
+            router.refresh();
         } else {
             toast({ title: "Error", description: result.message, variant: "destructive" });
         }
@@ -49,6 +54,7 @@ const CrewApplicationsTable: React.FC<CrewApplicationsTableProps> = ({ circle, a
 
         if (result.success) {
             toast({ title: "Application Rejected", description: result.message });
+            router.refresh();
         } else {
             toast({ title: "Error", description: result.message, variant: "destructive" });
         }
