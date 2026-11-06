@@ -699,7 +699,7 @@ export default function HomeContent({
                                                     Crew Dashboard
                                                     {pendingCrewApplicationCount > 0 ? (
                                                         <span
-                                                            className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-semibold text-primary-foreground"
+                                                            className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-semibold text-white"
                                                             aria-label={`${pendingCrewApplicationCount} pending Crew ${pendingCrewApplicationCount === 1 ? "application" : "applications"}`}
                                                             data-testid="crew-dashboard-pending-badge"
                                                         >

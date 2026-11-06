@@ -112,7 +112,7 @@ export default async function CrewDashboardPage({ params }: PageProps) {
                         <h2 className="text-xl font-semibold text-[#231f1a]">
                             Crew applications
                             {pendingApplications.length > 0 ? (
-                                <Badge className="ml-2 rounded-full px-2.5 py-0.5 align-middle">
+                                <Badge className="ml-2 rounded-full bg-red-500 px-2.5 py-0.5 align-middle text-white hover:bg-red-500">
                                     {pendingApplications.length} pending
                                 </Badge>
                             ) : null}
