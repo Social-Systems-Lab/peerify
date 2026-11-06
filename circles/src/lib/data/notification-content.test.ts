@@ -3,6 +3,9 @@
 // Before the fix, sendNotifications stored whole user/circle documents and /api/notifications
 // (listNotificationsForUser) returned them: other people's exact location, email, memberships,
 // Matrix credentials and venue contacts. Mentions also reached people who can't see the post.
+// Follow-up (2026-11-06): artist, venue and other circles have no `did` (createCircle never sets
+// one), and the shaping dropped them whole, so the bell lost its links and Review buttons for them.
+// The fixtures used to give the venue a `did`, which hid that; real circles are used below.
 // The database is in-memory fakes (testing/fake-db.ts); nothing real is touched.
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
@@ -30,11 +33,25 @@ const EMAIL = "canary.person@example.invalid";
 const VENUE_EMAIL = "canary.venue@example.invalid";
 const VENUE_PHONE = "+46 70 000 00 00";
 const VENUE_ADDRESS = "Canary Home Venue 9";
+const BOOKING_NOTE = "canary booking note: call after 6";
+const ARTIST_EMAIL = "canary.artist@example.invalid";
 const MATRIX = "canary-matrix-password";
 const PRIVATE_CIRCLE = "Canary private circle";
 const POST_TEXT = "canary members-only post text";
 
-const CANARIES = [STREET, String(LNG), EMAIL, VENUE_EMAIL, VENUE_PHONE, VENUE_ADDRESS, MATRIX, PRIVATE_CIRCLE, POST_TEXT];
+const CANARIES = [
+    STREET,
+    String(LNG),
+    EMAIL,
+    VENUE_EMAIL,
+    VENUE_PHONE,
+    VENUE_ADDRESS,
+    BOOKING_NOTE,
+    ARTIST_EMAIL,
+    MATRIX,
+    PRIVATE_CIRCLE,
+    POST_TEXT,
+];
 const leaked = (value: unknown) => {
     const text = JSON.stringify(value) ?? "";
     return CANARIES.filter((canary) => text.includes(canary));
@@ -42,7 +59,6 @@ const leaked = (value: unknown) => {
 
 const RECIPIENT = "did:test:recipient";
 const PERSON = "did:test:person";
-const VENUE = "did:test:venue";
 
 // A whole user document as getUserPrivate returns it.
 const rawPerson = () => ({
@@ -58,19 +74,56 @@ const rawPerson = () => ({
     memberships: [{ circle: { name: PRIVATE_CIRCLE } }],
     metadata: { peerify: { intent: "fan" } },
 });
-// A whole circle document as getCircleById returns it (SAFE_CIRCLE_PROJECTION).
+// Whole circle documents as getCircleById returns them (SAFE_CIRCLE_PROJECTION). Like real artist
+// and venue circles, they have no `did`.
 const venueCircle = () => ({
     _id: "64a000000000000000000b02",
-    did: VENUE,
     handle: "venue",
     name: "Venue",
+    picture: { url: "/v.png" },
     circleType: "circle",
+    createdBy: PERSON,
     location: { precision: 4, city: "Stockholm", street: STREET, lngLat: { lng: LNG, lat: 59.3 } },
-    accessRules: { feed: { view: ["everyone"] } },
+    accessRules: { feed: { view: ["everyone"] }, general: { manage_crew_applications: ["admins"] } },
     metadata: {
-        peerify: { venueProfile: { address: VENUE_ADDRESS, contactEmail: VENUE_EMAIL, phone: VENUE_PHONE } },
+        peerify: {
+            identityType: "venue",
+            venueProfile: {
+                address: VENUE_ADDRESS,
+                addressVisibility: "private",
+                contactEmail: VENUE_EMAIL,
+                phone: VENUE_PHONE,
+                bookingNote: BOOKING_NOTE,
+            },
+        },
     },
 });
+const artistCircle = () => ({
+    _id: "64a000000000000000000b03",
+    handle: "artist",
+    name: "Artist",
+    picture: { url: "/a.png" },
+    circleType: "circle",
+    createdBy: PERSON,
+    crewEnabled: true,
+    location: { precision: 4, city: "Stockholm", street: STREET, lngLat: { lng: LNG, lat: 59.3 } },
+    accessRules: { general: { manage_crew_applications: ["admins", "moderators"] } },
+    metadata: { peerify: { identityType: "band", contactEmail: ARTIST_EMAIL, bookingNote: BOOKING_NOTE } },
+});
+// What the bell needs, and nothing else.
+const identityOf = (circle: ReturnType<typeof venueCircle> | ReturnType<typeof artistCircle>) => ({
+    _id: circle._id,
+    handle: circle.handle,
+    name: circle.name,
+    picture: circle.picture,
+    circleType: circle.circleType,
+});
+const expectIdentityOnly = (shapedCircle: any, circle: ReturnType<typeof venueCircle> | ReturnType<typeof artistCircle>) => {
+    expect(shapedCircle).toEqual(identityOf(circle));
+    expect(shapedCircle.location).toBeUndefined();
+    expect(shapedCircle.metadata).toBeUndefined();
+    expect(shapedCircle.accessRules).toBeUndefined();
+};
 
 beforeEach(() => {
     fakeDb.reset();
@@ -108,7 +161,7 @@ describe("shapeNotificationContent", () => {
             picture: { url: "/p.png" },
             circleType: "user",
         });
-        expect(shaped.circle.handle).toBe("venue");
+        expectIdentityOnly(shaped.circle, venueCircle());
         expect(shaped.post).toEqual({
             _id: "p1",
             createdBy: PERSON,
@@ -170,6 +223,61 @@ describe("sendNotifications stores identity only", () => {
         const [stored] = fakeDb.col("Notifications").docs;
         expect(leaked(stored)).toEqual([]);
         expect(stored.content.user.name).toBe("Person");
+    });
+});
+
+describe("circles without a did (artists, venues) keep their identity, nothing more", () => {
+    test("crew_application to an artist circle: stored with circle _id and handle, no location, metadata or rules", async () => {
+        await sendNotifications("crew_application", [{ did: RECIPIENT }], { circle: artistCircle(), user: rawPerson() });
+
+        const [stored] = fakeDb.col("Notifications").docs;
+        expect(leaked(stored)).toEqual([]);
+        expectIdentityOnly(stored.content.circle, artistCircle());
+        expect(stored.content.circle._id).toBe("64a000000000000000000b03");
+        expect(stored.content.circle.handle).toBe("artist");
+        expect(stored.content.user.did).toBe(PERSON);
+    });
+
+    test("crew_application to a venue: contact email, phone, booking note and private address stay out", async () => {
+        await sendNotifications("crew_application", [{ did: RECIPIENT }], { circle: venueCircle(), user: rawPerson() });
+
+        const [stored] = fakeDb.col("Notifications").docs;
+        expect(leaked(stored)).toEqual([]);
+        expectIdentityOnly(stored.content.circle, venueCircle());
+        expect(stored.content.circle.handle).toBe("venue");
+    });
+
+    test("an older notification stored with the whole artist document comes back with its handle", async () => {
+        fakeDb.reset({
+            Notifications: [
+                {
+                    _id: "n2",
+                    userId: RECIPIENT,
+                    type: "crew_application",
+                    content: { circle: artistCircle(), user: rawPerson(), body: "Person applied to join Artist's Crew" },
+                    isRead: false,
+                    createdAt: new Date("2026-10-28T00:00:00Z"),
+                },
+            ],
+        });
+
+        const [notification] = await listNotificationsForUser(RECIPIENT);
+
+        expect(leaked(notification)).toEqual([]);
+        expectIdentityOnly(notification.content.circle, artistCircle());
+    });
+
+    test("artistCircle and targetParentCircle are kept as identity too", () => {
+        const shaped = shapeNotificationContent({
+            circle: venueCircle(),
+            artistCircle: artistCircle(),
+            targetParentCircle: venueCircle(),
+            eventId: "e1",
+        }) as any;
+
+        expect(leaked(shaped)).toEqual([]);
+        expectIdentityOnly(shaped.artistCircle, artistCircle());
+        expectIdentityOnly(shaped.targetParentCircle, venueCircle());
     });
 });
 
