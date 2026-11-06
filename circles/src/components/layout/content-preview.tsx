@@ -58,6 +58,7 @@ import { isPeerifyArtistIdentity, PEERIFY_DEFAULT_PROFILE_AVATAR_URL } from "@/l
 import { TrackPreviewList } from "../modules/music/track-preview-list";
 import PledgeDialog from "../modules/home/pledge-dialog";
 import JoinCrewDialog from "../modules/home/join-crew-dialog";
+import { isCrewOn } from "@/lib/peerify/crew-visibility";
 import { getCrewMembershipStatusAction } from "../modules/crew/actions";
 
 const sdgMap = new Map(sdgs.map((s) => [s.handle, s]));
@@ -401,7 +402,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                 {/* Hidden entirely (not just the "apply" state) when the artist has
                                     turned Crew off — a "View Crew"/"Application Pending" button
                                     would otherwise dangle to a route isModuleEnabled() now 404s. */}
-                                {circle.crewEnabled !== false &&
+                                {isCrewOn(circle) &&
                                     (crewMembershipStatus === "approved" ? (
                                         <Button
                                             type="button"

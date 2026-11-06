@@ -11,6 +11,8 @@ import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 import { toIdentityCircle } from "@/lib/utils/public-circle";
 import { getAllCrewApplicationsAction } from "@/components/modules/crew-applications/actions";
 import CrewApplicationsTable from "@/components/modules/crew-applications/crew-applications-table";
+import CrewOffNote from "@/components/modules/crew-applications/crew-off-note";
+import { isCrewOn } from "@/lib/peerify/crew-visibility";
 import { ArrowLeft, ArrowRight, LockKeyhole } from "lucide-react";
 import { CrewDashboardClient } from "./crew-dashboard-client";
 
@@ -39,13 +41,17 @@ export default async function CrewDashboardPage({ params }: PageProps) {
         redirect(`/circles/${handle}/access-denied?module=crew&redirectTo=/circles/${handle}/settings/crew`);
     }
 
+    // Crew switched off (Settings > Modules or the About toggle): managers get a short note with
+    // the way back, not the roster or the applications. Pending applications stay stored.
+    const crewOn = isCrewOn(circle);
+
     // getCrewOfferings excludes members with zero offerings entirely (see its own comment), so
     // the roster (the source of truth for who's a Crew member at all) and the offerings lookup
     // are fetched separately and left-joined below rather than derived from one query — a member
     // with no offerings must still show up as a card, just with an empty offerings section.
     const [members, offerers, applications] = await Promise.all([
-        getCrewMembers(circle._id, userDid),
-        getCrewOfferings(circle._id, undefined, true),
+        crewOn ? getCrewMembers(circle._id, userDid) : Promise.resolve([]),
+        crewOn ? getCrewOfferings(circle._id, undefined, true) : Promise.resolve([]),
         // Same action and permission check (manage_crew_applications) as the Crew Applications
         // settings page; anyone without it gets success: false and no section.
         getAllCrewApplicationsAction(circle._id),
@@ -92,7 +98,15 @@ export default async function CrewDashboardPage({ params }: PageProps) {
                 </div>
             </div>
 
-            {pendingApplications ? (
+            {!crewOn ? (
+                <CrewOffNote
+                    handle={handle}
+                    aboutToggleOff={circle.crewEnabled === false}
+                    pendingCount={pendingApplications?.length ?? 0}
+                />
+            ) : null}
+
+            {crewOn && pendingApplications ? (
                 <section id="applications" className="scroll-mt-24 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
                         <h2 className="text-xl font-semibold text-[#231f1a]">
@@ -117,7 +131,7 @@ export default async function CrewDashboardPage({ params }: PageProps) {
                 </section>
             ) : null}
 
-            {roster.length === 0 ? (
+            {!crewOn ? null : roster.length === 0 ? (
                 <Card className="rounded-lg border-dashed border-slate-300 bg-slate-50 shadow-none">
                     <CardContent className="flex min-h-40 flex-col items-center justify-center px-6 py-10 text-center">
                         <h2 className="text-xl font-semibold text-[#231f1a]">No Crew members yet</h2>

@@ -11,6 +11,7 @@ import { getCircleById, getCirclePath, updateCircle, getCircleByDid, getCirclesB
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { getAuthenticatedUserDid, getAuthorizedMembers, isAuthorized } from "@/lib/auth/auth";
 import { getCrewApplicationReviewers } from "@/lib/data/crew-review";
+import { CREW_OFF_APPLICATION_MESSAGE, isCrewOn } from "@/lib/peerify/crew-visibility";
 import { features } from "@/lib/data/constants";
 import { saveFile } from "@/lib/data/storage";
 import { getImageUploadErrorMessage } from "@/lib/media/sanitize-image";
@@ -196,9 +197,9 @@ export const applyForCrewMembership = async (circle: Circle, message: string): P
 
         // Re-check server-side, not just trust that the Join Crew button was hidden client-side —
         // a stale open dialog or a direct call could otherwise still submit an application after
-        // the artist has turned Crew off.
-        if (updatedCircle.crewEnabled === false) {
-            return { success: false, message: "Crew is not currently available for this circle" };
+        // the artist has turned Crew off, in Settings > Modules or with the About toggle (isCrewOn).
+        if (!isCrewOn(updatedCircle)) {
+            return { success: false, message: CREW_OFF_APPLICATION_MESSAGE };
         }
 
         // Same check the Join Crew button's own visibility is gated on (see home-content.tsx's

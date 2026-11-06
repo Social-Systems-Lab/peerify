@@ -4,6 +4,8 @@ import { getAllCrewApplicationsAction } from "@/components/modules/crew-applicat
 import { notFound } from "next/navigation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Terminal } from "lucide-react";
+import CrewOffNote from "@/components/modules/crew-applications/crew-off-note";
+import { isCrewOn } from "@/lib/peerify/crew-visibility";
 
 type PageProps = {
     params: Promise<{ handle: string }>;
@@ -31,6 +33,20 @@ export default async function CrewApplicationsPage({ params }: PageProps) {
                 <AlertTitle>Error Fetching Applications</AlertTitle>
                 <AlertDescription>{message || "An unexpected error occurred."}</AlertDescription>
             </Alert>
+        );
+    }
+
+    // Crew switched off: the same note as the Crew Dashboard (only reached by managers: the action
+    // above already refused everyone else). Pending applications stay stored.
+    if (!isCrewOn(circle)) {
+        return (
+            <div className="mx-auto w-full max-w-3xl p-6">
+                <CrewOffNote
+                    handle={circle.handle ?? p.handle}
+                    aboutToggleOff={circle.crewEnabled === false}
+                    pendingCount={pendingApplications.length}
+                />
+            </div>
         );
     }
 

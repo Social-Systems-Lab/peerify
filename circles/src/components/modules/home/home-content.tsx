@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { PublishManagedProfileButton } from "@/components/profiles/publish-managed-profile-button";
 import { VerifyAccountButton } from "../auth/verify-account-button";
 import JoinCrewDialog from "./join-crew-dialog";
+import { isCrewOn, showsCrewDashboardButton } from "@/lib/peerify/crew-visibility";
 import { getCrewMembershipStatusAction } from "@/components/modules/crew/actions";
 import SocialLinks from "./social-links";
 import { ProofOfHumanityHeaderAction } from "./proof-of-humanity-card";
@@ -154,11 +155,11 @@ export default function HomeContent({
     const showManagedDraftBanner =
         authorizedToEdit && isPeerifyManagedArtistIdentity && (circle.publishStatus ?? "published") === "draft";
     const showPledgesDashboardButton = authorizedToEdit && isPeerifyManagedArtistIdentity && Boolean(circle.handle);
-    // Same admin-only gating as the Pledges button above, plus crewEnabled !== false — mirrors
-    // the "hidden entirely when Crew is off" treatment the View Crew/Join Crew buttons already
-    // get below, since a Dashboard for a disabled feature would just be an empty, confusing page.
-    const showCrewDashboardButton =
-        authorizedToEdit && isPeerifyManagedArtistIdentity && circle.crewEnabled !== false && Boolean(circle.handle);
+    // Same admin-only gating as the Pledges button above, plus Crew on (Settings > Modules and the
+    // About toggle, see isCrewOn) — mirrors the "hidden entirely when Crew is off" treatment the
+    // View Crew/Join Crew buttons get below, since a Dashboard for a disabled feature would just be
+    // an empty, confusing page.
+    const showCrewDashboardButton = showsCrewDashboardButton(circle, authorizedToEdit);
     const circlePictureUrl = isPeerifyManagedArtistIdentity
         ? getPeerifyIdentityAvatarUrl(circle)
         : (circle?.picture?.url ?? "/images/default-picture.png");
@@ -663,7 +664,7 @@ export default function HomeContent({
                                         {/* Hidden entirely (not just the "apply" state) when the artist has
                                             turned Crew off — a "View Crew"/"Application Pending" button
                                             would otherwise dangle to a route isModuleEnabled() now 404s. */}
-                                        {circle.crewEnabled !== false &&
+                                        {isCrewOn(circle) &&
                                             (crewMembershipStatus === "approved" ? (
                                                 <Button
                                                     asChild

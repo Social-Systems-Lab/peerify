@@ -35,6 +35,7 @@ import {
 import { getCurrencyForCountryCode } from "@/lib/peerify/country-currency";
 import { getCrewMembershipStatusAction } from "@/components/modules/crew/actions";
 import JoinCrewDialog from "@/components/modules/home/join-crew-dialog";
+import { isCrewOn } from "@/lib/peerify/crew-visibility";
 
 export type PledgeFormState = {
     fanLocation: string;
@@ -105,7 +106,7 @@ export default function PledgeDialog({ circle, open, onOpenChange }: PledgeDialo
     // must never itself trigger a re-render.
     const currencyManuallyEditedRef = React.useRef(false);
     const isPeerifyManagedArtistIdentity = isPeerifyManagedIdentity(circle);
-    const canJoinCrew = isPeerifyArtistIdentity(circle) && circle.crewEnabled !== false;
+    const canJoinCrew = isPeerifyArtistIdentity(circle) && isCrewOn(circle);
 
     React.useEffect(() => {
         if (open) {
