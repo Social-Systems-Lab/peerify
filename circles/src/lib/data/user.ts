@@ -381,7 +381,9 @@ export const getUserPrivate = async (userDid: string): Promise<UserPrivate> => {
                                 picture: "$circle.picture",
                                 images: "$circle.images",
                                 mission: "$circle.mission",
-                                location: "$circle.location",
+                                // No location: for a direct chat this is the other person's profile,
+                                // and its location is their exact home (leak round 3, M6). The chat
+                                // pages don't use it.
                                 circleType: "$circle.circleType",
                             },
                             else: null
