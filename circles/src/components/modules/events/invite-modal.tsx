@@ -88,6 +88,7 @@ export default function InviteModal({ circleHandle, eventId, open, onOpenChange 
                 <UserPicker
                     onSelectionChange={setSelectedUsers}
                     circleHandle={circleHandle}
+                    eventId={eventId}
                     excludeDids={invitedUsers.map((u) => u.did!).filter(Boolean)}
                 />
                 {invitedUsers.length > 0 && (

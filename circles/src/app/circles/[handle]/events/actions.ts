@@ -1447,6 +1447,7 @@ export async function getEventArtistsAction(
 export async function searchArtistCirclesAction(
     query: string,
     limit: number = 10,
+    eventId?: string,
 ): Promise<GetCirclesBySearchQueryActionResult> {
     const defaultResult: GetCirclesBySearchQueryActionResult = { circles: [] };
 
@@ -1697,6 +1698,30 @@ export async function ensureShadowPostForEventAction(eventId: string, circleId: 
 /**
  * Invite users to an event
  */
+// Who may invite people to an event: the same rule as editing it (updateEventAction): its creator,
+// anyone with events.moderate on the hosting circle, or an admin of one of the event's artist
+// circles. The invite picker's follower rows follow it too (getCircleMembersAction).
+async function mayInviteToEvent(
+    userDid: string,
+    circle: Circle,
+    event: { createdBy?: string; artistAdminCircleIds?: string[] },
+): Promise<boolean> {
+    if (userDid === event.createdBy) return true;
+    if (await isAuthorized(userDid, circle._id as string, features.events.moderate)) return true;
+    return await isCircleAdminOfAny(userDid, event.artistAdminCircleIds);
+}
+
+// The invite picker lists a circle's followers. Since 2026-11-07 follower rows are for the circle's
+// admins and moderators (canViewFollowerList), and for someone who may invite people to the event
+// the picker is open for, so inviting keeps working for event creators and artist admins.
+async function mayListInviteCandidates(userDid: string, circle: Circle, eventId?: string): Promise<boolean> {
+    if (await canViewFollowerList(circle, userDid)) return true;
+    if (!eventId || !ObjectId.isValid(eventId)) return false;
+    const event = await getEventById(eventId, userDid);
+    if (!event || event.circleId !== String(circle._id)) return false;
+    return await mayInviteToEvent(userDid, circle, event);
+}
+
 export async function inviteUsersToEventAction(
     circleHandle: string,
     eventId: string,
@@ -1715,12 +1740,7 @@ export async function inviteUsersToEventAction(
         const event = await getEventById(eventId, userDid);
         if (!event || event.circleId !== String(circle._id)) return { success: false, message: "Event not found" };
 
-        // Same rule as editing the event (updateEventAction): its creator, anyone with events.moderate
-        // on the hosting circle, or an admin of one of the event's artist circles.
-        const isAuthor = userDid === event.createdBy;
-        const canModerate = await isAuthorized(userDid, circle._id as string, features.events.moderate);
-        const isArtistAdmin = await isCircleAdminOfAny(userDid, event.artistAdminCircleIds);
-        if (!isAuthor && !canModerate && !isArtistAdmin) {
+        if (!(await mayInviteToEvent(userDid, circle, event))) {
             return { success: false, message: "Only people who can edit this event can invite others to it." };
         }
 
@@ -1890,7 +1910,10 @@ export async function rsvpEventWithOptionsAction(
 /**
  * Cancel RSVP
  */
-export async function getCircleMembersAction(circleHandle: string): Promise<GetCircleMembersActionResult> {
+export async function getCircleMembersAction(
+    circleHandle: string,
+    eventId?: string,
+): Promise<GetCircleMembersActionResult> {
     const defaultResult: GetCircleMembersActionResult = { members: [] };
 
     try {
@@ -1909,9 +1932,9 @@ export async function getCircleMembersAction(circleHandle: string): Promise<GetC
             };
         }
 
-        // The invite picker lists the circle's followers: only for people who may see that list
-        // (approval-required circles: followers only; leak round 3, M2 / D2).
-        if (!(await canViewFollowerList(circle, userDid))) return defaultResult;
+        // The invite picker lists the circle's followers: only for the circle's admins and
+        // moderators, or someone who may invite people to this event (2026-11-07).
+        if (!(await mayListInviteCandidates(userDid, circle, eventId))) return defaultResult;
 
         const members = await getMembers(circle._id!.toString());
         const memberDids = members.map((m) => m.userDid);
@@ -2034,6 +2057,7 @@ export async function searchEligibleUsersAction(
     circleHandle: string,
     query: string,
     limit: number = 10,
+    eventId?: string,
 ): Promise<GetCirclesBySearchQueryActionResult> {
     const defaultResult: GetCirclesBySearchQueryActionResult = { circles: [] };
 
@@ -2052,6 +2076,10 @@ export async function searchEligibleUsersAction(
             const circles = await searchAcceptedConnectionsForUserDid(userDid, query, limit);
             return { circles };
         }
+
+        // The eligibility filter below tells who may view this circle's events, which can be its
+        // followers: same rule as the picker's list (getCircleMembersAction).
+        if (!(await mayListInviteCandidates(userDid, circle, eventId))) return defaultResult;
 
         const { circles } = await getCirclesBySearchQueryAction(query, limit, "user");
 

@@ -187,6 +187,35 @@ describe("the Followers tab and follower links (count only for everyone else)", 
     });
 });
 
+describe("the event invite picker for an event: people who may invite keep it", () => {
+    const EVENT_ID = "64f7000000000000000000e1";
+    const OTHER_EVENT_ID = "64f7000000000000000000e2";
+    beforeEach(() => {
+        // getEventById's aggregate output: FAN created an event in the open band.
+        fakeDb.setAggregateResult("Events", [
+            { _id: EVENT_ID, circleId: OPEN_ID, title: "Fan's show", stage: "open", createdBy: FAN },
+        ]);
+    });
+
+    test("the event's creator (a plain follower) gets the follower rows for their event", async () => {
+        sessionDid = FAN;
+        expect((await getCircleMembersAction("open", EVENT_ID)).members.length).toBeGreaterThan(0);
+    });
+
+    test("a stranger who didn't create it gets nothing, with or without the event", async () => {
+        sessionDid = STRANGER;
+        expect((await getCircleMembersAction("open", EVENT_ID)).members).toEqual([]);
+    });
+
+    test("an event of another circle doesn't open this circle's list", async () => {
+        fakeDb.setAggregateResult("Events", [
+            { _id: OTHER_EVENT_ID, circleId: CLOSED_ID, title: "Other", stage: "open", createdBy: FAN },
+        ]);
+        sessionDid = FAN;
+        expect((await getCircleMembersAction("open", OTHER_EVENT_ID)).members).toEqual([]);
+    });
+});
+
 describe("the event invite picker without an event", () => {
     test("a follower and a stranger get no follower rows; an admin does", async () => {
         for (const viewer of [FAN, STRANGER]) {

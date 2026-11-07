@@ -13,6 +13,9 @@ type Props = {
     onSelectionChange: (selected: Circle[]) => void;
     initialSelection?: Circle[];
     circleHandle?: string;
+    // The event the picker invites to: lets its creator and artist admins list the circle's
+    // followers (otherwise for the circle's admins and moderators only).
+    eventId?: string;
     excludeDids?: string[];
     placeholder?: string;
     // Override the candidate pool instead of circleHandle's default (event-eligible members/
@@ -30,6 +33,7 @@ export default function UserPicker({
     onSelectionChange,
     initialSelection = [],
     circleHandle,
+    eventId,
     excludeDids = [],
     placeholder = "Invite users...",
     fetchInitial,
@@ -47,7 +51,7 @@ export default function UserPicker({
             const members = fetchInitial
                 ? await fetchInitial()
                 : circleHandle
-                  ? (await getCircleMembersAction(circleHandle)).members
+                  ? (await getCircleMembersAction(circleHandle, eventId)).members
                   : [];
             const filtered = (members || []).filter((u) => !excludeDids?.includes(u.did!));
             setDefaultUsers(filtered);
@@ -55,7 +59,7 @@ export default function UserPicker({
             setHasLoadedInitial(true);
         };
         fetchInitialUsers();
-    }, [circleHandle, excludeDids, fetchInitial]);
+    }, [circleHandle, eventId, excludeDids, fetchInitial]);
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -67,7 +71,7 @@ export default function UserPicker({
                 const circles = fetchSearch
                     ? await fetchSearch(search, 20)
                     : circleHandle
-                      ? (await searchEligibleUsersAction(circleHandle, search, 20)).circles
+                      ? (await searchEligibleUsersAction(circleHandle, search, 20, eventId)).circles
                       : [];
                 const filtered = (circles || []).filter((u) => !excludeDids?.includes(u.did!));
                 setResults(filtered);
@@ -79,7 +83,7 @@ export default function UserPicker({
 
         const debounce = setTimeout(fetchUsers, 300);
         return () => clearTimeout(debounce);
-    }, [search, defaultUsers, excludeDids, fetchSearch, circleHandle]);
+    }, [search, defaultUsers, excludeDids, fetchSearch, circleHandle, eventId]);
 
     const handleSelect = (user: Circle) => {
         if (!selected.find((s) => s.did === user.did)) {

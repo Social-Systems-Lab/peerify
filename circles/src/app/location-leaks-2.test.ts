@@ -326,7 +326,7 @@ describe("event artists, invited users and the member picker", async () => {
         fakeDb.setAggregateResult("Events", [
             { _id: EVENT_ID, circleId: HOST_ID, title: "Show", stage: "open", createdBy: "did:test:host" },
         ]);
-        for (const did of [STRANGER, OWNER, ADMIN]) {
+        for (const did of [STRANGER, OWNER, ADMIN, "did:test:host"]) {
             grants.add(grantKey(did, HOST_ID, features.events.view));
             // The default "View followers" rule (everyone); the invite picker checks it since D2.
             grants.add(grantKey(did, HOST_ID, features.followers.view));
@@ -340,6 +340,13 @@ describe("event artists, invited users and the member picker", async () => {
         expect(invited.users).toEqual([]);
         expect(members.members).toEqual([]);
         expect(leaks(invited)).toEqual(NO_LEAKS);
+    });
+
+    test("the event's creator gets the picker's member without private data (2026-11-07: creators may still invite)", async () => {
+        signedInAs("did:test:host");
+        const members = await getCircleMembersAction("host", EVENT_ID);
+        expect(members.members.map((u) => u.did)).toEqual([OWNER]);
+        expect(leaks(members)).toEqual(NO_LEAKS);
     });
 
     test("event artists: the coarse pin survives (redacted once, not twice)", async () => {
