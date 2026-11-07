@@ -8,7 +8,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `44bb7e4b`** (staging), live since 2026-11-06 05:52 UTC. The 2026-11-02 release was `0c637397` (tree = staging `8ab88b39`); since then `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry below.
+- **Prod = `0be44136`** (staging), live since 2026-11-06 09:55 UTC. Staging is one commit ahead (`f8ecfd05`, the red badge), waiting for the next release. The 2026-11-02 release was `0c637397` (tree = staging `8ab88b39`); since then `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry below.
 - **Next on prod:** storage steps 2–5 (run sheet `~/cc-reports/outbox/20261102-1640-prod-runsheet.tar.gz`). Then step 6: rebuild `a440d431` (the `/storage` refusal of `offer-photo*` names) as a new staging commit together with V4.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
@@ -16,7 +16,30 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
 - See OPERATIONS.md for architecture.
 - **Backups (top roadmap risk):** automated, encrypted, off-box backups are built on branch `backup/automated-backups` (`circles/scripts/backup/`). Rollout is next, staging first. Then the erasure log, then the registry question. See the 2026-11-04 entry.
-- **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):** Tim is likely to notify IMY by Sun 2026-11-08 05:28 UTC. Containment C1–C4 is live on prod since 2026-11-05 08:51 UTC (`f67ab5ea`); H3–H7 and H9 since 2026-11-06 05:52 UTC (`44bb7e4b`). Left: M1–M9, L1–L9, the approve/reject `circleId` check. See the 2026-11-05 and 2026-11-06 entries.
+- **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):** Tim is likely to notify IMY by Sun 2026-11-08 05:28 UTC. Containment C1–C4 is live on prod since 2026-11-05 08:51 UTC (`f67ab5ea`); H3–H7 and H9 since 2026-11-06 05:52 UTC (`44bb7e4b`); the crew-application half of the approve/reject `circleId` check since 09:55 UTC (`0be44136`). Left: M1–M9, L1–L9, the same check for membership requests. See the 2026-11-05 and 2026-11-06 entries.
+
+---
+
+## 2026-11-06 (cont.) — Crew applications: C1 identity fix, Crew Dashboard review, Crew module gate (`ed8a8393`..`f8ecfd05`)
+
+Reports: `~/cc-reports/outbox/20261106-0630-crew-applications.tar.gz` (Part 1 investigation, then the Part 2 diff in `20261106-0815-crew-applications.tar.gz`), `20261106-0650-c1-identity-fix.tar.gz`, `20261106-0917-crew-module-gate.tar.gz`.
+
+**The problem (Part 1):** admins of artist circles got the "new crew application" notification, but the bell had no Review button. Cause: C1's notification shaping (`f67ab5ea`) kept an object as an identity only if it had a `did`. Artist, venue and other circles never get a `did` (`createCircle`), so their `circle` was dropped, and the bell had no handle to link to. Crew applications also had no place on the Crew Dashboard, and the notification went to moderators who can't open `/settings`.
+
+**The fixes** (one commit each; every one with tests that fail on the old code):
+- **`ed8a8393` C1 follow-up, shaping:** `circle`, `user`, `artistCircle`, `targetParentCircle` and `subject` are treated as identities even without a `did` (kept: `_id, did, handle, name, picture, circleType` only). The test venue no longer has a `did` and carries a private address, contact email, phone, booking note and Crew access rules; none of them survive. Crew notifications stored without a circle between 2026-11-05 08:51 UTC and this deploy: no fallback, Tim handles those few by hand.
+- **`10214a46` Crew Dashboard:** pending applications listed on `/circles/<h>/settings/crew` (`#applications`), with approve/reject (page refreshes after). A count badge on the Crew Dashboard button, for people who can manage crew applications only. The bell's and push notification's Review link go to the Dashboard (`getCrewApplicationsReviewPath`). The `crew_application` notification now goes to admins only (managers who can also edit About), as Tim chose, since moderators can't open settings. Personal profiles (not managed identities) are redirected to the Crew Applications page.
+- **`2f9f6c31` Crew module gate:** Join Crew, View Crew, the Crew Dashboard button and its badge checked only the About toggle (`crewEnabled`), so they still showed when Crew was off in Settings > Modules, and View Crew led to "not found". Every entry point now uses `isCrewOn` (= `isModuleEnabled(circle, "crew")`, the navigation's check). A new application is refused server-side when Crew is off. The Dashboard and Crew Applications pages show managers a "Crew is switched off" note with links to Settings > Modules (and the About toggle) and how many pending applications are kept.
+- **`0be44136` integrity, crew applications:** approve/reject refuse an application whose `circleId` isn't the circle acted on ("This application isn't for this circle."), before any change. Previously an admin of circle X could approve circle Y's applicant into X's Crew, or reject Y's application.
+- **`f8ecfd05` UI:** the badge and the "N pending" pill on the Dashboard in the bell's red (`bg-red-500`). **On staging only**, waiting for the next release.
+
+**Checks:** tsc (nothing new), eslint clean, `bun run build` clean, full test suite unchanged apart from the new tests (`participation-readiness` fails on staging too). Tim ran the staging checks, then released to prod: `ed8a8393` first, then `0be44136` (with `10214a46` and `2f9f6c31`), **live since 2026-11-06 09:55 UTC**.
+
+**Still to run (read-only, Tim, as `tim_admin`; scripts in the packages above):**
+- Prod: `nondid-circle-contacts.mongosh.js` (`EXPECT_DB=circles`): notifications stored before C1 that hold an artist, venue or other circle (no `did`) with a venue contact email, phone, booking note or non-public address, sent to someone who isn't that circle's creator or admin. The earlier counts recognised records by `did`, so these weren't covered.
+- Staging: `crew-off-pending.mongosh.js` (`EXPECT_DB=peerify_staging`), output to `~/cc-reports/inbox/crew-off-pending-staging.txt`: pending applications for circles with Crew off. Suggestion: keep them (the note says they're kept); stale ones where the applicant is already in that Crew could be marked approved later, very old ones rejected. Decide after the counts, then the same count on prod.
+
+**Left from round 3:** M1–M9 and L1–L9 as in the entry below. The integrity item is half done: **membership requests** (`approveMembershipRequestAction`/`rejectMembershipRequestAction` in `components/modules/membership-requests/actions.tsx`) still don't check `request.circleId`. Prod had 0 membership requests stored on 2026-11-06, so nothing to undo, but the hole is open.
 
 ---
 
