@@ -16,7 +16,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
 - See OPERATIONS.md for architecture.
 - **Backups (top roadmap risk):** automated, encrypted, off-box backups are built on branch `backup/automated-backups` (`circles/scripts/backup/`). Rollout is next, staging first. Then the erasure log, then the registry question. See the 2026-11-04 entry.
-- **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):** Tim is likely to notify IMY by Sun 2026-11-08 05:28 UTC. Containment C1–C4 is live on prod since 2026-11-05 08:51 UTC (`f67ab5ea`); H3–H7 and H9 since 2026-11-06 05:52 UTC (`44bb7e4b`); the crew-application half of the approve/reject `circleId` check since 09:55 UTC (`0be44136`). Left: M1–M9, L1–L9, the same check for membership requests. See the 2026-11-05 and 2026-11-06 entries.
+- **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):** Tim is likely to notify IMY by Sun 2026-11-08 05:28 UTC. Containment C1–C4 is live on prod since 2026-11-05 08:51 UTC (`f67ab5ea`); H3–H7 and H9 since 2026-11-06 05:52 UTC (`44bb7e4b`); the crew-application half of the approve/reject `circleId` check since 09:55 UTC (`0be44136`). Left: M1–M9 (next task, together with the same check for membership requests), L1–L9. Venue contacts in notifications: prod count 0 (2026-11-06 07:26Z). See the 2026-11-05 and 2026-11-06 entries.
 
 ---
 
@@ -35,11 +35,11 @@ Reports: `~/cc-reports/outbox/20261106-0630-crew-applications.tar.gz` (Part 1 in
 
 **Checks:** tsc (nothing new), eslint clean, `bun run build` clean, full test suite unchanged apart from the new tests (`participation-readiness` fails on staging too). Tim ran the staging checks, then released to prod: `ed8a8393` first, then `0be44136` (with `10214a46` and `2f9f6c31`), **live since 2026-11-06 09:55 UTC**.
 
-**Still to run (read-only, Tim, as `tim_admin`; scripts in the packages above):**
-- Prod: `nondid-circle-contacts.mongosh.js` (`EXPECT_DB=circles`): notifications stored before C1 that hold an artist, venue or other circle (no `did`) with a venue contact email, phone, booking note or non-public address, sent to someone who isn't that circle's creator or admin. The earlier counts recognised records by `did`, so these weren't covered.
-- Staging: `crew-off-pending.mongosh.js` (`EXPECT_DB=peerify_staging`), output to `~/cc-reports/inbox/crew-off-pending-staging.txt`: pending applications for circles with Crew off. Suggestion: keep them (the note says they're kept); stale ones where the applicant is already in that Crew could be marked approved later, very old ones rejected. Decide after the counts, then the same count on prod.
+**Read-only counts (scripts in the packages above):**
+- **Prod, `nondid-circle-contacts.mongosh.js`:** Tim ran it on 2026-11-06 07:26Z as `tim_admin`. **Every count was 0**: no notification sent a venue contact email, phone, booking note or non-public address of an artist, venue or other circle (no `did`) to anyone. The earlier counts recognised records by `did`, so this closes the gap they left.
+- **Staging, `crew-off-pending.mongosh.js`:** skipped, because staging holds test data. Run the same count on prod later only if Crew-off circles with pending applications become relevant.
 
-**Left from round 3:** M1–M9 and L1–L9 as in the entry below. The integrity item is half done: **membership requests** (`approveMembershipRequestAction`/`rejectMembershipRequestAction` in `components/modules/membership-requests/actions.tsx`) still don't check `request.circleId`. Prod had 0 membership requests stored on 2026-11-06, so nothing to undo, but the hole is open.
+**Left from round 3:** M1–M9 and L1–L9 as in the entry below. The integrity item is half done: **membership requests** (`approveMembershipRequestAction`/`rejectMembershipRequestAction` in `components/modules/membership-requests/actions.tsx`) still don't check `request.circleId`. Prod had 0 membership requests stored on 2026-11-06, so nothing to undo, but the hole is open. **It moves into the next task, with M1–M9.**
 
 ---
 
