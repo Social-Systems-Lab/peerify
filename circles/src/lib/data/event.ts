@@ -223,8 +223,13 @@ function sanitizePeerifyPublicEventMetadata(event: EventDisplay): EventDisplay["
 }
 
 export function sanitizePeerifyPublicEventDisplay(fullEvent: EventDisplay): EventDisplay {
-    // Invitee DIDs are for the event's managers only (leak round 3, 2026-11-05).
-    const { invitations: _invitations, ...event } = fullEvent;
+    // Invitee DIDs are for the event's managers only (leak round 3, 2026-11-05). So is the audience
+    // (userGroups): its group handles name hidden groups such as Crew (M1, 2026-11-07). Callers that
+    // filter by audience must do so before sanitizing (filterEventsByAudience, shapeEventsForViewer).
+    // Typed as EventDisplay although userGroups is absent: never fill it in with [], which would
+    // read as "open to everyone".
+    const { invitations: _invitations, userGroups: _userGroups, ...withoutPrivate } = fullEvent;
+    const event = withoutPrivate as EventDisplay;
     const locationDisclosure = getPeerifyEventLocationDisclosure(event);
     const metadata = sanitizePeerifyPublicEventMetadata(event);
     const publicMapLocation = sanitizePeerifyPublicMapLocation(getPeerifyEventMetadata(event).publicMapLocation);
@@ -1822,7 +1827,8 @@ export const getOpenEventsForMap = async (
         ]).toArray()) as EventDisplay[];
 
         // TODO: Visually differentiate approximate/secret/TBD Peerify event markers on the map.
-        return filterEventsByAudience(events.map(sanitizePeerifyPublicEventDisplay), userDid);
+        // Audience first: the sanitized shape no longer carries userGroups.
+        return (await filterEventsByAudience(events, userDid)).map(sanitizePeerifyPublicEventDisplay);
     } catch (error) {
         console.error("Error getting open events for map:", error);
         throw error;
@@ -2063,7 +2069,8 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
 
         // This list reaches anonymous visitors (events panels): same public shape as the map —
         // locationDisclosure applied, privateLocationNote and other private metadata dropped.
-        return filterEventsByAudience(events.map(sanitizePeerifyPublicEventDisplay), userDid);
+        // Audience first: the sanitized shape no longer carries userGroups.
+        return (await filterEventsByAudience(events, userDid)).map(sanitizePeerifyPublicEventDisplay);
     } catch (error) {
         console.error("Error getting open events for list:", error);
         throw error;

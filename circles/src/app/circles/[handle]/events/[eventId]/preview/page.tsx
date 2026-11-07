@@ -31,14 +31,14 @@ export default async function EventPreviewPage(props: PageProps) {
         notFound();
     }
 
-    // See the detail page's identical check: the event's host circle can change after creation,
-    // so a stale /preview link should follow it to the new host rather than dead-ending.
-    if (event.circle?.handle && event.circle.handle !== params.handle) {
-        redirect(`/circles/${event.circle.handle}/events/${params.eventId}/preview`);
-    }
-
+    // Author or moderator of the event's own host circle, checked before the redirect below: the
+    // redirect names the host, which for a draft only these people may learn (leak round 3, M1).
     const isAuthor = userDid === event.createdBy;
-    const canModerate = await isAuthorized(userDid, circle._id as string, features.events.moderate);
+    const canModerate = await isAuthorized(
+        userDid,
+        String(event.circleId ?? circle._id),
+        features.events.moderate,
+    );
     if (!isAuthor && !canModerate) {
         return (
             <div className="flex h-full w-full flex-col items-center justify-center p-4 text-center">
@@ -52,6 +52,12 @@ export default async function EventPreviewPage(props: PageProps) {
                 </Button>
             </div>
         );
+    }
+
+    // See the detail page's identical check: the event's host circle can change after creation,
+    // so a stale /preview link should follow it to the new host rather than dead-ending.
+    if (event.circle?.handle && event.circle.handle !== params.handle) {
+        redirect(`/circles/${event.circle.handle}/events/${params.eventId}/preview`);
     }
 
     // Run through the exact same sanitizer an anonymous visitor's request would (see
