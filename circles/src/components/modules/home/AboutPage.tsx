@@ -44,6 +44,8 @@ import { UpcomingShiftsPanel } from "./upcoming-shifts-panel";
 import type { FundingAskDisplay, TaskDisplay } from "@/models/models";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { UserPicture } from "../members/user-picture";
+import TeamCard, { shouldShowTeamCard } from "./team-card";
+import type { TeamCardData, TeamCardRole } from "@/lib/peerify/team-card";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { ProofOfHumanityCard } from "./proof-of-humanity-card";
 import type { HumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
@@ -76,6 +78,9 @@ interface AboutPageProps {
     showFundingPanel?: boolean;
     showUpcomingShiftsPanel?: boolean;
     adminLeaders?: MemberDisplay[];
+    teamCard?: TeamCardData | null;
+    viewerTeamRole?: TeamCardRole | null;
+    viewerOnTeamCard?: boolean;
     proofOfHumanitySummary?: HumanityVerificationSummary | null;
     featuredTracks?: FeaturedTrack[];
 }
@@ -143,6 +148,9 @@ export default function AboutPage({
     showFundingPanel = false,
     showUpcomingShiftsPanel = false,
     adminLeaders = [],
+    teamCard = null,
+    viewerTeamRole = null,
+    viewerOnTeamCard = false,
     proofOfHumanitySummary = null,
     featuredTracks = [],
 }: AboutPageProps) {
@@ -395,8 +403,10 @@ export default function AboutPage({
         peerifyVenueProfile.bookingEnquiriesEnabled === true;
     const showArtistBookingCard =
         PEERIFY_BOOKING_ENQUIRIES_ENABLED && isPeerifyArtistProfile && peerifyArtistProfile.bookingEnabled;
+    const hasTeamCard = !isUserProfile && !!teamCard && shouldShowTeamCard(teamCard, viewerTeamRole);
     const hasSidebarContent =
         isPeerifyArtistProfile ||
+        hasTeamCard ||
         hasBandInfoContent ||
         shouldShowProfileStatus ||
         hasOverviewDetails ||
@@ -1083,6 +1093,19 @@ export default function AboutPage({
                                     <div className="text-xs text-muted-foreground">
                                         More ways to get involved are coming soon.
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Team card: right column, below Get Involved (2026-11-07). */}
+                            {hasTeamCard && teamCard && circle._id && (
+                                <div className="md:order-[26]">
+                                    <TeamCard
+                                        circleId={String(circle._id)}
+                                        data={teamCard}
+                                        viewerRole={viewerTeamRole}
+                                        viewerOnCard={viewerOnTeamCard}
+                                        isCompact={isCompact}
+                                    />
                                 </div>
                             )}
 

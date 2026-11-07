@@ -11,7 +11,9 @@ import { getShiftEndAt, getShiftStartAt, isShiftTask } from "@/components/module
 import type { Circle, EventDisplay, TaskDisplay, TaskPermissions } from "@/models/models";
 import type { FundingAskDisplay } from "@/models/models";
 import { getFundingCirclePermissions, isFundingEnabledForCircle, listFundingAsksByCircleId } from "@/lib/data/funding";
-import { getMembers } from "@/lib/data/member";
+import { getMember, getMembers } from "@/lib/data/member";
+import { getTeamCard } from "@/lib/data/team-card";
+import { teamCardRoleOf, type TeamCardData, type TeamCardRole } from "@/lib/peerify/team-card";
 import { getHumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
 import { isPeerifyArtistIdentity, isPeerifyManagedIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import { getEventsByCircleId, getPublicEventsByCircleId, shapeEventsForViewer } from "@/lib/data/event";
@@ -69,6 +71,18 @@ export default async function CircleHomePage(props: PageProps) {
                   .filter((member) => member.userGroups?.includes("admins"))
                   .slice(0, 6)
             : [];
+
+    // The Team card (2026-11-07): opted-in admins and moderators and the admins' note, for every
+    // circle but personal profiles. The viewer's own role decides whether they get its controls.
+    let teamCard: TeamCardData | null = null;
+    let viewerTeamRole: TeamCardRole | null = null;
+    let viewerOnTeamCard = false;
+    if (circle.circleType !== "user" && circle._id) {
+        teamCard = await getTeamCard(String(circle._id));
+        const viewerMember = viewerDid ? await getMember(viewerDid, String(circle._id)) : null;
+        viewerTeamRole = teamCardRoleOf(viewerMember?.userGroups);
+        viewerOnTeamCard = !!viewerTeamRole && viewerMember?.teamCardVisible === true;
+    }
 
     // Same condition as AboutPage's shouldShowVerifiedContributions — while the panel is hidden,
     // don't load (or send to the client) any contribution data at all.
@@ -287,6 +301,9 @@ export default async function CircleHomePage(props: PageProps) {
             showFundingPanel={showFundingPanel}
             showUpcomingShiftsPanel={showUpcomingShiftsPanel}
             adminLeaders={JSON.parse(JSON.stringify(adminLeaders))}
+            teamCard={teamCard}
+            viewerTeamRole={viewerTeamRole}
+            viewerOnTeamCard={viewerOnTeamCard}
             proofOfHumanitySummary={proofOfHumanitySummary ? JSON.parse(JSON.stringify(proofOfHumanitySummary)) : null}
             featuredTracks={featuredTracks}
         />

@@ -228,6 +228,7 @@ export const getUserPrivate = async (userDid: string): Promise<UserPrivate> => {
                 circleId: 1,
                 userGroups: 1,
                 joinedAt: 1,
+                teamCardVisible: 1, // the member's own Team card setting (the Follower menu's switch)
                 circle: {
                     _id: { $toString: "$circle._id" },
                     name: "$circle.name",

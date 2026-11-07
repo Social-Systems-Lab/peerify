@@ -7,6 +7,8 @@ import { Circle } from "@/models/models";
 import { useAtom } from "jotai";
 import { usePathname, useRouter } from "next/navigation";
 import { followCircle, leaveCircle, cancelFollowRequest } from "./actions";
+import { setTeamCardVisibilityAction } from "./team-card-actions";
+import { teamCardRoleOf } from "@/lib/peerify/team-card";
 import { useToast } from "@/components/ui/use-toast";
 import {
     DropdownMenu,
@@ -51,6 +53,31 @@ export const FollowButton = ({ circle, renderCompact }: CircleMembershipButtonPr
         if (pendingRequest) return "pending";
         return "not-member";
     }, [circle._id, user]);
+
+    // Admins and moderators of a circle (not a personal profile) switch their Team card entry here
+    // too (2026-11-07); the card on the About page has the same switch.
+    const ownMembership = user?.memberships?.find((m) => m.circleId === circle._id);
+    const teamRole = !isUserCircle ? teamCardRoleOf(ownMembership?.userGroups) : null;
+    const onTeamCard = ownMembership?.teamCardVisible === true;
+    const onToggleTeamCardClick = async () => {
+        if (!circle._id) return;
+        const result = await setTeamCardVisibilityAction(circle._id, !onTeamCard);
+        if (!result.success) {
+            toast({ icon: "error", title: "Error", description: result.message, variant: "destructive" });
+            return;
+        }
+        setUser((prevUser) =>
+            prevUser
+                ? {
+                      ...prevUser,
+                      memberships: prevUser.memberships.map((m) =>
+                          m.circleId === circle._id ? { ...m, teamCardVisible: !onTeamCard } : m,
+                      ),
+                  }
+                : prevUser,
+        );
+        router.refresh();
+    };
 
     const onFollowCircleClick = async () => {
         if (!user) {
@@ -196,6 +223,11 @@ export const FollowButton = ({ circle, renderCompact }: CircleMembershipButtonPr
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent>
+                            {teamRole && (
+                                <DropdownMenuItem onClick={onToggleTeamCardClick}>
+                                    {onTeamCard ? "Remove me from the Team card" : "Show me on the Team card"}
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem onClick={handleLeaveCircleClick}>
                                 {isUserCircle 
                                   ? "Unfollow User" 

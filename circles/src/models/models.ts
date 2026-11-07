@@ -113,6 +113,9 @@ export const memberSchema = z.object({
     // small, curated group ("opt out if you want privacy"), not a discovery surface where
     // opt-in-only makes sense.
     crewVisible: z.boolean().default(true).optional(),
+    // Team card on the circle's About page (2026-11-07): an admin or moderator appears on it only
+    // after switching this on themself. Per person, per circle; off by default.
+    teamCardVisible: z.boolean().optional(),
 });
 
 export type Member = z.infer<typeof memberSchema>;
@@ -123,6 +126,7 @@ export type Membership = {
     joinedAt: Date;
     circle: Circle;
     questionnaireAnswers?: Record<string, string>;
+    teamCardVisible?: boolean;
 };
 
 export type ChatRoomMembership = ChatRoomMember & {
@@ -879,6 +883,11 @@ export const circleSchema = z.object({
     pledgesEnabled: z.boolean().default(true).optional(),
     isPublic: z.boolean().optional(),
     showAdminsPublicly: z.boolean().optional(),
+    // The Team card's note (2026-11-07): one short plain-text note an admin posts, public. Not in
+    // SAFE_CIRCLE_PROJECTION: read only through getTeamCard (lib/data/team-card.ts).
+    teamNote: z
+        .object({ text: z.string(), authorDid: z.string(), updatedAt: z.date() })
+        .optional(),
     mapVisible: z.boolean().optional(),
     searchable: z.boolean().optional(),
     // Independent from mapVisible/searchable — a user can show offer pins on the public map
