@@ -314,7 +314,9 @@ export async function getPostsAction(
         redirect("/not-found");
     }
 
-    const authorized = await isAuthorized(userDid, circleId, getFeedViewFeature(feed.handle));
+    // The feed's own circle, never the circleId the client sends: with another circle's id, a
+    // restricted feed's posts could be read (leak round 3, M8). circleId stays for older callers.
+    const authorized = await isAuthorized(userDid, feed.circleId, getFeedViewFeature(feed.handle));
     if (!authorized) {
         redirect("/unauthorized");
     }
