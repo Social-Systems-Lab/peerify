@@ -75,7 +75,7 @@ import { getMembers, isCircleAdmin, isCircleAdminOfAny } from "@/lib/data/member
 import { addCommentToDiscussion } from "@/lib/data/discussion";
 import { getAllCommentsAction } from "@/components/modules/feeds/actions";
 import { Comment } from "@/models/models";
-import { getTasksByEventId } from "@/lib/data/task";
+import { filterTasksForViewer, getTasksByEventId } from "@/lib/data/task";
 import { listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import {
@@ -554,7 +554,9 @@ export async function getTasksByEventAction(
         const canViewEvents = await isAuthorized(userDid, circle._id as string, features.events.view);
         if (!canViewEvents) return defaultResult;
 
-        const tasks = await getTasksByEventId(eventId, circle._id!.toString());
+        // Same per-viewer rules as the task list: tasks.view, each task's audience, workflow notes
+        // (leak round 3, M5).
+        const tasks = await filterTasksForViewer(await getTasksByEventId(eventId, circle._id!.toString()), userDid);
         return { tasks };
     } catch (error) {
         console.error("Error in getTasksByEventAction:", error);

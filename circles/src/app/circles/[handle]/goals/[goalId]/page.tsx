@@ -11,7 +11,7 @@ import { features } from "@/lib/data/constants";
 import { redirect, notFound } from "next/navigation";
 import { ObjectId } from "mongodb";
 // Import task fetching function and types
-import { getTasksByGoalId } from "@/lib/data/task";
+import { filterTasksForViewer, getTasksByGoalId } from "@/lib/data/task";
 import { TaskDisplay, TaskPermissions, GoalPermissions } from "@/models/models"; // Added TaskDisplay, TaskPermissions
 
 type PageProps = {
@@ -88,7 +88,8 @@ export default async function GoalDetailPage(props: PageProps) {
     if (canViewTasks) {
         try {
             // Fetch tasks linked to this specific goal
-            linkedTasks = await getTasksByGoalId(goalId, circle._id as string);
+            // Same per-viewer rules as the task list: each task's audience, workflow notes (M5).
+            linkedTasks = await filterTasksForViewer(await getTasksByGoalId(goalId, circle._id as string), userDid);
 
             // Fetch detailed task permissions needed by TasksList/TaskDetail
             taskPermissions = {

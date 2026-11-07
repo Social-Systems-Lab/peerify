@@ -2,7 +2,7 @@
 import { Tasks, Circles, Members, Reactions, RankedLists, Feeds, Posts } from "./db"; // Added Feeds, Posts
 import { ObjectId } from "mongodb";
 import { Task, TaskDisplay, TaskStage, Circle, Member, RankedList, Post, TaskPriority, TaskClaim } from "@/models/models"; // Added Post type
-import { getCircleById, IDENTITY_CIRCLE_PROJECTION } from "./circle";
+import { getCircleById, IDENTITY_CIRCLE_PROJECTION, resolveViewerIsAdmin } from "./circle";
 import { getMemberIdsByUserGroup } from "./member";
 import { isAuthorized } from "../auth/auth";
 import { features } from "./constants"; // RANKING_STALENESS_DAYS is now in ranking.ts
@@ -146,7 +146,61 @@ export const filterTasksForViewer = async (tasks: TaskDisplay[], viewerDid?: str
         visibleTasks.push(task);
     }
 
-    return visibleTasks;
+    return shapeTaskNotesForViewer(visibleTasks, viewerDid);
+};
+
+/**
+ * Workflow notes on tasks and shifts, shaped for the viewer (leak round 3, M5, 2026-11-07). A
+ * claim's note and a participant's attendance note are shown in the app only to the people who
+ * act on them (claims list: tasks.assign; attendance: tasks.moderate) and to the person who wrote
+ * or received them, but they reached everyone who could view the task. Now everyone else gets the
+ * task without them. People with tasks.assign or tasks.moderate on the task's circle and platform
+ * admins get the task unchanged.
+ */
+export const shapeTaskNotesForViewer = async <T extends TaskDisplay>(tasks: T[], viewerDid?: string): Promise<T[]> => {
+    const hasNotes = (task: T) =>
+        (task.claims ?? []).some((claim) => claim.note) ||
+        (task.participants ?? []).some((participant) => participant.attendanceNote);
+    if (!tasks.some(hasNotes)) return tasks;
+    if (viewerDid && (await resolveViewerIsAdmin(viewerDid))) return tasks;
+
+    const managesByCircleId = new Map<string, Promise<boolean>>();
+    const manages = (circleId: string) => {
+        if (!managesByCircleId.has(circleId)) {
+            managesByCircleId.set(
+                circleId,
+                (async () =>
+                    !!viewerDid &&
+                    ((await isAuthorized(viewerDid, circleId, features.tasks.assign)) ||
+                        (await isAuthorized(viewerDid, circleId, features.tasks.moderate))))(),
+            );
+        }
+        return managesByCircleId.get(circleId)!;
+    };
+
+    return Promise.all(
+        tasks.map(async (task) => {
+            const circleId = task.circle?._id || task.circleId;
+            if (!hasNotes(task) || (circleId && (await manages(circleId)))) return task;
+            return {
+                ...task,
+                ...(task.claims
+                    ? {
+                          claims: task.claims.map(({ note, ...claim }) =>
+                              claim.claimantDid === viewerDid ? { ...claim, note } : claim,
+                          ),
+                      }
+                    : {}),
+                ...(task.participants
+                    ? {
+                          participants: task.participants.map(({ attendanceNote, ...participant }) =>
+                              participant.userDid === viewerDid ? { ...participant, attendanceNote } : participant,
+                          ),
+                      }
+                    : {}),
+            };
+        }),
+    );
 };
 
 /**

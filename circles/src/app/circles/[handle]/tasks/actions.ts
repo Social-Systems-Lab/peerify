@@ -2444,9 +2444,9 @@ export async function getTasksForRankingAction(circleHandle: string): Promise<Ta
             throw new Error("Not authorized to rank tasks");
         }
 
-        // Get active tasks (open, inProgress)
+        // Get active tasks (open, inProgress), with the task list's per-viewer rules (M5)
         const activeTasks = await getActiveTasksByCircleId(circle._id!.toString());
-        return activeTasks;
+        return filterTasksForViewer(activeTasks, userDid);
     } catch (error) {
         console.error("Error getting tasks for prioritization:", error);
         return []; // Return empty on error
