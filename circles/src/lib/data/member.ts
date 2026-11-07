@@ -234,6 +234,33 @@ export const getCrewMembers = async (circleId?: string, viewerDid?: string): Pro
     return toPublicMemberLocations(members as MemberDisplay[], { viewerDid, viewerIsAdmin });
 };
 
+/**
+ * The Crew roster as crew.tsx may send it to this viewer (leak round 3, M3, 2026-11-07). A member
+ * who set crewVisible: false is hidden from Crew peers; the rail only drew a silhouette over their
+ * real name, picture, handle and city, which still reached the browser. Now, unless the viewer
+ * sees everyone (the circle's admins/moderators, getCrewProfileAccessAction's rule) or it's their
+ * own row, such a member is sent as a placeholder: no name, picture, handle, location, DID or join
+ * date. The rail draws the same silhouette with a lock as before.
+ */
+export const toCrewRosterForViewer = (
+    members: MemberDisplay[],
+    viewerDid: string | undefined,
+    viewerSeesEveryone: boolean,
+): MemberDisplay[] => {
+    if (viewerSeesEveryone) return members;
+    return members.map((member) =>
+        member.crewVisible === false && member.userDid !== viewerDid
+            ? ({
+                  _id: member._id,
+                  userDid: `hidden:${member._id}`,
+                  circleId: member.circleId,
+                  userGroups: ["crew"],
+                  crewVisible: false,
+              } as MemberDisplay)
+            : member,
+    );
+};
+
 // Admins are just Members docs whose userGroups includes "admins", same as getCrewMembers above -
 // no separate "admin membership" collection. Doesn't project location, so unlike
 // getCrewMembers/getMembers there's no toPublicMemberLocations pass needed here.

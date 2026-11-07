@@ -1,6 +1,6 @@
 "use server";
 
-import { getCrewMembers, getMember } from "@/lib/data/member";
+import { getCrewMembers, getMember, toCrewRosterForViewer } from "@/lib/data/member";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import CrewMemberRail from "./crew-member-rail";
 import CrewSpaceModule from "./crew-space";
@@ -38,7 +38,10 @@ export default async function CrewModule({ circle }: CrewModuleProps) {
         );
     }
 
-    const members = await getCrewMembers(circle?._id, viewerDid);
+    // Hidden members (crewVisible: false) reach peers as placeholders only; admins/moderators see all.
+    const viewerSeesEveryone =
+        viewerMember?.userGroups?.some((group) => group === "admins" || group === "moderators") ?? false;
+    const members = toCrewRosterForViewer(await getCrewMembers(circle?._id, viewerDid), viewerDid, viewerSeesEveryone);
 
     return (
         <div className="mx-auto max-w-[1100px] px-0 py-0 md:px-4 md:py-6">
