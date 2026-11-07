@@ -49,6 +49,14 @@ type UpdateMembershipRequestResponse = {
     message?: string;
 };
 
+// Leak round 3, integrity (2026-11-07): the permission check is made on the circle the client
+// sends, so the request must belong to that same circle (as for crew applications, 0be44136).
+// Without this, an admin of one circle could approve another circle's requester as a follower of
+// their own circle, or reject another circle's request, by sending its id.
+const NOT_THIS_CIRCLE_MESSAGE = "This request isn't for this circle.";
+const belongsToCircle = (request: MembershipRequest | null, circleId: string): request is MembershipRequest =>
+    !!request && !!circleId && String(request.circleId) === String(circleId);
+
 export const approveMembershipRequestAction = async (
     requestId: string,
     circle: Circle,
@@ -67,6 +75,9 @@ export const approveMembershipRequestAction = async (
 
         // get member request
         const request = await getMembershipRequest(requestId);
+        if (!belongsToCircle(request, circle._id ?? "")) {
+            return { success: false, message: NOT_THIS_CIRCLE_MESSAGE };
+        }
 
         // add member
         await addMember(request.userDid, circle._id ?? "", ["members"], request.questionnaireAnswers);
@@ -105,6 +116,9 @@ export const rejectMembershipRequestAction = async (
 
         // get member request
         const request = await getMembershipRequest(requestId);
+        if (!belongsToCircle(request, circle._id ?? "")) {
+            return { success: false, message: NOT_THIS_CIRCLE_MESSAGE };
+        }
 
         // Clear page cache
         let circlePath = await getCirclePath(circle);
