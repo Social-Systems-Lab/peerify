@@ -121,4 +121,19 @@ describe("Crew rail data", () => {
         sessionDid = "did:test:stranger";
         expect(await render()).toBeUndefined();
     });
+
+    // Tim's decision 2026-11-07: approved Crew members keep seeing each other; nobody else sees
+    // Crew membership, followers of the circle included.
+    test("a follower who isn't Crew and a logged-out visitor get no roster either", async () => {
+        fakeDb.col("Members").docs.push({ userDid: "did:test:fan", circleId: BAND_ID, userGroups: ["members"] });
+        for (const did of ["did:test:fan", undefined]) {
+            sessionDid = did;
+            expect(await render()).toBeUndefined();
+        }
+    });
+
+    test("Crew peers see each other: the hidden member sees the visible peer by name", async () => {
+        sessionDid = HIDDEN;
+        expect((await render())!.find((m) => m.userDid === PEER)?.name).toBe(PEER);
+    });
 });

@@ -31,6 +31,7 @@ export const canSeeFollowersLink = (
     return membership?.userGroups?.some((group) => FOLLOWER_LIST_GROUPS.includes(group)) ?? false;
 };
 
-// The group labels anyone may see on a follower list; Crew and custom groups are for the circle's
-// admins and moderators (D2).
-export const PUBLIC_MEMBER_GROUP_LABELS = ["admins", "moderators", "members"];
+// The group labels anyone but the circle's admins and moderators may see on someone else's member
+// row: none beyond "members". Admin, Moderator, Crew and custom labels are for managers only
+// (Tim's decision 2026-11-07; D2 had kept Admin and Moderator public).
+export const PUBLIC_MEMBER_GROUP_LABELS = ["members"];

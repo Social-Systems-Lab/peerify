@@ -198,9 +198,23 @@ describe("the event invite picker without an event", () => {
     });
 });
 
-describe("group labels on the list managers see", () => {
+describe("group labels: for the circle's admins and moderators only", () => {
     const groupsOf = (members: { userDid: string; userGroups?: string[] }[], did: string) =>
         members.find((m) => m.userDid === did)?.userGroups;
+
+    test("anyone else (a follower, a stranger, logged out) gets no Admin, Moderator, Crew or custom label", async () => {
+        for (const viewer of [STRANGER, undefined]) {
+            const members = await getMembersWithMetrics(viewer, OPEN_ID);
+            expect(groupsOf(members, ADMIN)).toEqual(["members"]);
+            expect(groupsOf(members, MODERATOR)).toEqual(["members"]);
+            expect(groupsOf(members, FAN)).toEqual(["members"]);
+        }
+        expect(groupsOf(await getMembersWithMetrics(FAN, OPEN_ID), ADMIN)).toEqual(["members"]);
+    });
+
+    test("the member themself keeps their own labels", async () => {
+        expect(groupsOf(await getMembersWithMetrics(FAN, OPEN_ID), FAN)).toEqual(["members", "crew", "vip-list"]);
+    });
 
     test("admins, moderators and platform admins see every label", async () => {
         for (const viewer of [ADMIN, MODERATOR, PLATFORM_ADMIN]) {

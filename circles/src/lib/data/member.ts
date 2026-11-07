@@ -113,11 +113,11 @@ export const getMembersWithMetrics = async (
 
 /**
  * The follower list (getMembersWithMetrics) shows each member's groups. For anyone but the circle's
- * admins/moderators and platform admins, other people's rows carry only the admins, moderators and
- * members labels: Crew and custom groups are dropped (leak round 3, M2: a Crew member who chose
- * crewVisible: false was labelled Crew in public; Tim's decision D2: Crew and custom group labels
- * for admins and moderators only). Your own row keeps your groups. Rows stay: following the circle
- * isn't what's hidden.
+ * admins/moderators and platform admins, other people's rows carry only the "members" label:
+ * Admin, Moderator, Crew and custom groups are dropped (leak round 3, M2: a Crew member who chose
+ * crewVisible: false was labelled Crew in public; D2 and Tim's decision 2026-11-07: group labels
+ * for the circle's admins and moderators only). Your own row keeps your groups. The list itself is
+ * for managers only now (canViewFollowerList); this is the second line.
  */
 const shapeMemberGroupsForViewer = async (
     members: MemberDisplay[],
