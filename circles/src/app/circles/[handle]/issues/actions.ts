@@ -15,6 +15,7 @@ import {
 } from "@/models/models";
 import { getCircleByHandle } from "@/lib/data/circle";
 import { shapeItemLocationsForViewer } from "@/lib/data/item-location";
+import { filterItemsForViewer } from "@/lib/data/item-visibility";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate } from "@/lib/data/user"; // Added getUserPrivate
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage"; // Import isFile
@@ -42,6 +43,9 @@ import {
     notifyIssueStatusChanged,
 } from "@/lib/data/notifications";
 import { ensureModuleIsEnabledOnCircle } from "@/lib/data/circle"; // Added
+
+// Review-stage issues only for reviewers (the list's filter in Issues.tsx, now server-side too).
+const ISSUE_VISIBILITY = { moderateFeature: features.issues.moderate, reviewFeature: features.issues.review };
 
 /**
  * Get all issues for a circle
@@ -75,7 +79,12 @@ export async function getIssuesAction(
         }
 
         // Get issues from the database (Placeholder data function)
-        const issues = await getIssuesByCircleId(circle._id as string, userDid, includeCreated, includeAssigned);
+        const issues = await filterItemsForViewer(
+            await getIssuesByCircleId(circle._id as string, userDid, includeCreated, includeAssigned),
+            userDid,
+            String(circle._id),
+            ISSUE_VISIBILITY,
+        );
         return shapeItemLocationsForViewer(issues, userDid, String(circle._id), features.issues.moderate);
     } catch (error) {
         console.error("Error getting issues:", error);
@@ -119,16 +128,15 @@ export async function getIssueAction(circleHandle: string, issueId: string): Pro
         // Check general permission to view any issues in the circle (Placeholder feature handle)
         const canViewModule = await isAuthorized(userDid, circle._id as string, features.issues?.view);
 
-        // Check if the user belongs to any of the user groups allowed to see *this specific* issue
-        // This requires comparing issue.userGroups with the user's groups in this circle
-        // (Logic for this check needs the user's memberships for the circle)
-        // For now, assume if they can view the module, they can view the specific issue if found
-        // TODO: Implement fine-grained access check based on issue.userGroups
-
         if (!canViewModule) {
             // Not authorized to view issues module at all
             return null;
             // throw new Error("Not authorized to view issues");
+        }
+
+        // This issue's own audience (userGroups) and review stage (leak round 3, M9).
+        if ((await filterItemsForViewer([issue], userDid, String(circle._id), ISSUE_VISIBILITY)).length === 0) {
+            return null;
         }
 
         // If authorized and issue exists, return it, its location shaped for the viewer

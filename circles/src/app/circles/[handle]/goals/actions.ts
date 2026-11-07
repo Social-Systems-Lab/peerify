@@ -6,6 +6,7 @@ import { z } from "zod";
 import { Media, Goal, GoalDisplay, GoalStage, locationSchema, GoalMember } from "@/models/models";
 import { getCircleByHandle } from "@/lib/data/circle";
 import { shapeItemLocationsForViewer } from "@/lib/data/item-location";
+import { filterItemsForViewer } from "@/lib/data/item-visibility";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid } from "@/lib/data/user";
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
@@ -73,7 +74,13 @@ export async function getGoalsAction(
         }
 
         // Get all displayable goals
-        const allGoals = await getGoalsByCircleId(circle._id as string, userDid, includeCreated, includeAssigned);
+        // Each goal's own audience (userGroups; leak round 3, M9). Goals in review stay visible as before.
+        const allGoals = await filterItemsForViewer(
+            await getGoalsByCircleId(circle._id as string, userDid, includeCreated, includeAssigned),
+            userDid,
+            circleId,
+            { moderateFeature: features.goals.moderate },
+        );
 
         // Removed ranking logic
 
@@ -121,7 +128,12 @@ export async function getCompletedGoalsAction(circleHandle: string): Promise<Get
         }
 
         // Get all displayable completed goals
-        const completedGoals = await getCompletedGoalsByCircleId(circle._id as string, userDid);
+        const completedGoals = await filterItemsForViewer(
+            await getCompletedGoalsByCircleId(circle._id as string, userDid),
+            userDid,
+            circleId,
+            { moderateFeature: features.goals.moderate },
+        );
 
         return {
             goals: await shapeItemLocationsForViewer(completedGoals, userDid, circleId, features.goals.moderate),
@@ -169,16 +181,18 @@ export async function getGoalAction(circleHandle: string, goalId: string): Promi
         // Check general permission to view any goals in the circle (Placeholder feature handle)
         const canViewModule = await isAuthorized(userDid, circle._id as string, features.goals?.view); // Updated feature handle
 
-        // Check if the user belongs to any of the user groups allowed to see *this specific* goal
-        // This requires comparing goal.userGroups with the user's groups in this circle
-        // (Logic for this check needs the user's memberships for the circle)
-        // For now, assume if they can view the module, they can view the specific goal if found
-        // TODO: Implement fine-grained access check based on goal.userGroups
-
         if (!canViewModule) {
             // Not authorized to view goals module at all
             return null;
             // throw new Error("Not authorized to view goals"); // Updated message
+        }
+
+        // This goal's own audience (userGroups; leak round 3, M9).
+        const visible = await filterItemsForViewer([goal], userDid, String(circle._id), {
+            moderateFeature: features.goals.moderate,
+        });
+        if (visible.length === 0) {
+            return null;
         }
 
         // If authorized and goal exists, return it, its location shaped for the viewer
