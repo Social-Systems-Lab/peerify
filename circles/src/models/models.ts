@@ -2174,6 +2174,8 @@ export interface TaskDisplay extends Task {
     rank?: number; // Aggregated task rank
     goal?: GoalDisplay; // Associated goal details
     event?: EventDisplay; // Associated event details
+    // Set instead of participantNotes for viewers who aren't signed up (D3, shapeTaskNotesForViewer).
+    participantNotesHidden?: boolean;
 }
 
 export const fundingAskStatusSchema = z.enum(["draft", "open", "in_progress", "completed", "closed"]);

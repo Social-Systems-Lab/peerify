@@ -1233,6 +1233,11 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                                 </div>
                             </div>
                         </div>
+                        {!task.participantNotes && task.participantNotesHidden && (
+                            <div className="mt-5 text-sm text-muted-foreground">
+                                Details for participants appear once you sign up.
+                            </div>
+                        )}
                         {task.participantNotes && (
                             <div className="mt-5 rounded-2xl border border-[hsl(var(--shift-callout-border))] bg-[hsl(var(--shift-callout-bg))] px-4 py-4 shadow-sm">
                                 <div className="flex items-start gap-3">

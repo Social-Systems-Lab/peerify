@@ -6,6 +6,8 @@ import { getCircleById, IDENTITY_CIRCLE_PROJECTION, resolveViewerIsAdmin } from 
 import { getMemberIdsByUserGroup } from "./member";
 import { isAuthorized } from "../auth/auth";
 import { features } from "./constants"; // RANKING_STALENESS_DAYS is now in ranking.ts
+import { redactLocationForViewer } from "../utils";
+import { toPublicLocation } from "../utils/public-circle";
 import { createPost } from "./feed"; // Import createPost from feed.ts
 import { upsertVbdTasks } from "./vdb";
 import { getAggregateRanking, RankingContext } from "./ranking"; // Import the new generic function
@@ -150,55 +152,85 @@ export const filterTasksForViewer = async (tasks: TaskDisplay[], viewerDid?: str
 };
 
 /**
- * Workflow notes on tasks and shifts, shaped for the viewer (leak round 3, M5, 2026-11-07). A
- * claim's note and a participant's attendance note are shown in the app only to the people who
- * act on them (claims list: tasks.assign; attendance: tasks.moderate) and to the person who wrote
- * or received them, but they reached everyone who could view the task. Now everyone else gets the
- * task without them. People with tasks.assign or tasks.moderate on the task's circle and platform
- * admins get the task unchanged.
+ * Tasks and shifts, shaped for the viewer (leak round 3, M5, and Tim's decision D3, 2026-11-07).
+ * People with tasks.assign or tasks.moderate on the task's circle and platform admins get the task
+ * unchanged. Everyone else:
+ * - a claim's note and a participant's attendance note only when it's their own (the app shows
+ *   them to the people who act on them and to the person concerned);
+ * - the location: exact for the author, the assignee, people signed up (participants) and
+ *   claimants (pending or approved); city level otherwise, as for issues and goals since C4;
+ * - the shift's "Important for participants" note (participantNotes): for the author, the
+ *   assignee and people signed up; others get participantNotesHidden instead;
+ * - the "changes requested" note: for the author, the assignee, claimants and reviewers
+ *   (tasks.review).
  */
 export const shapeTaskNotesForViewer = async <T extends TaskDisplay>(tasks: T[], viewerDid?: string): Promise<T[]> => {
-    const hasNotes = (task: T) =>
+    const hasRestricted = (task: T) =>
+        !!task.location ||
+        !!task.participantNotes ||
+        !!task.reviewRequestedChangesNote ||
         (task.claims ?? []).some((claim) => claim.note) ||
         (task.participants ?? []).some((participant) => participant.attendanceNote);
-    if (!tasks.some(hasNotes)) return tasks;
+    if (!tasks.some(hasRestricted)) return tasks;
     if (viewerDid && (await resolveViewerIsAdmin(viewerDid))) return tasks;
 
-    const managesByCircleId = new Map<string, Promise<boolean>>();
-    const manages = (circleId: string) => {
-        if (!managesByCircleId.has(circleId)) {
-            managesByCircleId.set(
-                circleId,
-                (async () =>
-                    !!viewerDid &&
-                    ((await isAuthorized(viewerDid, circleId, features.tasks.assign)) ||
-                        (await isAuthorized(viewerDid, circleId, features.tasks.moderate))))(),
-            );
-        }
-        return managesByCircleId.get(circleId)!;
+    const permissionCache = new Map<string, Promise<boolean>>();
+    const can = (circleId: string, key: string, check: () => Promise<boolean>) => {
+        const cacheKey = `${key}:${circleId}`;
+        if (!permissionCache.has(cacheKey)) permissionCache.set(cacheKey, viewerDid ? check() : Promise.resolve(false));
+        return permissionCache.get(cacheKey)!;
     };
+    const manages = (circleId: string) =>
+        can(
+            circleId,
+            "manage",
+            async () =>
+                (await isAuthorized(viewerDid, circleId, features.tasks.assign)) ||
+                (await isAuthorized(viewerDid, circleId, features.tasks.moderate)),
+        );
+    const reviews = (circleId: string) =>
+        can(circleId, "review", () => isAuthorized(viewerDid, circleId, features.tasks.review));
 
     return Promise.all(
         tasks.map(async (task) => {
             const circleId = task.circle?._id || task.circleId;
-            if (!hasNotes(task) || (circleId && (await manages(circleId)))) return task;
-            return {
-                ...task,
-                ...(task.claims
-                    ? {
-                          claims: task.claims.map(({ note, ...claim }) =>
-                              claim.claimantDid === viewerDid ? { ...claim, note } : claim,
-                          ),
-                      }
-                    : {}),
-                ...(task.participants
-                    ? {
-                          participants: task.participants.map(({ attendanceNote, ...participant }) =>
-                              participant.userDid === viewerDid ? { ...participant, attendanceNote } : participant,
-                          ),
-                      }
-                    : {}),
-            };
+            if (!hasRestricted(task) || (circleId && (await manages(circleId)))) return task;
+
+            const isMine = !!viewerDid && (task.createdBy === viewerDid || task.assignedTo === viewerDid);
+            const isParticipant = !!viewerDid && (task.participants ?? []).some((p) => p.userDid === viewerDid);
+            const isClaimant =
+                !!viewerDid &&
+                (task.claims ?? []).some(
+                    (claim) => claim.claimantDid === viewerDid && (claim.status === "pending" || claim.status === "approved"),
+                );
+
+            const shaped: T = { ...task };
+            if (task.claims) {
+                shaped.claims = task.claims.map(({ note, ...claim }) =>
+                    claim.claimantDid === viewerDid ? { ...claim, note } : claim,
+                );
+            }
+            if (task.participants) {
+                shaped.participants = task.participants.map(({ attendanceNote, ...participant }) =>
+                    participant.userDid === viewerDid ? { ...participant, attendanceNote } : participant,
+                );
+            }
+            if (task.location && !(isMine || isParticipant || isClaimant)) {
+                shaped.location = toPublicLocation(
+                    redactLocationForViewer(task.location, task.createdBy, { viewerDid, viewerIsAdmin: false }),
+                );
+            }
+            if (task.participantNotes && !(isMine || isParticipant)) {
+                delete shaped.participantNotes;
+                shaped.participantNotesHidden = true;
+            }
+            if (
+                task.reviewRequestedChangesNote &&
+                !(isMine || isClaimant || (circleId && (await reviews(circleId))))
+            ) {
+                delete shaped.reviewRequestedChangesNote;
+            }
+            return shaped;
         }),
     );
 };
