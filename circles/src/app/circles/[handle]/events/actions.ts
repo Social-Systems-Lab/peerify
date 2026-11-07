@@ -76,6 +76,7 @@ import { addCommentToDiscussion } from "@/lib/data/discussion";
 import { getAllCommentsAction } from "@/components/modules/feeds/actions";
 import { Comment } from "@/models/models";
 import { filterTasksForViewer, getTasksByEventId } from "@/lib/data/task";
+import { canViewFollowerList } from "@/lib/data/follower-list-access";
 import { listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
 import {
@@ -1907,6 +1908,10 @@ export async function getCircleMembersAction(circleHandle: string): Promise<GetC
                 members: await listAcceptedConnectionsForUserDid(userDid),
             };
         }
+
+        // The invite picker lists the circle's followers: only for people who may see that list
+        // (approval-required circles: followers only; leak round 3, M2 / D2).
+        if (!(await canViewFollowerList(circle, userDid))) return defaultResult;
 
         const members = await getMembers(circle._id!.toString());
         const memberDids = members.map((m) => m.userDid);

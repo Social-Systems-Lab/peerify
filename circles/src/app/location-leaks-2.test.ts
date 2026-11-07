@@ -131,6 +131,9 @@ const host = () => ({
     handle: "host",
     name: "Host venue",
     circleType: "circle",
+    // Open to follow, as new venues are: since D2 an approval-required circle's follower list
+    // (and so the invite picker) is for its followers only.
+    isPublic: true,
     publishStatus: "published",
     enabledModules: ["events"],
     defaultEventTags: ["stage"],
@@ -325,6 +328,8 @@ describe("event artists, invited users and the member picker", async () => {
         ]);
         for (const did of [STRANGER, OWNER, ADMIN]) {
             grants.add(grantKey(did, HOST_ID, features.events.view));
+            // The default "View followers" rule (everyone); the invite picker checks it since D2.
+            grants.add(grantKey(did, HOST_ID, features.followers.view));
         }
     });
 

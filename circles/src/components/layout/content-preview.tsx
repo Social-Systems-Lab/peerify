@@ -9,6 +9,7 @@ import { getRegisteredAudioElements } from "@/lib/audio/audio-manager";
 import Image from "next/image";
 import { FaUsers } from "react-icons/fa6";
 import { useRouter } from "next/navigation";
+import { canSeeFollowersLink } from "@/lib/peerify/follower-list";
 import InviteButton from "../modules/home/invite-button";
 import FollowButton from "../modules/home/follow-button";
 import BookmarkButton from "../modules/home/bookmark-button";
@@ -333,7 +334,16 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             This person hasn&apos;t made their profile discoverable.
                         </p>
                     )}
-                    {memberCount > 0 && (
+                    {/* A personal profile's follower list is for its owner only (D2): others get the count. */}
+                    {memberCount > 0 && !canSeeFollowersLink(circle, user?.did) && (
+                        <p className="m-0 flex flex-row items-center justify-center pt-2 text-sm text-black">
+                            <FaUsers />
+                            <span className="ml-2">
+                                {memberCount} {memberCount !== 1 ? "Followers" : "Follower"}
+                            </span>
+                        </p>
+                    )}
+                    {memberCount > 0 && canSeeFollowersLink(circle, user?.did) && (
                         <button
                             type="button"
                             className="flex flex-row items-center justify-center pt-2 text-black transition-opacity hover:opacity-70"

@@ -18,6 +18,7 @@ import { SAFE_CIRCLE_PROJECTION } from "./circle";
 import { isListedOffering } from "./tour-team-offerings";
 import { addChatRoomMember, getChatRoomByHandle, removeChatRoomMember } from "./chat";
 import { upsertFollowState } from "./relationships";
+import { PUBLIC_MEMBER_GROUP_LABELS } from "../peerify/follower-list";
 
 export const getMember = async (userDid: string, circleId: string): Promise<Member | null> => {
     return await Members.findOne({ userDid: userDid, circleId: circleId });
@@ -107,22 +108,24 @@ export const getMembersWithMetrics = async (
 
     // sort members by rank
     members.sort((a, b) => (a.metrics?.rank ?? 0) - (b.metrics?.rank ?? 0));
-    return circleId ? hideHiddenCrewGroup(members, circleId, userDid) : members;
+    return circleId ? shapeMemberGroupsForViewer(members, circleId, userDid) : members;
 };
 
 /**
- * The follower list (getMembersWithMetrics) shows each member's groups. A Crew member who set
- * crewVisible: false hides themself from Crew peers (crew.tsx), so their "crew" group is dropped
- * here too for everyone except themself, the circle's admins/moderators and platform admins (the
- * getCrewProfileAccessAction rule). Leak round 3, M2 (2026-11-07). Their row stays: following
- * the circle isn't what they hid.
+ * The follower list (getMembersWithMetrics) shows each member's groups. For anyone but the circle's
+ * admins/moderators and platform admins, other people's rows carry only the admins, moderators and
+ * members labels: Crew and custom groups are dropped (leak round 3, M2: a Crew member who chose
+ * crewVisible: false was labelled Crew in public; Tim's decision D2: Crew and custom group labels
+ * for admins and moderators only). Your own row keeps your groups. Rows stay: following the circle
+ * isn't what's hidden.
  */
-const hideHiddenCrewGroup = async (
+const shapeMemberGroupsForViewer = async (
     members: MemberDisplay[],
     circleId: string,
     viewerDid: string | undefined,
 ): Promise<MemberDisplay[]> => {
-    if (!members.some((member) => member.userGroups?.includes("crew") && member.userDid !== viewerDid)) {
+    const isPublicLabel = (group: string) => PUBLIC_MEMBER_GROUP_LABELS.includes(group);
+    if (!members.some((member) => member.userDid !== viewerDid && member.userGroups?.some((g) => !isPublicLabel(g)))) {
         return members;
     }
     if (viewerDid) {
@@ -133,15 +136,8 @@ const hideHiddenCrewGroup = async (
             return members;
         }
     }
-    const hidden = await Members.find(
-        { circleId, userGroups: "crew", crewVisible: false },
-        { projection: { userDid: 1 } },
-    ).toArray();
-    const hiddenDids = new Set(hidden.map((member) => member.userDid));
     return members.map((member) =>
-        hiddenDids.has(member.userDid) && member.userDid !== viewerDid
-            ? { ...member, userGroups: (member.userGroups ?? []).filter((group) => group !== "crew") }
-            : member,
+        member.userDid === viewerDid ? member : { ...member, userGroups: (member.userGroups ?? []).filter(isPublicLabel) },
     );
 };
 

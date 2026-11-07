@@ -76,6 +76,7 @@ const seed = (followersRule?: string[]) => {
                 handle: "band",
                 name: "Band",
                 circleType: "circle",
+                isPublic: true, // open to follow (approval-required circles: followers-leaks-d2.test.ts)
                 ...(followersRule ? { accessRules: { followers: { view: followersRule } } } : {}),
             },
             person(ADMIN),
@@ -117,7 +118,8 @@ describe("follower list: a hidden Crew member's group", () => {
         for (const viewer of [FAN, STRANGER, undefined]) {
             const members = await getMembersWithMetrics(viewer, BAND_ID);
             expect(groupsOf(members, HIDDEN_CREW)).toEqual(["members"]);
-            expect(groupsOf(members, OPEN_CREW)).toEqual(["members", "crew"]); // didn't hide
+            // Since D2, Crew labels are for admins/moderators only, hidden or not.
+            expect(groupsOf(members, OPEN_CREW)).toEqual(["members"]);
             expect(members.map((m) => m.userDid)).toContain(HIDDEN_CREW); // still a follower
         }
     });

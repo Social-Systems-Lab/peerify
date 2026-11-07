@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { userAtom } from "@/lib/data/atoms";
+import { canSeeFollowersLink } from "@/lib/peerify/follower-list";
 import { useAtom } from "jotai";
 import { useMemo, useCallback, useEffect, useState, useRef } from "react";
 import type { Circle, Module } from "@/models/models";
@@ -53,6 +54,8 @@ export function CircleTabs({ circle }: CircleTabsProps) {
             // Shifts is exposed as its own module tab, but shift records and permissions
             // are task-backed in Phase 1.
             const accessModuleHandle = moduleHandle === "shifts" ? "tasks" : moduleHandle;
+            // A personal profile's Followers tab is for its owner only (D2).
+            if (moduleHandle === "followers" && !canSeeFollowersLink(circle, user?.did)) return false;
             let allowedUserGroups =
                 circle.accessRules?.[accessModuleHandle]?.view ||
                 getFeature(accessModuleHandle, "view")?.defaultUserGroups ||
@@ -61,7 +64,7 @@ export function CircleTabs({ circle }: CircleTabsProps) {
                 allowedUserGroups.includes("everyone") || userGroups.some((group) => allowedUserGroups.includes(group))
             );
         },
-        [circle.accessRules, userGroups],
+        [circle, user?.did, userGroups],
     );
 
     // Community and Crew used to be force-enabled here regardless of the stored enabledModules
