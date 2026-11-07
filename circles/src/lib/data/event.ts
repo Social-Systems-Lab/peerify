@@ -222,14 +222,33 @@ function sanitizePeerifyPublicEventMetadata(event: EventDisplay): EventDisplay["
     return { peerify: publicPeerify };
 }
 
+/** An online event's join link is gated when its access mode isn't open RSVP (D1). */
+export const isJoinLinkGated = (event: EventDisplay): boolean =>
+    !!event.virtualUrl && getNormalizedPeerifyEventMetadata(event).accessMode !== "open_rsvp";
+
+/**
+ * Whether this viewer gets the join link (virtualUrl): always for open-RSVP events; otherwise only
+ * the event's managers (canManageEvent) and its invitees, not declined (leak round 3, M1 / D1).
+ */
+export const canViewerGetJoinLink = async (event: EventDisplay, viewerDid?: string): Promise<boolean> => {
+    if (!isJoinLinkGated(event)) return true;
+    if (!viewerDid) return false;
+    if (await canManageEvent(event, viewerDid)) return true;
+    if (event.invitations?.includes(viewerDid)) return true;
+    const eventId = String((event as { originalEventId?: unknown }).originalEventId ?? event._id).split("_")[0];
+    return !!(await EventInvitations.findOne({ eventId, userDid: viewerDid, status: { $ne: "declined" } }));
+};
+
 export function sanitizePeerifyPublicEventDisplay(fullEvent: EventDisplay): EventDisplay {
     // Invitee DIDs are for the event's managers only (leak round 3, 2026-11-05). So is the audience
     // (userGroups): its group handles name hidden groups such as Crew (M1, 2026-11-07). Callers that
     // filter by audience must do so before sanitizing (filterEventsByAudience, shapeEventsForViewer).
     // Typed as EventDisplay although userGroups is absent: never fill it in with [], which would
     // read as "open to everyone".
+    // The join link of an online event whose access mode isn't open RSVP is for its managers and
+    // invitees only (Tim's decision D1, 2026-11-07); shapeEventsForViewer gives it back to invitees.
     const { invitations: _invitations, userGroups: _userGroups, ...withoutPrivate } = fullEvent;
-    const event = withoutPrivate as EventDisplay;
+    const event = (isJoinLinkGated(fullEvent) ? { ...withoutPrivate, virtualUrl: undefined } : withoutPrivate) as EventDisplay;
     const locationDisclosure = getPeerifyEventLocationDisclosure(event);
     const metadata = sanitizePeerifyPublicEventMetadata(event);
     const publicMapLocation = sanitizePeerifyPublicMapLocation(getPeerifyEventMetadata(event).publicMapLocation);
@@ -1519,7 +1538,12 @@ export const shapeEventsForViewer = async <T extends EventDisplay>(events: T[], 
             if (await isManager(event)) return event;
             if (EVENT_STAGES_FOR_MANAGERS_ONLY.has(event.stage)) return null;
             if (!(await inAudience(event))) return null;
-            return sanitizePeerifyPublicEventDisplay(event) as T;
+            const shaped = sanitizePeerifyPublicEventDisplay(event) as T;
+            // An invitee keeps a gated event's join link (D1).
+            if (isJoinLinkGated(event) && (await canViewerGetJoinLink(event, viewerDid))) {
+                return { ...shaped, virtualUrl: event.virtualUrl };
+            }
+            return shaped;
         }),
     );
     return shaped.filter((event): event is Awaited<T> => event !== null) as T[];

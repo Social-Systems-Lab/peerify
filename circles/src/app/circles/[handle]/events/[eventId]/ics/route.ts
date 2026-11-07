@@ -1,7 +1,12 @@
 import { ObjectId } from "mongodb";
 import { Events } from "@/lib/data/db";
 import { getCircleByHandle, isCirclePublished } from "@/lib/data/circle";
-import { canViewerSeeCircleEvents, filterEventsForCalendar, getEventLocationForViewer } from "@/lib/data/event";
+import {
+    canViewerGetJoinLink,
+    canViewerSeeCircleEvents,
+    filterEventsForCalendar,
+    getEventLocationForViewer,
+} from "@/lib/data/event";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getPublicOrigin, ICS_UID_DOMAIN } from "@/lib/utils/public-origin";
 import type { Event as EventModel, EventDisplay, Location } from "@/models/models";
@@ -152,7 +157,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string;
         lines.push(`SUMMARY:${summary}`);
         if (description) lines.push(`DESCRIPTION:${description}`);
         if (locStr) lines.push(`LOCATION:${escapeICS(locStr)}`);
-        if (event.virtualUrl) lines.push(`URL:${escapeICS(event.virtualUrl)}`);
+        // Gated join links only for managers and invitees (D1).
+        if (event.virtualUrl && (await canViewerGetJoinLink(event as unknown as EventDisplay, userDid))) {
+            lines.push(`URL:${escapeICS(event.virtualUrl)}`);
+        }
         // Always include canonical URL to the event page
         lines.push(`URL:${escapeICS(eventUrl)}`);
         lines.push("END:VEVENT");

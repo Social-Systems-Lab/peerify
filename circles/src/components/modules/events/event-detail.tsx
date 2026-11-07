@@ -994,7 +994,11 @@ export default function EventDetail({
                                     </a>
                                 ) : (
                                     <div className="text-sm font-normal text-muted-foreground">
-                                        Join link not added yet.
+                                        {/* Gated join links reach managers and invitees only (D1). */}
+                                        {!canManageJoinLink &&
+                                        (event.metadata?.peerify?.accessMode ?? "open_rsvp") !== "open_rsvp"
+                                            ? "The join link is shared with invited guests."
+                                            : "Join link not added yet."}
                                     </div>
                                 )}
                             </div>

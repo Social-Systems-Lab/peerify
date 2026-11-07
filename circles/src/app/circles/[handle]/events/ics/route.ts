@@ -1,6 +1,11 @@
 import { Events } from "@/lib/data/db";
 import { getCircleByHandle, isCirclePublished } from "@/lib/data/circle";
-import { canViewerSeeCircleEvents, filterEventsForCalendar, getEventLocationForViewer } from "@/lib/data/event";
+import {
+    canViewerGetJoinLink,
+    canViewerSeeCircleEvents,
+    filterEventsForCalendar,
+    getEventLocationForViewer,
+} from "@/lib/data/event";
 import type { EventDisplay } from "@/models/models";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getPublicOrigin, ICS_UID_DOMAIN } from "@/lib/utils/public-origin";
@@ -143,7 +148,8 @@ export async function GET(req: Request, ctx: { params: Promise<{ handle: string 
             if (description) lines.push(`DESCRIPTION:${description}`);
 
             // Virtual URL as URL (if available)
-            if (ev.virtualUrl) lines.push(`URL:${escapeICS(ev.virtualUrl)}`);
+            // Gated join links only for managers and invitees (D1).
+            if (ev.virtualUrl && (await canViewerGetJoinLink(ev, userDid))) lines.push(`URL:${escapeICS(ev.virtualUrl)}`);
             // Canonical URL to event page (always include)
             lines.push(`URL:${escapeICS(eventUrl)}`);
 
