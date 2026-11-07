@@ -5,8 +5,8 @@
 // - The follower list sends each member's groups, so a Crew member who chose crewVisible: false
 //   (hidden from Crew peers) was still listed with the "crew" group.
 // The circle's admins/moderators, platform admins and the member themself still see everything.
-// Whether follower lists stay public by default is Tim's decision and not changed here. The
-// database is in-memory fakes; the session and permission checks are stubbed.
+// Since 2026-11-07 (privacy by default) the list itself is for the circle's admins and moderators
+// only: followers-count-only.test.ts. The database is in-memory fakes; the session is stubbed.
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { ObjectId } from "mongodb";
@@ -154,15 +154,25 @@ describe("followers page: the circle's View followers rule, server-side", () => 
         }
     });
 
-    test("rule = members only: a follower and an admin get the page", async () => {
+    test("rule = members only: an admin and a moderator get the page, a follower doesn't (managers only since 2026-11-07)", async () => {
         seed(["admins", "moderators", "members"]);
-        for (const viewer of [FAN, ADMIN]) {
+        for (const viewer of [ADMIN, MODERATOR]) {
             sessionDid = viewer;
             expect(await open()).toBe("shown");
         }
+        sessionDid = FAN;
+        expect(await open()).toContain("/circles/band/access-denied");
     });
 
-    test("default rule (everyone): unchanged, a logged-out visitor gets the page", async () => {
+    test("rule = admins only: a moderator is turned away, an admin isn't", async () => {
+        seed(["admins"]);
+        sessionDid = MODERATOR;
+        expect(await open()).toContain("/circles/band/access-denied");
+        sessionDid = ADMIN;
         expect(await open()).toBe("shown");
+    });
+
+    test("default rule (everyone) no longer opens the list: a logged-out visitor is turned away", async () => {
+        expect(await open()).toContain("/circles/band/access-denied");
     });
 });

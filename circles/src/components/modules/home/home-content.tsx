@@ -53,6 +53,7 @@ import {
     PEERIFY_BOOKING_ENQUIRIES_ENABLED,
 } from "@/lib/peerify/artist-profile";
 import { cn } from "@/lib/utils";
+import { canSeeFollowersLink } from "@/lib/peerify/follower-list";
 
 type HomeContentProps = {
     circle: Circle;
@@ -98,6 +99,7 @@ export default function HomeContent({
     const isCompact = useIsCompact();
     const router = useRouter();
     const [user] = useAtom(userAtom);
+    const canSeeFollowersList = canSeeFollowersLink(circle, user);
     const isOwnUserProfile = isUser && (user?.did === circle.did || viewerDid === circle.did);
     // Gates the welcome dialog: the viewer's own personal profile, or the viewer's own
     // freshly auto-provisioned artist profile (where artist-path signups now land).
@@ -732,15 +734,25 @@ export default function HomeContent({
                                         ))}
                                     </div>
                                     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600">
-                                        <Link
-                                            href={`/circles/${circle.handle}/followers`}
-                                            className="inline-flex items-center gap-2 transition-opacity hover:underline hover:opacity-70"
-                                        >
-                                            <FaUsers />
-                                            <span>
-                                                {memberCount} {memberCount === 1 ? "Follower" : "Followers"}
+                                        {/* The list is for the circle's admins and moderators; others get the count. */}
+                                        {canSeeFollowersList ? (
+                                            <Link
+                                                href={`/circles/${circle.handle}/followers`}
+                                                className="inline-flex items-center gap-2 transition-opacity hover:underline hover:opacity-70"
+                                            >
+                                                <FaUsers />
+                                                <span>
+                                                    {memberCount} {memberCount === 1 ? "Follower" : "Followers"}
+                                                </span>
+                                            </Link>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-2">
+                                                <FaUsers />
+                                                <span>
+                                                    {memberCount} {memberCount === 1 ? "Follower" : "Followers"}
+                                                </span>
                                             </span>
-                                        </Link>
+                                        )}
                                     </div>
                                     {PEERIFY_BOOKING_ENQUIRIES_ENABLED && !peerifyArtistProfile.bookingEnabled && (
                                         <div className="text-xs text-muted-foreground">
@@ -773,15 +785,24 @@ export default function HomeContent({
                                                 </span>
                                             </>
                                         )}
-                                    <Link
-                                        href={`/circles/${circle.handle}/followers`}
-                                        className="flex flex-row items-center justify-center text-gray-600 transition-opacity hover:underline hover:opacity-70"
-                                    >
-                                        <FaUsers />
-                                        <p className="m-0 ml-2">
-                                            {memberCount} {memberCount !== 1 ? "Followers" : "Follower"}
-                                        </p>
-                                    </Link>
+                                    {canSeeFollowersList ? (
+                                        <Link
+                                            href={`/circles/${circle.handle}/followers`}
+                                            className="flex flex-row items-center justify-center text-gray-600 transition-opacity hover:underline hover:opacity-70"
+                                        >
+                                            <FaUsers />
+                                            <p className="m-0 ml-2">
+                                                {memberCount} {memberCount !== 1 ? "Followers" : "Follower"}
+                                            </p>
+                                        </Link>
+                                    ) : (
+                                        <div className="flex flex-row items-center justify-center text-gray-600">
+                                            <FaUsers />
+                                            <p className="m-0 ml-2">
+                                                {memberCount} {memberCount !== 1 ? "Followers" : "Follower"}
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {isCompact && (

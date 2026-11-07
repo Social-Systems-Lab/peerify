@@ -15,6 +15,9 @@ import { Circle, SortingOptions } from "@/models/models";
 type PageProps = {
     circle: Circle;
     searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+    // false: the viewer may open the page only for a pending admin invitation's banner, not for the
+    // list (followers/page.tsx; the list is for the circle's admins and moderators).
+    showList?: boolean;
 };
 
 export default async function MembersModule(props: PageProps) {
@@ -23,7 +26,10 @@ export default async function MembersModule(props: PageProps) {
 
     // get members of circle
     let userDid = await getAuthenticatedUserDid();
-    let members = await getMembersWithMetrics(userDid, circle?._id, searchParams?.sort as SortingOptions);
+    const showList = props.showList !== false;
+    let members = showList
+        ? await getMembersWithMetrics(userDid, circle?._id, searchParams?.sort as SortingOptions)
+        : [];
     const pendingAdminRoleRemovalRequest =
         userDid && circle?._id ? await getPendingAdminRoleRemovalRequest(circle._id, userDid) : null;
     const requester =
@@ -58,7 +64,13 @@ export default async function MembersModule(props: PageProps) {
                     roleNames={resolveRoleNames(circle, pendingAdminInvitation.userGroups)}
                 />
             ) : null}
-            <MembersTable circle={circle} members={members} />
+            {showList ? (
+                <MembersTable circle={circle} members={members} />
+            ) : (
+                <p className="p-4 text-sm text-muted-foreground">
+                    Only this circle&apos;s admins and moderators see the follower list.
+                </p>
+            )}
         </ContentDisplayWrapper>
     );
 }

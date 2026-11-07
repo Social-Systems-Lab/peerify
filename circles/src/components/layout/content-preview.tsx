@@ -334,8 +334,8 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             This person hasn&apos;t made their profile discoverable.
                         </p>
                     )}
-                    {/* A personal profile's follower list is for its owner only (D2): others get the count. */}
-                    {memberCount > 0 && !canSeeFollowersLink(circle, user?.did) && (
+                    {/* The follower list is for the circle's admins and moderators (a personal profile's owner): others get the count. */}
+                    {memberCount > 0 && !canSeeFollowersLink(circle, user) && (
                         <p className="m-0 flex flex-row items-center justify-center pt-2 text-sm text-black">
                             <FaUsers />
                             <span className="ml-2">
@@ -343,7 +343,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             </span>
                         </p>
                     )}
-                    {memberCount > 0 && canSeeFollowersLink(circle, user?.did) && (
+                    {memberCount > 0 && canSeeFollowersLink(circle, user) && (
                         <button
                             type="button"
                             className="flex flex-row items-center justify-center pt-2 text-black transition-opacity hover:opacity-70"

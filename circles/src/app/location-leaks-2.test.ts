@@ -333,14 +333,13 @@ describe("event artists, invited users and the member picker", async () => {
         }
     });
 
-    test("a stranger gets the member without private data, and no invitees (leak round 3 H3)", async () => {
+    test("a stranger gets no invitees (leak round 3 H3) and no followers (follower lists are for managers, 2026-11-07)", async () => {
         signedInAs(STRANGER);
         const invited = await getInvitedUsersAction("host", EVENT_ID);
         const members = await getCircleMembersAction("host");
         expect(invited.users).toEqual([]);
-        expect(members.members.map((u) => u.did)).toEqual([OWNER]);
+        expect(members.members).toEqual([]);
         expect(leaks(invited)).toEqual(NO_LEAKS);
-        expect(leaks(members)).toEqual(NO_LEAKS);
     });
 
     test("event artists: the coarse pin survives (redacted once, not twice)", async () => {

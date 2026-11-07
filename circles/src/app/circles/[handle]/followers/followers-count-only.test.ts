@@ -1,13 +1,12 @@
-// Run: IS_BUILD=true bun test "src/app/circles/[handle]/followers/followers-leaks-d2.test.ts"
-// Leak round 3, M2, Tim's decision D2 (2026-11-07): follower lists were public by default, also for
-// personal profiles (who follows a person) and circles where following needs approval. Now:
-// - a personal profile's list is for its owner only, and its Followers tab and follower link are
-//   hidden for everyone else;
-// - an approval-required circle's list is for its followers (and platform admins, and someone with a
-//   pending admin invitation, who answers it on that page); the event invite picker
-//   (getCircleMembersAction) follows the same rule;
-// - open artist, venue and other circles: unchanged;
-// - Crew and custom group labels only for the circle's admins and moderators.
+// Run: IS_BUILD=true bun test "src/app/circles/[handle]/followers/followers-count-only.test.ts"
+// Tim's decision 2026-11-07 (UX month, privacy by default), replacing D2's "open circles stay
+// public": for every circle (personal, artist, venue, other), people who aren't its admins or
+// moderators, logged-out visitors too, see only the follower COUNT. The follower list, the
+// Followers tab and the follower links are for:
+// - a personal profile: its owner only;
+// - any other circle: its admins and moderators (moderators subject to the circle's own "View
+//   followers" rule, which can narrow but no longer widen), and platform admins, as before.
+// Someone with a pending admin invitation may open the page for its accept banner, without the list.
 // The database is in-memory fakes; the session is stubbed and the permission checks are real.
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
@@ -23,7 +22,7 @@ const OPEN_ID = "64f700000000000000000003"; // a band, open to follow
 const OWNER = "did:test:owner"; // owns the personal profile
 const ADMIN = "did:test:admin"; // admin of both bands
 const MODERATOR = "did:test:moderator";
-const FAN = "did:test:fan"; // follows everything
+const FAN = "did:test:fan"; // follows everything, Crew in both bands
 const STRANGER = "did:test:stranger";
 const PLATFORM_ADMIN = "did:test:platform-admin";
 const INVITEE = "did:test:invitee"; // pending admin invitation to the closed band
@@ -101,30 +100,31 @@ beforeEach(() => {
         ],
         AdminInvitations: [{ circleId: CLOSED_ID, invitedUserDid: INVITEE, status: "pending" }],
     });
-    fakeDb.setAggregateResult(
-        "Members",
-        [
-            row(ADMIN, OPEN_ID, ["admins", "members"]),
-            row(MODERATOR, OPEN_ID, ["moderators", "members"]),
-            row(FAN, OPEN_ID, ["members", "crew", "vip-list"]),
-        ],
-    );
+    fakeDb.setAggregateResult("Members", [
+        row(ADMIN, OPEN_ID, ["admins", "members"]),
+        row(MODERATOR, OPEN_ID, ["moderators", "members"]),
+        row(FAN, OPEN_ID, ["members", "crew", "vip-list"]),
+    ]);
 });
 
-const open = async (handle: string) => {
+// "denied", or the page's MembersModule element (its props say whether the list is rendered).
+const open = async (handle: string): Promise<"denied" | { props: { showList?: boolean } }> => {
     try {
-        await FollowersPage({ params: Promise.resolve({ handle }), searchParams: Promise.resolve({}) });
-        return "shown";
+        return (await FollowersPage({ params: Promise.resolve({ handle }), searchParams: Promise.resolve({}) })) as any;
     } catch (error) {
         if (error instanceof Redirect) return "denied";
         throw error;
     }
 };
+const listShown = async (handle: string) => {
+    const result = await open(handle);
+    return result !== "denied" && result.props.showList === true;
+};
 
-describe("a personal profile's follower list: owner only", () => {
+describe("a personal profile's follower list: owner only (unchanged from D2)", () => {
     test("the owner sees it", async () => {
         sessionDid = OWNER;
-        expect(await open("owner")).toBe("shown");
+        expect(await listShown("owner")).toBe(true);
     });
 
     test("a follower, a stranger, a platform admin and a logged-out visitor don't", async () => {
@@ -133,61 +133,74 @@ describe("a personal profile's follower list: owner only", () => {
             expect(await open("owner")).toBe("denied");
         }
     });
-
-    test("the Followers tab and follower link: shown to the owner only; other circles unchanged", () => {
-        const profile = { circleType: "user" as const, did: OWNER };
-        expect(canSeeFollowersLink(profile, OWNER)).toBe(true);
-        for (const viewer of [FAN, STRANGER, undefined]) expect(canSeeFollowersLink(profile, viewer)).toBe(false);
-        expect(canSeeFollowersLink({ circleType: "circle", did: "did:test:open" }, undefined)).toBe(true);
-    });
 });
 
-describe("an approval-required circle: followers only", () => {
-    test("a follower, an admin, a platform admin and a pending admin invitee see it", async () => {
-        for (const viewer of [FAN, ADMIN, PLATFORM_ADMIN, INVITEE]) {
-            sessionDid = viewer;
-            expect(await open("closed")).toBe("shown");
+describe("artist, venue and other circles, open or approval-required: admins and moderators only", () => {
+    test("an admin, a moderator and a platform admin see the list", async () => {
+        for (const handle of ["open", "closed"]) {
+            for (const viewer of [ADMIN, MODERATOR, PLATFORM_ADMIN]) {
+                sessionDid = viewer;
+                expect(await listShown(handle)).toBe(true);
+            }
         }
     });
 
-    test("a stranger and a logged-out visitor don't", async () => {
-        for (const viewer of [STRANGER, undefined]) {
-            sessionDid = viewer;
-            expect(await open("closed")).toBe("denied");
+    test("a follower (also Crew), a stranger and a logged-out visitor don't, open circles included", async () => {
+        for (const handle of ["open", "closed"]) {
+            for (const viewer of [FAN, STRANGER, undefined]) {
+                sessionDid = viewer;
+                expect(await open(handle)).toBe("denied");
+            }
         }
     });
 
-    test("the event invite picker follows the same rule", async () => {
-        sessionDid = STRANGER;
-        expect((await getCircleMembersAction("closed")).members).toEqual([]);
+    test("a pending admin invitee gets the page for the accept banner, without the list", async () => {
+        sessionDid = INVITEE;
+        const result = await open("closed");
+        expect(result).not.toBe("denied");
+        expect(result !== "denied" && result.props.showList).toBe(false);
+        expect(await open("open")).toBe("denied"); // no invitation there
     });
 });
 
-describe("an open circle: unchanged", () => {
-    test("a stranger and a logged-out visitor see it", async () => {
-        for (const viewer of [STRANGER, undefined]) {
+describe("the Followers tab and follower links (count only for everyone else)", () => {
+    const membership = (circleId: string, userGroups: string[]) => [{ circleId, userGroups }];
+    const band = { _id: OPEN_ID, circleType: "circle" as const, did: "did:test:open" };
+    const profile = { _id: PERSON_ID, circleType: "user" as const, did: OWNER };
+
+    test("shown to the circle's admins, moderators and platform admins", () => {
+        expect(canSeeFollowersLink(band, { did: ADMIN, memberships: membership(OPEN_ID, ["admins"]) })).toBe(true);
+        expect(canSeeFollowersLink(band, { did: MODERATOR, memberships: membership(OPEN_ID, ["moderators"]) })).toBe(true);
+        expect(canSeeFollowersLink(band, { did: PLATFORM_ADMIN, isAdmin: true, memberships: [] })).toBe(true);
+    });
+
+    test("hidden for a follower, a Crew member, a stranger and a logged-out visitor", () => {
+        expect(canSeeFollowersLink(band, { did: FAN, memberships: membership(OPEN_ID, ["members", "crew"]) })).toBe(false);
+        expect(canSeeFollowersLink(band, { did: STRANGER, memberships: [] })).toBe(false);
+        expect(canSeeFollowersLink(band, undefined)).toBe(false);
+    });
+
+    test("a personal profile: its owner only", () => {
+        expect(canSeeFollowersLink(profile, { did: OWNER, memberships: [] })).toBe(true);
+        expect(canSeeFollowersLink(profile, { did: PLATFORM_ADMIN, isAdmin: true, memberships: [] })).toBe(false);
+        expect(canSeeFollowersLink(profile, { did: FAN, memberships: membership(PERSON_ID, ["members"]) })).toBe(false);
+    });
+});
+
+describe("the event invite picker without an event", () => {
+    test("a follower and a stranger get no follower rows; an admin does", async () => {
+        for (const viewer of [FAN, STRANGER]) {
             sessionDid = viewer;
-            expect(await open("open")).toBe("shown");
+            expect((await getCircleMembersAction("open")).members).toEqual([]);
         }
+        sessionDid = ADMIN;
+        expect((await getCircleMembersAction("open")).members.length).toBeGreaterThan(0);
     });
 });
 
-describe("group labels: Crew and custom groups for admins and moderators only", () => {
+describe("group labels on the list managers see", () => {
     const groupsOf = (members: { userDid: string; userGroups?: string[] }[], did: string) =>
         members.find((m) => m.userDid === did)?.userGroups;
-
-    test("a stranger and a logged-out visitor see only admins/moderators/members labels", async () => {
-        for (const viewer of [STRANGER, undefined]) {
-            const members = await getMembersWithMetrics(viewer, OPEN_ID);
-            expect(groupsOf(members, FAN)).toEqual(["members"]);
-            expect(groupsOf(members, ADMIN)).toEqual(["admins", "members"]);
-            expect(groupsOf(members, MODERATOR)).toEqual(["moderators", "members"]);
-        }
-    });
-
-    test("the member themself keeps their own labels", async () => {
-        expect(groupsOf(await getMembersWithMetrics(FAN, OPEN_ID), FAN)).toEqual(["members", "crew", "vip-list"]);
-    });
 
     test("admins, moderators and platform admins see every label", async () => {
         for (const viewer of [ADMIN, MODERATOR, PLATFORM_ADMIN]) {

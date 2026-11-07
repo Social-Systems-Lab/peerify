@@ -54,8 +54,9 @@ export function CircleTabs({ circle }: CircleTabsProps) {
             // Shifts is exposed as its own module tab, but shift records and permissions
             // are task-backed in Phase 1.
             const accessModuleHandle = moduleHandle === "shifts" ? "tasks" : moduleHandle;
-            // A personal profile's Followers tab is for its owner only (D2).
-            if (moduleHandle === "followers" && !canSeeFollowersLink(circle, user?.did)) return false;
+            // The Followers tab is for the circle's admins and moderators (a personal profile's owner);
+            // everyone else sees only the follower count (privacy by default, 2026-11-07).
+            if (moduleHandle === "followers" && !canSeeFollowersLink(circle, user)) return false;
             let allowedUserGroups =
                 circle.accessRules?.[accessModuleHandle]?.view ||
                 getFeature(accessModuleHandle, "view")?.defaultUserGroups ||
@@ -64,7 +65,7 @@ export function CircleTabs({ circle }: CircleTabsProps) {
                 allowedUserGroups.includes("everyone") || userGroups.some((group) => allowedUserGroups.includes(group))
             );
         },
-        [circle, user?.did, userGroups],
+        [circle, user, userGroups],
     );
 
     // Community and Crew used to be force-enabled here regardless of the stored enabledModules
