@@ -107,7 +107,42 @@ export const getMembersWithMetrics = async (
 
     // sort members by rank
     members.sort((a, b) => (a.metrics?.rank ?? 0) - (b.metrics?.rank ?? 0));
-    return members;
+    return circleId ? hideHiddenCrewGroup(members, circleId, userDid) : members;
+};
+
+/**
+ * The follower list (getMembersWithMetrics) shows each member's groups. A Crew member who set
+ * crewVisible: false hides themself from Crew peers (crew.tsx), so their "crew" group is dropped
+ * here too for everyone except themself, the circle's admins/moderators and platform admins (the
+ * getCrewProfileAccessAction rule). Leak round 3, M2 (2026-11-07). Their row stays: following
+ * the circle isn't what they hid.
+ */
+const hideHiddenCrewGroup = async (
+    members: MemberDisplay[],
+    circleId: string,
+    viewerDid: string | undefined,
+): Promise<MemberDisplay[]> => {
+    if (!members.some((member) => member.userGroups?.includes("crew") && member.userDid !== viewerDid)) {
+        return members;
+    }
+    if (viewerDid) {
+        const viewer = await Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } });
+        if (viewer?.isAdmin === true) return members;
+        const viewerMember = await Members.findOne({ userDid: viewerDid, circleId }, { projection: { userGroups: 1 } });
+        if (viewerMember?.userGroups?.some((group: string) => group === "admins" || group === "moderators")) {
+            return members;
+        }
+    }
+    const hidden = await Members.find(
+        { circleId, userGroups: "crew", crewVisible: false },
+        { projection: { userDid: 1 } },
+    ).toArray();
+    const hiddenDids = new Set(hidden.map((member) => member.userDid));
+    return members.map((member) =>
+        hiddenDids.has(member.userDid) && member.userDid !== viewerDid
+            ? { ...member, userGroups: (member.userGroups ?? []).filter((group) => group !== "crew") }
+            : member,
+    );
 };
 
 export const getMembers = async (circleId?: string, viewerDid?: string): Promise<MemberDisplay[]> => {
