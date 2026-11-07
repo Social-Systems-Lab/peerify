@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Circle, ContentPreviewData, EventDisplay, MemberDisplay } from "@/models/models";
+import { Circle, EventDisplay } from "@/models/models";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MapPin, ExternalLink, Mail, Phone, CalendarRange, CheckCircle2 } from "lucide-react";
@@ -13,7 +13,7 @@ import { useIsCompact } from "@/components/utils/use-is-compact";
 import RichText from "../feeds/RichText";
 import SdgList from "../sdgs/SdgList";
 import { useAtom } from "jotai";
-import { contentPreviewAtom, sidePanelContentVisibleAtom, userAtom } from "@/lib/data/atoms";
+import { userAtom } from "@/lib/data/atoms";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -42,11 +42,8 @@ import { VERIFIED_CONTRIBUTIONS_PANEL_ENABLED } from "./verified-contributions-c
 import { FundingPanel } from "@/components/modules/funding/funding-panel";
 import { UpcomingShiftsPanel } from "./upcoming-shifts-panel";
 import type { FundingAskDisplay, TaskDisplay } from "@/models/models";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { UserPicture } from "../members/user-picture";
 import TeamCard, { shouldShowTeamCard } from "./team-card";
 import type { TeamCardData, TeamCardRole } from "@/lib/peerify/team-card";
-import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { ProofOfHumanityCard } from "./proof-of-humanity-card";
 import type { HumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
 import { useProfileRelationshipState } from "./message-button";
@@ -77,7 +74,6 @@ interface AboutPageProps {
     canCreateVenueEvent?: boolean;
     showFundingPanel?: boolean;
     showUpcomingShiftsPanel?: boolean;
-    adminLeaders?: MemberDisplay[];
     teamCard?: TeamCardData | null;
     viewerTeamRole?: TeamCardRole | null;
     viewerOnTeamCard?: boolean;
@@ -147,7 +143,6 @@ export default function AboutPage({
     canCreateVenueEvent = false,
     showFundingPanel = false,
     showUpcomingShiftsPanel = false,
-    adminLeaders = [],
     teamCard = null,
     viewerTeamRole = null,
     viewerOnTeamCard = false,
@@ -155,12 +150,9 @@ export default function AboutPage({
     featuredTracks = [],
 }: AboutPageProps) {
     const isCompact = useIsCompact();
-    const isMobile = useIsMobile();
     const router = useRouter();
     const { toast } = useToast();
     const [user] = useAtom(userAtom);
-    const [sidePanelContentVisible] = useAtom(sidePanelContentVisibleAtom);
-    const [, setContentPreview] = useAtom(contentPreviewAtom);
     const [isSkillsExpanded, setIsSkillsExpanded] = React.useState(false);
     const [isInterestsExpanded, setIsInterestsExpanded] = React.useState(false);
     const [isNeedsExpanded, setIsNeedsExpanded] = React.useState(false);
@@ -292,8 +284,6 @@ export default function AboutPage({
             !!(isUserProfile && (profileOfferSkills.length > 0 || profileInterests.length > 0)));
     const hasNeedsMatchingDetails =
         !isUserProfile && !isPeerifyVenueProfile && (visibleNeeds.length > 0 || hasMatchingOfferNeeds);
-    const hasAdminDetails =
-        !isUserProfile && !isPeerifyArtistProfile && !isPeerifyVenueProfile && adminLeaders.length > 0;
     // Hidden per request: re-enable via VERIFIED_CONTRIBUTIONS_PANEL_ENABLED (shared with home/page.tsx,
     // which skips loading the panel's data while it's off).
     const shouldShowVerifiedContributions =
@@ -410,7 +400,6 @@ export default function AboutPage({
         hasBandInfoContent ||
         shouldShowProfileStatus ||
         hasOverviewDetails ||
-        hasAdminDetails ||
         hasNeedsMatchingDetails ||
         shouldShowProofOfHumanity ||
         shouldShowVerifiedContributions ||
@@ -453,34 +442,6 @@ export default function AboutPage({
           : isUserProfile
             ? "This profile hasn't added an About section yet."
             : "This circle hasn't added a description yet.";
-
-    const getLeaderRole = (leader: MemberDisplay) => {
-        if (leader.userGroups?.includes("admins")) return "Admin";
-        if (leader.userGroups?.includes("moderators")) return "Moderator";
-        if (leader.userGroups?.includes("crew")) return "Crew";
-        return "Member";
-    };
-
-    const openLeaderPreview = (leader: MemberDisplay) => {
-        if (isMobile) {
-            if (leader.handle) {
-                router.push(`/circles/${leader.handle}`);
-            }
-            return;
-        }
-
-        const contentPreviewData: ContentPreviewData = {
-            type: "member",
-            content: leader,
-        };
-
-        setContentPreview((current) => {
-            const isSameLeader =
-                current?.type === "member" &&
-                (current.content as MemberDisplay | undefined)?.userDid === leader.userDid;
-            return isSameLeader && sidePanelContentVisible === "content" ? undefined : contentPreviewData;
-        });
-    };
 
     const openContactDialog = (nextContactType: "offer_help" | "ask_question" = "offer_help") => {
         setContactType(nextContactType);
@@ -1404,58 +1365,6 @@ export default function AboutPage({
                                 </div>
                             )}
 
-                            {hasAdminDetails && (
-                                <div
-                                    className={`flex flex-col bg-white p-6 md:order-[100] ${
-                                        isCompact ? "rounded-none" : "rounded-[15px] border-0 bg-muted/20 shadow-lg"
-                                    }`}
-                                >
-                                    <div className="mb-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                                        Admins
-                                    </div>
-                                    <TooltipProvider>
-                                        <div className="space-y-3">
-                                            {adminLeaders.map((leader) => {
-                                                const role = getLeaderRole(leader);
-                                                return (
-                                                    <Tooltip key={leader.userDid}>
-                                                        <TooltipTrigger asChild>
-                                                            <button
-                                                                type="button"
-                                                                className="flex w-full items-center gap-3 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                                                                onClick={() => openLeaderPreview(leader)}
-                                                                aria-label={`Open ${leader.name}'s profile`}
-                                                            >
-                                                                <div className="shrink-0 rounded-full border-2 border-white bg-white">
-                                                                    <UserPicture
-                                                                        name={leader.name}
-                                                                        picture={leader.picture?.url}
-                                                                        size="34px"
-                                                                    />
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    <div className="truncate text-[15px] font-medium text-foreground">
-                                                                        {leader.name}
-                                                                    </div>
-                                                                    <div className="text-xs text-muted-foreground">
-                                                                        {role}
-                                                                    </div>
-                                                                </div>
-                                                            </button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent side="bottom" className="text-xs">
-                                                            <div className="flex flex-col">
-                                                                <span className="font-semibold">{leader.name}</span>
-                                                                <span className="text-muted-foreground">{role}</span>
-                                                            </div>
-                                                        </TooltipContent>
-                                                    </Tooltip>
-                                                );
-                                            })}
-                                        </div>
-                                    </TooltipProvider>
-                                </div>
-                            )}
                         </div>
                     </div>
                 )}{" "}

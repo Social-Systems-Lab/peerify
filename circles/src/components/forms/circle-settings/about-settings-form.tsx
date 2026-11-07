@@ -2125,26 +2125,9 @@ export function AboutSettingsForm({
                                     />
                                 )}
                             />
-
-                            <Controller
-                                name="showAdminsPublicly"
-                                control={form.control as unknown as Control}
-                                render={({ field }) => (
-                                    <DynamicSwitchField
-                                        field={{
-                                            name: "showAdminsPublicly",
-                                            type: "switch",
-                                            label: "Show admins publicly",
-                                            description: {
-                                                circle: "Show the Admins panel on your circle home page.",
-                                                user: "Show the Admins panel on your circle home page.",
-                                            },
-                                        }}
-                                        formField={field}
-                                        control={form.control as unknown as Control}
-                                    />
-                                )}
-                            />
+                            {/* "Show admins publicly" is retired (2026-11-07, P1): the old Admins card is gone and
+                                admins and moderators opt in to the Team card themselves. The stored field is kept
+                                and saved back unchanged. */}
                         </CardContent>
                     </Card>
                 )}

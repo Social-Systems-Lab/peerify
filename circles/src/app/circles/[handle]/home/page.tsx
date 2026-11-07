@@ -11,7 +11,7 @@ import { getShiftEndAt, getShiftStartAt, isShiftTask } from "@/components/module
 import type { Circle, EventDisplay, TaskDisplay, TaskPermissions } from "@/models/models";
 import type { FundingAskDisplay } from "@/models/models";
 import { getFundingCirclePermissions, isFundingEnabledForCircle, listFundingAsksByCircleId } from "@/lib/data/funding";
-import { getMember, getMembers } from "@/lib/data/member";
+import { getMember } from "@/lib/data/member";
 import { getTeamCard } from "@/lib/data/team-card";
 import { teamCardRoleOf, type TeamCardData, type TeamCardRole } from "@/lib/peerify/team-card";
 import { getHumanityVerificationSummary } from "@/lib/data/proof-of-humanity";
@@ -64,16 +64,9 @@ export default async function CircleHomePage(props: PageProps) {
     const showUpcomingShiftsPanel =
         circle.circleType !== "user" && (circle.enabledModules?.includes("shifts") ?? false);
     const isPeerifyVenueProfile = isPeerifyVenueIdentity(circle);
-    const showAdminsPublicly = circle.showAdminsPublicly !== false;
-    const adminLeaders =
-        showAdminsPublicly && circle.circleType !== "user" && circle._id
-            ? (await getMembers(circle._id, viewerDid))
-                  .filter((member) => member.userGroups?.includes("admins"))
-                  .slice(0, 6)
-            : [];
-
     // The Team card (2026-11-07): opted-in admins and moderators and the admins' note, for every
-    // circle but personal profiles. The viewer's own role decides whether they get its controls.
+    // circle but personal profiles. It replaces the old Admins card, which listed up to 6 admins of
+    // "other" circles unless the circle switched "Show admins publicly" off (P1). The viewer's own role decides whether they get its controls.
     let teamCard: TeamCardData | null = null;
     let viewerTeamRole: TeamCardRole | null = null;
     let viewerOnTeamCard = false;
@@ -300,7 +293,6 @@ export default async function CircleHomePage(props: PageProps) {
             canCreateVenueEvent={canCreateVenueEvent}
             showFundingPanel={showFundingPanel}
             showUpcomingShiftsPanel={showUpcomingShiftsPanel}
-            adminLeaders={JSON.parse(JSON.stringify(adminLeaders))}
             teamCard={teamCard}
             viewerTeamRole={viewerTeamRole}
             viewerOnTeamCard={viewerOnTeamCard}
