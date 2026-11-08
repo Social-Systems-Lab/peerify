@@ -229,10 +229,58 @@ This rebuilds a whole box from the backups and the password-manager entry alone.
 **For the rehearsal**, do it on a **temporary VM** in the staging Cleura project, and follow the checks in 5.9. Delete the VM the same day.
 
 **Before you start, you need:**
-- **A new VM:** Ubuntu 24.04, in Stockholm, with your SSH key for `tim`.
-- **The base software,** installed the way the Cleura boxes were built (your build notes): `mongodb-org` 8.0 (**auth not enabled yet**: leave the default `/etc/mongod.conf` for now), the `silo` package, nginx, certbot, Node, bun, PM2, ffmpeg, and the `peerify` user.
-- **For the rehearsal:** the deploy script only runs on host names it knows. Before step 8 of the rollout, I'll add the rehearsal VM's host name, `peerify-staging-restore`, to `deploy-staging.sh` as a small separate commit. Give the VM that host name.
-- **The password-manager entry** for the box you're restoring.
+- **A new VM:** Ubuntu 24.04, in Stockholm (Sto2), with your SSH key.
+  - A fresh Cleura Ubuntu VM logs in as **`ubuntu`**, not `tim`. Where a block below says **User: tim** on the new VM, use that login.
+  - **For the rehearsal:**
+    - name the VM **`peerify-staging-restore`**;
+    - give it a security group that allows only SSH (22) from your own IP address;
+    - don't touch DNS.
+- **The base software** (5.0 below). **Leave MongoDB without login for now:** keep the default `/etc/mongod.conf`. The restored config switches login on in 5.4.
+- **For the rehearsal:** the deploy script knows the host name `peerify-staging-restore` since `148d2ef9`. The backed-up version (5.2) must be that commit or newer.
+- **The password-manager entry,** or the paper copy, for the box you're restoring.
+
+### 5.0 Base software
+
+These are the versions on the Cleura boxes in November 2026. **Fixed versions:**
+- MongoDB 8.0.23;
+- bun 1.3.14;
+- PM2 7.0.1.
+
+**Same series:**
+- Node 22;
+- restic 0.16.4, from Ubuntu.
+
+**Box: the new VM** · **User: tim** (or `ubuntu`)
+
+```
+hostname
+sudo apt-get update
+sudo apt-get install -y gnupg curl git jq ffmpeg restic python3 nginx certbot
+curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
+echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+sudo apt-get update
+sudo apt-get install -y mongodb-org=8.0.23 mongodb-org-database=8.0.23 mongodb-org-server=8.0.23 mongodb-org-mongos=8.0.23 mongodb-org-tools=8.0.23 mongodb-org-shell=8.0.23 mongodb-org-database-tools-extra=8.0.23 mongodb-mongosh
+sudo systemctl enable --now mongod
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+curl -fsSL https://bun.sh/install | sudo env BUN_INSTALL=/usr/local bash -s "bun-v1.3.14"
+sudo npm install -g pm2@7.0.1
+sudo adduser --disabled-password --gecos "" peerify
+```
+
+**Silo and `mcli`:**
+- Install the same two `.deb` packages as on the boxes:
+  - `silo 20260916000000.0.0-1PGSTY`;
+  - `mcli 20260916000000.0.0`.
+- **Where they come from isn't written down here yet.** Add the download source to this section the next time you have it at hand: a real box loss depends on it.
+- Don't start silo yet; its settings come back in 5.3.
+
+**Check:**
+
+```
+mongod --version | head -n 1; node -v; bun -v; pm2 -v; restic version; mcli --version | head -n 1; dpkg -l silo | tail -n 1 | awk '{print $2, $3}'
+systemctl is-active mongod; id peerify; id silo
+```
 
 ### 5.1 Install restic and open the backups
 
@@ -294,18 +342,34 @@ You should see `active`.
 
 ### 5.4 The database
 
-First the users, then the app's data. Then auth is switched on with the restored config.
+First the users, then the app's data. Then login is switched on with the restored config.
 
 **Box: the new VM** · **User: root shell**
 
 ```
-mongorestore --host 127.0.0.1 --archive=/root/restore/admin.archive --nsInclude 'admin.*'
-mongorestore --host 127.0.0.1 --archive=/root/restore/peerify_staging.archive --nsInclude 'peerify_staging.*'
+mongorestore --host 127.0.0.1 --archive=/root/restore/admin.archive --nsInclude 'admin.*' 2>&1 | tail -n 1
+mongorestore --host 127.0.0.1 --archive=/root/restore/peerify_staging.archive --nsInclude 'peerify_staging.*' 2>&1 | tail -n 1
+```
+
+**You should see:**
+- Both lines end with `0 document(s) failed to restore`.
+- The `admin` line also says **`0 document(s) restored successfully`**. That's expected: Mongo users are restored separately and aren't counted as documents.
+
+**Rehearsal only:** count the documents now, while no login is needed, for the comparison in 5.9. If you log in as `tim`, write `/home/tim` instead of `/home/ubuntu`.
+
+```
+mongosh --quiet --eval 'const d = db.getSiblingDB("peerify_staging"); d.getCollectionNames().sort().forEach(c => print(c, d[c].countDocuments()))' > /home/ubuntu/counts-restored.txt
+wc -l /home/ubuntu/counts-restored.txt
+```
+
+**Then switch login on:**
+
+```
 cp /root/restore/etc/mongod.conf /etc/mongod.conf
 systemctl restart mongod && sleep 3 && systemctl is-active mongod
 ```
 
-Both restores should end with `0 document(s) failed to restore`, and the last line should say `active`. From now on Mongo needs logins, and `tim_admin` has its old password.
+**You should see:** `active`. From now on, Mongo needs logins, and `tim_admin` has its old password.
 
 ### 5.5 App data (key files)
 
@@ -317,7 +381,9 @@ chown -R peerify:peerify /srv/peerify/data
 ls /srv/peerify/data/users | wc -l
 ```
 
-The number should match the survey (staging 13, prod 59), plus any accounts made since.
+**Rehearsal:** the number should match live staging's (`sudo ls /srv/peerify/data/users | wc -l` there), or be a little lower because of accounts made since the snapshot.
+
+**Real box loss:** there's no live box to compare with. Check that it isn't 0.
 
 ### 5.6 The buckets
 
@@ -371,7 +437,9 @@ mcli --config-dir /root/.mcli admin policy create restore peerify-prod-rw /root/
 
 **You should see:**
 - `alias ok`.
-- Object counts close to the survey: staging 207 and 17, prod 266 and 103, plus any uploads since.
+- **Object counts:**
+  - **Rehearsal:** the same as live staging's (`mcli ls --recursive local-admin/<bucket> | wc -l` there), or a little lower.
+  - **Real box loss:** not 0.
 - The private bucket's access is `private`.
 - `app user pf-staging-media ok` (or `pf-prod-media`).
 
@@ -383,19 +451,66 @@ Follow section 7 **before** the app is opened to anyone.
 
 ### 5.8 The app
 
-Leave the root shell, then deploy as usual at the `gitSha` from 5.2.
+**Rehearsal only: email capture must be on before the app starts.** Staging's settings normally have it on: every email goes to `/admin/emails` instead of being sent.
+
+**Box: the new VM** · **User: root shell**
+
+```
+grep -cx 'EMAIL_CAPTURE_MODE=on' /srv/peerify/env/app.env
+```
+
+**You should see:** `1`. **If you see `0`:**
+- If `grep -c '^EMAIL_CAPTURE_MODE=' /srv/peerify/env/app.env` also says `0`, add the line:
+
+  ```
+  echo 'EMAIL_CAPTURE_MODE=on' >> /srv/peerify/env/app.env
+  ```
+
+- If that says `1` (the line is there with another value), stop and send me the output.
+
+**Never do this on prod.**
+
+Leave the root shell:
 
 ```
 exit
 ```
 
-The deploy itself:
-- **Real box loss:** clone the repo into `/srv/peerify/app/circles` and run the usual deploy script. This needs the host name `peerify-staging` or `peerify-prod`.
-- **Rehearsal:** the same, with the rehearsal host name (see "Before you start").
+**Deploy the `gitSha` from 5.2.**
+
+**The clone:**
+- It goes into **`/srv/peerify/app`**: the app is the repo's `circles/` folder, and the deploy script runs from `/srv/peerify/app/circles`.
+- The deploy script accepts only the branch **`staging`** (prod: **`main`**), so the version is checked out under that branch name.
+
+Change `GITSHA` before pasting. On prod, use `-B main` and `./scripts/deploy-peerify.sh`.
+
+**Box: the new VM** · **User: tim**
+
+```
+hostname
+sudo -iu peerify
+```
+
+**Box: the new VM** · **User: peerify** (the shell you just opened)
+
+```
+git clone https://github.com/Social-Systems-Lab/peerify.git /srv/peerify/app
+cd /srv/peerify/app && git checkout -B staging GITSHA
+cd /srv/peerify/app/circles && ./deploy-staging.sh
+exit
+```
+
+The deploy needs the host name `peerify-staging` or `peerify-prod`. For the rehearsal, it needs `peerify-staging-restore`.
 
 Then the web side:
-- **Real box loss:** the files are in `/root/restore/etc/nginx` and `/root/restore/etc/letsencrypt`. Copy them in, or reissue the certificates with certbot. Move the floating IP (or DNS) to the new box.
-- **Rehearsal:** don't touch DNS. Reach the app through an SSH tunnel: `ssh -L 3001:127.0.0.1:3001 tim@<the VM's address>`, then open `http://localhost:3001`.
+- **Real box loss:**
+  - The files are in `/root/restore/etc/nginx` and `/root/restore/etc/letsencrypt`. Copy them in, or reissue the certificates with certbot.
+  - Move the floating IP (or DNS) to the new box.
+- **Rehearsal:**
+  - Don't touch DNS.
+  - Reach the app through an SSH tunnel: `ssh -N -L 3001:127.0.0.1:3001 ubuntu@<the VM's address>`.
+  - Open `http://localhost:3001` in **Chrome or Firefox, not Safari.** The login cookie is marked secure: Chrome and Firefox accept it on `localhost`, but Safari doesn't, so the login would seem to fail.
+  - **Look, don't use:** no posting, following, messages or invitations. The restored app has staging's push keys, so a notification could reach a real tester's browser.
 
 ### 5.9 Checks (the rehearsal's pass list)
 
@@ -405,72 +520,241 @@ Then the web side:
 hostname
 curl -fsS http://127.0.0.1:3001/api/health; echo
 curl -fsS http://127.0.0.1:3001/api/version; echo
-mongosh --quiet "mongodb://tim_admin@127.0.0.1:27017/admin" --eval 'const d = db.getSiblingDB("peerify_staging"); d.getCollectionNames().sort().forEach(c => print(c, d[c].countDocuments()))' > ~/counts-restored.txt
-wc -l ~/counts-restored.txt
+OBJ=$(sudo mcli --config-dir /root/.mcli ls --recursive restore/circles-staging | awk 'NR==1 {print $NF}')
+echo "a public file through the app: $(curl -s -o /dev/null -w '%{http_code}, %{size_download} bytes' "http://127.0.0.1:3001/storage/$OBJ")"; unset OBJ
 ```
 
-Run the same `mongosh` line on the real staging box into `~/counts-live.txt`, then compare. Small differences from activity since the snapshot are normal.
+**You should see:**
+- **health:** OK.
+- **version:** the `gitSha` from 5.2.
+- **The public file:** `200`, with more than 0 bytes. It comes from the VM's own silo through the app; its name is never printed.
+
+**Compare the counts:** on the real staging box, run this into `~/counts-live.txt`. It asks for the `tim_admin` password.
+
+```
+mongosh --quiet "mongodb://tim_admin@127.0.0.1:27017/admin" --eval 'const d = db.getSiblingDB("peerify_staging"); d.getCollectionNames().sort().forEach(c => print(c, d[c].countDocuments()))' > ~/counts-live.txt
+```
+
+Then copy it and the VM's `counts-restored.txt` (from 5.4) to your Mac, and compare them with `diff -y --suppress-common-lines`. Small differences from activity since the snapshot are normal.
 
 **In the browser** (through the tunnel), check:
 - a test account can log in;
-- a picture shows;
+- a picture shows. Right-click it, then **Open image in new tab**: the address must start with `http://localhost:3001/`, so the picture really comes from the VM;
 - a track plays;
-- a private file opens in the admin view.
+- a private file opens in the admin view;
+- `/admin/emails` opens, and any email the rehearsal triggered is there, not sent.
 
 **Write down** in SESSION_LOG the time each step took, which steps needed help, and what was missing. Then:
-- **Delete the VM and its volume** in the Cleura dashboard, the same day.
-- **Clean up on staging:** run `rm ~/counts-live.txt`.
+- **In the Cleura dashboard, the same day:**
+  - delete the VM;
+  - check that **its volume** is gone (it holds a full copy of staging, keys included);
+  - release the **floating IP**;
+  - delete the rehearsal **security group**.
+- **Clean up:**
+  - on staging, `rm ~/counts-live.txt`;
+  - on your Mac, the two counts files, and `ssh-keygen -R <the VM's address>`.
 
 ---
 
 ## 6. On-box restore check (prod; staging too if you like)
 
-This proves the backups can be read and are complete, without a second box, and without restoring anything into the live database. Everything goes into a temporary folder, which is deleted at the end. A temporary second MongoDB runs on port 27099, only for counting.
+This proves the backups can be read in full, and that last night's snapshot restores to the same database, key files and bucket files as are live now. **Nothing is restored into the live database or the live folders.**
+
+**Where things go:**
+- Everything restored goes into one temporary folder, `/var/tmp/peerify-restore-test`.
+- The database copy runs in a temporary second MongoDB on port 27099, as the `mongodb` user, with its data in that folder. The live MongoDB is only read, by the backup's own read-only user `peerify_backup`.
+- Everything is shredded and deleted the same day.
+
+**The two comparison scripts** are in this folder and are run from the deployed app:
+- `restore-counts.mongosh.js`: documents per collection;
+- `restore-files.sh`: files and bytes.
+
+Both are read-only and print numbers only. **They refuse to run** if:
+- `EXPECT_DB` / `EXPECT_BOX` is missing or wrong;
+- the temporary MongoDB is on the live port;
+- the temporary MongoDB doesn't keep its data under `/var/tmp/peerify-restore-test/`.
+
+The commands below use prod's names. For staging:
+- `--host peerify-staging`;
+- `peerify_staging` instead of `circles` (in the archive name, `--nsInclude` and `EXPECT_DB`);
+- `EXPECT_BOX=staging`.
+
+**When:** in the daytime, not between 23:00 and 04:00. The full read in 6.2 must not overlap the nightly run.
+
+### 6.1 Before you start
 
 **Box: prod** · **User: tim**
 
 ```
 hostname
+S=/srv/peerify/app/circles/scripts/backup
+sudo test -f $S/restore-counts.mongosh.js && sudo test -f $S/restore-files.sh && echo "scripts found"
+sudo grep -E '===' /var/log/peerify-backup/backup.log | tail -n 2
+sudo peerify-backup --restic stats --mode raw-data | grep -E 'Total Size'
+for t in data buckets; do echo "$t: $(sudo peerify-backup --restic stats latest --host peerify-prod --tag $t | grep -E 'Total Size')"; done
+echo "mongo: $(sudo peerify-backup --restic stats latest --host peerify-prod --tag mongo --path /var/backups/peerify/mongo/circles.archive | grep -E 'Total Size')"
+df -h /var/tmp | tail -n 1
+ls -d /var/tmp/peerify-restore-test 2>/dev/null && echo "STOP: an old test folder is still there" || echo "no old test folder"
+ss -ltn | grep -q ':27099 ' && echo "STOP: port 27099 is in use" || echo "port 27099 free"
+```
+
+**You should see:**
+- `scripts found`;
+- last night's `=== ok after ...`;
+- the raw-data size: how much 6.2 downloads;
+- free space ("Avail") of at least **three times** data + buckets + mongo;
+- `no old test folder` and `port 27099 free`.
+
+### 6.2 Read and verify every byte
+
+Run it in `tmux`, so a dropped connection doesn't stop it.
+
+**Box: prod** · **User: tim**
+
+```
+hostname
+tmux new -s restorecheck
+```
+
+Inside tmux:
+
+```
 sudo peerify-backup --restic check --read-data
 ```
 
-This takes a while: it downloads everything once. You should see `no errors were found`.
+**You should see:** `no errors were found`.
+
+**Leaving and coming back:**
+- **Leave it running:** `Ctrl-b`, then `d`.
+- **Come back:** `tmux attach -t restorecheck`.
+- **When it's done:** `exit`.
+
+### 6.3 The database: temporary MongoDB, restore, compare
+
+**What the folders are:**
+- `/var/tmp/peerify-restore-test` itself only lets others pass through it.
+- `restore/` is root-only.
+- `db/` belongs to `mongodb`.
+
+**Box: prod** · **User: tim**
 
 ```
-T=/var/backups/peerify/restore-test
-sudo install -d -m 700 $T $T/db
-for tag in data buckets; do sudo peerify-backup --restic restore latest --host peerify-prod --tag $tag --target $T || echo "FAILED: $tag"; done
-sudo bash -c "peerify-backup --restic dump latest --host peerify-prod --tag mongo --path /var/backups/peerify/mongo/circles.archive /var/backups/peerify/mongo/circles.archive > $T/circles.archive"
-echo "key folders: backup $(sudo ls $T/srv/peerify/data/users | wc -l), live $(sudo ls /srv/peerify/data/users | wc -l)"
-for b in circles peerify-media; do echo "$b: backup $(sudo find $T/var/backups/peerify/buckets/$b -type f | wc -l), live $(mcli ls --recursive local-admin/$b | wc -l)"; done
+hostname
+T=/var/tmp/peerify-restore-test
+sudo install -d -m 711 -o root -g root $T
+sudo install -d -m 700 -o root -g root $T/restore
+sudo install -d -m 700 -o mongodb -g mongodb $T/db
+sudo bash -c "umask 077; peerify-backup --restic dump latest --host peerify-prod --tag mongo --path /var/backups/peerify/mongo/circles.archive /var/backups/peerify/mongo/circles.archive > $T/restore/circles.archive"
+sudo stat -c '%s bytes' $T/restore/circles.archive
+sudo grep "dumped 'circles'" /var/log/peerify-backup/backup.log | tail -n 1
 ```
 
-The backup and live numbers should be equal, or the live ones a little higher.
+**You should see:** the same number of bytes twice.
 
-**Count the database's documents in a temporary MongoDB.** The last command asks for the `tim_admin` password, for the live counts.
-
-```
-T=/var/backups/peerify/restore-test
-sudo mongod --dbpath $T/db --port 27099 --bind_ip 127.0.0.1 --wiredTigerCacheSizeGB 0.25 --fork --logpath $T/mongod.log >/dev/null && echo "temporary mongod started"
-sudo mongorestore --quiet --port 27099 --archive=$T/circles.archive --nsInclude 'circles.*'
-sudo mongosh --quiet --port 27099 --eval 'const d = db.getSiblingDB("circles"); d.getCollectionNames().sort().forEach(c => print(c, d[c].countDocuments()))' > ~/counts-backup.txt
-mongosh --quiet "mongodb://tim_admin@127.0.0.1:27017/admin" --eval 'const d = db.getSiblingDB("circles"); d.getCollectionNames().sort().forEach(c => print(c, d[c].countDocuments()))' > ~/counts-live.txt
-diff ~/counts-backup.txt ~/counts-live.txt && echo "counts identical"
-```
-
-A few small differences are normal: activity since last night.
-
-**Clean up, the same day:**
+Start the temporary MongoDB:
 
 ```
-T=/var/backups/peerify/restore-test
-sudo mongosh --quiet --port 27099 --eval 'db.getSiblingDB("admin").shutdownServer()' >/dev/null 2>&1; sleep 2
+T=/var/tmp/peerify-restore-test
+ss -ltn | grep -q ':27099 ' && echo "STOP: port 27099 is in use" || sudo -u mongodb mongod --dbpath $T/db --port 27099 --bind_ip 127.0.0.1 --wiredTigerCacheSizeGB 0.25 --fork --logpath $T/db/mongod.log
+pgrep -a mongod
+```
+
+**You should see:**
+- `child process started successfully`;
+- two `mongod` lines: the live one (`--config /etc/mongod.conf`) and the temporary one (`--port 27099`).
+
+Restore the archive into it, then compare:
+
+```
+T=/var/tmp/peerify-restore-test
+sudo mongorestore --host 127.0.0.1 --port 27099 --archive=$T/restore/circles.archive --nsInclude 'circles.*' 2>&1 | tail -n 1
+sudo env EXPECT_DB=circles mongosh --nodb --norc --quiet --file /srv/peerify/app/circles/scripts/backup/restore-counts.mongosh.js | tee ~/restore-counts.txt
+```
+
+**You should see:**
+- **The restore:** `0 document(s) failed to restore`. The temporary MongoDB needs no login and the live one does, so a mistyped port fails without writing anything.
+- **The comparison:** a table of live, restored and the difference, per collection, then the totals.
+
+**Reading it:**
+- **Normal:**
+  - `diff 0`;
+  - small `more live` numbers;
+  - a few `MORE IN THE BACKUP` in collections that are cleaned up over time, such as notifications.
+- **Send me:**
+  - big differences;
+  - `only in the backup`;
+  - an `only live` collection that isn't new;
+  - any `Refusing to run`.
+
+### 6.4 Key files and buckets: restore, compare
+
+**Box: prod** · **User: tim**
+
+```
+hostname
+T=/var/tmp/peerify-restore-test
+for tag in data buckets; do (set -o pipefail; sudo peerify-backup --restic restore latest --host peerify-prod --tag $tag --target $T/restore | tail -n 1) || echo "FAILED: $tag"; done
+sudo env EXPECT_BOX=prod bash /srv/peerify/app/circles/scripts/backup/restore-files.sh $T/restore | tee ~/restore-files.txt
+```
+
+**You should see:**
+- two `Summary: Restored ...` lines;
+- a table of files and bytes, live vs. restored, for the data folder, the account key folders and each bucket. The buckets are read with the backup's read-only silo key.
+
+**Reading it:** equal, or the live numbers a little higher. Send me anything else, and any `cannot list` or `Refusing to run` line.
+
+Copy `~/restore-counts.txt` and `~/restore-files.txt` to your Mac and send them.
+
+### 6.5 Clean up, the same day
+
+Stop the temporary MongoDB through its own data folder, so the command can't touch the live one:
+
+**Box: prod** · **User: tim**
+
+```
+hostname
+T=/var/tmp/peerify-restore-test
+sudo -u mongodb mongod --dbpath $T/db --shutdown
+sleep 3
+pgrep -a mongod
+```
+
+**You should see:** only the live `mongod` line. If the temporary one is still listed after another 10 seconds, stop and send me the output. Don't kill anything by hand.
+
+Shred and delete:
+
+```
+T=/var/tmp/peerify-restore-test
+sudo find $T -type f -exec shred -u -n 1 {} +
 sudo rm -rf $T
-rm -f ~/counts-backup.txt ~/counts-live.txt
-sudo ls /var/backups/peerify
+rm -f ~/restore-counts.txt ~/restore-files.txt
 ```
 
-You should see no `restore-test` left.
+On a cloud disk, shredding can't guarantee that no old block survives in the provider's storage. The restored copy is no more sensitive than the live data on the same disk.
+
+Final check:
+
+```
+hostname
+ls -d /var/tmp/peerify-restore-test 2>/dev/null && echo "LEFT: test folder" || echo "test folder gone"
+ss -ltn | grep -q ':27099 ' && echo "LEFT: something on port 27099" || echo "port 27099 closed"
+echo "mongod processes: $(pgrep -c mongod)"
+ls ~ | grep -E '^restore-' && echo "LEFT: files in your home" || echo "home clean"
+echo "restic locks: $(sudo peerify-backup --restic list locks --no-lock | wc -l)"
+```
+
+**You should see:**
+- `test folder gone`
+- `port 27099 closed`
+- `mongod processes: 1`
+- `home clean`
+- `restic locks: 0`
+
+**Write down** in SESSION_LOG:
+- the date and the snapshot ids;
+- the result of 6.2;
+- the totals from 6.3 and 6.4;
+- that the final check was clean.
 
 ---
 

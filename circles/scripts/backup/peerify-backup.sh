@@ -218,7 +218,7 @@ $tail_lines
 
 More: sudo journalctl -u peerify-backup -n 200
 Log file: $LOG_FILE
-What to do: RESTORE-RUNBOOK.md, section 'When the backup fails'."
+What to do: RESTORE-RUNBOOK.md, section 0 'When an alert arrives'."
 }
 
 # ---------------------------------------------------------------------------------------------
