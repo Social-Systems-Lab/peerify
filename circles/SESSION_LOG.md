@@ -15,8 +15,66 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
 - Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
 - See OPERATIONS.md for architecture.
-- **Backups (top roadmap risk):** automated, encrypted, off-box backups are built on branch `backup/automated-backups` (`circles/scripts/backup/`). Rollout is next, staging first. Then the erasure log, then the registry question. See the 2026-11-04 entry.
+- **Backups:** live on both boxes since 2026-11-07 (nightly, prod 02:30, staging ~03:30; restic to Cleura Kna1, repos `peerify-backup-prod` / `-staging`, config in `/etc/peerify-backup`). **Restore tests not done yet:** prod on-box check and staging VM rehearsal are prepared (2026-11-08 entry). Then the erasure log (not built), then the registry question.
 - **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):** Tim is likely to notify IMY by Sun 2026-11-08 05:28 UTC. Containment C1–C4 is live on prod since 2026-11-05 08:51 UTC (`f67ab5ea`); H3–H7 and H9 since 2026-11-06 05:52 UTC (`44bb7e4b`); the crew-application half of the approve/reject `circleId` check since 09:55 UTC (`0be44136`). Left: M1–M9 (next task, together with the same check for membership requests), L1–L9. Venue contacts in notifications: prod count 0 (2026-11-06 07:26Z). See the 2026-11-05 and 2026-11-06 entries.
+
+---
+
+## 2026-11-08 — Backups: restore tests prepared, runbook updated (`148d2ef9`, `fbb9ca9a`)
+
+Report: `~/cc-reports/outbox/20261108-1845-restore-tests.tar.gz`. Nothing was run on prod or staging, and no database commands were run against either.
+
+**What was prepared:**
+- **`PROD-ONBOX-CHECK.md` (prod, Tim runs it):**
+  - a. `restic check --read-data`, in tmux.
+  - b. Last night's `circles` archive goes into a temporary mongod: user `mongodb`, port 27099, data in `/var/tmp/peerify-restore-test`. Then per-collection counts, live vs. restored, side by side.
+  - c. The data and buckets snapshots are restored, then files and bytes compared with `/srv/peerify/data` and both live buckets.
+  - d. The temporary mongod is stopped via its own data folder. Everything is shredded and deleted, then a final check (folder, port, mongod count, home files, restic locks).
+  - Daytime only: not 23:00–04:00.
+- **`STAGING-REHEARSAL.md` (staging):** a full rebuild on a temporary VM:
+  - **The VM:** `peerify-staging-restore`, Sto2, Ubuntu 24.04, staging's flavor, 40 GB.
+  - **Access:** a security group with SSH from Tim's IP only.
+  - **Typed in by hand:** only the restic password and the S3 keys, from the paper copy.
+  - **Safety:** an email-capture check before the app starts; look, don't use (staging's push keys).
+  - **Checks:** counts vs. live staging; one file fetched through the app on the VM; the browser through an SSH tunnel, in Chrome or Firefox.
+  - **Same day:** delete the VM, its volume, the floating IP and the security group.
+- **Two read-only, numbers-only scripts,** now also in `circles/scripts/backup/`:
+  - **`restore-counts.mongosh.js`:**
+    - reads live as `peerify_backup`, with the password read from its root-only file;
+    - guards: `EXPECT_DB`; the temporary mongod must keep its data under `/var/tmp/peerify-restore-test/` and be on another port.
+  - **`restore-files.sh`:** guards on `EXPECT_BOX` and the host name.
+  - **Tested** on throwaway mongods and a throwaway silo:
+    - every number matched the hand-worked values, and all refusal cases refused;
+    - the profiler showed counts only;
+    - checksums showed the files script changes nothing.
+  - **Bug found in testing and fixed:** with an unknown alias, `mcli` silently lists a local folder, which looks like an empty bucket. The script now refuses.
+
+**Commits on staging:**
+- **`148d2ef9` `deploy-staging.sh`:** knows `peerify-staging-restore` (the same config as `peerify-staging`).
+- **`fbb9ca9a` `RESTORE-RUNBOOK.md` brought up to date:**
+  - **Section 5:**
+    - a new 5.0 base-software block;
+    - VMs log in as `ubuntu`;
+    - clone into `/srv/peerify/app` (not `.../circles`) and `git checkout -B staging|main <gitSha>`;
+    - 5.4 split, so the rehearsal counts before login is on (the `admin` restore's "0 documents" is expected);
+    - live comparisons instead of the 4 Nov survey numbers;
+    - the email-capture check, Chrome or Firefox, and the stronger 5.9 checks.
+  - **Section 6:** rewritten as the prod sheet.
+  - **`peerify-backup.sh`:** the failure email names the existing section ("0 'When an alert arrives'").
+
+**Open:**
+- **Tim deploys staging,** then refreshes the installed copies. The same on prod after the next release to `main`:
+  ```
+  SRC=/srv/peerify/app/circles/scripts/backup
+  sudo install -m 755 -o root -g root $SRC/peerify-backup.sh /usr/local/sbin/peerify-backup
+  sudo install -m 644 -o root -g root $SRC/RESTORE-RUNBOOK.md $SRC/INSTALL.md /usr/local/share/doc/peerify-backup/
+  sudo peerify-backup --check-config
+  ```
+- **Prod on-box check:** use the package sheet until the next release puts the scripts on prod; after that, runbook section 6.
+- **Staging rehearsal:** possible after one night with `148d2ef9` or newer deployed and backed up.
+- **Where silo and `mcli` `.deb` files come from** isn't written down anywhere; needed for a real box loss (runbook 5.0).
+- **Prod's manual `~/backups`:** shred them after 7 good nights on prod (from 2026-11-14) plus a passing on-box check, and never past their DELETE-BY dates.
+- **Retention:** first snapshots should age out around 2026-12-06. Check then that nothing is older than 29 days.
 
 ---
 
