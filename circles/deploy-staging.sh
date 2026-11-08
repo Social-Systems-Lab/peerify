@@ -11,8 +11,9 @@
 # 2026-08-02 staging incident and the 2026-08-17 prod incident.
 #
 # The config depends on the box (hostname): the old shared box `peerify`,
-# where prod runs next to staging, or the Cleura staging server, which runs
-# only staging. Any other hostname is refused.
+# where prod runs next to staging, the Cleura staging server, which runs
+# only staging, or the temporary restore-rehearsal VM. Any other hostname is
+# refused.
 #
 # On the shared box, never touches the `peerify` (prod) PM2 process except
 # to confirm, before and after, that it was not disturbed.
@@ -41,6 +42,16 @@ case "$(hostname)" in
     peerify-staging)
         # Cleura staging server: staging only, APP_DIR and env outside the checkout.
         EXPECTED_HOST="peerify-staging"
+        PROJECT_DIR="/srv/peerify/app/circles"
+        ENV_FILE="/srv/peerify/env/app.env"
+        NESTED_APP_PATH="."
+        PM2_OTHER=""
+        RUN_BUN_INSTALL="true"
+        ;;
+    peerify-staging-restore)
+        # Temporary VM for the backup restore rehearsal (RESTORE-RUNBOOK.md section 5), rebuilt
+        # from staging's backups with the same layout. Deleted the same day; never in DNS.
+        EXPECTED_HOST="peerify-staging-restore"
         PROJECT_DIR="/srv/peerify/app/circles"
         ENV_FILE="/srv/peerify/env/app.env"
         NESTED_APP_PATH="."
