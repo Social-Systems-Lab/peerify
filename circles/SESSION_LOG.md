@@ -3,20 +3,34 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-11-02)
+## Current Status (2026-11-08)
 - Production: https://peerify.one, on the Cleura server `peerify-prod`. Staging: https://staging.peerify.one, on the Cleura server `peerify-staging`. On both, the app runs from `/srv/peerify/app/circles` as the `peerify` user, under PM2 (`peerify` :3000, `peerify-staging` :3001). Tim deploys.
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `0be44136`** (staging), live since 2026-11-06 09:55 UTC. Staging is one commit ahead (`f8ecfd05`, the red badge), waiting for the next release. The 2026-11-02 release was `0c637397` (tree = staging `8ab88b39`); since then `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry below.
-- **Next on prod:** storage steps 2–5 (run sheet `~/cc-reports/outbox/20261102-1640-prod-runsheet.tar.gz`). Then step 6: rebuild `a440d431` (the `/storage` refusal of `offer-photo*` names) as a new staging commit together with V4.
+- **Prod = `ff30ff9e`** (staging; build 2026-11-07 17:17 UTC, per `/api/version`). That puts on prod: M1–M9 and decisions D1–D3 (`498b13a0`..`9337062b`), and followers count-only, group labels, the invite picker, the Team card and the retired Admins card (`0efced2c`..`ff30ff9e`). **Staging = `fbb9ca9a`** (build 2026-11-08 18:13 UTC). It is ahead only by ops/docs commits: `148d2ef9` (restore-VM host name in `deploy-staging.sh`), `fbb9ca9a` (restore runbook and scripts) and SESSION_LOG. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **Storage steps 2–5 on prod** (run sheet `~/cc-reports/outbox/20261102-1640-prod-runsheet.tar.gz`): **not recorded as done in this log.** Tim, confirm. After them comes step 6: rebuild `a440d431` (the `/storage` refusal of `offer-photo*` names) as a new staging commit together with V4.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
 - Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
 - See OPERATIONS.md for architecture.
-- **Backups:** live on both boxes since 2026-11-07 (nightly, prod 02:30, staging ~03:30; restic to Cleura Kna1, repos `peerify-backup-prod` / `-staging`, config in `/etc/peerify-backup`). **Restore tests not done yet:** prod on-box check and staging VM rehearsal are prepared (2026-11-08 entry). Then the erasure log (not built), then the registry question.
-- **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):** Tim is likely to notify IMY by Sun 2026-11-08 05:28 UTC. Containment C1–C4 is live on prod since 2026-11-05 08:51 UTC (`f67ab5ea`); H3–H7 and H9 since 2026-11-06 05:52 UTC (`44bb7e4b`); the crew-application half of the approve/reject `circleId` check since 09:55 UTC (`0be44136`). Left: M1–M9 (next task, together with the same check for membership requests), L1–L9. Venue contacts in notifications: prod count 0 (2026-11-06 07:26Z). See the 2026-11-05 and 2026-11-06 entries.
+- **Backups:** live on both boxes since 2026-11-07 (nightly, prod 02:30, staging ~03:30; restic to Cleura Kna1, repos `peerify-backup-prod` / `-staging`, config in `/etc/peerify-backup`). **Restore tests not done yet** (prepared, see the 2026-11-08 entry):
+  - **Staging rehearsal:** possible from 2026-11-09, after tonight's backup records `fbb9ca9a`.
+  - **Prod on-box check:** use the package sheet until the next release puts the scripts on prod.
+  - **Installed copies:** refresh them on staging now (`fbb9ca9a` is deployed), and on prod after the next release. The commands are in the 2026-11-08 entry.
+  - **After that:** the erasure log (not built), then the registry question.
+- **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):**
+  - **IMY:** the planned notification deadline was Sun 2026-11-08 05:28 UTC. **This log doesn't record whether it was sent.** Tim, confirm. Supplements for IMY are in `20261107-1242-r3-medium-final` and `20261107-1615-followers-count-only-final`.
+  - **Live on prod:**
+    - containment C1–C4, since 2026-11-05 08:51 UTC (`f67ab5ea`);
+    - H3–H7 and H9, since 2026-11-06 05:52 UTC (`44bb7e4b`);
+    - the crew-application `circleId` check, since 09:55 UTC (`0be44136`);
+    - **M1–M9** with decisions D1–D3, and the follow-request `circleId` check (`498b13a0`..`9337062b`);
+    - the **followers count-only decision** of 2026-11-07 (`0efced2c`..`ff30ff9e`), all in prod `ff30ff9e`. Follower lists are for a circle's admins and moderators only; everyone else sees the count. Admins and moderators appear on a circle's About page only if they opt in to the Team card.
+  - **Left:** L1–L9; fan-club membership, which should follow the Crew rule (note in `20261107-1615-followers-count-only-final`, PLAN.md); and the staging checklist for the followers/Team card work, which this log doesn't record as run.
+  - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
+  - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. This log has no separate entries for the 2026-11-07 work.
 
 ---
 
@@ -63,7 +77,7 @@ Report: `~/cc-reports/outbox/20261108-1845-restore-tests.tar.gz`. Nothing was ru
   - **`peerify-backup.sh`:** the failure email names the existing section ("0 'When an alert arrives'").
 
 **Open:**
-- **Tim deploys staging,** then refreshes the installed copies. The same on prod after the next release to `main`:
+- **Refresh the installed copies:** on staging now (`fbb9ca9a` deployed 2026-11-08), and on prod after the next release to `main`:
   ```
   SRC=/srv/peerify/app/circles/scripts/backup
   sudo install -m 755 -o root -g root $SRC/peerify-backup.sh /usr/local/sbin/peerify-backup
