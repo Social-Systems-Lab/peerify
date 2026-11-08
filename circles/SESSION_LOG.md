@@ -9,7 +9,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
 - **Prod = `ff30ff9e`** (staging; build 2026-11-07 17:17 UTC, per `/api/version`). That puts on prod: M1–M9 and decisions D1–D3 (`498b13a0`..`9337062b`), and followers count-only, group labels, the invite picker, the Team card and the retired Admins card (`0efced2c`..`ff30ff9e`). **Staging = `fbb9ca9a`** (build 2026-11-08 18:13 UTC). It is ahead only by ops/docs commits: `148d2ef9` (restore-VM host name in `deploy-staging.sh`), `fbb9ca9a` (restore runbook and scripts) and SESSION_LOG. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
-- **Storage steps 2–5 on prod** (run sheet `~/cc-reports/outbox/20261102-1640-prod-runsheet.tar.gz`): **not recorded as done in this log.** Tim, confirm. After them comes step 6: rebuild `a440d431` (the `/storage` refusal of `offer-photo*` names) as a new staging commit together with V4.
+- **Storage steps 2–5 on prod** (run sheet `~/cc-reports/outbox/20261102-1640-prod-runsheet.tar.gz`): **unknown whether they ran** (Tim doesn't remember). A read-only check is ready: `20261108-1927-storage-steps-check.tar.gz` (see the 2026-11-08 (cont.) entry). **Step 6** (rebuild `a440d431`, the `/storage` refusal of `offer-photo*` names, together with V4) **is not scheduled until that check says the moves are done.**
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
@@ -21,16 +21,46 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Installed copies:** refresh them on staging now (`fbb9ca9a` is deployed), and on prod after the next release. The commands are in the 2026-11-08 entry.
   - **After that:** the erasure log (not built), then the registry question.
 - **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):**
-  - **IMY:** the planned notification deadline was Sun 2026-11-08 05:28 UTC. **This log doesn't record whether it was sent.** Tim, confirm. Supplements for IMY are in `20261107-1242-r3-medium-final` and `20261107-1615-followers-count-only-final`.
+  - **IMY:** the new notification was submitted by Tim on 2026-11-08 at about 05:15 UTC, before the deadline. It refers to **IMY-2026-19477**. The supplement (M findings and the followers change) is drafted from `20261107-1242-r3-medium-final` and `20261107-1615-followers-count-only-final`, and goes separately. **Affected users get the information email after that.**
   - **Live on prod:**
     - containment C1–C4, since 2026-11-05 08:51 UTC (`f67ab5ea`);
     - H3–H7 and H9, since 2026-11-06 05:52 UTC (`44bb7e4b`);
     - the crew-application `circleId` check, since 09:55 UTC (`0be44136`);
     - **M1–M9** with decisions D1–D3, and the follow-request `circleId` check (`498b13a0`..`9337062b`);
     - the **followers count-only decision** of 2026-11-07 (`0efced2c`..`ff30ff9e`), all in prod `ff30ff9e`. Follower lists are for a circle's admins and moderators only; everyone else sees the count. Admins and moderators appear on a circle's About page only if they opt in to the Team card.
-  - **Left:** L1–L9; fan-club membership, which should follow the Crew rule (note in `20261107-1615-followers-count-only-final`, PLAN.md); and the staging checklist for the followers/Team card work, which this log doesn't record as run.
+  - **Left:**
+    - L1–L9;
+    - fan-club membership, which should follow the Crew rule (note in `20261107-1615-followers-count-only-final`, PLAN.md);
+    - **next UX round:** the Team card shows a stray bullet point before each person (cosmetic).
+  - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
-  - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. This log has no separate entries for the 2026-11-07 work.
+  - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-08 (cont.) — Prod storage steps 2–5: read-only status check prepared
+
+Report: `~/cc-reports/outbox/20261108-1927-storage-steps-check.tar.gz`. **Tim doesn't remember whether steps 2–5 of the 2 Nov run sheet ran on prod**, and this log doesn't record them as done.
+
+**What the steps were:**
+- **2. Offer pins:** circles that saved offers before the 2 Nov release get a fixed random offset (`offerPinOffset`), so Explore map pins sit 200–400 m off instead of on the coarse grid.
+- **3. A count only;** it leaves no trace.
+- **4. Verification attachments** (ID photos and the like) are copied from the public bucket to the private one, then the public copies are deleted.
+- **5. Offer photos:** the same; afterwards they're served by `/api/offer-photo` to signed-in users.
+
+**The check:**
+- **`storage-steps-status.mongosh.js`**, read-only, run as the backup's read-only user `peerify_backup`. It needs `sudo` and no password; it prints numbers only.
+- **For each step, a verdict:**
+  - step 2: `DONE` / `NOT RUN` / `NOT DONE`;
+  - steps 4 and 5: `DONE, or nothing to move` / `HALF DONE` (`--copy` ran, `--delete-old` not) / `NOT DONE`.
+- **The last line:** whether step 6 may be scheduled.
+- **How it tells:**
+  - step 2: circles with offers and no offset;
+  - step 4: attachments still with a `/storage` URL, attachments with `key` + `movedFrom` (copied, public copy not yet deleted), and private ones;
+  - step 5: offer photos still on `/storage`, and rows in `offerPhotoMoves` (pending deletes).
+- **Tested** on a throwaway mongod through three states: nothing run; copied but not deleted; all done. Every verdict was right. Refusals: no `EXPECT_DB`, a wrong database, a wrong password, no sudo. The profiler showed counts only.
+
+**Step 6 waits for this check.**
 
 ---
 
@@ -89,6 +119,91 @@ Report: `~/cc-reports/outbox/20261108-1845-restore-tests.tar.gz`. Nothing was ru
 - **Where silo and `mcli` `.deb` files come from** isn't written down anywhere; needed for a real box loss (runbook 5.0).
 - **Prod's manual `~/backups`:** shred them after 7 good nights on prod (from 2026-11-14) plus a passing on-box check, and never past their DELETE-BY dates.
 - **Retention:** first snapshots should age out around 2026-12-06. Check then that nothing is older than 29 days.
+
+---
+
+## 2026-11-07 (later) — Followers count only, group labels, invite picker, Team card, old Admins card retired (`0efced2c`..`ff30ff9e`)
+
+Reports: `~/cc-reports/outbox/20261107-1548-followers-count-only.tar.gz`, then `20261107-1615-followers-count-only-final.tar.gz`. **Tim's decision of 2026-11-07** (UX month, privacy by default) replaces D2's "open circles stay public".
+
+**What was built** (five commits; tests fail before each fix and pass after):
+- **`0efced2c` Followers: count only.**
+  - **Who sees the follower list, tab and links:**
+    - a circle's admins and platform admins, always;
+    - its moderators, unless the circle's own "View followers" rule leaves them out;
+    - on a personal profile, its owner.
+  - Everyone else, logged out too, sees the count only. A stored "everyone" no longer opens the list.
+  - Gone for everyone else: the Followers tab, the page itself (Access denied), the Discover-card link and the Near/Top/Activity/Resonates sorts.
+  - A pending admin invitee gets the accept/decline banner only.
+  - Tests: `followers-count-only.test.ts` (renamed from `followers-leaks-d2`), `followers-leaks`, `location-leaks-2`.
+- **`d96de7e7` Group labels:** Admin, Moderator, Crew and custom labels for managers only; on someone else's row, others get only "members". Crew tests pinned: Crew peers see each other, hidden members stay placeholders (M3), followers and logged-out visitors get no roster.
+- **`5559a872` Invite picker:**
+  - The circle's followers are listed for managers, and for anyone who may invite to that event: the creator, `events.moderate`, or admins of one of the event's artist circles. This is the same shared rule as `inviteUsersToEventAction`.
+  - The picker passes its `eventId`, and the search action has the same gate.
+- **`394ad11c` Team card** (About page, right column, below Get Involved):
+  - **Who's on it:** admins and moderators who switched "Show me on the Team card" on (per person, per circle, off by default). The switch is on the card and in the Follower ▾ menu.
+  - **What's shown:** name, picture, handle and role, as a link to the profile. No contact data.
+  - **One admin note:** plain text, max 280 characters, with author and date. Admins only; a new note replaces the old one. The editor hint warns that the note is public.
+  - **No card for visitors** when nobody opted in and there is no note.
+  - **New optional fields:** `Member.teamCardVisible` and `Circle.teamNote`. The note is not in `SAFE_CIRCLE_PROJECTION`. No migration.
+  - Tests: `team-card.test.tsx`.
+- **`ff30ff9e` Old "Admins" card retired** (P1, Tim's yes):
+  - "Other" circles no longer list up to 6 admins publicly. That card was on by default via "Show admins publicly".
+  - The switch is hidden in Settings > About; the stored field is kept and saved back unchanged.
+  - Admins appear on the About page only via the opt-in Team card.
+  - Test: `home/about-admins.test.ts`.
+
+**Checks:**
+- 93 test files: only `participation-readiness` fails, as on staging;
+- tsc: only the existing `peerify-backup.test.ts` error;
+- eslint clean on the 27 changed files;
+- build exit 0.
+
+**Status:**
+- Committed and pushed to staging on 2026-11-07. Live on prod in `ff30ff9e` (build 2026-11-07 17:17 UTC).
+- **Staging checks:** run by Tim on 2026-11-07, before the prod release. All passed: count only for non-managers, the full list for managers, the Team card with opt-in and the note visible to others, no old Admins card.
+
+**Open:**
+- **Cosmetic:** a stray bullet point before each person on the Team card. Fix it in the next UX round.
+- **Fan-club membership** should follow the Crew rule: members see each other, nobody else sees it (PLAN.md in the final report). Not built.
+- The count script from the first package was dropped (Tim: not needed).
+
+---
+
+## 2026-11-07 — Leak round 3: M1–M9, the follow-request check, decisions D1–D3 (`498b13a0`..`9337062b`)
+
+Reports: `~/cc-reports/outbox/20261107-1225-r3-medium.tar.gz`, then `20261107-1242-r3-medium-final.tar.gz`. The final report holds:
+- `PLAN.md`, the re-check of each finding;
+- `IMY-SUPPLEMENT.md`;
+- `STAGING-CHECKLIST.md`;
+- a read-only count script (`count/`), tested on a throwaway mongod. This log doesn't record a prod run of it.
+
+**The changes** (twelve commits, one per change; each test fails before the fix and passes after):
+
+| Commit | Finding | What changes |
+|---|---|---|
+| `498b13a0` | Integrity | Approving or rejecting a follow request refuses a request whose `circleId` isn't the circle acted on. The same check as crew applications (`0be44136`). |
+| `57c0c644` | M1 (the rest) | **Event preview:** the author/moderator check runs before the redirect to the current host, so a stale link no longer reveals the host. **The public event shape** drops `userGroups`. |
+| `e09c083d` | M2 (part) | The followers page checks "View followers" server-side. A hidden Crew member's crew group isn't shown to others. |
+| `dcd445a9` | M3 | Hidden Crew members reach Crew peers as placeholders, decided on the server. Admins/moderators and the member themself get the real row. |
+| `2bf43489` | M5 (part) | Claim and attendance notes only for assigners, moderators and the person concerned. Linked and ranking tasks go through `filterTasksForViewer`. |
+| `1ab3f66f` | M6 | `getUserPrivate` no longer sends a legacy chat room circle's location (for a direct chat, the other person's home). |
+| `d3416965` | M7 | The settings layout checks `settings.view` itself (default admins); non-managers get the public circle. |
+| `1fe74c44` | M8 | `getPostsAction` checks permission on the feed's own circle, not the one the client sends. |
+| `8c3fc36b` | M9 | Issues in review, and each issue's and goal's audience, enforced on the server (`lib/data/item-visibility.ts`). |
+| `d9b4b2b6` | M1, **D1** | Join links of online events that aren't open RSVP go only to managers and invitees (event page, logged-out page, map and list, both ICS routes). |
+| `cccc61ca` | M2, **D2** | Personal profiles' follower lists for the owner only; approval-required circles' for followers only; Crew/custom labels for managers. Open circles stayed public. **Replaced the same day** by the count-only decision (2026-11-07 (later) entry). |
+| `9337062b` | M5, **D3** | Task locations exact only for the author, assignee, participants and claimants (city level for others). "Important for participants" notes only for people who signed up; "changes requested" only for those concerned. |
+
+**M4** (mentions) was already closed by C1 (`52ea36f3`, prod since 2026-11-05 08:51 UTC). The SESSION_LOG line saying the access check was missing was out of date.
+
+**Checks:**
+- 89 test files: only `participation-readiness` fails, as on staging;
+- tsc: only the existing error;
+- eslint clean on 38 files;
+- build exit 0.
+
+**Status:** committed and pushed to staging on 2026-11-07 (Tim: "commit the twelve patches"). Live on prod in `ff30ff9e`, together with the followers work. **IMY:** the supplement covering these findings is drafted and goes separately (notification IMY-2026-19477).
 
 ---
 
