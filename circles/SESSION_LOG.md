@@ -45,7 +45,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ## 2026-11-09 (cont.) — Storage step 5 done on prod; AVIF release; step 6 on staging (`4488d40f`, `e56e9491`, `53e81692`)
 
-**Why AVIF:** the step 5 dry run on prod (06:xx UTC) said `not an image 3`. The read-only type check (`20261109-0640-step5-not-images.tar.gz`) showed all 3 were real AVIF photos, correctly stored as `image/avif`, in one offer. The move script, `/api/offer-photo` and the offer and space photo uploads accepted only JPEG/PNG/WebP/GIF.
+**Why AVIF:** the first step 5 dry run on prod (morning of 2026-11-09) said `not an image 3`. The read-only type check (`20261109-0640-step5-not-images.tar.gz`) showed all 3 were real AVIF photos, correctly stored as `image/avif`, in one offer. The move script, `/api/offer-photo` and the offer and space photo uploads accepted only JPEG/PNG/WebP/GIF.
 - **A lost-upload bug was found too:** since the 2 Nov release, a new AVIF offer or space photo was kept by `sanitizeUpload` but then deleted again by the save action, with no error. There's no trace in the database or logs, so it can't be counted. AVIF uploads are rare (some Android cameras, images saved from the web).
 - The sniff branch `fix/offer-photo-move-sniff` (`4777ebd2`) turned out not to be needed. It stays local and is not pushed.
 
