@@ -11,7 +11,9 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **Prod = `0d261bc3`** (storage step 6; deployed 2026-11-09 ~11:02 UTC). **Staging = the same release, plus SESSION_LOG commits.** `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
 - **Storage steps on prod: 4, 5 and 6 DONE; step 2 held** for the UX month's pin design.
   - Step 5 finished 2026-11-09 ~09:45 UTC; step 6 (`53e81692`, `/storage` and `/uploads` refuse `offer-photo*` and `verification-attachment*` names) live since ~11:02 UTC. See the 2026-11-09 (cont.) entries.
-  - **Leftovers** (private-type names still in the public buckets, 404 since step 6): delete script `1c830a8b` on staging, goes to prod with the next ordinary release. Then Tim runs the prod listing, dry run and delete (package `20261109-1119-public-leftovers.tar.gz`). Staging: 3 left, all mentioned by `comments`/`notifications`, so kept; what those mentions are is not yet looked at.
+  - **Leftovers** (private-type names still in the public buckets, 404 since step 6): delete script `1c830a8b` on staging, goes to prod with the next ordinary release. Then Tim runs the prod listing, dry run and delete (package `20261109-1119-public-leftovers.tar.gz`). Staging: 3 left, all mentioned only by stale snapshots in `comments`/`notifications` (see the 2026-11-09 (cont. 4) entry), so kept for now.
+- **Stored comment author copies:** fix and clean-up script on branch `fix/comment-author-not-stored` (`3c33dba1`, `91575fb4`, `2cd873f7`), **not merged; waiting for Tim's review.** Package `20261109-*-comment-author-cleanup.tar.gz`.
+  - **The notification clean-up is ON HOLD until IMY answers** whether the stored notification data must be kept as evidence (IMY-2026-19477). The script's `--notifications` part refuses to run, even as a dry run, unless `IMY_CLEARED=yes` is set. Only Tim sets it, and only after IMY has cleared it.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
@@ -38,6 +40,33 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-09 (cont. 4) — Stored comment author copies: found, fix and clean-up script on a branch
+
+**Found while checking the staging leftovers:** the 3 leftover offer photos on staging are mentioned only by stale copies of a whole circle document:
+- 1 post comment (2026-09-29), in `author.tourTeamOfferings[].photos[]`;
+- 10 notifications, all from before 2026-11-05, in `content.user` / `content.circle`.
+
+Neither is shown to anyone. Comment readers look the author up fresh. Old notification content has been reduced to identity on read since the 2026-11-05 containment C1.
+
+**Cause:** `createCommentAction` and `createTrackCommentAction` attach `author` (the commenter's or acting circle's whole circle document) for their response, and `createComment` / `createTrackComment` stored it as is. Staging: 26 of 27 comments (24 post, 2 song, 2026-07-08 to 2026-09-29). The copy held location, metadata, members, questionnaire, offers, tourTeamOfferings, publicKey and more, but no email or Matrix fields. Round 3 fixed what comments send, not what they store.
+
+**Branch `fix/comment-author-not-stored`** (off staging `787376ef`, not merged; Tim reviews first):
+- `3c33dba1`: comments are stored without `author`; the caller still gets it back. 2 tests, which fail without the fix.
+- `91575fb4`: `shapeNotificationContent` moved byte for byte into the pure `notification-shape.ts` (no change), so a script can use it without importing `notifications.ts`, which creates indexes on import.
+- `2cd873f7`: `scripts/cleanup-comment-authors.ts`.
+  - **Comments:** dry run by default; `--apply` needs `EXPECT_COUNT`; `$unset author` only.
+  - **`--notifications`:** stores the reduced content that the app already reads. **It refuses to run unless `IMY_CLEARED=yes`, because the notification clean-up waits for IMY's reply on keeping the data as evidence.** `--apply` needs `EXPECT_NOTIFICATION_COUNT`.
+- **Checks:**
+  - related tests pass (comment-author 2, notification-content 10, feed-metadata-leaks 5, account-erasure 7, feeds and music);
+  - eslint clean; tsc shows only the old `peerify-backup.test.ts` error; the build succeeds.
+- **Throwaway:**
+  - **comments:** 4 of 6 copies removed, every other field identical, notifications untouched;
+  - **notifications** (with `IMY_CLEARED=yes`, throwaway only): 3 reduced; what the bell reads is identical; the account-erasure match is the same set; the test values are gone from storage.
+
+**Order:** Tim reviews → merge to staging → deploy staging → run the comment part on staging → release → prod. The notification part only after IMY clears it.
 
 ---
 
