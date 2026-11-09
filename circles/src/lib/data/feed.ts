@@ -920,7 +920,10 @@ export const updateHighlightedComment = async (postId: string): Promise<void> =>
 
 export const createComment = async (comment: Comment): Promise<Comment> => {
     try {
-        const result = await Comments.insertOne(comment);
+        // Stored without the `author` the action attaches for its response: readers look the author
+        // up fresh, and a stored copy was a stale whole circle document (location, metadata, offers).
+        const { author: _author, ...stored } = comment as Comment & { author?: unknown };
+        const result = await Comments.insertOne(stored);
         const insertedComment = { ...comment, _id: result.insertedId.toString() };
 
         await Posts.updateOne(

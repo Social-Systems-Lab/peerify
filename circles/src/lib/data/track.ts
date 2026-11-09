@@ -122,7 +122,9 @@ export const hasUserOvatedTrack = async (trackId: string, userDid: string): Prom
 // Comments on a track are always flat (no threading/replies — see PEERIFY_CONTEXT.md).
 // A "reply" is just a new top-level comment; parentCommentId is always null.
 export const createTrackComment = async (comment: Comment): Promise<Comment> => {
-    const result = await Comments.insertOne(comment);
+    // Stored without `author`, as in createComment (feed.ts): readers look the author up fresh.
+    const { author: _author, ...stored } = comment as Comment & { author?: unknown };
+    const result = await Comments.insertOne(stored);
     await Tracks.updateOne({ _id: new ObjectId(comment.trackId!) }, { $inc: { commentCount: 1 } });
     return { ...comment, _id: result.insertedId.toString() };
 };
