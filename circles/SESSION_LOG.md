@@ -11,7 +11,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **Prod = `0d261bc3`** (storage step 6; deployed 2026-11-09 ~11:02 UTC). **Staging = the same release, plus SESSION_LOG commits.** `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
 - **Storage steps on prod: 4, 5 and 6 DONE; step 2 held** for the UX month's pin design.
   - Step 5 finished 2026-11-09 ~09:45 UTC; step 6 (`53e81692`, `/storage` and `/uploads` refuse `offer-photo*` and `verification-attachment*` names) live since ~11:02 UTC. See the 2026-11-09 (cont.) entries.
-  - **Next:** the leftover private-type files in the public buckets (prod: 1 offer-photo name, now 404). Read-only listing and a delete proposal: `20261109-*-public-leftovers.tar.gz`.
+  - **Leftovers** (private-type names still in the public buckets, 404 since step 6): delete script `1c830a8b` on staging, goes to prod with the next ordinary release. Then Tim runs the prod listing, dry run and delete (package `20261109-1119-public-leftovers.tar.gz`). Staging: 3 left, all mentioned by `comments`/`notifications`, so kept; what those mentions are is not yet looked at.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
@@ -41,9 +41,25 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-11-09 (cont. 3) — Public-bucket leftovers: listing, delete script (`1c830a8b`)
+
+**Package:** `20261109-1119-public-leftovers.tar.gz`.
+- `public-leftovers-check.sh`: read-only, as the backup's read-only user and silo key. It lists files in the public bucket whose names step 6 refuses, and how many documents mention each file name (any field, any collection, any case). Numbers only.
+- `scripts/delete-public-leftovers.ts` (`1c830a8b`, on staging): dry run by default; `--delete` needs `EXPECT_COUNT` equal to the dry run's number. It deletes only names mentioned by nothing.
+- Tested on a throwaway database and silo: it deleted exactly the unmentioned files, and 0 writes by the read-only user.
+
+**Staging listing** (run by Claude with Tim's OK, 2026-11-09 11:26 UTC):
+- 208 objects in `circles-staging`, 3 with a refused name, all offer photos stored 2026-10, in existing circles.
+- **All 3 mentioned** by 11 documents each, in `comments` and `notifications`. Unreferenced: 0.
+- So no dry run or delete on staging: Tim's condition was "unreferenced files and nothing mentioned". What the mentions are (old `/storage` links in comment text or notification content?) has not been looked at; that needs another read-only query, with Tim's OK.
+
+**Prod:** 1 file with an offer-photo name (from `public-names-check`). Tim runs the listing, dry run and delete after the next ordinary release.
+
+---
+
 ## 2026-11-09 (cont. 2) — Storage step 6 live on prod (`0d261bc3`)
 
-- **Staging:** `0d261bc3` went through staging first (sheet 6.2b); its results weren't reported separately here.
+- **Browser checks after step 6,** on staging and on prod (Tim): fine. Offer photos showed signed in; profile pictures showed signed in and signed out.
 - **Release:** main = staging `0d261bc3` (step 6 `53e81692` plus SESSION_LOG commits); deployed to prod 2026-11-09 ~11:02 UTC.
 - **Prod `public-names-check.sh` afterwards:** 263 objects in `circles`; 1 with an offer-photo name, 0 with a verification-attachment name; that one, signed out at `/storage`: **404** (200 before); an ordinary image: 200.
 - **Storage steps on prod:** 4, 5 and 6 DONE. Step 2 is held for the UX month's pin design.
