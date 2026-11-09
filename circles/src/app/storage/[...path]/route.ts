@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Client as MinioClient } from "minio";
 import { getClientIp } from "@/lib/utils/client-ip";
 import { isMissingObjectError, recordStorageMiss, storageBlockedForSeconds } from "@/lib/storage/miss-limiter";
+import { isRefusedPublicName } from "@/lib/storage/refused-names";
 
 async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -47,6 +48,13 @@ export async function GET(
   const objectName = (path || []).join("/");
   if (!objectName) {
     return NextResponse.json({ error: "Missing object path" }, { status: 400 });
+  }
+
+  // Offer photos and verification attachments are private (lib/storage/refused-names.ts): a 404
+  // like a missing object, counted the same way, and MinIO is never asked.
+  if (isRefusedPublicName(objectName)) {
+    if (clientIp) recordStorageMiss(clientIp);
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
   const client = new MinioClient({
