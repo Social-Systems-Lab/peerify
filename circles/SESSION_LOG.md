@@ -43,7 +43,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ## 2026-11-09 (cont. 2) — Storage step 6 live on prod (`0d261bc3`)
 
-- **Staging:** Tim deployed `0d261bc3` and ran sheet 6.2b; passed.
+- **Staging:** `0d261bc3` went through staging first (sheet 6.2b); its results weren't reported separately here.
 - **Release:** main = staging `0d261bc3` (step 6 `53e81692` plus SESSION_LOG commits); deployed to prod 2026-11-09 ~11:02 UTC.
 - **Prod `public-names-check.sh` afterwards:** 263 objects in `circles`; 1 with an offer-photo name, 0 with a verification-attachment name; that one, signed out at `/storage`: **404** (200 before); an ordinary image: 200.
 - **Storage steps on prod:** 4, 5 and 6 DONE. Step 2 is held for the UX month's pin design.
