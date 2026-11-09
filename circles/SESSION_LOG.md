@@ -8,8 +8,12 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `ff30ff9e`** (staging; build 2026-11-07 17:17 UTC, per `/api/version`). That puts on prod: M1–M9 and decisions D1–D3 (`498b13a0`..`9337062b`), and followers count-only, group labels, the invite picker, the Team card and the retired Admins card (`0efced2c`..`ff30ff9e`). **Staging = `fbb9ca9a`** (build 2026-11-08 18:13 UTC). It is ahead only by ops/docs commits: `148d2ef9` (restore-VM host name in `deploy-staging.sh`), `fbb9ca9a` (restore runbook and scripts) and SESSION_LOG. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
-- **Storage steps 2–5 on prod** (run sheet `~/cc-reports/outbox/20261102-1640-prod-runsheet.tar.gz`): **unknown whether they ran** (Tim doesn't remember). A read-only check is ready: `20261108-1927-storage-steps-check.tar.gz` (see the 2026-11-08 (cont.) entry). **Step 6** (rebuild `a440d431`, the `/storage` refusal of `offer-photo*` names, together with V4) **is not scheduled until that check says the moves are done.**
+- **Prod = `e56e9491`** (the AVIF release; live 2026-11-09 ~07:59 UTC). On top of `ff30ff9e` it adds the ops/docs commits `148d2ef9`, `fbb9ca9a`, the SESSION_LOG commits, and AVIF for offer and space photos (`4488d40f`, `e56e9491`). **Staging = `53e81692`** (storage step 6) plus SESSION_LOG, pushed 2026-11-09; Tim deploys it. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **Storage steps on prod** (status per `storage-steps-status.mongosh.js` v2, 2026-11-09):
+  - **Step 2:** NOT RUN, held for the UX month's pin design.
+  - **Step 4:** DONE.
+  - **Step 5:** DONE on 2026-11-09 ~09:45 UTC (6 offer photos, 3 of them AVIF). See the 2026-11-09 (cont.) entry.
+  - **Step 6** (`/storage` and `/uploads` refuse `offer-photo*` and `verification-attachment*` names): committed as `53e81692` and pushed to staging. Next: staging checks, then the prod release (sheet 6.2b–6.4 in `20261109-0725-avif-offer-photos.tar.gz`). After it's live on prod: a read-only count of unreferenced private-type files left in the public bucket (prod has at least 1), then a proposal to delete them, dry run first.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
@@ -36,6 +40,35 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-09 (cont.) — Storage step 5 done on prod; AVIF release; step 6 on staging (`4488d40f`, `e56e9491`, `53e81692`)
+
+**Why AVIF:** the step 5 dry run on prod (06:xx UTC) said `not an image 3`. The read-only type check (`20261109-0640-step5-not-images.tar.gz`) showed all 3 were real AVIF photos, correctly stored as `image/avif`, in one offer. The move script, `/api/offer-photo` and the offer and space photo uploads accepted only JPEG/PNG/WebP/GIF.
+- **A lost-upload bug was found too:** since the 2 Nov release, a new AVIF offer or space photo was kept by `sanitizeUpload` but then deleted again by the save action, with no error. There's no trace in the database or logs, so it can't be counted. AVIF uploads are rare (some Android cameras, images saved from the web).
+- The sniff branch `fix/offer-photo-move-sniff` (`4777ebd2`) turned out not to be needed. It stays local and is not pushed.
+
+**The fix** (package `20261109-0725-avif-offer-photos.tar.gz`):
+- `4488d40f` Offer photos: AVIF end to end. The upload keeps it, `/api/offer-photo` serves it as `image/avif`, and the move script moves `image/avif` only if the first bytes are AVIF too (`isAvifBytes`).
+- `e56e9491` Space photos: AVIF too. A shared `PHOTO_CONTENT_TYPES` and a single file-name pattern.
+- Tests for both; eslint clean; the build succeeds. Throwaway rehearsal of prod's situation: 6 moved byte-identical, a HEIC labelled AVIF and a PDF stay.
+- **Released to prod as `e56e9491`, live 2026-11-09 ~07:59 UTC.**
+
+**Step 5 on prod** (Tim, 2026-11-09, done ~09:45 UTC, using `STEP5-SHEET.md` from the AVIF package):
+- 5a dry run: 6 photos, not an image 0.
+- 5b `--copy`: 6 copied, 0 conflicts.
+- 5c copies check: ALL 6 OK. Tim opened all 6 signed in; signed out they were refused.
+- 5d `--delete-old`: 6 deleted, 0 kept.
+- 5e: final dry run 0; copies check NOTHING LEFT; status script: step 4 DONE, step 5 DONE, step 6 may be scheduled; step 2 NOT RUN (held).
+- `public-names-check.sh`: 263 objects in `circles`; 1 with an offer-photo name (an unreferenced leftover, still 200 signed out until step 6); 0 verification names; the ordinary image 200.
+
+**Step 6:** `step6-storage-refusal.patch` committed as `53e81692` on staging and pushed. Its tests pass (10), as do the other storage and media tests run one file at a time; lint is clean; tsc shows only the old `peerify-backup.test.ts` error; the build succeeds. Staging's own status was checked on 2026-11-09 (steps 4 and 5 DONE there).
+
+**Next:**
+1. Tim deploys staging and runs sheet 6.2b.
+2. Release main = staging, deploy prod, sheet 6.3a–6.4.
+3. After step 6 is live on prod: a read-only count of unreferenced `offer-photo*` / `verification-attachment*` files in the public bucket, then a proposal on deleting them (dry run first).
 
 ---
 
