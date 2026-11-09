@@ -12,6 +12,7 @@ mock.module("@/lib/data/db", () => fakeDb.module);
 const ALICE = "did:test:alice";
 let viewerDid = ALICE;
 let savedType = "image/jpeg";
+let savedExt = ".jpg";
 let counter = 0;
 const objects = new Set<string>();
 const removed: string[] = [];
@@ -23,7 +24,7 @@ mock.module("@/lib/data/storage", () => ({
     isFile: (value: unknown) => Boolean((value as { __testFile?: boolean } | undefined)?.__testFile),
     savePrivateFile: async (_file: unknown, folder: string) => {
         counter += 1;
-        const key = `${folder}/${counter.toString(16).padStart(32, "0")}.jpg`;
+        const key = `${folder}/${counter.toString(16).padStart(32, "0")}${savedExt}`;
         objects.add(key);
         return { key, originalName: `photo${counter}.jpg`, contentType: savedType, size: 3 };
     },
@@ -62,6 +63,7 @@ beforeEach(() => {
     fakeDb.reset({ Circles: [{ _id: new ObjectId(), did: ALICE, circleType: "user", isVerified: true }] });
     viewerDid = ALICE;
     savedType = "image/jpeg";
+    savedExt = ".jpg";
     objects.clear();
     removed.length = 0;
 });
@@ -80,6 +82,18 @@ describe("space photos in the spaces actions", () => {
         expect(result.success).toBe(false);
         expect(fakeDb.col("Spaces").docs).toHaveLength(0);
         expect(objects.size).toBe(0);
+    });
+
+    test("a new AVIF photo is kept (it used to be removed again and dropped)", async () => {
+        savedType = "image/avif";
+        savedExt = ".avif";
+        const result = await createSpaceAction(input([file]));
+        expect(result.success).toBe(true);
+        const id = String(spaceDoc()._id);
+        const urls = spaceDoc().photos.map((p: { url: string }) => p.url);
+        expect(urls).toHaveLength(1);
+        expect(new RegExp(`^/api/space-photo/${id}/[0-9a-f]{32}\\.avif$`).test(urls[0])).toBe(true);
+        expect(objects.size).toBe(1);
     });
 
     test("an upload that isn't a plain image is removed and dropped", async () => {

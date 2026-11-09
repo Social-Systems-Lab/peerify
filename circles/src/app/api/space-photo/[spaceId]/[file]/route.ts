@@ -15,11 +15,10 @@ import { getPrivateObjectStream, statPrivateObject } from "@/lib/data/storage";
 import { isSpacePhotoRef, spacePhotoKey, spacePhotoUrl } from "@/lib/media/space-photo";
 import { getClientIp } from "@/lib/utils/client-ip";
 import { isMissingObjectError, recordStorageMiss, storageBlockedForSeconds } from "@/lib/storage/miss-limiter";
+import { PHOTO_CONTENT_TYPES } from "@/lib/media/offer-photo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 const notFound = (clientIp: string | null, countMiss: boolean) => {
     if (clientIp && countMiss) recordStorageMiss(clientIp);
@@ -55,7 +54,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ spaceId
     try {
         const key = spacePhotoKey(ref);
         const { size, contentType } = await statPrivateObject(key);
-        if (!IMAGE_TYPES.has(contentType)) {
+        if (!PHOTO_CONTENT_TYPES.has(contentType)) {
             return notFound(clientIp, true);
         }
         const stream = await getPrivateObjectStream(key);

@@ -10,14 +10,13 @@ const URL_PREFIX = "/api/offer-photo/";
 
 const CIRCLE_ID_PATTERN = /^[0-9a-f]{24}$/;
 // What savePrivateFile names an image: 32 random hex characters and the detected extension.
-const FILE_PATTERN = /^[0-9a-f]{32}\.(jpg|jpeg|png|webp|gif)$/;
-// Offer photos may also be AVIF (Tim, 2026-11-09: three old offer photos on prod are AVIF, and a
-// new AVIF upload is stored as AVIF by sanitizeUpload). Space photos stay with FILE_PATTERN.
-const OFFER_FILE_PATTERN = /^[0-9a-f]{32}\.(jpg|jpeg|png|webp|gif|avif)$/;
+// AVIF included (Tim, 2026-11-09: three old offer photos on prod are AVIF, and sanitizeUpload
+// stores a new AVIF upload as AVIF).
+const FILE_PATTERN = /^[0-9a-f]{32}\.(jpg|jpeg|png|webp|gif|avif)$/;
 
-// The stored types an offer photo may have: what an upload keeps, what /api/offer-photo serves
-// and what scripts/move-offer-photos-private.ts moves.
-export const OFFER_PHOTO_CONTENT_TYPES: ReadonlySet<string> = new Set([
+// The stored types an offer or space photo may have: what an upload keeps, what /api/offer-photo
+// and /api/space-photo serve, and what scripts/move-offer-photos-private.ts moves.
+export const PHOTO_CONTENT_TYPES: ReadonlySet<string> = new Set([
     "image/jpeg",
     "image/png",
     "image/webp",
@@ -27,11 +26,11 @@ export const OFFER_PHOTO_CONTENT_TYPES: ReadonlySet<string> = new Set([
 
 export type OfferPhotoRef = { circleId: string; file: string };
 
-// Also the file names of space photos (lib/media/space-photo.ts). No AVIF there yet.
+// Also the file names of space photos (lib/media/space-photo.ts).
 export const isPhotoFileName = (file: string): boolean => FILE_PATTERN.test(file);
 
 export const isOfferPhotoRef = (circleId: string, file: string): boolean =>
-    CIRCLE_ID_PATTERN.test(circleId) && OFFER_FILE_PATTERN.test(file);
+    CIRCLE_ID_PATTERN.test(circleId) && FILE_PATTERN.test(file);
 
 export const offerPhotoFolder = (circleId: string): string => `${OFFER_PHOTO_FOLDER}/${circleId}`;
 

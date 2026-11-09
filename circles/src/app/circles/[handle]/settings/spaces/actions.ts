@@ -30,6 +30,7 @@ import {
     spacePhotoUrl,
 } from "@/lib/media/space-photo";
 import type { FileInfo } from "@/models/models";
+import { PHOTO_CONTENT_TYPES } from "@/lib/media/offer-photo";
 
 export type SpaceActionResult = { success: true; spaces: SpaceView[] } | { success: false; message: string };
 
@@ -37,7 +38,6 @@ const NOT_SIGNED_IN = "You need to be logged in to manage spaces.";
 const NOT_FOUND = "That space wasn't found. It may have been deleted.";
 const TOO_MANY_PHOTOS = `You can add up to ${SPACE_PHOTOS_MAX} photos.`;
 
-const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 // What the space form sends as photos (MultiImageUploader's ImageItem): a new file, or a photo
 // already saved, by its address.
@@ -63,7 +63,7 @@ async function resolveSpacePhotos(
     for (const draft of drafts) {
         if (isFile(draft.file)) {
             const saved = await savePrivateFile(draft.file as File, spacePhotoFolder(spaceId));
-            const ref = PHOTO_TYPES.has(saved.contentType) ? spacePhotoRefFromKey(spaceId, saved.key) : null;
+            const ref = PHOTO_CONTENT_TYPES.has(saved.contentType) ? spacePhotoRefFromKey(spaceId, saved.key) : null;
             if (!ref) {
                 await removePrivateObject(saved.key);
                 continue;

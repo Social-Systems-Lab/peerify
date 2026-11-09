@@ -6,7 +6,7 @@ import { features } from "@/lib/data/constants";
 import { getTourTeamOfferingLabel, isRetiredOfferType } from "@/lib/data/tour-team-offerings";
 import { isFile, removePrivateObject, savePrivateFile } from "@/lib/data/storage";
 import {
-    OFFER_PHOTO_CONTENT_TYPES,
+    PHOTO_CONTENT_TYPES,
     offerPhotoFolder,
     offerPhotoRefFromKey,
     offerPhotoUrl,
@@ -44,7 +44,7 @@ function isPersistableUrl(url: string, circleId: string): boolean {
 // sanitize-image.ts. Anything that isn't a plain image is removed again and dropped.
 async function saveOfferPhoto(file: File, circleId: string): Promise<FileInfo | null> {
     const saved = await savePrivateFile(file, offerPhotoFolder(circleId));
-    const ref = OFFER_PHOTO_CONTENT_TYPES.has(saved.contentType) ? offerPhotoRefFromKey(circleId, saved.key) : null;
+    const ref = PHOTO_CONTENT_TYPES.has(saved.contentType) ? offerPhotoRefFromKey(circleId, saved.key) : null;
     if (!ref) {
         await removePrivateObject(saved.key);
         return null;

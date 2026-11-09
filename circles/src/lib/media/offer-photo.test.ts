@@ -130,11 +130,11 @@ describe("AVIF offer photos", () => {
         objects.set(offerPhotoKey(AVIF), { buffer: avifBytes, contentType: "image/avif" });
     });
 
-    test("an .avif name is an offer photo; space photos still take no AVIF", () => {
+    test("an .avif name is an offer photo (and a photo file name for spaces too)", () => {
         expect(isOfferPhotoRef(CIRCLE, AVIF.file)).toBe(true);
         expect(parseOfferPhotoUrl(offerPhotoUrl(AVIF))).toEqual(AVIF);
         expect(offerPhotoRefFromKey(CIRCLE, offerPhotoKey(AVIF))).toEqual(AVIF);
-        expect(isPhotoFileName(AVIF.file)).toBe(false);
+        expect(isPhotoFileName(AVIF.file)).toBe(true);
     });
 
     test("signed in: served byte for byte as image/avif", async () => {

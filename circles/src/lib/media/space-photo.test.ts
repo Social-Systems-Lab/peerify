@@ -30,6 +30,7 @@ mock.module("@/lib/data/storage", () => ({
 }));
 
 const { parseSpacePhotoUrl, spacePhotoKey, spacePhotoRefFromKey, spacePhotoUrl } = await import("./space-photo");
+const sharp = (await import("sharp")).default;
 const { GET } = await import("@/app/api/space-photo/[spaceId]/[file]/route");
 const { resetStorageMissLimiter } = await import("@/lib/storage/miss-limiter");
 
@@ -87,5 +88,47 @@ describe("/api/space-photo", () => {
         allowed = true;
         objects.set(spacePhotoKey(REF), { buffer: Buffer.from("<svg/>"), contentType: "image/svg+xml" });
         expect((await get(SPACE, FILE)).status).toBe(404);
+    });
+});
+
+describe("AVIF space photos", () => {
+    const AVIF = { spaceId: SPACE, file: "0123456789abcdef0123456789abcdef.avif" };
+    let avifBytes: Buffer;
+
+    beforeEach(async () => {
+        objects.clear();
+        resetStorageMissLimiter();
+        viewChecks.length = 0;
+        allowed = true;
+        avifBytes ??= await sharp({ create: { width: 8, height: 8, channels: 3, background: "#336699" } }).avif().toBuffer();
+        objects.set(spacePhotoKey(AVIF), { buffer: avifBytes, contentType: "image/avif" });
+    });
+
+    test("an .avif name is a space photo address", () => {
+        expect(parseSpacePhotoUrl(spacePhotoUrl(AVIF))).toEqual(AVIF);
+        expect(spacePhotoRefFromKey(SPACE, spacePhotoKey(AVIF))).toEqual(AVIF);
+        expect(parseSpacePhotoUrl(`/api/space-photo/${SPACE}/0123456789abcdef0123456789abcdef.heic`)).toBeNull();
+    });
+
+    test("an allowed viewer gets it byte for byte as image/avif", async () => {
+        viewerDid = "did:test:member";
+        const res = await get(SPACE, AVIF.file);
+        expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toBe("image/avif");
+        expect(Buffer.from(await res.arrayBuffer()).equals(avifBytes)).toBe(true);
+    });
+
+    test("signed out, or refused by the view check: 404", async () => {
+        viewerDid = undefined;
+        expect((await get(SPACE, AVIF.file)).status).toBe(404);
+        viewerDid = "did:test:member";
+        allowed = false;
+        expect((await get(SPACE, AVIF.file)).status).toBe(404);
+    });
+
+    test("a PDF stored under a photo name is still refused", async () => {
+        viewerDid = "did:test:member";
+        objects.set(spacePhotoKey(AVIF), { buffer: Buffer.from("%PDF-1.4"), contentType: "application/pdf" });
+        expect((await get(SPACE, AVIF.file)).status).toBe(404);
     });
 });
