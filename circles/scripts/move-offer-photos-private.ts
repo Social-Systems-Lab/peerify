@@ -13,7 +13,8 @@
  *   --delete-old   for each offerPhotoMoves row: if the private copy exists and the circle no
  *                  longer uses the old URL, delete the public object and the row. Run only after
  *                  checking the copy phase in the app.
- * Only images (jpeg, png, webp, gif) move; anything else is counted and left as it is.
+ * Only images (jpeg, png, webp, gif, avif) move; anything else is counted and left as it is. An
+ * AVIF moves only if its first bytes are AVIF too (isAvifBytes).
  * Re-running a phase is harmless: it only picks up what is still to do. A circle whose offerings
  * changed meanwhile is skipped (counted as "conflict"), its new copies removed, and picked up on
  * the next run.
@@ -34,6 +35,7 @@ import {
     legacyOfferPhotoUrls,
     movedOfferPhotoRef,
     publicKeyFromStorageUrl,
+    isAvifBytes,
     rewriteOfferingPhotos,
 } from "../src/lib/media/offer-photo-move";
 import type { OfferPhotoRef } from "../src/lib/media/offer-photo";
@@ -155,8 +157,17 @@ async function main() {
                         counts.notAnImage += 1;
                         continue;
                     }
+                    let buffer: Buffer | null = null;
+                    if (contentType === "image/avif") {
+                        // Read (also in the dry run) to check the bytes really are AVIF.
+                        buffer = await streamToBuffer(await minio.getObject(publicBucket, publicKey));
+                        if (!isAvifBytes(buffer)) {
+                            counts.notAnImage += 1;
+                            continue;
+                        }
+                    }
                     if (!copy) continue;
-                    const buffer = await streamToBuffer(await minio.getObject(publicBucket, publicKey));
+                    buffer ??= await streamToBuffer(await minio.getObject(publicBucket, publicKey));
                     const ref = movedOfferPhotoRef(circleId, randomBytes(16).toString("hex"), contentType);
                     const privateKey = offerPhotoKey(ref);
                     await minio.putObject(privateBucket, privateKey, buffer, buffer.length, { "Content-Type": contentType });

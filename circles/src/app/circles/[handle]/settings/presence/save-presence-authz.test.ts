@@ -13,6 +13,7 @@ const updateCalls: Record<string, unknown>[] = [];
 const saveFileCalls: unknown[][] = [];
 const removedKeys: string[] = [];
 let savedContentType = "image/jpeg";
+let savedFile = "0123456789abcdef0123456789abcdef.jpg";
 const OWN = "665f000000000000000000aa";
 const OTHER = "665f000000000000000000bb";
 const PHOTO_FILE = "0123456789abcdef0123456789abcdef.jpg";
@@ -40,7 +41,7 @@ mock.module("@/lib/data/storage", () => ({
     isFile: (value: unknown) => Boolean((value as { __testFile?: boolean } | undefined)?.__testFile),
     savePrivateFile: async (...args: unknown[]) => {
         saveFileCalls.push(args);
-        return { key: `${args[1]}/${PHOTO_FILE}`, originalName: "room.jpg", contentType: savedContentType, size: 3 };
+        return { key: `${args[1]}/${savedFile}`, originalName: "room.jpg", contentType: savedContentType, size: 3 };
     },
     removePrivateObject: async (key: string) => {
         removedKeys.push(key);
@@ -158,7 +159,18 @@ describe("savePresence offer photos (private, /api/offer-photo)", () => {
         saveFileCalls.length = 0;
         removedKeys.length = 0;
         savedContentType = "image/jpeg";
+        savedFile = PHOTO_FILE;
         storedOfferings = [];
+    });
+
+    test("a new AVIF photo is kept (it used to be removed again and dropped)", async () => {
+        savedContentType = "image/avif";
+        savedFile = "0123456789abcdef0123456789abcdef.avif";
+        await savePresence({ _id: OWN, tourTeamOfferings: [offering([{ file: { __testFile: true } }])] } as any);
+        expect(removedKeys).toEqual([]);
+        expect(savedPhotos()).toEqual([
+            { url: `/api/offer-photo/${OWN}/${savedFile}`, fileName: savedFile, originalName: "room.jpg" },
+        ]);
     });
 
     test("a new photo goes to the private bucket and is stored as its address", async () => {

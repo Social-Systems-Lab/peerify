@@ -24,7 +24,11 @@ mock.module("@/lib/data/storage", () => ({
     },
 }));
 
-const { isOfferPhotoRef, offerPhotoKey, offerPhotoRefFromKey, offerPhotoUrl, parseOfferPhotoUrl } = await import("./offer-photo");
+const { isOfferPhotoRef, isPhotoFileName, offerPhotoKey, offerPhotoRefFromKey, offerPhotoUrl, parseOfferPhotoUrl } = await import(
+    "./offer-photo"
+);
+const { sanitizeUpload } = await import("./sanitize-image");
+const sharp = (await import("sharp")).default;
 const { GET } = await import("@/app/api/offer-photo/[circleId]/[file]/route");
 const { resetStorageMissLimiter } = await import("@/lib/storage/miss-limiter");
 
@@ -98,5 +102,59 @@ describe("/api/offer-photo", () => {
     test("a stored object that isn't an image is not served", async () => {
         objects.set(offerPhotoKey(REF), { buffer: Buffer.from("<html>"), contentType: "text/html" });
         expect((await get(CIRCLE, FILE)).status).toBe(404);
+        objects.set(offerPhotoKey(REF), { buffer: Buffer.from("%PDF-1.4"), contentType: "application/pdf" });
+        expect((await get(CIRCLE, FILE)).status).toBe(404);
+    });
+
+    test("PNG is served as PNG", async () => {
+        const png = { circleId: CIRCLE, file: "0123456789abcdef0123456789abcdef.png" };
+        circlePhotos = new Set([offerPhotoUrl(png)]);
+        objects.set(offerPhotoKey(png), { buffer: Buffer.from("png bytes"), contentType: "image/png" });
+        const res = await get(CIRCLE, png.file);
+        expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toBe("image/png");
+    });
+});
+
+describe("AVIF offer photos", () => {
+    const AVIF = { circleId: CIRCLE, file: "0123456789abcdef0123456789abcdef.avif" };
+    let avifBytes: Buffer;
+
+    beforeEach(async () => {
+        objects.clear();
+        resetStorageMissLimiter();
+        avifBytes ??= await sharp({ create: { width: 8, height: 8, channels: 3, background: { r: 9, g: 99, b: 199 } } })
+            .avif()
+            .toBuffer();
+        circlePhotos = new Set([offerPhotoUrl(AVIF)]);
+        objects.set(offerPhotoKey(AVIF), { buffer: avifBytes, contentType: "image/avif" });
+    });
+
+    test("an .avif name is an offer photo; space photos still take no AVIF", () => {
+        expect(isOfferPhotoRef(CIRCLE, AVIF.file)).toBe(true);
+        expect(parseOfferPhotoUrl(offerPhotoUrl(AVIF))).toEqual(AVIF);
+        expect(offerPhotoRefFromKey(CIRCLE, offerPhotoKey(AVIF))).toEqual(AVIF);
+        expect(isPhotoFileName(AVIF.file)).toBe(false);
+    });
+
+    test("signed in: served byte for byte as image/avif", async () => {
+        viewerDid = "did:test:member";
+        const res = await get(CIRCLE, AVIF.file);
+        expect(res.status).toBe(200);
+        expect(res.headers.get("content-type")).toBe("image/avif");
+        expect(res.headers.get("content-disposition")).toBe("inline");
+        expect(Buffer.from(await res.arrayBuffer()).equals(avifBytes)).toBe(true);
+    });
+
+    test("signed out: refused", async () => {
+        viewerDid = undefined;
+        expect((await get(CIRCLE, AVIF.file)).status).toBe(404);
+    });
+
+    test("a new AVIF upload is kept as AVIF (what savePrivateFile stores)", async () => {
+        const out = await sanitizeUpload(avifBytes, "image/avif", "room.avif");
+        expect(out.contentType).toBe("image/avif");
+        expect(out.extension).toBe(".avif");
+        expect((await sharp(out.buffer).metadata()).format).toBe("heif");
     });
 });

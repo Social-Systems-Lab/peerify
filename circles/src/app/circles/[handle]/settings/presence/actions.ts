@@ -5,7 +5,13 @@ import { ensureOfferPinOffset, getCircleById, getCirclePath, updateCircle } from
 import { features } from "@/lib/data/constants";
 import { getTourTeamOfferingLabel, isRetiredOfferType } from "@/lib/data/tour-team-offerings";
 import { isFile, removePrivateObject, savePrivateFile } from "@/lib/data/storage";
-import { offerPhotoFolder, offerPhotoRefFromKey, offerPhotoUrl, parseOfferPhotoUrl } from "@/lib/media/offer-photo";
+import {
+    OFFER_PHOTO_CONTENT_TYPES,
+    offerPhotoFolder,
+    offerPhotoRefFromKey,
+    offerPhotoUrl,
+    parseOfferPhotoUrl,
+} from "@/lib/media/offer-photo";
 import { Circle, FileInfo, FormSubmitResponse, TourTeamOffering, tourTeamOfferingSchema } from "@/models/models";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
@@ -34,13 +40,11 @@ function isPersistableUrl(url: string, circleId: string): boolean {
     return true;
 }
 
-const OFFER_PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-
 // saveFile's metadata stripping (GPS included) happens in savePrivateFile too; see
 // sanitize-image.ts. Anything that isn't a plain image is removed again and dropped.
 async function saveOfferPhoto(file: File, circleId: string): Promise<FileInfo | null> {
     const saved = await savePrivateFile(file, offerPhotoFolder(circleId));
-    const ref = OFFER_PHOTO_TYPES.has(saved.contentType) ? offerPhotoRefFromKey(circleId, saved.key) : null;
+    const ref = OFFER_PHOTO_CONTENT_TYPES.has(saved.contentType) ? offerPhotoRefFromKey(circleId, saved.key) : null;
     if (!ref) {
         await removePrivateObject(saved.key);
         return null;

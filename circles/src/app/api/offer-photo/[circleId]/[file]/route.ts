@@ -12,14 +12,13 @@ import { Readable } from "stream";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { circleHasOfferPhoto } from "@/lib/data/circle";
 import { getPrivateObjectStream, statPrivateObject } from "@/lib/data/storage";
-import { isOfferPhotoRef, offerPhotoKey, offerPhotoUrl } from "@/lib/media/offer-photo";
+import { OFFER_PHOTO_CONTENT_TYPES, isOfferPhotoRef, offerPhotoKey, offerPhotoUrl } from "@/lib/media/offer-photo";
 import { getClientIp } from "@/lib/utils/client-ip";
 import { isMissingObjectError, recordStorageMiss, storageBlockedForSeconds } from "@/lib/storage/miss-limiter";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 const notFound = (clientIp: string | null, countMiss: boolean) => {
     if (clientIp && countMiss) recordStorageMiss(clientIp);
@@ -55,7 +54,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ circleI
     try {
         const key = offerPhotoKey(ref);
         const { size, contentType } = await statPrivateObject(key);
-        if (!IMAGE_TYPES.has(contentType)) {
+        if (!OFFER_PHOTO_CONTENT_TYPES.has(contentType)) {
             return notFound(clientIp, true);
         }
         const stream = await getPrivateObjectStream(key);

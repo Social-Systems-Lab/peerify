@@ -13,6 +13,22 @@ export const OFFER_PHOTO_MOVE_TYPES: Record<string, string> = {
     "image/png": ".png",
     "image/webp": ".webp",
     "image/gif": ".gif",
+    "image/avif": ".avif",
+};
+
+// AVIF moves only if the bytes agree: an ISO media file ("ftyp" box first) whose major brand, or
+// one of its compatible brands, is avif or avis. A HEIC (brand heic, which browsers mostly can't
+// show) stored as image/avif would not move.
+export const isAvifBytes = (bytes: Uint8Array): boolean => {
+    if (bytes.length < 16) return false;
+    const text = (offset: number) => String.fromCharCode(...bytes.subarray(offset, offset + 4));
+    if (text(4) !== "ftyp") return false;
+    const boxSize = ((bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]) >>> 0;
+    const end = Math.min(boxSize, bytes.length);
+    if (boxSize < 16) return false;
+    const brands = [text(8)];
+    for (let offset = 16; offset + 4 <= end; offset += 4) brands.push(text(offset));
+    return brands.some((brand) => brand === "avif" || brand === "avis");
 };
 
 type OfferingWithPhotos = { photos?: FileInfo[] | null } & Record<string, unknown>;
