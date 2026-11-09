@@ -3,7 +3,7 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-11-08)
+## Current Status (2026-11-09)
 - Production: https://peerify.one, on the Cleura server `peerify-prod`. Staging: https://staging.peerify.one, on the Cleura server `peerify-staging`. On both, the app runs from `/srv/peerify/app/circles` as the `peerify` user, under PM2 (`peerify` :3000, `peerify-staging` :3001). Tim deploys.
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
@@ -15,9 +15,10 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
 - Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
 - See OPERATIONS.md for architecture.
-- **Backups:** live on both boxes since 2026-11-07 (nightly, prod 02:30, staging ~03:30; restic to Cleura Kna1, repos `peerify-backup-prod` / `-staging`, config in `/etc/peerify-backup`). **Restore tests not done yet** (prepared, see the 2026-11-08 entry):
-  - **Staging rehearsal:** possible from 2026-11-09, after tonight's backup records `fbb9ca9a`.
-  - **Prod on-box check:** use the package sheet until the next release puts the scripts on prod.
+- **Backups:** live on both boxes since 2026-11-07 (nightly, prod 02:30, staging ~03:30; restic to Cleura Kna1, repos `peerify-backup-prod` / `-staging`, config in `/etc/peerify-backup`). Restore tests (see the 2026-11-08 and 2026-11-09 entries):
+  - **Prod on-box check: passed on 2026-11-09** (`restic check --read-data` clean; database, key files and buckets restored identical). Next time, after the next release has put the scripts on prod, use runbook section 6.
+  - **Staging rehearsal:** not done yet. Possible from 2026-11-09, after tonight's backup records `fbb9ca9a`.
+  - **Prod's manual `~/backups`:** the on-box check has passed, so they can be shredded once prod has had 7 good nights (from 2026-11-14), and never later than their DELETE-BY dates.
   - **Installed copies:** refresh them on staging now (`fbb9ca9a` is deployed), and on prod after the next release. The commands are in the 2026-11-08 entry.
   - **After that:** the erasure log (not built), then the registry question.
 - **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):**
@@ -35,6 +36,32 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-09 — Backups: prod on-box restore check passed
+
+Tim ran `PROD-ONBOX-CHECK.md` (package `20261108-1845-restore-tests.tar.gz`) on prod, on 2026-11-09 from about 05:30 to 05:55 UTC. Every step passed.
+
+- **Step 1, before starting:**
+  - last night's run: ok (01:34Z, 12 s);
+  - 15 snapshots;
+  - repository raw data: 541 MiB.
+- **Step a, `restic check --read-data`:** 41/41 packs read, "no errors were found".
+- **Step b, the database:**
+  - the restored archive is 4,570,627 bytes, equal to the logged dump;
+  - `mongorestore`: 2230 documents, 0 failed;
+  - `restore-counts`: 40 collections, 2230 live vs. 2230 restored, every diff 0.
+- **Step c, key files and buckets** (live vs. restored, all identical):
+  - data folder: 242 files, 231,185 bytes;
+  - account key folders: 60;
+  - bucket `circles`: 269 files, 227,789,955 bytes;
+  - bucket `peerify-media`: 103 files, 517,561,297 bytes.
+- **Step d3, final check:** test folder gone, port 27099 closed, 1 mongod, home clean, restic locks 0.
+
+**What it means:** prod's backups can be read in full, and a night's snapshot restores to exactly what is live. That was one of the two conditions for shredding prod's manual `~/backups`. The other is 7 good nights on prod, so from 2026-11-14, and never later than their DELETE-BY dates.
+
+**Still to do:** the staging full rehearsal on a temporary VM (`STAGING-REHEARSAL.md`), then the erasure log.
 
 ---
 
@@ -117,7 +144,7 @@ Report: `~/cc-reports/outbox/20261108-1845-restore-tests.tar.gz`. Nothing was ru
 - **Prod on-box check:** use the package sheet until the next release puts the scripts on prod; after that, runbook section 6.
 - **Staging rehearsal:** possible after one night with `148d2ef9` or newer deployed and backed up.
 - **Where silo and `mcli` `.deb` files come from** isn't written down anywhere; needed for a real box loss (runbook 5.0).
-- **Prod's manual `~/backups`:** shred them after 7 good nights on prod (from 2026-11-14) plus a passing on-box check, and never past their DELETE-BY dates.
+- **Prod's manual `~/backups`:** shred them after 7 good nights on prod (from 2026-11-14) plus a passing on-box check (passed 2026-11-09), and never past their DELETE-BY dates.
 - **Retention:** first snapshots should age out around 2026-12-06. Check then that nothing is older than 29 days.
 
 ---
