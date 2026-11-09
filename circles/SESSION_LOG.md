@@ -12,7 +12,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **Storage steps on prod: 4, 5 and 6 DONE; step 2 held** for the UX month's pin design.
   - Step 5 finished 2026-11-09 ~09:45 UTC; step 6 (`53e81692`, `/storage` and `/uploads` refuse `offer-photo*` and `verification-attachment*` names) live since ~11:02 UTC. See the 2026-11-09 (cont.) entries.
   - **Leftovers** (private-type names still in the public buckets, 404 since step 6): delete script `1c830a8b` on staging, goes to prod with the next ordinary release. Then Tim runs the prod listing, dry run and delete (package `20261109-1119-public-leftovers.tar.gz`). Staging: 3 left, all mentioned only by stale snapshots in `comments`/`notifications` (see the 2026-11-09 (cont. 4) entry), so kept for now.
-- **Stored comment author copies:** fix and clean-up script on branch `fix/comment-author-not-stored` (`3c33dba1`, `91575fb4`, `2cd873f7`), **not merged; waiting for Tim's review.** Package `20261109-*-comment-author-cleanup.tar.gz`.
+- **Stored comment author copies:** fix and clean-up script **on staging** since 2026-11-09 (`22665e07`, `3890af70`, `9eb9bc23`; reviewed by Tim, branch `fix/comment-author-not-stored` rebased onto staging). Next: Tim deploys staging and runs the comment part (run sheet in `20261109-1239-comment-author-cleanup.tar.gz`; the commit ids there are the pre-rebase `3c33dba1`, `91575fb4`, `2cd873f7`; same code, same script hash `59ed789b…`), then prod after the next release.
   - **The notification clean-up is ON HOLD until IMY answers** whether the stored notification data must be kept as evidence (IMY-2026-19477). The script's `--notifications` part refuses to run, even as a dry run, unless `IMY_CLEARED=yes` is set. Only Tim sets it, and only after IMY has cleared it.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
@@ -53,7 +53,7 @@ Neither is shown to anyone. Comment readers look the author up fresh. Old notifi
 
 **Cause:** `createCommentAction` and `createTrackCommentAction` attach `author` (the commenter's or acting circle's whole circle document) for their response, and `createComment` / `createTrackComment` stored it as is. Staging: 26 of 27 comments (24 post, 2 song, 2026-07-08 to 2026-09-29). The copy held location, metadata, members, questionnaire, offers, tourTeamOfferings, publicKey and more, but no email or Matrix fields. Round 3 fixed what comments send, not what they store.
 
-**Branch `fix/comment-author-not-stored`** (off staging `787376ef`, not merged; Tim reviews first):
+**Branch `fix/comment-author-not-stored`** (reviewed by Tim, rebased onto staging and fast-forwarded on 2026-11-09; ids after the rebase: `22665e07`, `3890af70`, `9eb9bc23`):
 - `3c33dba1`: comments are stored without `author`; the caller still gets it back. 2 tests, which fail without the fix.
 - `91575fb4`: `shapeNotificationContent` moved byte for byte into the pure `notification-shape.ts` (no change), so a script can use it without importing `notifications.ts`, which creates indexes on import.
 - `2cd873f7`: `scripts/cleanup-comment-authors.ts`.
