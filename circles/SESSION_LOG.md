@@ -8,12 +8,10 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `e56e9491`** (the AVIF release; live 2026-11-09 ~07:59 UTC). On top of `ff30ff9e` it adds the ops/docs commits `148d2ef9`, `fbb9ca9a`, the SESSION_LOG commits, and AVIF for offer and space photos (`4488d40f`, `e56e9491`). **Staging = `53e81692`** (storage step 6) plus SESSION_LOG, pushed 2026-11-09; Tim deploys it. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
-- **Storage steps on prod** (status per `storage-steps-status.mongosh.js` v2, 2026-11-09):
-  - **Step 2:** NOT RUN, held for the UX month's pin design.
-  - **Step 4:** DONE.
-  - **Step 5:** DONE on 2026-11-09 ~09:45 UTC (6 offer photos, 3 of them AVIF). See the 2026-11-09 (cont.) entry.
-  - **Step 6** (`/storage` and `/uploads` refuse `offer-photo*` and `verification-attachment*` names): committed as `53e81692` and pushed to staging. Next: staging checks, then the prod release (sheet 6.2b–6.4 in `20261109-0725-avif-offer-photos.tar.gz`). After it's live on prod: a read-only count of unreferenced private-type files left in the public bucket (prod has at least 1), then a proposal to delete them, dry run first.
+- **Prod = `0d261bc3`** (storage step 6; deployed 2026-11-09 ~11:02 UTC). **Staging = the same release, plus SESSION_LOG commits.** `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **Storage steps on prod: 4, 5 and 6 DONE; step 2 held** for the UX month's pin design.
+  - Step 5 finished 2026-11-09 ~09:45 UTC; step 6 (`53e81692`, `/storage` and `/uploads` refuse `offer-photo*` and `verification-attachment*` names) live since ~11:02 UTC. See the 2026-11-09 (cont.) entries.
+  - **Next:** the leftover private-type files in the public buckets (prod: 1 offer-photo name, now 404). Read-only listing and a delete proposal: `20261109-*-public-leftovers.tar.gz`.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
@@ -40,6 +38,16 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-09 (cont. 2) — Storage step 6 live on prod (`0d261bc3`)
+
+- **Staging:** Tim deployed `0d261bc3` and ran sheet 6.2b; passed.
+- **Release:** main = staging `0d261bc3` (step 6 `53e81692` plus SESSION_LOG commits); deployed to prod 2026-11-09 ~11:02 UTC.
+- **Prod `public-names-check.sh` afterwards:** 263 objects in `circles`; 1 with an offer-photo name, 0 with a verification-attachment name; that one, signed out at `/storage`: **404** (200 before); an ordinary image: 200.
+- **Storage steps on prod:** 4, 5 and 6 DONE. Step 2 is held for the UX month's pin design.
+- **Left:** the leftover files with private-type names in the public buckets (prod 1). Next: a read-only listing of which ones nothing references, and a proposal to delete them with a dry run first.
 
 ---
 
