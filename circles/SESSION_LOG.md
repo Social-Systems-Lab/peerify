@@ -9,7 +9,8 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
 - **Prod = `68d0dfa0`** (moderator fix + comment-author fix; deployed 2026-11-14). **Staging = the same release, plus SESSION_LOG commits.** `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
-- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). The Crew should cover day-of tasks (door, sound, bar), promotion and planning; hosting the artist isn't needed. The read-only analysis and build proposal are done (`20261114-0938-crew-event-flow.tar.gz`, see the 2026-11-14 entry). **Waiting for Tim's decisions A–D** before any code.
+- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **R1 (items 1, 2, 3, 5, 9) built on local branch `feature/crew-event-r1`** (5 commits, not pushed, not merged). See the 2026-11-14 (cont. 2) entry.
+- **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task.
 - **Security fix LIVE on prod (2026-11-14, `68d0dfa0`):** a moderator can no longer grant `admins` (the `??` precedence bug in `safeModifyMemberUserGroups`). See the 2026-11-14 (cont.) entry.
 - **Released 2026-11-14 (`68d0dfa0`):** the comment-author fix (`22665e07`, `3890af70`) and both clean-up scripts are now on prod. **Next for Tim:** run both run sheets on prod (staging first where the sheet says so):
   - comment and notification clean-up (`scripts/cleanup-comment-authors.ts`, `IMY_CLEARED=yes` for the notifications part), run sheet in `20261109-1239-comment-author-cleanup.tar.gz`;
@@ -53,6 +54,33 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-14 (cont. 2) — Crew decisions A–D; R1 built on a branch; "Secret Soirées" noted
+
+**Decisions (Tim, 2026-11-14):**
+- **A:** don't reopen private event addresses now (no item 4). This show uses a city-only address and Tim DMs guests the address. Item 4 waits for a later session.
+- **B:** confirmed only. On crew-only shifts the exact location and "Important for participants" go to confirmed participants only (plus the author, assigners/moderators and platform admins). Shifts open to everyone keep D3.
+- **C:** approved guests = invited people (only matters once item 4 is built).
+- **D:** Julian Wenn (`julian-wenn-2`) plays, Tim hosts at home, and Tim's identity must not be public. A neutral organiser circle (no personal name), created and run from Tim's account, hosts the event.
+
+**R1 on `feature/crew-event-r1`** (from staging `5b89a9ec`; report `20261114-*-crew-r1.tar.gz`):
+- `82c45125` item 1: editing a task or shift keeps its event, goal and audience.
+- `30cd3efd` item 2: crew-only shifts and tasks, decision B, the shift's Noticeboard post never has the participant note, and crew-only shifts are never posted.
+- `02048ee8` item 3: crew, shifts and tasks panel on the event page, with "Create shift" prefilled.
+- `f457fb72` item 5: Share button; "Sign in to RSVP" links back to the event.
+- `51d1886b` item 9: the audience picker says it decides who can see the event.
+- Each with tests that fail before. All test files pass except the known `participation-readiness`; tsc only the old backup-test error; eslint clean; build succeeds.
+- **Not pushed, merged or deployed** (Tim's yes needed for each).
+
+**Found while answering D (not fixed):**
+- Every visitor's event data carries the author's personal profile (`createdBy` plus `author`: name, handle, picture, did). The UI doesn't show it. Needs a code change before the show.
+- The organiser circle's page data names its parent (Tim's profile).
+- Shift and task pages show "Created by <name>"; invitation and shift-confirmation notifications name Tim.
+- The login page's `redirectTo` isn't checked (open redirect).
+
+**Future, own session after the Crew work: "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. No design yet.
 
 ---
 
