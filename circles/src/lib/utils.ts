@@ -378,15 +378,16 @@ export function safeModifyMemberUserGroups(
 
     const userGroupsMap = new Map(circleUserGroups.map((group) => [group.handle, group.accessLevel]));
 
-    // create a set of user groups that the user has permission to modify
+    // create a set of user groups that the user has permission to modify: a lower accessLevel number
+    // means more power, so only groups whose level is below the editor's own (a higher number), or
+    // equal to it with canEditSameLevel. A group without a level counts as 0 (the most powerful), so
+    // it is never permissible. The parentheses matter: `a ?? 0 >= b` parses as `a ?? (0 >= b)`,
+    // which let a moderator grant "admins" (fixed 2026-11-14).
     const permissibleGroups = new Set(
         circleUserGroups
             .filter((group) => {
-                if (canEditSameLevel) {
-                    return userGroupsMap.get(group.handle) ?? 0 >= accessLevel;
-                } else {
-                    return userGroupsMap.get(group.handle) ?? 0 > accessLevel;
-                }
+                const groupAccessLevel = userGroupsMap.get(group.handle) ?? 0;
+                return canEditSameLevel ? groupAccessLevel >= accessLevel : groupAccessLevel > accessLevel;
             })
             .map((group) => group.handle),
     );
