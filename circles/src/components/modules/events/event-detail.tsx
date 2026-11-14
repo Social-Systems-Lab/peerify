@@ -936,7 +936,12 @@ export default function EventDetail({
                             eventId={event._id!.toString()}
                         />
                     )}
-                    <EventTasksPanel circleHandle={circleHandle} eventId={event._id!.toString()} />
+                    <EventTasksPanel
+                        circleHandle={circleHandle}
+                        circleId={circle?._id ? String(circle._id) : event.circleId}
+                        eventId={event._id!.toString()}
+                        eventStartAt={event.startAt}
+                    />
                 </div>
             </div>
 

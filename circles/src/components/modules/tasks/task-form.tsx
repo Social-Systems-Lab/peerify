@@ -183,6 +183,9 @@ interface TaskFormProps {
     };
     circle?: Circle; // Added for editing context
     successRedirectCollection?: "tasks" | "shifts";
+    // Prefills for a new task or shift, e.g. "Create shift" on an event page (the event and its date).
+    initialEventId?: string;
+    initialTargetDate?: string;
     // goals and goalsModuleEnabled will be fetched/determined internally
     onFormSubmitSuccess?: (data: { id?: string; circleHandle?: string }) => void; // Updated to include circleHandle
     onCancel?: () => void;
@@ -204,6 +207,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     labels,
     circle: circleProp, // Added for editing
     successRedirectCollection,
+    initialEventId,
+    initialTargetDate,
     onFormSubmitSuccess,
     onCancel,
 }) => {
@@ -224,7 +229,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     const selectedCircleRef = useRef<Circle | null>(null);
     const preselectedGoalId = searchParams.get("goalId");
     const preselectedEventId = searchParams.get("eventId");
-    const targetDateFromQuery = searchParams.get("targetDate");
+    const targetDateFromQuery = searchParams.get("targetDate") ?? initialTargetDate ?? null;
     let prefilledDate: Date | undefined = undefined;
     if (!isEditing && targetDateFromQuery) {
         const parsedDate = parseISO(targetDateFromQuery);
@@ -244,7 +249,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             location: task?.location,
             targetDate: prefilledDate ?? (task?.targetDate ? new Date(task.targetDate) : undefined),
             goalId: task?.goalId || preselectedGoalId || null,
-            eventId: (task as any)?.eventId || preselectedEventId || null,
+            eventId: task?.eventId || preselectedEventId || initialEventId || null,
             taskType: forcedTaskType ?? task?.taskType ?? initialOutcomeTaskType,
             slots: task?.slots,
             shiftStartTime: task?.shiftStartTime,

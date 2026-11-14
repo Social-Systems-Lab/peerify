@@ -13,6 +13,9 @@ interface CreateShiftDialogProps {
     onOpenChange: (open: boolean) => void;
     onSuccess: (data: { id?: string; circleHandle?: string }) => void;
     initialSelectedCircleId?: string;
+    // Prefills, e.g. from an event page: the event and its date (ISO).
+    initialEventId?: string;
+    initialTargetDate?: string;
 }
 
 export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
@@ -20,6 +23,8 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
     onOpenChange,
     onSuccess,
     initialSelectedCircleId,
+    initialEventId,
+    initialTargetDate,
 }) => {
     const [user] = useAtom(userAtom);
     const taskItemDetail = creatableItemsList.find((item: CreatableItemDetail) => item.key === "task");
@@ -62,6 +67,8 @@ export const CreateShiftDialog: React.FC<CreateShiftDialogProps> = ({
                         user={user as UserPrivate}
                         itemDetail={itemDetail}
                         initialSelectedCircleId={initialSelectedCircleId}
+                        initialEventId={initialEventId}
+                        initialTargetDate={initialTargetDate}
                         initialTaskType="shift"
                         forcedTaskType="shift"
                         hideTaskTypeSelector
