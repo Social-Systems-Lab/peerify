@@ -38,8 +38,10 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Installed copies:** refresh them on staging now (`fbb9ca9a` is deployed), and on prod after the next release. The commands are in the 2026-11-08 entry.
   - **After that:** the erasure log (not built), then the registry question.
 - **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):**
-  - **IMY:** the new notification was submitted by Tim on 2026-11-08 at about 05:15 UTC, before the deadline. It refers to **IMY-2026-19477**. The supplement (M findings and the followers change) is drafted from `20261107-1242-r3-medium-final` and `20261107-1615-followers-count-only-final`, and goes separately. **Affected users get the information email after that.**
-  - **IMY reply (logged 2026-11-14):** IMY sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident. This clears the notification clean-up (see "Stored comment author copies" above). This log doesn't record whether the supplement and the affected users' email are still to be sent; Tim confirms.
+  - **IMY:** the new notification was submitted by Tim on 2026-11-08 at about 05:15 UTC, before the deadline. It refers to **IMY-2026-19477**. The supplement (M findings and the followers change) is drafted from `20261107-1242-r3-medium-final` and `20261107-1615-followers-count-only-final`.
+  - **IMY reply (logged 2026-11-14):** IMY sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident. This clears the notification clean-up (see "Stored comment author copies" above).
+    - **Affected members' email:** Tim sends it on 2026-11-14, as individual emails to the affected people.
+    - **Supplement:** not due now, since the case is closed. It is planned for later as a short closing note to IMY, once the notification clean-up and database authentication are done on prod.
   - **Live on prod:**
     - containment C1–C4, since 2026-11-05 08:51 UTC (`f67ab5ea`);
     - H3–H7 and H9, since 2026-11-06 05:52 UTC (`44bb7e4b`);
@@ -58,7 +60,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ## 2026-11-14 — Crew for the first home show: read-only analysis and build proposal; IMY closed the 2026-11-05 incident
 
-**IMY:** IMY replied that it sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident (IMY-2026-19477). The hold on the notification clean-up is lifted: `scripts/cleanup-comment-authors.ts --notifications` may run with `IMY_CLEARED=yes`, on staging first, then on prod after the next release. No code change was needed: the script already gates on the variable.
+**IMY:** IMY replied that it sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident (IMY-2026-19477). The hold on the notification clean-up is lifted: `scripts/cleanup-comment-authors.ts --notifications` may run with `IMY_CLEARED=yes`, on staging first, then on prod after the next release. No code change was needed: the script already gates on the variable. Tim sends the email to the affected members on 2026-11-14 (individual emails). The IMY supplement isn't due now; it comes later as a short closing note, after the notification clean-up and database authentication are done on prod.
 
 **Next release, ready to go:** the comment-author fix, already on staging since 2026-11-09 (`22665e07`, `3890af70`, `9eb9bc23`); the comment and notification clean-up; the public-leftovers delete script (`1c830a8b`). Run sheets: `20261109-1239-comment-author-cleanup.tar.gz`, `20261109-1119-public-leftovers.tar.gz`.
 
