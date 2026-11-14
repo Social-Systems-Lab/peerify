@@ -975,6 +975,8 @@ export async function updateTaskAction(
         }
         const finalImages: Media[] = [...parsedExistingMedia, ...newlyUploadedImages];
 
+        const submittedUserGroups = (data.userGroups ?? []).filter((group) => group.trim() !== "");
+
         // Prepare update data
         const updateData: Omit<Partial<Task>, "goalId" | "eventId" | "priority" | "taskGroup"> & {
             goalId?: string;
@@ -988,7 +990,9 @@ export async function updateTaskAction(
             location: locationData,
             targetDate: targetDateForUpdate,
             circleId: targetCircle._id.toString(),
-            userGroups: data.userGroups || task.userGroups,
+            // Only a form that sends an audience changes it (an empty list would make the task visible
+            // to everyone).
+            userGroups: submittedUserGroups.length > 0 ? submittedUserGroups : task.userGroups,
             updatedAt: new Date(),
             // Pass goalId directly (can be string or empty string for removal)
             goalId: didTargetCircleChange ? "" : (data.goalId ?? ""),

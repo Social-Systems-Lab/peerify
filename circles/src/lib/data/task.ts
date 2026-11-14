@@ -57,6 +57,10 @@ export const SAFE_TASK_PROJECTION = {
     targetDate: 1,
     goal: 1,
     event: 1,
+    // The ids too, so the edit form starts with the task's own goal and event (without them it sent
+    // an empty id and the edit unlinked the task).
+    goalId: 1,
+    eventId: 1,
     priority: 1,
     taskGroup: 1,
 } as const;
