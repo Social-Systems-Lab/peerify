@@ -3,17 +3,29 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-11-09)
+## Current Status (2026-11-14)
 - Production: https://peerify.one, on the Cleura server `peerify-prod`. Staging: https://staging.peerify.one, on the Cleura server `peerify-staging`. On both, the app runs from `/srv/peerify/app/circles` as the `peerify` user, under PM2 (`peerify` :3000, `peerify-staging` :3001). Tim deploys.
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
 - **Prod = `0d261bc3`** (storage step 6; deployed 2026-11-09 ~11:02 UTC). **Staging = the same release, plus SESSION_LOG commits.** `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). The Crew should cover day-of tasks (door, sound, bar), promotion and planning; hosting the artist isn't needed. The read-only analysis and build proposal are done (`20261114-0938-crew-event-flow.tar.gz`, see the 2026-11-14 entry). **Waiting for Tim's decisions A–D** before any code.
+- **Security, found during the Crew analysis (not fixed yet):** `safeModifyMemberUserGroups` (`lib/utils.ts:385-388`) has a `??` precedence bug, so the access-level check never runs. A moderator can grant `admins` to a follower. S fix, own branch, ahead of the Crew work.
+- **Next release, ready to go:** staging → main → prod, with:
+  - the comment-author fix: on staging since 2026-11-09 (`22665e07`, `3890af70`, `9eb9bc23`), not yet on prod;
+  - the comment and notification clean-up script (`scripts/cleanup-comment-authors.ts`), run sheet in `20261109-1239-comment-author-cleanup.tar.gz`;
+  - the public-leftovers delete script (`1c830a8b`), run sheet in `20261109-1119-public-leftovers.tar.gz`.
+  After the release, Tim runs both run sheets on prod (staging first where the sheet says so).
+- **Still open (see also the items below):**
+  - the staging restore rehearsal;
+  - the standing privacy check;
+  - Tim's own tasks: 2FA on the admin email, retire the old box and its GitHub key, reboot both servers;
+  - the UX month: pin design (with storage step 2), an event-location session, the AI content declaration, performance quick wins.
 - **Storage steps on prod: 4, 5 and 6 DONE; step 2 held** for the UX month's pin design.
   - Step 5 finished 2026-11-09 ~09:45 UTC; step 6 (`53e81692`, `/storage` and `/uploads` refuse `offer-photo*` and `verification-attachment*` names) live since ~11:02 UTC. See the 2026-11-09 (cont.) entries.
   - **Leftovers** (private-type names still in the public buckets, 404 since step 6): delete script `1c830a8b` on staging, goes to prod with the next ordinary release. Then Tim runs the prod listing, dry run and delete (package `20261109-1119-public-leftovers.tar.gz`). Staging: 3 left, all mentioned only by stale snapshots in `comments`/`notifications` (see the 2026-11-09 (cont. 4) entry), so kept for now.
 - **Stored comment author copies:** fix and clean-up script **on staging** since 2026-11-09 (`22665e07`, `3890af70`, `9eb9bc23`; reviewed by Tim, branch `fix/comment-author-not-stored` rebased onto staging). Next: Tim deploys staging and runs the comment part (run sheet in `20261109-1239-comment-author-cleanup.tar.gz`; the commit ids there are the pre-rebase `3c33dba1`, `91575fb4`, `2cd873f7`; same code, same script hash `59ed789b…`), then prod after the next release.
-  - **The notification clean-up is ON HOLD until IMY answers** whether the stored notification data must be kept as evidence (IMY-2026-19477). The script's `--notifications` part refuses to run, even as a dry run, unless `IMY_CLEARED=yes` is set. Only Tim sets it, and only after IMY has cleared it.
+  - **The notification clean-up is CLEARED (2026-11-14).** IMY replied that it sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident (IMY-2026-19477). The script's `--notifications` part may now run with `IMY_CLEARED=yes`: on staging first, then on prod after the next release. Tim sets the variable; the dry run and the `EXPECT_NOTIFICATION_COUNT` rule stay as before.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
@@ -27,6 +39,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **After that:** the erasure log (not built), then the registry question.
 - **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):**
   - **IMY:** the new notification was submitted by Tim on 2026-11-08 at about 05:15 UTC, before the deadline. It refers to **IMY-2026-19477**. The supplement (M findings and the followers change) is drafted from `20261107-1242-r3-medium-final` and `20261107-1615-followers-count-only-final`, and goes separately. **Affected users get the information email after that.**
+  - **IMY reply (logged 2026-11-14):** IMY sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident. This clears the notification clean-up (see "Stored comment author copies" above). This log doesn't record whether the supplement and the affected users' email are still to be sent; Tim confirms.
   - **Live on prod:**
     - containment C1–C4, since 2026-11-05 08:51 UTC (`f67ab5ea`);
     - H3–H7 and H9, since 2026-11-06 05:52 UTC (`44bb7e4b`);
@@ -40,6 +53,44 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-14 — Crew for the first home show: read-only analysis and build proposal; IMY closed the 2026-11-05 incident
+
+**IMY:** IMY replied that it sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident (IMY-2026-19477). The hold on the notification clean-up is lifted: `scripts/cleanup-comment-authors.ts --notifications` may run with `IMY_CLEARED=yes`, on staging first, then on prod after the next release. No code change was needed: the script already gates on the variable.
+
+**Next release, ready to go:** the comment-author fix, already on staging since 2026-11-09 (`22665e07`, `3890af70`, `9eb9bc23`); the comment and notification clean-up; the public-leftovers delete script (`1c830a8b`). Run sheets: `20261109-1239-comment-author-cleanup.tar.gz`, `20261109-1119-public-leftovers.tar.gz`.
+
+**Crew analysis** (read-only, no code; report `~/cc-reports/outbox/20261114-0938-crew-event-flow.tar.gz`). The task: walk through a home show (house concert) the way an organiser would, about 3 weeks out. The Crew helps with day-of tasks (door, sound, bar), promotion and planning; hosting the artist isn't needed. Staging-only commits don't touch events, Crew or tasks, so the findings hold for prod.
+
+**Main findings:**
+- **No private address today.** The event privacy section has been hidden since 2026-10-20 (`6fabbc6b`), and the server refuses non-public values. Even with the section shown, the exact address and the private organiser note reach only the event's managers, never invited guests, people who RSVP or crew. "Approval required" and "Ticket required" are labels only. RSVP checks neither the access mode nor the capacity.
+- **Crew has no link to any event.** The bridge is shifts/tasks with an `eventId`. `eventRsvpSchema.selectedRoles` is never set or shown.
+- **Bug: editing a task or shift unlinks its event and goal**, because `SAFE_TASK_PROJECTION` has no `eventId`/`goalId` and the edit sends `""`, which `$unset`s them. The same edit wipes the task's `userGroups`.
+- **D3 gap on shifts.**
+  - Anyone signed in can sign up to a shift (no member or Crew check), and a pending sign-up already sees the exact location and "Important for participants" note.
+  - "Share this shift on the Noticeboard" posts `participantNotes` to admins, moderators and members.
+- **Other gaps found:**
+  - Events hosted on personal profiles are 404 for signed-out visitors.
+  - New artist circles don't have Events, Tasks or Shifts on by default.
+  - The event page has no Share button or link preview.
+  - "Sign in to RSVP" has no link.
+  - No notices when an event is changed or cancelled; Crew broadcast is bell-only (push off by default, no email).
+  - Pending shift sign-ups can't be confirmed after the shift ends.
+  - The event audience picker's text says it affects only the Noticeboard post, but since H5 it hides the event too.
+- **Security, separate track:** `safeModifyMemberUserGroups` (`lib/utils.ts:385-388`): `get(h) ?? 0 >= accessLevel` parses as `get(h) ?? (0 >= accessLevel)`, so a moderator can grant `admins`. S fix, own branch, first.
+
+**Proposed build:**
+- R1 (about 4 days): keep the event link on edit; Crew-only shifts (no `participantNotes` in the Noticeboard post); event-page shift panel (organiser status + "Create shift"); Share button; audience-picker copy.
+- R2 (about 4–5 days): exact address for managers, invitees and confirmed crew of the event's shifts (needs decision A); "Message this event's crew" + Broadcast on the Crew Dashboard; event link preview from the shaped event; Confirm after a shift ends.
+- Could wait: capacity, change/cancel notices, request-to-attend, reminders, checklist sub-items.
+
+**Waiting for Tim:**
+- A: reopen approximate / reveal-after-acceptance / invite-only for events?
+- B: pending sign-ups see the address, or confirmed only?
+- C: "approved guests" = invited people?
+- D: which profile hosts the event?
 
 ---
 
