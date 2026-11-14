@@ -1,0 +1,56 @@
+// Run: IS_BUILD=true bun test src/lib/events/event-share.test.ts
+// Crew R1, item 5 (2026-11-14): the event share text and the "Sign in to RSVP" link.
+
+import { describe, expect, test } from "bun:test";
+import { buildEventShareText, eventSignInHref } from "./event-share";
+
+const STREET = "Canary Street 12";
+const NOTE = "CANARY private organiser note";
+
+const event = (extra: Record<string, unknown> = {}) =>
+    ({
+        title: "Julian Wenn – house concert",
+        startAt: new Date(2026, 11, 5, 19, 30),
+        isVirtual: false,
+        location: {
+            precision: 4,
+            city: "Stockholm",
+            country: "Sweden",
+            street: STREET,
+            lngLat: { lng: 18.07, lat: 59.33 },
+        },
+        metadata: { peerify: { privateLocationNote: NOTE } },
+        ...extra,
+    }) as Parameters<typeof buildEventShareText>[0];
+
+const URL = "https://peerify.one/circles/host/events/abc";
+
+describe("share text", () => {
+    test("has the title, the date and time, the city and the link", () => {
+        const text = buildEventShareText(event(), URL);
+        expect(text).toBe("Julian Wenn – house concert\nSat 5 Dec, 19:30 · Stockholm, Sweden\n" + URL);
+    });
+
+    test("never has the street, the coordinates or the private note, even when the viewer has them", () => {
+        const text = buildEventShareText(event(), URL);
+        expect(text).not.toContain(STREET);
+        expect(text).not.toContain("18.07");
+        expect(text).not.toContain(NOTE);
+    });
+
+    test("uses the organiser's public label when there is one", () => {
+        const text = buildEventShareText(event({ metadata: { peerify: { publicLocationLabel: "Södermalm" } } }), URL);
+        expect(text).toContain("Södermalm");
+        expect(text).not.toContain("Stockholm");
+    });
+
+    test("an online event says Online", () => {
+        expect(buildEventShareText(event({ isVirtual: true }), URL)).toContain("Online");
+    });
+});
+
+describe("Sign in to RSVP", () => {
+    test("links to the login page and comes back to the event", () => {
+        expect(eventSignInHref("host", "abc")).toBe("/login?redirectTo=%2Fcircles%2Fhost%2Fevents%2Fabc");
+    });
+});

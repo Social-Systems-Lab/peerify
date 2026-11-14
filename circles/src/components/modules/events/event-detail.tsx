@@ -55,6 +55,8 @@ import InviteModal from "./invite-modal";
 import AttendeesList from "./attendees-list";
 import RsvpDialog from "./rsvp-dialog";
 import EventTasksPanel from "./event-tasks-panel";
+import ShareEventButton from "./share-event-button";
+import { eventSignInHref } from "@/lib/events/event-share";
 import { getEventJoinState } from "./event-join-state";
 import { getPeerifyEventDisclosureDisplay, getPeerifySafeEventLocationText } from "./peerify-event-disclosure-display";
 import { EventTagBadgeList, getEventTagBadges } from "./event-tag-badges";
@@ -575,7 +577,12 @@ export default function EventDetail({
                                 )}
                             </div>
                         ) : (
-                            <div className="text-xs text-muted-foreground">Sign in to RSVP.</div>
+                            <div className="text-xs text-muted-foreground">
+                                <Link href={eventSignInHref(circleHandle, eventId ?? "")} className="underline">
+                                    Sign in to RSVP
+                                </Link>
+                                .
+                            </div>
                         )}
                         <div className="mt-2 text-xs text-muted-foreground">
                             Attendees (going): {event.attendees ?? 0}
@@ -707,6 +714,7 @@ export default function EventDetail({
                     <a href={googleCalendarUrl(event)} target="_blank" rel="noreferrer">
                         <Button variant="outline">Add to Google Calendar</Button>
                     </a>
+                    {eventId && <ShareEventButton event={event} circleHandle={circleHandle} eventId={eventId} />}
                     {canEdit && (
                         <Button
                             variant="outline"
@@ -911,7 +919,12 @@ export default function EventDetail({
                                 )}
                             </div>
                         ) : (
-                            <div className="text-sm text-muted-foreground">Sign in to RSVP.</div>
+                            <div className="text-sm text-muted-foreground">
+                                <Link href={eventSignInHref(circleHandle, eventId ?? "")} className="underline">
+                                    Sign in to RSVP
+                                </Link>
+                                .
+                            </div>
                         )}
                         <div className="mt-3 text-sm text-muted-foreground">
                             Attendees (going): {event.attendees ?? 0}
