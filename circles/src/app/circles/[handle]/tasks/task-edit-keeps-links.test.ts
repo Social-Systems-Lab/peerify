@@ -65,7 +65,9 @@ const storedShift = () => ({
 beforeEach(() => {
     sessionDid = MODERATOR;
     fakeDb.reset({
-        Circles: [{ _id: new ObjectId(CIRCLE_ID), did: "did:test:host", handle: "host", name: "Host", circleType: "circle" }],
+        Circles: [
+            { _id: new ObjectId(CIRCLE_ID), did: "did:test:host", handle: "host", name: "Host", circleType: "circle" },
+        ],
         Tasks: [storedShift()],
     });
     fakeDb.setAggregateResult("Tasks", [{ ...storedShift(), _id: TASK_ID }]);

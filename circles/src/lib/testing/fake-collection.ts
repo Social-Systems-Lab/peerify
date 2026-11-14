@@ -4,7 +4,7 @@
 // $ne, $exists, $not, $size, $gt/$gte/$lt/$lte, RegExp values, top-level $or/$and/$nor, find().toArray() and
 // find() with sort/limit/project, inclusion projections (dotted paths too), countDocuments, insertOne
 // (adds an ObjectId _id when there is none), deleteOne, deleteMany,
-// and updateOne ($set, $unset, $addToSet, $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
+// and updateOne ($set, $unset, $addToSet, $push (top-level, single value), $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
 // between its match and its write).
 
 import { ObjectId } from "mongodb";
@@ -209,7 +209,7 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             }
             return { deletedCount };
         },
-        async updateOne(filter: Doc, update: { $set?: Doc; $unset?: Doc; $addToSet?: Doc; $pull?: Doc }) {
+        async updateOne(filter: Doc, update: { $set?: Doc; $unset?: Doc; $addToSet?: Doc; $push?: Doc; $pull?: Doc }) {
             const found = docs.find((d) => matchesFilter(d, filter));
             if (!found) {
                 return { matchedCount: 0, modifiedCount: 0 };
@@ -229,6 +229,9 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             for (const [key, value] of Object.entries(update.$addToSet ?? {})) {
                 const list: unknown[] = Array.isArray(found[key]) ? found[key] : [];
                 found[key] = list.some((item) => valueEquals(item, value)) ? list : [...list, value];
+            }
+            for (const [key, value] of Object.entries(update.$push ?? {})) {
+                found[key] = [...(Array.isArray(found[key]) ? found[key] : []), value];
             }
             for (const [key, value] of Object.entries(update.$pull ?? {})) {
                 if (Array.isArray(found[key])) found[key] = found[key].filter((item: unknown) => !valueEquals(item, value));
