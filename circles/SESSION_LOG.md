@@ -8,14 +8,12 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `0d261bc3`** (storage step 6; deployed 2026-11-09 ~11:02 UTC). **Staging = the same release, plus SESSION_LOG commits.** `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **Prod = `68d0dfa0`** (moderator fix + comment-author fix; deployed 2026-11-14). **Staging = the same release, plus SESSION_LOG commits.** `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
 - **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). The Crew should cover day-of tasks (door, sound, bar), promotion and planning; hosting the artist isn't needed. The read-only analysis and build proposal are done (`20261114-0938-crew-event-flow.tar.gz`, see the 2026-11-14 entry). **Waiting for Tim's decisions A–D** before any code.
-- **Security, found during the Crew analysis (not fixed yet):** `safeModifyMemberUserGroups` (`lib/utils.ts:385-388`) has a `??` precedence bug, so the access-level check never runs. A moderator can grant `admins` to a follower. S fix, own branch, ahead of the Crew work.
-- **Next release, ready to go:** staging → main → prod, with:
-  - the comment-author fix: on staging since 2026-11-09 (`22665e07`, `3890af70`, `9eb9bc23`), not yet on prod;
-  - the comment and notification clean-up script (`scripts/cleanup-comment-authors.ts`), run sheet in `20261109-1239-comment-author-cleanup.tar.gz`;
-  - the public-leftovers delete script (`1c830a8b`), run sheet in `20261109-1119-public-leftovers.tar.gz`.
-  After the release, Tim runs both run sheets on prod (staging first where the sheet says so).
+- **Security fix LIVE on prod (2026-11-14, `68d0dfa0`):** a moderator can no longer grant `admins` (the `??` precedence bug in `safeModifyMemberUserGroups`). See the 2026-11-14 (cont.) entry.
+- **Released 2026-11-14 (`68d0dfa0`):** the comment-author fix (`22665e07`, `3890af70`) and both clean-up scripts are now on prod. **Next for Tim:** run both run sheets on prod (staging first where the sheet says so):
+  - comment and notification clean-up (`scripts/cleanup-comment-authors.ts`, `IMY_CLEARED=yes` for the notifications part), run sheet in `20261109-1239-comment-author-cleanup.tar.gz`;
+  - public-leftovers delete (`scripts/delete-public-leftovers.ts`), run sheet in `20261109-1119-public-leftovers.tar.gz`.
 - **Still open (see also the items below):**
   - the staging restore rehearsal;
   - the standing privacy check;
@@ -23,19 +21,19 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - the UX month: pin design (with storage step 2), an event-location session, the AI content declaration, performance quick wins.
 - **Storage steps on prod: 4, 5 and 6 DONE; step 2 held** for the UX month's pin design.
   - Step 5 finished 2026-11-09 ~09:45 UTC; step 6 (`53e81692`, `/storage` and `/uploads` refuse `offer-photo*` and `verification-attachment*` names) live since ~11:02 UTC. See the 2026-11-09 (cont.) entries.
-  - **Leftovers** (private-type names still in the public buckets, 404 since step 6): delete script `1c830a8b` on staging, goes to prod with the next ordinary release. Then Tim runs the prod listing, dry run and delete (package `20261109-1119-public-leftovers.tar.gz`). Staging: 3 left, all mentioned only by stale snapshots in `comments`/`notifications` (see the 2026-11-09 (cont. 4) entry), so kept for now.
-- **Stored comment author copies:** fix and clean-up script **on staging** since 2026-11-09 (`22665e07`, `3890af70`, `9eb9bc23`; reviewed by Tim, branch `fix/comment-author-not-stored` rebased onto staging). Next: Tim deploys staging and runs the comment part (run sheet in `20261109-1239-comment-author-cleanup.tar.gz`; the commit ids there are the pre-rebase `3c33dba1`, `91575fb4`, `2cd873f7`; same code, same script hash `59ed789b…`), then prod after the next release.
-  - **The notification clean-up is CLEARED (2026-11-14).** IMY replied that it sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident (IMY-2026-19477). The script's `--notifications` part may now run with `IMY_CLEARED=yes`: on staging first, then on prod after the next release. Tim sets the variable; the dry run and the `EXPECT_NOTIFICATION_COUNT` rule stay as before.
+  - **Leftovers** (private-type names still in the public buckets, 404 since step 6): delete script `1c830a8b` on prod since 2026-11-14 (`68d0dfa0`). Next, Tim runs the prod listing, dry run and delete (package `20261109-1119-public-leftovers.tar.gz`). Staging: 3 left, all mentioned only by stale snapshots in `comments`/`notifications` (see the 2026-11-09 (cont. 4) entry), so kept for now.
+- **Stored comment author copies:** fix and clean-up script **on staging** since 2026-11-09 (`22665e07`, `3890af70`, `9eb9bc23`; reviewed by Tim, branch `fix/comment-author-not-stored` rebased onto staging). Next: Tim deploys staging and runs the comment part (run sheet in `20261109-1239-comment-author-cleanup.tar.gz`; the commit ids there are the pre-rebase `3c33dba1`, `91575fb4`, `2cd873f7`; same code, same script hash `59ed789b…`), then prod (the code is on prod since 2026-11-14, `68d0dfa0`).
+  - **The notification clean-up is CLEARED (2026-11-14).** IMY replied that it sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident (IMY-2026-19477). The script's `--notifications` part may now run with `IMY_CLEARED=yes`: on staging first, then on prod (released 2026-11-14). Tim sets the variable; the dry run and the `EXPECT_NOTIFICATION_COUNT` rule stay as before.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
 - Building inside the *live* checkout without a full deploy corrupts the running standalone build (2026-08-02 (cont. 3) incident). Builds in `~/work/peerify` are separate from `/srv/peerify` and safe, but they're for checking only, never for deploying.
 - See OPERATIONS.md for architecture.
 - **Backups:** live on both boxes since 2026-11-07 (nightly, prod 02:30, staging ~03:30; restic to Cleura Kna1, repos `peerify-backup-prod` / `-staging`, config in `/etc/peerify-backup`). Restore tests (see the 2026-11-08 and 2026-11-09 entries):
-  - **Prod on-box check: passed on 2026-11-09** (`restic check --read-data` clean; database, key files and buckets restored identical). Next time, after the next release has put the scripts on prod, use runbook section 6.
+  - **Prod on-box check: passed on 2026-11-09** (`restic check --read-data` clean; database, key files and buckets restored identical). The scripts are on prod since 2026-11-14 (`68d0dfa0`); next time, use runbook section 6.
   - **Staging rehearsal:** not done yet. Possible from 2026-11-09, after tonight's backup records `fbb9ca9a`.
   - **Prod's manual `~/backups`:** the on-box check has passed, so they can be shredded once prod has had 7 good nights (from 2026-11-14), and never later than their DELETE-BY dates.
-  - **Installed copies:** refresh them on staging now (`fbb9ca9a` is deployed), and on prod after the next release. The commands are in the 2026-11-08 entry.
+  - **Installed copies:** refresh them on staging now (`fbb9ca9a` is deployed), and on prod now that `68d0dfa0` is deployed. The commands are in the 2026-11-08 entry.
   - **After that:** the erasure log (not built), then the registry question.
 - **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):**
   - **IMY:** the new notification was submitted by Tim on 2026-11-08 at about 05:15 UTC, before the deadline. It refers to **IMY-2026-19477**. The supplement (M findings and the followers change) is drafted from `20261107-1242-r3-medium-final` and `20261107-1615-followers-count-only-final`.
@@ -55,6 +53,26 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-14 (cont.) — Moderator → admin fix; release: prod = staging `68d0dfa0`
+
+### The fix (report `20261114-1016-moderator-admin-escalation.tar.gz`)
+- **Bug:** in `safeModifyMemberUserGroups` (`lib/utils.ts`), `userGroupsMap.get(h) ?? 0 >= accessLevel` parsed as `get(h) ?? (0 >= accessLevel)`. Every group passed, so a moderator could grant `admins` (or add or remove moderators and admins) with a hand-made call to `updateUserGroupsAction`. The role offer in `members/actions.ts` uses the same function. The UI already greyed these boxes out.
+- **Fix:** `c9c85e94` on `fix/moderator-admin-escalation` (from main `0d261bc3`). The level check always runs now: lower or (with `edit_same_level_user_groups`) equal level only, and a group without a level is never allowed.
+- **Tests:** `src/lib/member-user-groups.test.ts`, 12 tests. 6 fail on the old code and all 12 pass with the fix. Other test files pass except the known `participation-readiness` failure; tsc shows only the old `peerify-backup.test.ts` error; eslint clean; the build succeeds.
+- **Search for the same kind of mistake:** none found (unbracketed `??` comparisons, operator mixes, assignment in `if`, un-awaited async role checks, every access-level comparison).
+- **Follow-ups (not built):** the server drops a role the editor may not grant without saying so ("success"); a clear message would be a small change.
+- Merged into `staging` with `--no-ff` (`68d0dfa0`). Tim deployed staging and checked role editing as admin and moderator: passed.
+
+### Release
+- `main` fast-forwarded `0d261bc3` → `68d0dfa0` by Tim from his Mac. Tim took a `pre-release` backup, deployed prod, and checked it: `/api/version` gitSha `68d0dfa0`, check passed (2026-11-14).
+- **Contents:** the moderator fix (`c9c85e94`, `68d0dfa0`); comments no longer store the author's whole circle (`22665e07`); notification shaping in its own pure module, no change for users (`3890af70`); the hand-run scripts `cleanup-comment-authors.ts` (`9eb9bc23`) and `delete-public-leftovers.ts` (`1c830a8b`), which the deploy doesn't run; SESSION_LOG commits. No dependency changes, no migrations, no new env settings.
+
+### Next
+- Tim: the two run sheets on prod (comment and notification clean-up with `IMY_CLEARED=yes`, staging first; public leftovers), and refresh the installed backup copies on prod.
+- Crew rework: waiting for Tim's decisions A–D (see the entry below).
 
 ---
 
