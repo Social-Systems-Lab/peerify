@@ -3,14 +3,15 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-11-14)
+## Current Status (2026-11-15)
 - Production: https://peerify.one, on the Cleura server `peerify-prod`. Staging: https://staging.peerify.one, on the Cleura server `peerify-staging`. On both, the app runs from `/srv/peerify/app/circles` as the `peerify` user, under PM2 (`peerify` :3000, `peerify-staging` :3001). Tim deploys.
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
 - **Prod = `68d0dfa0`** (moderator fix + comment-author fix; deployed 2026-11-14). **Staging = the same release, plus SESSION_LOG commits.** `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
-- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **R1 (items 1, 2, 3, 5, 9) built on local branch `feature/crew-event-r1`** (5 commits, not pushed, not merged). See the 2026-11-14 (cont. 2) entry.
-- **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task.
+- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **R1 (items 1, 2, 3, 5, 9) merged into `staging` (`20945236`, 2026-11-15)**; next, Tim deploys staging and runs the R1 check list. **Identity fixes (event author, venue parent) on branch `fix/event-author-payload`** (`26119ed1`, `6223e54c`) and the **login `redirectTo` fix on `fix/login-redirect`** (`78ea3c7f`): not pushed, waiting for Tim's yes. **Open decision: the venue "Chat"/contact button shows the venue's admins (Tim) to whoever uses it.** See the 2026-11-15 entry.
+- **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15).
+- **LATER:** the event audience picker should always be available, not only after ticking "Share on Noticeboard".
 - **Security fix LIVE on prod (2026-11-14, `68d0dfa0`):** a moderator can no longer grant `admins` (the `??` precedence bug in `safeModifyMemberUserGroups`). See the 2026-11-14 (cont.) entry.
 - **Released 2026-11-14 (`68d0dfa0`):** the comment-author fix (`22665e07`, `3890af70`) and both clean-up scripts are now on prod. **Next for Tim:** run both run sheets on prod (staging first where the sheet says so):
   - comment and notification clean-up (`scripts/cleanup-comment-authors.ts`, `IMY_CLEARED=yes` for the notifications part), run sheet in `20261109-1239-comment-author-cleanup.tar.gz`;
@@ -54,6 +55,34 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-15 — R1 on staging; identity fixes and the login redirect on branches
+
+**R1 merged:** with Tim's yes, the SESSION_LOG commit `0814b46f` went to `staging`, `feature/crew-event-r1` was pushed, and it was merged into `staging` as `20945236` and pushed. Tim deploys staging and runs the R1 check list (report `20261114-1958-crew-r1`, REPORT.md section 4).
+
+**Tim's answers (2026-11-15):**
+- **Identity:** build only these two: (1) events don't send the author's identity to people who don't manage the event; (2) the organiser circle's page data doesn't send its parent profile when the "Child of" badge isn't shown. Also check, read-only first, the event comment thread's hidden post and the venue's chat.
+- **Accepted until "Secret Soirées":** crew see "Created by <Tim>" on shifts and tasks, and notifications (event invitations, shift confirmations, task assigned, changes requested) name Tim.
+- **Platform admins** who aren't members of a circle keep not seeing its crew-only shifts and tasks.
+- **Login:** `redirectTo` accepts only paths on our own site, on its own branch.
+
+**Branch `fix/event-author-payload`** (from staging `20945236`, not pushed):
+- `26119ed1` Events: `sanitizePeerifyPublicEventDisplay` drops `createdBy` and `author`, so the event page, the events lists (signed in and out), the map and the list across circles send them to the event's managers only (the ICS files never had them). The hidden post behind an event's comments (made under the author's account; its id goes out with every event as `commentPostId`) is never shown as a post: `/circles/<c>/post/<id>` goes to the event page, and a shared embed of it is empty. `event-detail` no longer counts a missing `createdBy` as a match for a signed-out viewer. Tests `event-author-leaks` (6 of 9 fail before) and `event-shadow-post` (2 of 4 fail before).
+- `6223e54c` Circles: the layout looks up the parent only when the "Child of" badge shows (`showsParentCircleBadge`: a parent set, not the root circle, not a Peerify managed identity), and `toPublicCircle`/`toPublicCircleListItem` drop `parentCircleId` otherwise. Managers and the owner still get it. Test `parent-circle-leaks` (3 of 6 fail before).
+
+**Branch `fix/login-redirect`** (from staging `20945236`, not pushed):
+- `78ea3c7f` `lib/utils/safe-redirect.ts`: only a single leading "/" path on this site; not a full URL, not `//` or `/\`, not `javascript:`, no whitespace or control characters; anything else gives the normal start page. Used by the login form, the signup form, the onboarding signup flow and the redirect buttons (logged-out, unauthenticated, unauthorized and not-found pages, which also had "Return to page" links straight to `redirectTo`). Test `safe-redirect` (new module, fails before).
+
+**Checks, each commit:** all test files pass except the known `participation-readiness` (and `altcha` once, three 5-second timeouts during the full run; 10/10 alone, three times); tsc only the old backup-test error; eslint clean; build succeeds. Report `20261115-0503-identity-login.tar.gz`.
+
+**Found, not fixed (needs Tim's decision):**
+- **Venue chat names its admins.** The venue's own members chat room can't be opened by anyone (no one is added to its conversation), so Tim isn't there. But the venue page's "Chat" button and the About page's contact form (`contactCircleAdminsAction`, `components/modules/chat/mongo-actions.ts:1385`) open a group with the follower and every venue admin. The follower's browser then gets each admin's name, handle, picture and DID (chat list participants, members panel), even if the admin never replies; replies come from the personal account. Any verified signed-in user can start one, follower or not. Options: switch this contact off for venues, or show admins as the venue in these threads (about five places).
+
+**Later items:**
+- The event audience picker is only reachable after ticking "Share on Noticeboard"; it should always be available.
+- "Created by" on shifts/tasks and the notifications that name the actor: part of "Secret Soirées".
 
 ---
 
