@@ -2,7 +2,14 @@
 // Crew R1, item 5 (2026-11-14): the event share text and the "Sign in to RSVP" link.
 
 import { describe, expect, test } from "bun:test";
-import { buildEventSharePayload, buildEventShareText, eventSignInHref } from "./event-share";
+import {
+    buildEventSharePayload,
+    buildEventShareText,
+    chooseEventShareMode,
+    detectEventShareMode,
+    eventSignInHref,
+    TOUCH_FIRST_QUERY,
+} from "./event-share";
 
 const STREET = "Canary Street 12";
 const NOTE = "CANARY private organiser note";
@@ -62,5 +69,41 @@ describe("the share sheet payload (2026-11-15)", () => {
         expect(all.split("Julian Wenn – house concert").length - 1).toBe(1);
         expect(all.split(URL).length - 1).toBe(1);
         expect(payload.text).toBe(buildEventShareText(event(), URL));
+    });
+});
+
+describe("one Share button: share sheet on phones, link dialog on desktop (2026-11-15)", () => {
+    test("the share sheet only on a touch-first device that has one", () => {
+        expect(chooseEventShareMode({ canShare: true, touchFirst: true })).toBe("sheet");
+        // Safari on the Mac has a share sheet, but desktop gets the dialog.
+        expect(chooseEventShareMode({ canShare: true, touchFirst: false })).toBe("dialog");
+        // A phone browser without one falls back to the dialog.
+        expect(chooseEventShareMode({ canShare: false, touchFirst: true })).toBe("dialog");
+        expect(chooseEventShareMode({ canShare: false, touchFirst: false })).toBe("dialog");
+    });
+
+    test("read from the browser: share function plus the touch-first media query", () => {
+        const media = (touch: boolean) => (q: string) => ({ matches: touch && q === TOUCH_FIRST_QUERY });
+        const share = () => Promise.resolve();
+        expect(detectEventShareMode({ share }, media(true))).toBe("sheet");
+        expect(detectEventShareMode({ share }, media(false))).toBe("dialog");
+        expect(detectEventShareMode({}, media(true))).toBe("dialog");
+        expect(detectEventShareMode(undefined, undefined)).toBe("dialog");
+        expect(detectEventShareMode({ share }, undefined)).toBe("dialog");
+    });
+
+    test("what the phone's share sheet gets never has the street, the pin or the private note", () => {
+        for (const e of [
+            event(),
+            event({ metadata: { peerify: { privateLocationNote: NOTE, publicLocationLabel: "Södermalm" } } }),
+        ]) {
+            const payload = buildEventSharePayload(e, URL);
+            const all = JSON.stringify(payload);
+            expect(all).not.toContain(STREET);
+            expect(all).not.toContain("18.07");
+            expect(all).not.toContain("59.33");
+            expect(all).not.toContain(NOTE);
+            expect(all.split(URL).length - 1).toBe(1);
+        }
     });
 });
