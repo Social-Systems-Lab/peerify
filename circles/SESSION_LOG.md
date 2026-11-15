@@ -8,10 +8,11 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `30f3fcd8`** (released 2026-11-15; Tim reports prod runs `30f3fcd8` and the check passed). **`staging` branch = `30f3fcd8`** too. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
-- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. **Branch `fix/crew-ui-polish`** (6 commits, `29fcd32f`..`e36894f6`): not pushed. See the 2026-11-15 entries.
+- **Prod = `60108f48`** (released 2026-11-15; Tim reports prod runs `60108f48` and the check passed). **`staging` branch = `60108f48`** too (plus SESSION_LOG commits). `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. **Also live since `60108f48`:** the crew UI polish (6 items, `29fcd32f`..`e36894f6`). **Branch `fix/share-simple`** (1 commit, `1cc306eb`): not pushed. See the 2026-11-15 entries.
 - **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (it also covers a personal profile's Circles list, owner-only since `e4973b87`: default only me, options Contacts or Public) (design direction in the 2026-11-15 (cont.) entry).
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
+- **DESIGN DIRECTION (2026-11-15 (cont. 5)): "Asks"** in the Crew feed (Help / Lend / Host / Spread, private responses, Filled/Expired), as tasks of type `ask`. Proposal and open questions in `20261115-share-asks.tar.gz`. **Fix first:** the claim audience check and `ensureShadowPostForTaskAction` (see that entry).
 - **CANDIDATE BEFORE THE SHOW:** a "Shifts & tasks" view on the Crew page (my shifts, then open shifts by event) and the same status panel on the Crew Dashboard.
   - Its personal counterpart, later: **"My Crews"** on the personal profile, owner only: upcoming shifts across all crews plus those crews' broadcasts in one feed (2026-11-15 (cont. 4)).
 - **LATER:**
@@ -62,6 +63,33 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-15 (cont. 5) — Release: prod = `60108f48`; one Share button on a branch; "Asks" design direction
+
+**Release:** Tim reports prod runs `60108f48` (the crew UI polish, 6 items) and the check passed.
+
+**Branch `fix/share-simple`** (from `60108f48`; not pushed; report `20261115-share-asks.tar.gz`):
+- **`1cc306eb` One Share button.**
+  - On a touch-first device with a share sheet, it opens the sheet with the short text (title once, date, city or public label, link).
+  - Everywhere else, desktop included, it opens a small dialog with the link and a Copy button, like "Invite people to the circle".
+  - The separate "Copy link" button is gone, and the choice is `detectEventShareMode` (`lib/events/event-share.ts`).
+  - The share text still never has the street, the pin or the private note.
+  - Test `event-share`: the 3 new cases fail before; 9/9 after.
+
+**Design direction (Tim, 2026-11-15; no code): "Asks" in the Crew feed.**
+- **What it is:** an artist or venue posts needs as cards in its Crew feed. Examples: a volunteer for sound check, five tickets left, a PA to borrow, a spare bed.
+- **Types:** Help, Lend, Host, Spread.
+- **Responding:** "I can help" is a private response to the owner side, never a public comment. The owner accepts one person, and the card shows "Filled" and expires after its date.
+- **Addresses:** Host and Lend asks never show an address in the feed. Details go only to the accepted person.
+- **Later:** a third audience for event shifts (Everyone / Crew only / Crew + the artists on the bill, shown under the venue's name), city-bound asks for nearby crew, and matching against crew Offers.
+- **Proposal** (`ASKS-PROPOSAL.md` in the report): a task with `taskType "ask"` (reusing audience, D3/decision B, claim → approve, eventId, notifications, the task card in a post).
+  - **Plus new:** server-side private responses, details for the accepted person only, Filled and Expired worked out when read, and asks kept out of every other task list. Version 1 is L in total.
+  - **The alternative**, if that gets messy: a small separate `asks` collection.
+- **Found while reading (fix first, own branch, waiting for Tim's yes):**
+  - `submitTaskClaimAction` doesn't check the task's audience, so a non-crew member can claim a crew-only task by id;
+  - `ensureShadowPostForTaskAction` (a server action) has no sign-in check and doesn't check that the task belongs to the circle passed in.
 
 ---
 
