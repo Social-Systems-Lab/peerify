@@ -4,6 +4,7 @@ import { getCirclesWithMetrics } from "@/lib/data/circle";
 import CirclesList from "./circles-list";
 import ContentDisplayWrapper from "@/components/utils/content-display-wrapper";
 import { getAuthenticatedUserDid } from "@/lib/auth/auth";
+import { canViewProfileCirclesList } from "@/lib/data/profile-circles-access";
 import { Circle, SortingOptions } from "@/models/models";
 
 type PageProps = { circle: Circle; searchParams?: Promise<{ [key: string]: string | string[] | undefined }> };
@@ -15,6 +16,8 @@ export default async function CirclesModule(props: PageProps) {
 
     // get user handle
     let userDid = await getAuthenticatedUserDid();
+    // Never fetched for anyone but a personal profile's owner and platform admins.
+    if (!(await canViewProfileCirclesList(circle, userDid))) return null;
 
     // get all circles or projects based on the page
     let circles = await getCirclesWithMetrics(

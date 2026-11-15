@@ -3,6 +3,8 @@ import { canViewUnpublishedCircle, getMember } from "@/lib/data/member";
 import { Circle } from "@/models/models";
 import { NextResponse } from "next/server";
 import { isModuleEnabled } from "@/lib/auth/client-auth";
+import { canViewProfileCirclesList } from "@/lib/data/profile-circles-access";
+import { PROFILE_CIRCLES_MODULE } from "@/lib/peerify/profile-circles-list";
 
 export async function POST(req: Request) {
     try {
@@ -36,6 +38,12 @@ export async function POST(req: Request) {
         // Check if module is enabled using enabledModules.
         const moduleEnabled = isModuleEnabled(circle, moduleHandle);
         if (!moduleEnabled) {
+            return NextResponse.json({ notFound: true, notFoundType: "module" }, { status: 404 });
+        }
+
+        // A personal profile's Circles list: its owner and platform admins only, whatever the
+        // module's access rule says (Tim, 2026-11-15). Not found for everyone else.
+        if (moduleHandle === PROFILE_CIRCLES_MODULE && !(await canViewProfileCirclesList(circle, userDid))) {
             return NextResponse.json({ notFound: true, notFoundType: "module" }, { status: 404 });
         }
 
