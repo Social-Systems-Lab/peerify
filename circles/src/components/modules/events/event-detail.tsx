@@ -148,7 +148,11 @@ export default function EventDetail({
     const eventId = ((event as any)._id?.toString?.() || (event as any)._id || "") as string;
     const hiddenCancelledIds = effectiveUser?.hiddenCancelledEventIds || [];
     const isEventHidden = eventId ? hiddenCancelledIds.includes(eventId) : false;
-    const canManageJoinLink = Boolean(canEdit || canModerate || isAuthor || effectiveUser?.did === event.createdBy);
+    // createdBy reaches the event's managers only (sanitizePeerifyPublicEventDisplay), so both sides
+    // can be missing: never count that as a match.
+    const canManageJoinLink = Boolean(
+        canEdit || canModerate || isAuthor || (!!effectiveUser?.did && effectiveUser.did === event.createdBy),
+    );
     // True host-level rights only (not the broader canEdit, which also includes delegated artist
     // admins) — used to gate moderator-style controls in the Artists list per band.
     const canManageAllArtists = Boolean(canModerate || isAuthor);

@@ -247,7 +247,17 @@ export function sanitizePeerifyPublicEventDisplay(fullEvent: EventDisplay): Even
     // read as "open to everyone".
     // The join link of an online event whose access mode isn't open RSVP is for its managers and
     // invitees only (Tim's decision D1, 2026-11-07); shapeEventsForViewer gives it back to invitees.
-    const { invitations: _invitations, userGroups: _userGroups, ...withoutPrivate } = fullEvent;
+    // So is who made the event (createdBy, author: the personal account's DID, name, handle and
+    // picture): a venue run from a personal account must not name its owner (Tim, 2026-11-15).
+    // Nothing a non-manager sees reads them; the managers' checks (canManageEvent) run on the
+    // unshaped event.
+    const {
+        invitations: _invitations,
+        userGroups: _userGroups,
+        createdBy: _createdBy,
+        author: _author,
+        ...withoutPrivate
+    } = fullEvent;
     const event = (isJoinLinkGated(fullEvent) ? { ...withoutPrivate, virtualUrl: undefined } : withoutPrivate) as EventDisplay;
     const locationDisclosure = getPeerifyEventLocationDisclosure(event);
     const metadata = sanitizePeerifyPublicEventMetadata(event);

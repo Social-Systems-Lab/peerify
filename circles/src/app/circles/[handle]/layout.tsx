@@ -22,6 +22,7 @@ import { getPendingCrewApplicationCountForViewer } from "@/lib/data/crew-review"
 import { PilotChromeScope } from "@/components/layout/pilot-chrome-scope";
 import { toPublicCircle } from "@/lib/utils/public-circle";
 import { canViewUnpublishedCircle } from "@/lib/data/member";
+import { showsParentCircleBadge } from "@/lib/peerify/parent-circle-badge";
 
 type Props = { params: Promise<{ handle: string }>; children: React.ReactNode };
 
@@ -50,8 +51,12 @@ export default async function RootLayout(props: Props) {
         redirect("/not-found");
     }
     // Identity only: HomeContent just links to the parent (circleType/handle/name), and this is
-    // sent to every visitor of a sub-circle page.
-    const parentCircle = circle.parentCircleId ? await getCircleIdentityById(circle.parentCircleId) : undefined;
+    // sent to every visitor of a sub-circle page. Only when the page shows the "Child of" badge: a
+    // venue run from a personal account must not name it (showsParentCircleBadge).
+    const parentCircle =
+        circle.parentCircleId && showsParentCircleBadge(circle)
+            ? await getCircleIdentityById(circle.parentCircleId)
+            : undefined;
     const proofOfHumanitySummary =
         circle.circleType === "user" && circle.did
             ? await getHumanityVerificationSummary(circle.did, userDid)

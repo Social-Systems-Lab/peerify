@@ -18,6 +18,7 @@ import { ArrowLeft } from "lucide-react";
 import { PostItem } from "@/components/modules/feeds/post-list";
 import { getUserByDid } from "@/lib/data/user";
 import { toPublicCircle } from "@/lib/utils/public-circle";
+import { eventPathForShadowPost, isEventShadowPost } from "@/lib/events/event-shadow-post";
 
 type SinglePostPageProps = {
     params: Promise<{ handle: string; postId: string }>;
@@ -49,6 +50,14 @@ export default async function SinglePostPage(props: SinglePostPageProps) {
     }
 
     if (feed.circleId !== circle._id) {
+        notFound();
+    }
+
+    // An event's hidden comment post is never shown as a post: it would name the event's author.
+    // The event page has the event's own access rules and the same comments.
+    if (isEventShadowPost(post)) {
+        const eventPath = eventPathForShadowPost(post, handle);
+        if (eventPath) redirect(eventPath);
         notFound();
     }
 
