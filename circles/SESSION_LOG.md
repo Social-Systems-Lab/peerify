@@ -9,8 +9,9 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
 - **Prod = `68d0dfa0`** (moderator fix + comment-author fix; deployed 2026-11-14). **Staging = the same release, plus SESSION_LOG commits.** `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
-- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **R1 (items 1, 2, 3, 5, 9) merged into `staging` (`20945236`, 2026-11-15)**; next, Tim deploys staging and runs the R1 check list. **Identity fixes (event author, venue parent) on branch `fix/event-author-payload`** (`26119ed1`, `6223e54c`) and the **login `redirectTo` fix on `fix/login-redirect`** (`78ea3c7f`): not pushed, waiting for Tim's yes. **Open decision: the venue "Chat"/contact button shows the venue's admins (Tim) to whoever uses it.** See the 2026-11-15 entry.
-- **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15).
+- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **R1 (items 1, 2, 3, 5, 9) merged into `staging` (`20945236`, 2026-11-15)**; next, Tim deploys staging and runs the R1 check list. **Identity fixes on branch `fix/event-author-payload`** (event author `26119ed1`, venue parent `6223e54c`, both pushed; **venue contact off `d82e8ea6`, not pushed**) and the **login `redirectTo` fix on `fix/login-redirect`** (`78ea3c7f`, pushed). Neither branch is merged yet. See the 2026-11-15 entries.
+- **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (design direction in the 2026-11-15 (cont.) entry).
+- **CANDIDATE BEFORE THE SHOW:** a "Shifts & tasks" view on the Crew page (my shifts, then open shifts by event) and the same status panel on the Crew Dashboard.
 - **LATER:** the event audience picker should always be available, not only after ticking "Share on Noticeboard".
 - **Security fix LIVE on prod (2026-11-14, `68d0dfa0`):** a moderator can no longer grant `admins` (the `??` precedence bug in `safeModifyMemberUserGroups`). See the 2026-11-14 (cont.) entry.
 - **Released 2026-11-14 (`68d0dfa0`):** the comment-author fix (`22665e07`, `3890af70`) and both clean-up scripts are now on prod. **Next for Tim:** run both run sheets on prod (staging first where the sheet says so):
@@ -55,6 +56,39 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-15 (cont.) — Venue contact off (option 1); design direction for contributions and visibility
+
+**Pushed with Tim's yes:** SESSION_LOG `e1482523` to `staging`; branches `fix/event-author-payload` (`26119ed1`, `6223e54c`) and `fix/login-redirect` (`78ea3c7f`) to GitHub. Neither is merged.
+
+**Venue chat: option 1 (Tim, 2026-11-15).** On `fix/event-author-payload`, commit `d82e8ea6` (not pushed):
+- **Server:** `contactCircleAdminsAction` refuses venues (`canStartCircleAdminContact`, `lib/peerify/venue-contact.ts`), so no private group with a venue's admins can be started, even by calling the action directly.
+- **UI:** the Chat button doesn't render on a venue. The About page's "Offer Help" / "Ask a question first" form and the (flagged-off) venue booking-enquiry callout don't show for venues.
+- Other circles are unchanged.
+- Test `venue-contact.test.tsx`: 2 of 6 fail before, 6/6 after. The About-form cases test the new rule `canShowAboutContactForm`, so they pass before as well.
+- **Not touched:** contact threads with a venue that already exist keep working and still show their members.
+- **Option 2** (admins shown as the venue in contact threads, so venues can be messaged again) goes to Secret Soirées.
+
+**Design direction for a later session (Tim, 2026-11-15; no code now):**
+- **Crew module: "Shifts & tasks" view.**
+  - The Crew page gets a "Shifts & tasks" view: my shifts first, then open shifts grouped by event.
+  - The Crew Dashboard gets the same status panel.
+  - It's the same records as Tasks/Shifts, just another view.
+  - Candidate for before the show.
+- **Past contributions on the personal profile.**
+  - Off by default, and the contributor can hide single items.
+  - Built only from allowed fields: event title, artist/venue name, city, month, role, and a separate public thank-you that the organiser writes knowingly.
+  - Never addresses, participant notes or private attendance notes.
+  - Private events show the artist and the city, never the host.
+- **Visibility: three levels everywhere (Public / Contacts / Organisers only).**
+  - Event attendees default to Contacts.
+  - Private-event hosts default to Contacts, with a generic avatar for everyone else.
+  - Confirmed crew on the same event see each other.
+  - Pending sign-ups and outsiders see counts only.
+- **Contact = connection** (the existing connect feature). A mutual follow prompts both people to connect; it doesn't connect them automatically, and existing mutual follows are not converted.
+- **Plan contributions and visibility in the same session as Secret Soirées.**
 
 ---
 
