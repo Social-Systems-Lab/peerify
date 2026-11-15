@@ -29,6 +29,7 @@ import { featuredSkills } from "@/lib/data/skills";
 import { cn } from "@/lib/utils";
 import OnboardingCompleteAnimation from "@/components/onboarding/onboarding-complete-animation";
 import DonationIntentCard from "@/components/onboarding/donation-intent-card";
+import { safeRedirectPath } from "@/lib/utils/safe-redirect";
 
 const montserrat = Montserrat({
     subsets: ["latin"],
@@ -551,10 +552,12 @@ export function OnboardingSignupFlow() {
                     : prev,
             );
 
-            const redirectTo = searchParams?.get("redirectTo");
             const peerifyIntent = normalizePeerifyIntent(searchParams?.get("intent") ?? null);
-            const nextUrl =
-                redirectTo || (peerifyIntent ? `/onboarding/peerify?intent=${peerifyIntent}` : `/circles/${createdUserHandle}/home`);
+            // Only a path on this site (safeRedirectPath), otherwise the usual next step.
+            const nextUrl = safeRedirectPath(
+                searchParams?.get("redirectTo"),
+                peerifyIntent ? `/onboarding/peerify?intent=${peerifyIntent}` : `/circles/${createdUserHandle}/home`,
+            );
 
             setCompletionRedirectUrl(nextUrl);
         } catch (error) {

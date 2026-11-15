@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { safeRedirectPath } from "@/lib/utils/safe-redirect";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -128,8 +129,11 @@ export function LoginForm(): React.ReactElement {
                 setUser(result.data.user);
                 setAuthInfo((prev) => ({ ...prev, authStatus: "authenticated" }));
 
-                // redirect to requested page
-                const redirectUrl = searchParams?.get("redirectTo") ?? `/circles/${result.data.user.handle}`;
+                // redirect to requested page: only a path on this site, otherwise the start page
+                const redirectUrl = safeRedirectPath(
+                    searchParams?.get("redirectTo"),
+                    `/circles/${result.data.user.handle}`,
+                );
 
                 // Use a full navigation after login so the next server-rendered page
                 // sees the freshly-set auth cookie/session.
