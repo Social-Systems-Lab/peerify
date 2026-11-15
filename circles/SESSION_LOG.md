@@ -9,10 +9,11 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
 - **Prod = `30f3fcd8`** (released 2026-11-15; Tim reports prod runs `30f3fcd8` and the check passed). **`staging` branch = `30f3fcd8`** too. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
-- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. Next: the crew UI polish round (`fix/crew-ui-polish`). See the 2026-11-15 entries.
+- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. **Branch `fix/crew-ui-polish`** (6 commits, `29fcd32f`..`e36894f6`): not pushed. See the 2026-11-15 entries.
 - **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (it also covers a personal profile's Circles list, owner-only since `e4973b87`: default only me, options Contacts or Public) (design direction in the 2026-11-15 (cont.) entry).
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
 - **CANDIDATE BEFORE THE SHOW:** a "Shifts & tasks" view on the Crew page (my shifts, then open shifts by event) and the same status panel on the Crew Dashboard.
+  - Its personal counterpart, later: **"My Crews"** on the personal profile, owner only: upcoming shifts across all crews plus those crews' broadcasts in one feed (2026-11-15 (cont. 4)).
 - **LATER:**
   - the event audience picker should always be available, not only after ticking "Share on Noticeboard";
   - `src/lib/auth/altcha.test.ts` is flaky (5-second timeouts in CPU-heavy tests); give it a longer timeout;
@@ -61,6 +62,27 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-15 (cont. 4) — Crew UI polish (6 items) on a branch; "My Crews" direction
+
+Branch `fix/crew-ui-polish` (from staging `30f3fcd8`; not pushed; report `20261115-crew-ui-polish.tar.gz`), one commit per item:
+
+1. **`29fcd32f` Shift messages say "shift".** The form shows the server's message as the toast text, so a saved shift said "Task updated successfully". Create, update, delete and stage messages are now worded for shifts ("Shift updated", "Shift deleted"; `lib/tasks/task-messages.ts`), as are the shift validation messages and the delete and stage dialogs. Tasks unchanged. Test `tasks/shift-messages` (3 of 5 fail before).
+2. **`5040f562` Shift form: Event field first**, just below "Create in". Tasks keep it under Optional Linking. Layout only, no test.
+3. **`00980113` No crew panel when the viewer has nothing in it.** A follower who isn't crew saw "No shifts or tasks linked yet". The panel now shows only when the viewer can see a shift or task or can create one (`shouldShowEventCrewPanel`); organisers still get it on an empty event. Test `event-crew-panel` (2 new cases fail before).
+4. **`14964268` One address rule on the event page.** The chip under the date used the location disclosure rule (street when "public"); the Where card always showed city, region, country. Both now use `getPeerifySafeEventLocationText` (`getPeerifyEventWhereText`). Test `event-where-text` (new function).
+   - **Note:** only "public" can be chosen as location disclosure today (pre-launch switch, 2026-10-20), so an event with a street shows it to everyone. For decision C, enter only the city as the event's location.
+5. **`4405ff0d` Share.** The share sheet gets the text only (`buildEventSharePayload`), so macOS no longer shows the title twice. Wider screens get a plain "Copy link" next to Share. Test `event-share` (new function).
+6. **`e36894f6` Personal profile Events tab.**
+   - **Read-only first:** for its owner, the tab listed every event they created anywhere (a venue's events too) plus every event they RSVP'd "going" to, with Show created / Show participating boxes, and their tasks and shifts in other circles. Other signed-in users saw the events hosted on the profile (shaped). Signed out: "Please sign in".
+   - **Now:** for everyone, only open, public events the person created on the profile (`lib/events/profile-events.ts`, applied in `getEventsAction`). The owner also sees their own drafts and members-only events there. Never events they attend, are interested in or help at, nor ones made under a venue. The owner's toolbox (created and going, asked for explicitly) is unchanged.
+   - **Test:** `profile-events-tab` (3 of 4 fail before).
+
+**Checks:** see the report (each commit in its own worktree).
+
+**Design direction (Tim, 2026-11-15; no code):** a **"My Crews"** section on the personal profile, visible only to its owner: upcoming shifts across all their crews, plus those crews' broadcasts, in one feed. The personal counterpart to the Crew page "Shifts & tasks" view. It is also where the owner's shifts went when the Events tab stopped listing them (item 6).
 
 ---
 
