@@ -2392,10 +2392,27 @@ export async function ensureShadowPostForTaskAction(taskId: string, circleId: st
             return null;
         }
 
+        // Fix first (2026-11-15): this is a server action, so anyone could call it directly. Only a
+        // signed-in user who can see the task, and only for a task of the circle passed in. The
+        // task and shift pages call it right after getTaskAction, so they pass all three checks.
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) {
+            return null;
+        }
+
         const task = await Tasks.findOne({ _id: new ObjectId(taskId) });
 
         if (!task) {
             console.error(`Task not found: ${taskId}`);
+            return null;
+        }
+
+        if (String(task.circleId) !== circleId) {
+            return null;
+        }
+
+        const visibleTasks = await filterTasksForViewer([task as unknown as TaskDisplay], userDid);
+        if (visibleTasks.length === 0) {
             return null;
         }
 
