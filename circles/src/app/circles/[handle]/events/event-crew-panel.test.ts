@@ -217,6 +217,28 @@ describe("when the panel is hidden", () => {
         expect(panel.show).toBe(false);
     });
 
+    test("a follower who isn't Crew, and every linked shift and task is crew-only: no panel", async () => {
+        fakeDb.setAggregateResult(
+            "Tasks",
+            tasks().map((t) => ({ ...t, userGroups: ["admins", "moderators", "crew"] })),
+            {
+                applyLeadingMatch: true,
+            },
+        );
+        const { panel } = await panelFor(FOLLOWER);
+        expect(panel.show).toBe(false);
+        expect(panel.shifts).toEqual([]);
+        expect(panel.tasks).toEqual([]);
+    });
+
+    test("no shifts or tasks linked: no panel for a follower, but still one for an organiser", async () => {
+        fakeDb.setAggregateResult("Tasks", [], { applyLeadingMatch: true });
+        expect((await panelFor(FOLLOWER)).panel.show).toBe(false);
+        const { panel } = await panelFor(ORGANISER);
+        expect(panel.show).toBe(true);
+        expect(panel.canCreateShift).toBe(true);
+    });
+
     test("only Tasks on: no shifts, no Create shift", async () => {
         seed(["events", "tasks"]);
         const { panel } = await panelFor(ORGANISER);
