@@ -31,3 +31,10 @@ export const buildEventShareText = (event: ShareableEvent, url: string): string 
     const lines = [event.title || "Event", [when, eventSharePlace(event)].filter(Boolean).join(" · "), url];
     return lines.filter(Boolean).join("\n");
 };
+
+// What goes to the system share sheet. Only `text`, which already holds the title and the link: with
+// a separate `title`, macOS (and some apps) put the title in front of the text, so it showed twice
+// (Tim, 2026-11-15). No separate `url` either, or the link could show twice the same way.
+export const buildEventSharePayload = (event: ShareableEvent, url: string): ShareData => ({
+    text: buildEventShareText(event, url),
+});
