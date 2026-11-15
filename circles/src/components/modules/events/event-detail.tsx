@@ -58,7 +58,11 @@ import EventTasksPanel from "./event-tasks-panel";
 import ShareEventButton from "./share-event-button";
 import { eventSignInHref } from "@/lib/events/event-share";
 import { getEventJoinState } from "./event-join-state";
-import { getPeerifyEventDisclosureDisplay, getPeerifySafeEventLocationText } from "./peerify-event-disclosure-display";
+import {
+    getPeerifyEventDisclosureDisplay,
+    getPeerifyEventWhereText,
+    getPeerifySafeEventLocationText,
+} from "./peerify-event-disclosure-display";
 import { EventTagBadgeList, getEventTagBadges } from "./event-tag-badges";
 import { CommentSection } from "../feeds/CommentSection";
 import RichText from "../feeds/RichText";
@@ -1024,16 +1028,8 @@ export default function EventDetail({
                                     </div>
                                 )}
                             </div>
-                        ) : event.location ? (
-                            <>
-                                {event.location.city || event.location.region || event.location.country
-                                    ? [event.location.city, event.location.region, event.location.country]
-                                          .filter(Boolean)
-                                          .join(", ")
-                                    : "Location provided"}
-                            </>
                         ) : (
-                            "Not specified"
+                            getPeerifyEventWhereText(event)
                         )}
                         {event.isHybrid ? <div className="text-xs text-muted-foreground">Hybrid</div> : null}
                     </div>

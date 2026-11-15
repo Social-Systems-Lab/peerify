@@ -109,28 +109,28 @@ const taskFormSchema = z
                 context.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["targetDate"],
-                    message: "Date is required for shift tasks",
+                    message: "Date is required for shifts",
                 });
             }
             if (!data.shiftStartTime) {
                 context.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["shiftStartTime"],
-                    message: "Start time is required for shift tasks",
+                    message: "Start time is required for shifts",
                 });
             }
             if (!data.shiftDurationMinutes) {
                 context.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["shiftDurationMinutes"],
-                    message: "Duration is required for shift tasks",
+                    message: "Duration is required for shifts",
                 });
             }
             if (!data.slots) {
                 context.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["slots"],
-                    message: "Slots are required for shift tasks",
+                    message: "Slots are required for shifts",
                 });
             }
         }
@@ -275,9 +275,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     const handleCircleSelected = useCallback(
         (circle: Circle | null) => {
             const previousCircle = selectedCircleRef.current;
-            const isDifferentCircle = Boolean(
-                previousCircle?._id && circle?._id && previousCircle._id !== circle._id,
-            );
+            const isDifferentCircle = Boolean(previousCircle?._id && circle?._id && previousCircle._id !== circle._id);
             selectedCircleRef.current = circle;
             setSelectedCircle(circle);
             setGoals([]);
@@ -536,6 +534,52 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         }
     };
 
+    // The Event field: first on a shift form (most shifts belong to an event; Tim, 2026-11-15), under
+    // "Optional Linking" on a task form.
+    const eventField = eventsModuleEnabled ? (
+        <FormField
+            control={form.control}
+            name="eventId"
+            render={({ field }) => (
+                <FormItem className="py-3 md:py-4">
+                    <FormLabel>Event (Optional)</FormLabel>
+                    <Select
+                        onValueChange={field.onChange}
+                        value={field.value ?? "none"}
+                        disabled={isSubmitting || isLoadingEvents || events.length === 0}
+                    >
+                        <FormControl>
+                            <SelectTrigger>
+                                <SelectValue
+                                    placeholder={
+                                        isLoadingEvents
+                                            ? "Loading events..."
+                                            : events.length === 0
+                                              ? "No events available"
+                                              : "Select an event"
+                                    }
+                                />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            <SelectItem value="none">-- None --</SelectItem>
+                            {events.map((event) => (
+                                <SelectItem key={(event as any)._id} value={(event as any)._id}>
+                                    {event.title}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    <FormDescription>
+                        Link this {taskType === "shift" ? "shift" : "task"} to an existing event in this circle.
+                    </FormDescription>
+                    <FormMessage />
+                </FormItem>
+            )}
+        />
+    ) : null;
+    const isShiftForm = taskType === "shift";
+
     return (
         <>
             <Card className="formatted mx-auto w-full">
@@ -565,6 +609,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                     <CardContent className="p-6 pt-0">
                         <Form {...form}>
                             <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-0 md:space-y-0">
+                                {isShiftForm && eventField}
                                 <div className="grid grid-cols-1 md:grid-cols-2 md:gap-x-6">
                                     <FormField
                                         control={form.control}
@@ -797,7 +842,9 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                         name="audience"
                                         render={({ field }) => (
                                             <FormItem className="py-3 md:col-span-2 md:py-4">
-                                                <FormLabel>Who is this {taskType === "shift" ? "shift" : "task"} for?</FormLabel>
+                                                <FormLabel>
+                                                    Who is this {taskType === "shift" ? "shift" : "task"} for?
+                                                </FormLabel>
                                                 <Select
                                                     onValueChange={(value) => {
                                                         field.onChange(value);
@@ -996,7 +1043,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                         )}
                                     </div>
                                 </div>
-                                {(goalsModuleEnabled || eventsModuleEnabled) && (
+                                {(goalsModuleEnabled || (eventsModuleEnabled && !isShiftForm)) && (
                                     <div className="py-2 md:col-span-2">
                                         <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                                             Optional Linking
@@ -1047,54 +1094,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                             )}
                                         />
                                     )}
-                                    {eventsModuleEnabled && (
-                                        <FormField
-                                            control={form.control}
-                                            name="eventId"
-                                            render={({ field }) => (
-                                                <FormItem className="py-3 md:py-4">
-                                                    <FormLabel>Event (Optional)</FormLabel>
-                                                    <Select
-                                                        onValueChange={field.onChange}
-                                                        value={field.value ?? "none"}
-                                                        disabled={
-                                                            isSubmitting || isLoadingEvents || events.length === 0
-                                                        }
-                                                    >
-                                                        <FormControl>
-                                                            <SelectTrigger>
-                                                                <SelectValue
-                                                                    placeholder={
-                                                                        isLoadingEvents
-                                                                            ? "Loading events..."
-                                                                            : events.length === 0
-                                                                              ? "No events available"
-                                                                              : "Select an event"
-                                                                    }
-                                                                />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent>
-                                                            <SelectItem value="none">-- None --</SelectItem>
-                                                            {events.map((event) => (
-                                                                <SelectItem
-                                                                    key={(event as any)._id}
-                                                                    value={(event as any)._id}
-                                                                >
-                                                                    {event.title}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormDescription>
-                                                        Link this {taskType === "shift" ? "shift" : "task"} to an
-                                                        existing event in this circle.
-                                                    </FormDescription>
-                                                    <FormMessage />
-                                                </FormItem>
-                                            )}
-                                        />
-                                    )}
+                                    {!isShiftForm && eventField}
                                 </div>
                                 <div className="flex items-center justify-between pt-4">
                                     <div />

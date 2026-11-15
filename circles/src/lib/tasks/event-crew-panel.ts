@@ -109,6 +109,13 @@ export const summarizeEventCrew = (
     return { shifts, tasks: outcomeTasks };
 };
 
+// The panel shows only when the viewer can see a shift or task, or can create one. A follower who
+// isn't crew, on an event whose shifts are all crew-only, gets no panel (Tim, 2026-11-15).
+export const shouldShowEventCrewPanel = (
+    panel: EventCrewPanel,
+    rights: { canCreateShift: boolean; canCreateTask: boolean },
+): boolean => panel.shifts.length > 0 || panel.tasks.length > 0 || rights.canCreateShift || rights.canCreateTask;
+
 // "Fri 5 Dec · 18:00–20:00" (date in the viewer's timezone; the times as stored).
 export const formatShiftWhen = (
     shift: Pick<EventCrewShift, "targetDate" | "shiftStartTime" | "shiftDurationMinutes">,

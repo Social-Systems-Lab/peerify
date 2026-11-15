@@ -7,9 +7,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CalendarView from "./calendar";
 import EventTimeline, { type ShiftTimelineItem } from "./event-timeline";
 import { EventDisplay, Circle, TaskDisplay } from "@/models/models";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { getEventsAction } from "@/app/circles/[handle]/events/actions";
 import { getGoalsAction } from "@/app/circles/[handle]/goals/actions";
 import { getTasksAction } from "@/app/circles/[handle]/tasks/actions";
 import { getIssuesAction } from "@/app/circles/[handle]/issues/actions";
@@ -43,8 +40,6 @@ function EventsTabsContent({ circle, events, canCreate }: Props) {
 
     const [tab, setTab] = useState<"calendar" | "timeline">(initialTab as "calendar" | "timeline");
     const [user] = useAtom(userAtom);
-    const [includeCreated, setIncludeCreated] = useState(true);
-    const [includeParticipating, setIncludeParticipating] = useState(true);
     const [filteredEvents, setFilteredEvents] = useState(events);
     const [milestones, setMilestones] = useState<Milestone[]>([]);
     const [shifts, setShifts] = useState<ShiftTimelineItem[]>([]);
@@ -68,37 +63,14 @@ function EventsTabsContent({ circle, events, canCreate }: Props) {
     );
 
     useEffect(() => {
-        const fetchEvents = async () => {
-            if (circle.circleType === "user" && user?.did === circle.did) {
-                const now = new Date();
-                const lastYear = new Date(now);
-                lastYear.setFullYear(now.getFullYear() - 1);
-                const nextYear = new Date(now);
-                nextYear.setFullYear(now.getFullYear() + 1);
-                const data = await getEventsAction(
-                    circle.handle!,
-                    { from: lastYear.toISOString(), to: nextYear.toISOString() },
-                    includeCreated,
-                    includeParticipating,
-                );
-                setFilteredEvents(data.events);
-            }
-        };
-
-        fetchEvents();
-    }, [includeCreated, includeParticipating, circle, user]);
-
-    useEffect(() => {
         const fetchMilestones = async () => {
             try {
-                const isSelfUserCircle = circle.circleType === "user" && user?.did === circle.did;
-                const includeCreatedFinal = isSelfUserCircle ? includeCreated : undefined;
-                const includeParticipatingFinal = isSelfUserCircle ? includeParticipating : undefined;
-
+                // Only this circle's own goals, tasks, issues and shifts. On a personal profile that
+                // keeps out the owner's sign-ups in other circles, as with events (2026-11-15).
                 const [goalsRes, tasksRes, issuesRes] = await Promise.all([
-                    getGoalsAction(circle.handle!, includeCreatedFinal, includeParticipatingFinal),
-                    getTasksAction(circle.handle!, includeCreatedFinal, includeParticipatingFinal),
-                    getIssuesAction(circle.handle!, includeCreatedFinal, includeParticipatingFinal),
+                    getGoalsAction(circle.handle!),
+                    getTasksAction(circle.handle!),
+                    getIssuesAction(circle.handle!),
                 ]);
 
                 const goalMilestones: Milestone[] = (goalsRes?.goals || [])
@@ -164,7 +136,7 @@ function EventsTabsContent({ circle, events, canCreate }: Props) {
         };
 
         fetchMilestones();
-    }, [circle, user, includeCreated, includeParticipating]);
+    }, [circle, user]);
 
     const onTabChange = (value: string) => {
         const newTab = (value === "timeline" ? "timeline" : "calendar") as "calendar" | "timeline";
@@ -211,27 +183,6 @@ function EventsTabsContent({ circle, events, canCreate }: Props) {
                             )}
                         </div>
                     </div>
-                    {circle.circleType === "user" && user?.did === circle.did && (
-                        <div className="flex items-center gap-4 py-2">
-                            <div className="flex items-center gap-2">
-                                <Checkbox
-                                    id="includeCreated"
-                                    checked={includeCreated}
-                                    onCheckedChange={(checked) => setIncludeCreated(Boolean(checked))}
-                                />
-                                <Label htmlFor="includeCreated">Show created</Label>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <Checkbox
-                                    id="includeParticipating"
-                                    checked={includeParticipating}
-                                    onCheckedChange={(checked) => setIncludeParticipating(Boolean(checked))}
-                                />
-                                <Label htmlFor="includeParticipating">Show participating</Label>
-                            </div>
-                        </div>
-                    )}
-
                     <TabsContent value="timeline" className="mt-0">
                         <EventTimeline
                             circleHandle={circle.handle!}

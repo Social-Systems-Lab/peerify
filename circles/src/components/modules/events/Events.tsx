@@ -47,12 +47,12 @@ export default async function EventsModule({ circle }: Props) {
     const nextYear = new Date(now);
     nextYear.setFullYear(now.getFullYear() + 1);
 
-    const { events } = await getEventsAction(
-        circle.handle!,
-        { from: lastYear.toISOString(), to: nextYear.toISOString() },
-        true,
-        true,
-    );
+    // No created/participating flags: on a personal profile the tab lists only open, public events
+    // the person created on it (getEventsAction, lib/events/profile-events.ts; Tim, 2026-11-15).
+    const { events } = await getEventsAction(circle.handle!, {
+        from: lastYear.toISOString(),
+        to: nextYear.toISOString(),
+    });
 
     return (
         <div className="space-y-4 p-2 md:p-4">

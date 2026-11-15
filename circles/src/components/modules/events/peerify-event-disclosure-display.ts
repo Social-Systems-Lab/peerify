@@ -82,6 +82,15 @@ export function getPeerifySafeEventLocationText(event: EventDisplay): string | u
     return [location.city, location.region, location.country].filter(Boolean).join(", ") || undefined;
 }
 
+// The "Where" card's address line. The same rule as the chip under the date
+// (getPeerifySafeEventLocationText), so both show the same address: the street only when the
+// event's location disclosure is "public" (Tim, 2026-11-15). Before, the card always dropped the
+// street while the chip showed it.
+export function getPeerifyEventWhereText(event: EventDisplay): string {
+    if (!event.location) return "Not specified";
+    return getPeerifySafeEventLocationText(event) || "Location provided";
+}
+
 export function getPeerifyEventDisclosureDisplay(event: EventDisplay): PeerifyEventDisclosureDisplay {
     const peerify = getPeerifyMetadata(event);
     const venueDisclosure = (peerify.venueDisclosure ?? "public") as PeerifyEventVenueDisclosure;

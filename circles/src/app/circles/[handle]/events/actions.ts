@@ -76,7 +76,8 @@ import { addCommentToDiscussion } from "@/lib/data/discussion";
 import { getAllCommentsAction } from "@/components/modules/feeds/actions";
 import { Comment } from "@/models/models";
 import { filterTasksForViewer, getTasksByEventId } from "@/lib/data/task";
-import { summarizeEventCrew, type EventCrewPanel } from "@/lib/tasks/event-crew-panel";
+import { shouldShowEventCrewPanel, summarizeEventCrew, type EventCrewPanel } from "@/lib/tasks/event-crew-panel";
+import { isProfileTabEvent } from "@/lib/events/profile-events";
 import { resolveViewerIsAdmin } from "@/lib/data/circle";
 import { canViewFollowerList } from "@/lib/data/follower-list-access";
 import { listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
@@ -493,13 +494,23 @@ export async function getEventsAction(
         const canView = await isAuthorized(userDid, circle._id as string, features.events.view);
         if (!canView) return defaultResult;
 
-        const events = await getEventsByCircleId(
+        const fetched = await getEventsByCircleId(
             circle._id!.toString(),
             userDid,
             range,
             includeCreated,
             includeParticipating,
         );
+        // A personal profile lists only open, public events the person created on it
+        // (lib/events/profile-events.ts). The one exception is the owner asking for their own
+        // created/participating events (the user toolbox); the profile's Events tab doesn't ask.
+        const isPersonalProfile = circle.circleType === "user";
+        const viewerIsOwner = isPersonalProfile && circle.did === userDid;
+        const isOwnerOwnList = viewerIsOwner && Boolean(includeCreated || includeParticipating);
+        const events =
+            isPersonalProfile && !isOwnerOwnList
+                ? fetched.filter((event) => isProfileTabEvent(event, circle, viewerIsOwner))
+                : fetched;
         // Unshaped from the data layer: hidden addresses, private notes, drafts and members-only
         // events must not reach viewers who don't manage them (leak round 3, 2026-11-05).
         return { events: await shapeEventsForViewer(events, userDid) };
@@ -629,13 +640,14 @@ export async function getEventCrewPanelAction(circleHandle: string, eventId: str
             profilesByDid = new Map(profiles.filter((p) => p.did).map((p) => [p.did as string, p]));
         }
 
-        return {
-            show: true,
-            isOrganiser,
-            canCreateShift: shiftsEnabled && canCreate,
-            canCreateTask: tasksEnabled && canCreate,
-            ...summarizeEventCrew(visible, { viewerDid: userDid, isOrganiser, profilesByDid }),
-        };
+        const canCreateShift = shiftsEnabled && canCreate;
+        const canCreateTask = tasksEnabled && canCreate;
+        const summary = summarizeEventCrew(visible, { viewerDid: userDid, isOrganiser, profilesByDid });
+        // Nothing to see and nothing to create (e.g. a follower who isn't crew): no panel at all,
+        // not "No shifts or tasks linked yet" (Tim, 2026-11-15).
+        if (!shouldShowEventCrewPanel(summary, { canCreateShift, canCreateTask })) return hidden;
+
+        return { show: true, isOrganiser, canCreateShift, canCreateTask, ...summary };
     } catch (error) {
         console.error("Error in getEventCrewPanelAction:", error);
         return hidden;

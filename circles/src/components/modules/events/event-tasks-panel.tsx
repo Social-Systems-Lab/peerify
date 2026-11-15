@@ -3,7 +3,8 @@
 // The event page's crew panel (Crew R1, item 3): the event's shifts and tasks, as the organiser's
 // day-of status page. Everyone who may see a shift gets its time, slots and counts and their own
 // sign-up status; organisers also see who signed up. Hidden when the host circle has neither Tasks
-// nor Shifts on, and for signed-out visitors. All shaping happens on the server
+// nor Shifts on, for signed-out visitors, and when the viewer can see no shift or task and can
+// create none (e.g. a follower who isn't crew; 2026-11-15). All shaping happens on the server
 // (getEventCrewPanelAction).
 
 import React, { useCallback, useEffect, useState } from "react";

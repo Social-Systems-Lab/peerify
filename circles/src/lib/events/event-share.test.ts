@@ -2,7 +2,7 @@
 // Crew R1, item 5 (2026-11-14): the event share text and the "Sign in to RSVP" link.
 
 import { describe, expect, test } from "bun:test";
-import { buildEventShareText, eventSignInHref } from "./event-share";
+import { buildEventSharePayload, buildEventShareText, eventSignInHref } from "./event-share";
 
 const STREET = "Canary Street 12";
 const NOTE = "CANARY private organiser note";
@@ -52,5 +52,15 @@ describe("share text", () => {
 describe("Sign in to RSVP", () => {
     test("links to the login page and comes back to the event", () => {
         expect(eventSignInHref("host", "abc")).toBe("/login?redirectTo=%2Fcircles%2Fhost%2Fevents%2Fabc");
+    });
+});
+
+describe("the share sheet payload (2026-11-15)", () => {
+    test("the title appears once: no separate title (macOS put it in front of the text)", () => {
+        const payload = buildEventSharePayload(event(), URL);
+        const all = [payload.title, payload.text, payload.url].filter(Boolean).join("\n");
+        expect(all.split("Julian Wenn – house concert").length - 1).toBe(1);
+        expect(all.split(URL).length - 1).toBe(1);
+        expect(payload.text).toBe(buildEventShareText(event(), URL));
     });
 });

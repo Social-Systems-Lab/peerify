@@ -434,7 +434,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
             } else {
                 toast({
                     title: "Error",
-                    description: result.message || "Failed to delete task", // Updated message
+                    description: result.message || (isShiftTask ? "Failed to delete shift" : "Failed to delete task"),
                     variant: "destructive",
                 });
             }
@@ -570,7 +570,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                 setSelectedStage(previousStage);
                 toast({
                     title: "Error",
-                    description: result.message || "Failed to update task stage", // Updated message
+                    description: result.message || (isShiftTask ? "Failed to update shift stage" : "Failed to update task stage"),
                     variant: "destructive",
                 });
             }
@@ -1070,7 +1070,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                                                 onClick={() => setDeleteDialogOpen(true)}
                                                 className="text-red-600"
                                             >
-                                                <Trash2 className="mr-2 h-4 w-4" /> Delete Task {/* Updated text */}
+                                                <Trash2 className="mr-2 h-4 w-4" /> {isShiftTask ? "Delete Shift" : "Delete Task"}
                                             </DropdownMenuItem>
                                         </>
                                     )}
@@ -1639,7 +1639,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                         <h3 className="mb-4 text-lg font-semibold">Comments</h3>
                         <div className="text-sm text-gray-500">
                             {permissions.canComment
-                                ? "Comments are not available for this task yet."
+                                ? `Comments are not available for this ${isShiftTask ? "shift" : "task"} yet.`
                                 : "Comments are disabled or you don't have permission."}
                         </div>
                     </div>
@@ -1664,10 +1664,9 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                     }}
                 >
                     <DialogHeader>
-                        <DialogTitle>Delete Task</DialogTitle> {/* Updated text */}
+                        <DialogTitle>{isShiftTask ? "Delete Shift" : "Delete Task"}</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to delete this task? This action cannot be undone.{" "}
-                            {/* Updated text */}
+                            Are you sure you want to delete this {isShiftTask ? "shift" : "task"}? This action cannot be undone.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -1690,8 +1689,8 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                     <DialogHeader>
                         <DialogTitle>Confirm Stage Change</DialogTitle>
                         <DialogDescription>
-                            Are you sure you want to move this task to the &quot;{targetStage}&quot; stage?{" "}
-                            {/* Updated text & fixed quotes */}
+                            Are you sure you want to move this {isShiftTask ? "shift" : "task"} to the &quot;{targetStage}&quot;
+                            stage?
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
