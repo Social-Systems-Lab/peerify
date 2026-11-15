@@ -38,6 +38,7 @@ import { getFundingAskDocumentById, getFundingCirclePermissions, isFundingAskVis
 import { sdgs } from "./sdgs";
 import { isAuthorized } from "@/lib/auth/auth";
 import { features, getPostViewFeature } from "./constants";
+import { isEventShadowPost } from "@/lib/events/event-shadow-post";
 
 export const getFeedsByCircleId = async (circleId: string): Promise<Feed[]> => {
     const feeds = await Feeds.find({
@@ -417,7 +418,8 @@ async function buildPostDisplayPreview(post: Post): Promise<PostDisplay | null> 
 
 export const getShareablePostPreview = async (postId: string, userDid?: string): Promise<PostDisplay | null> => {
     const post = await getPost(postId);
-    if (!post) {
+    // An event's hidden comment post is never embedded: it would name the event's author.
+    if (!post || isEventShadowPost(post)) {
         return null;
     }
 
