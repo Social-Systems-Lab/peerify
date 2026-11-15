@@ -1,6 +1,7 @@
 import type { Circle, Location } from "@/models/models";
 import { redactCircleLocationForViewer } from "@/lib/utils";
 import { isListedOffering } from "@/lib/data/tour-team-offerings";
+import { showsParentCircleBadge } from "@/lib/peerify/parent-circle-badge";
 
 // Shapes a circle document for viewers who don't manage it, before it's serialised to the
 // circle layout's client components (HomeCover, HomeContent, CircleTabs) and the home page's
@@ -156,6 +157,12 @@ export const toPublicMetadata = (metadata: Circle["metadata"], viewerLoggedIn: b
     return { peerify: publicPeerify };
 };
 
+// The parent (parentCircleId) only reaches visitors when the page shows the "Child of" badge: a
+// venue's parent is the personal account that runs it (showsParentCircleBadge, Tim, 2026-11-15).
+const dropHiddenParent = (circle: Circle, shaped: Circle): void => {
+    if (!showsParentCircleBadge(circle)) delete shaped.parentCircleId;
+};
+
 // Pure: never mutates `circle`. Managers, platform admins and the circle's own owner get it back
 // unchanged (same reference); everyone else gets a new, allow-listed object.
 export function toPublicCircle(
@@ -173,6 +180,7 @@ export function toPublicCircle(
     }
 
     const publicCircle = pickPresent(circle as AnyRecord, PUBLIC_CIRCLE_FIELDS) as Circle;
+    dropHiddenParent(circle, publicCircle);
 
     // Redact first, from the untouched circle — redaction reads metadata.peerify's identityType
     // and venueProfile.addressVisibility, which must still be present when it runs. Street and
@@ -243,6 +251,7 @@ export function toPublicCircleListItem<T extends Circle>(circle: T, viewer: Omit
         return circle;
     }
     const item = pickPresent(circle as AnyRecord, [...PUBLIC_CIRCLE_FIELDS, ...PUBLIC_LIST_EXTRA_FIELDS]) as T;
+    dropHiddenParent(circle, item);
     const location = redactCircleLocationForViewer(circle, { viewerDid, viewerIsAdmin: viewerIsPlatformAdmin });
     if (location) {
         item.location = pickPresent(location as AnyRecord, PUBLIC_LIST_LOCATION_FIELDS) as Location;
