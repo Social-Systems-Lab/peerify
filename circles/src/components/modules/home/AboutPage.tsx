@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import { contactCircleAdminsAction, sendPeerifyArtistEnquiryAction } from "@/components/modules/chat/mongo-actions";
+import { canShowAboutContactForm, canStartCircleAdminContact } from "@/lib/peerify/venue-contact";
 import PledgeDialog from "@/components/modules/home/pledge-dialog";
 import { isAuthorized, isOwnerOrCircleAdmin } from "@/lib/auth/client-auth";
 import { features } from "@/lib/data/constants";
@@ -387,8 +388,11 @@ export default function AboutPage({
         );
     // Booking-enquiries-enabled callout, relocated into the sidebar (Phase 1b) — same gate it
     // always had, just no longer coupled to whatever else is or isn't in the sidebar alongside it.
+    // The enquiry goes through the same group with the venue's admins, so it stays off for venues
+    // too (canStartCircleAdminContact), whatever the flag says.
     const hasVenueBookingCalloutContent =
         PEERIFY_BOOKING_ENQUIRIES_ENABLED &&
+        canStartCircleAdminContact(circle) &&
         isPeerifyVenueProfile &&
         peerifyVenueProfile.bookingEnquiriesEnabled === true;
     const showArtistBookingCard =
@@ -416,7 +420,8 @@ export default function AboutPage({
           ? !!circle.content
           : !!circle.content || !!circle.description;
     const shouldShowAboutCard = !isPeerifyVenueProfile || !!circle.content || canEditAbout;
-    const canContactCircle = hasMatchingOfferNeeds && !isOwner;
+    // Never for a venue: the form starts a group with its admins (canShowAboutContactForm).
+    const canContactCircle = canShowAboutContactForm(circle, { hasMatchingOfferNeeds, isOwner });
     // Split from a single shouldShowPeerifyArtistSupportCards flag (used only by these two cards)
     // so TourTeamOfferingsCard could gain its own isPeerifyVenueProfile branch — a Peerify-managed
     // venue already creates/persists structured tourTeamOfferings (OfferManager, presence-settings-

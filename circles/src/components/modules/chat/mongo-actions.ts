@@ -55,6 +55,7 @@ import {
     type PeerifyBookingEnquiryInput,
     type PeerifyPledgeEnquiryInput,
 } from "@/lib/peerify/artist-profile";
+import { canStartCircleAdminContact, VENUE_CONTACT_OFF_MESSAGE } from "@/lib/peerify/venue-contact";
 
 const normalizeMediaUrl = (url?: string): string | undefined => {
     if (!url) return url;
@@ -1418,6 +1419,11 @@ export const contactCircleAdminsAction = async (
     }
     if (circle.circleType === "user") {
         return { success: false, message: "This contact flow is available for circles and projects only" };
+    }
+    // A venue's admins are never put in a group with whoever writes: every member would get their
+    // personal identity (Tim, 2026-11-15; canStartCircleAdminContact).
+    if (!canStartCircleAdminContact(circle)) {
+        return { success: false, message: VENUE_CONTACT_OFF_MESSAGE };
     }
 
     const adminRows = await Members.find({ circleId, userGroups: "admins" }, { projection: { userDid: 1 } }).toArray();

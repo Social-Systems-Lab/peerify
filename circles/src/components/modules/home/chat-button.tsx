@@ -17,6 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { contactCircleAdminsAction } from "@/components/modules/chat/mongo-actions";
+import { canStartCircleAdminContact } from "@/lib/peerify/venue-contact";
 
 interface ChatButtonProps {
     circle: Circle;
@@ -79,6 +80,9 @@ const ChatButton: React.FC<ChatButtonProps> = ({ circle, renderCompact }) => {
             setIsSending(false);
         }
     };
+
+    // Venues can't be contacted through a group with their admins (canStartCircleAdminContact).
+    if (!canStartCircleAdminContact(circle)) return null;
 
     return (
         <>
