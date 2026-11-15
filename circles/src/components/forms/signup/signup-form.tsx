@@ -16,6 +16,7 @@ import { restartAltcha } from "@/lib/auth/altcha-widget";
 import { useAtom } from "jotai";
 import { authInfoAtom, userAtom } from "@/lib/data/atoms";
 import { DynamicAutoHandleField } from "../dynamic-field";
+import { safeRedirectPath } from "@/lib/utils/safe-redirect";
 
 // Zod schema based on signupFormSchema
 const signupValidationSchema = z.object({
@@ -100,7 +101,11 @@ export function SignupForm(): React.ReactElement {
                 setAuthInfo((prev) => ({ ...prev, authStatus: "authenticated" }));
 
                 // redirect to requested page
-                let redirectUrl = searchParams?.get("redirectTo") ?? `/circles/${result.data.user.handle}`;
+                // Only a path on this site, otherwise the start page.
+                const redirectUrl = safeRedirectPath(
+                    searchParams?.get("redirectTo"),
+                    `/circles/${result.data.user.handle}`,
+                );
                 router.push(redirectUrl);
             } else {
                 toast({
