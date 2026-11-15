@@ -49,6 +49,7 @@ import {
 import { getMember, getMembers, getMemberIdsByUserGroup } from "@/lib/data/member"; // Will be created in member.ts
 import { updateAggregateRankCache } from "@/lib/data/ranking"; // Import cache update function
 import { getCirclesByDids } from "@/lib/data/circle";
+import { taskMessage, taskNoun } from "@/lib/tasks/task-messages";
 import { listAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 // Import task notification functions (assuming they will be created)
 import {
@@ -447,28 +448,28 @@ const createTaskSchema = baseTaskSchema.superRefine((data, context) => {
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["targetDate"],
-                message: "Date is required for shift tasks",
+                message: "Date is required for shifts",
             });
         }
         if (!data.shiftStartTime) {
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["shiftStartTime"],
-                message: "Start time is required for shift tasks",
+                message: "Start time is required for shifts",
             });
         }
         if (!data.shiftDurationMinutes) {
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["shiftDurationMinutes"],
-                message: "Duration is required for shift tasks",
+                message: "Duration is required for shifts",
             });
         }
         if (!data.slots) {
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["slots"],
-                message: "Slots are required for shift tasks",
+                message: "Slots are required for shifts",
             });
         }
     }
@@ -504,28 +505,28 @@ const updateTaskSchema = baseTaskSchema.extend({
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["targetDate"],
-                message: "Date is required for shift tasks",
+                message: "Date is required for shifts",
             });
         }
         if (!data.shiftStartTime) {
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["shiftStartTime"],
-                message: "Start time is required for shift tasks",
+                message: "Start time is required for shifts",
             });
         }
         if (!data.shiftDurationMinutes) {
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["shiftDurationMinutes"],
-                message: "Duration is required for shift tasks",
+                message: "Duration is required for shifts",
             });
         }
         if (!data.slots) {
             context.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["slots"],
-                message: "Slots are required for shift tasks",
+                message: "Slots are required for shifts",
             });
         }
     }
@@ -747,7 +748,7 @@ export async function createTaskAction( // Renamed function
                 console.error("Failed to create linked noticeboard post for shift:", error);
                 return {
                     success: true,
-                    message: "Task submitted, but Noticeboard post could not be created.",
+                    message: `${taskNoun(data.taskType)} submitted, but Noticeboard post could not be created.`,
                     taskId: createdTask._id?.toString(),
                 };
             }
@@ -755,7 +756,7 @@ export async function createTaskAction( // Renamed function
 
         return {
             success: true,
-            message: "Task submitted successfully", // Updated message
+            message: taskMessage(data.taskType, "created"),
             taskId: createdTask._id?.toString(), // Renamed property, variable
         };
     } catch (error) {
@@ -1028,7 +1029,7 @@ export async function updateTaskAction(
         const success = await updateTask(taskId, updateData, fieldsToUnset);
 
         if (!success) {
-            return { success: false, message: "Failed to update task" };
+            return { success: false, message: taskMessage(data.taskType, "updateFailed") };
         }
 
         const publishToNoticeboard = data.taskType === "shift" && shouldPublishToNoticeboard(formData);
@@ -1038,7 +1039,7 @@ export async function updateTaskAction(
                 revalidatePath(`/circles/${sourceCircle.handle}/feed`);
             } catch (error) {
                 console.error("Failed to remove linked noticeboard post for moved shift:", error);
-                return { success: false, message: "Task updated, but source Noticeboard post could not be removed." };
+                return { success: false, message: `${taskNoun(data.taskType)} updated, but source Noticeboard post could not be removed.` };
             }
         }
 
@@ -1079,10 +1080,10 @@ export async function updateTaskAction(
                 if (didTargetCircleChange) {
                     return {
                         success: false,
-                        message: "Task updated, but destination Noticeboard post could not be created.",
+                        message: `${taskNoun(data.taskType)} updated, but destination Noticeboard post could not be created.`,
                     };
                 }
-                return { success: true, message: "Task updated, but Noticeboard post could not be created." };
+                return { success: true, message: `${taskNoun(data.taskType)} updated, but Noticeboard post could not be created.` };
             }
         } else if (data.taskType === "shift" && didTargetCircleChange && task.noticeboardPostId) {
             await Tasks.updateOne({ _id: new ObjectId(taskId) }, { $unset: { noticeboardPostId: "" } });
@@ -1094,7 +1095,7 @@ export async function updateTaskAction(
             revalidateTaskAndShiftRoutes(targetCircle.handle, taskId);
         }
 
-        return { success: true, message: "Task updated successfully" };
+        return { success: true, message: taskMessage(data.taskType, "updated") };
     } catch (error) {
         console.error("Error updating task:", error);
         return { success: false, message: "Failed to update task" };
@@ -1214,7 +1215,7 @@ export async function deleteTaskAction( // Renamed function
         ); // Placeholder
 
         if (!isAuthor && !canModerate) {
-            return { success: false, message: "Not authorized to delete this task" }; // Updated message
+            return { success: false, message: `Not authorized to delete this ${taskNoun(task.taskType).toLowerCase()}` };
         }
 
         // --- Delete Associated Images ---
@@ -1231,7 +1232,7 @@ export async function deleteTaskAction( // Renamed function
         const success = await deleteTask(taskId); // Renamed function call, param
 
         if (!success) {
-            return { success: false, message: "Failed to delete task" }; // Updated message
+            return { success: false, message: taskMessage(task.taskType, "deleteFailed") };
         }
 
         // Invalidate rankings as a task was deleted
@@ -1240,7 +1241,7 @@ export async function deleteTaskAction( // Renamed function
         // Revalidate the tasks list page
         revalidateTaskAndShiftRoutes(circleHandle);
 
-        return { success: true, message: "Task deleted successfully" }; // Updated message
+        return { success: true, message: taskMessage(task.taskType, "deleted") };
     } catch (error) {
         console.error("Error deleting task:", error); // Updated message
         return { success: false, message: "Failed to delete task" }; // Updated message
@@ -2205,7 +2206,7 @@ export async function changeTaskStageAction( // Renamed function
         // Add other valid transitions as needed
 
         if (!canChange) {
-            return { success: false, message: `Not authorized to move task from ${currentStage} to ${newStage}` }; // Updated message
+            return { success: false, message: `Not authorized to move ${taskNoun(task.taskType).toLowerCase()} from ${currentStage} to ${newStage}` }; // Updated message
         }
 
         // --- Update Stage in DB --- (Data function)
@@ -2239,7 +2240,7 @@ export async function changeTaskStageAction( // Renamed function
         // Revalidate relevant pages
         revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
-        return { success: true, message: `Task stage changed to ${newStage}` }; // Updated message
+        return { success: true, message: `${taskNoun(task.taskType)} stage changed to ${newStage}` };
     } catch (error) {
         console.error("Error changing task stage:", error); // Updated message
         return { success: false, message: "Failed to change task stage" }; // Updated message

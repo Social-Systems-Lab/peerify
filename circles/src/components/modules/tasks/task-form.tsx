@@ -109,28 +109,28 @@ const taskFormSchema = z
                 context.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["targetDate"],
-                    message: "Date is required for shift tasks",
+                    message: "Date is required for shifts",
                 });
             }
             if (!data.shiftStartTime) {
                 context.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["shiftStartTime"],
-                    message: "Start time is required for shift tasks",
+                    message: "Start time is required for shifts",
                 });
             }
             if (!data.shiftDurationMinutes) {
                 context.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["shiftDurationMinutes"],
-                    message: "Duration is required for shift tasks",
+                    message: "Duration is required for shifts",
                 });
             }
             if (!data.slots) {
                 context.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["slots"],
-                    message: "Slots are required for shift tasks",
+                    message: "Slots are required for shifts",
                 });
             }
         }
