@@ -101,8 +101,8 @@ import { cn } from "@/lib/utils";
 import { EventTagsSettings } from "@/components/forms/controls/event-tags-settings";
 import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
 import { getEventTagBadges } from "@/components/modules/events/event-tag-badges";
+import { defaultEventCurrency, EVENT_CURRENCY_OPTIONS } from "@/lib/events/event-currency";
 
-const EVENT_CURRENCY_OPTIONS = ["EUR", "USD", "GBP", "SEK"];
 
 const VENUE_DISCLOSURE_OPTIONS: Array<{
     value: PeerifyEventVenueDisclosure;
@@ -509,8 +509,10 @@ export default function EventForm({
                     if (circleLocation) {
                         setLocation(circleLocation);
                     }
-                    const circleCurrency = circle ? getPeerifyArtistProfile(circle).bookingSettings.currency : "";
-                    if (circleCurrency && EVENT_CURRENCY_OPTIONS.includes(circleCurrency)) {
+                    const circleCurrency = defaultEventCurrency(
+                        circle ? getPeerifyArtistProfile(circle).bookingSettings.currency : undefined,
+                    );
+                    if (circleCurrency) {
                         setCurrency(circleCurrency);
                     }
                     // Only Venue circles have a meaningful circle-level default (see
