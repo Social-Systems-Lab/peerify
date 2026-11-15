@@ -69,6 +69,8 @@ import {
 import { ensureModuleIsEnabledOnCircle } from "@/lib/data/circle"; // Added
 import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
 import { getOutcomeTaskCompletionPlan } from "@/lib/task-completion-policy";
+import { isRestrictedTaskAudience, parseTaskAudience, userGroupsForAudience } from "@/lib/tasks/task-audience";
+import { buildShiftNoticeboardPostContent } from "@/lib/tasks/shift-noticeboard";
 
 type GetTasksActionResult = {
     tasks: TaskDisplay[];
@@ -124,14 +126,16 @@ const hasShiftCompleted = (task: Pick<Task, "stage" | "targetDate" | "shiftStart
 
 const shouldPublishToNoticeboard = (formData: FormData) => formData.get("publishToNoticeboard") === "true";
 
+// The audience chosen in the form ("everyone" or "crew"), as userGroups; null when the form sent
+// none (then create falls back to submitted userGroups and update keeps the task's own).
+const userGroupsFromAudienceField = (formData: FormData): string[] | null => {
+    const audience = parseTaskAudience(formData.get("audience"));
+    return audience ? userGroupsForAudience(audience) : null;
+};
+
 const getTaskInternalPreviewUrl = (circleHandle: string, taskId: string) => {
     const baseUrl = (process.env.CIRCLES_URL || "http://localhost:3000").replace(/\/+$/, "");
     return `${baseUrl}/circles/${circleHandle}/shifts/${taskId}?source=noticeboard`;
-};
-
-const buildShiftNoticeboardPostContent = (task: Pick<Task, "description" | "participantNotes">) => {
-    const detail = task.participantNotes?.trim() || task.description.trim();
-    return detail ? `Help with this volunteer shift. ${detail}` : "Help with this volunteer shift.";
 };
 
 const upsertShiftNoticeboardPost = async ({
@@ -141,9 +145,13 @@ const upsertShiftNoticeboardPost = async ({
 }: {
     circle: Circle;
     circleHandle: string;
-    task: Pick<Task, "_id" | "title" | "description" | "participantNotes" | "createdBy" | "noticeboardPostId">;
+    task: Pick<Task, "_id" | "title" | "description" | "createdBy" | "noticeboardPostId" | "userGroups">;
 }): Promise<string | null> => {
     if (!circle._id || !task._id) {
+        return null;
+    }
+    // A crew-only shift is never posted to the Noticeboard (the post goes to members).
+    if (isRestrictedTaskAudience(task.userGroups)) {
         return null;
     }
 
@@ -674,7 +682,8 @@ export async function createTaskAction( // Renamed function
             createdBy: userDid,
             createdAt: new Date(),
             stage: initialStage,
-            userGroups: data.userGroups || [], // Use provided groups or default to empty
+            userGroups:
+                userGroupsFromAudienceField(formData) ?? (data.userGroups ?? []).filter((group) => group.trim() !== ""),
             goalId: data.goalId, // Optional goal ID
             eventId: data.eventId, // Optional event ID
             taskType: data.taskType,
@@ -975,6 +984,9 @@ export async function updateTaskAction(
         }
         const finalImages: Media[] = [...parsedExistingMedia, ...newlyUploadedImages];
 
+        const submittedUserGroups =
+            userGroupsFromAudienceField(formData) ?? (data.userGroups ?? []).filter((group) => group.trim() !== "");
+
         // Prepare update data
         const updateData: Omit<Partial<Task>, "goalId" | "eventId" | "priority" | "taskGroup"> & {
             goalId?: string;
@@ -988,7 +1000,9 @@ export async function updateTaskAction(
             location: locationData,
             targetDate: targetDateForUpdate,
             circleId: targetCircle._id.toString(),
-            userGroups: data.userGroups || task.userGroups,
+            // Only a form that sends an audience changes it (an empty list would make the task visible
+            // to everyone).
+            userGroups: submittedUserGroups.length > 0 ? submittedUserGroups : task.userGroups,
             updatedAt: new Date(),
             // Pass goalId directly (can be string or empty string for removal)
             goalId: didTargetCircleChange ? "" : (data.goalId ?? ""),
@@ -1028,7 +1042,20 @@ export async function updateTaskAction(
             }
         }
 
-        if (publishToNoticeboard) {
+        // A shift that is now crew-only loses its Noticeboard post (the post goes to members).
+        const isNowCrewOnly = isRestrictedTaskAudience(updateData.userGroups);
+        if (data.taskType === "shift" && !didTargetCircleChange && isNowCrewOnly && task.noticeboardPostId) {
+            try {
+                await deletePost(task.noticeboardPostId);
+                await Tasks.updateOne({ _id: new ObjectId(taskId) }, { $unset: { noticeboardPostId: "" } });
+                revalidatePath(`/circles/${sourceCircle.handle}/feed`);
+            } catch (error) {
+                console.error("Failed to remove linked noticeboard post for crew-only shift:", error);
+                return { success: false, message: "Shift updated, but its Noticeboard post could not be removed." };
+            }
+        }
+
+        if (publishToNoticeboard && !isNowCrewOnly) {
             try {
                 const noticeboardPostId = await upsertShiftNoticeboardPost({
                     circle: targetCircle,

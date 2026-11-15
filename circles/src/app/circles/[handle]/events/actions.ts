@@ -76,6 +76,8 @@ import { addCommentToDiscussion } from "@/lib/data/discussion";
 import { getAllCommentsAction } from "@/components/modules/feeds/actions";
 import { Comment } from "@/models/models";
 import { filterTasksForViewer, getTasksByEventId } from "@/lib/data/task";
+import { summarizeEventCrew, type EventCrewPanel } from "@/lib/tasks/event-crew-panel";
+import { resolveViewerIsAdmin } from "@/lib/data/circle";
 import { canViewFollowerList } from "@/lib/data/follower-list-access";
 import { listAcceptedConnectionsForUserDid, searchAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 import { isPeerifyArtistIdentity, isPeerifyVenueIdentity } from "@/lib/peerify/artist-profile";
@@ -105,6 +107,14 @@ type GetCirclesBySearchQueryActionResult = {
 
 type GetTasksByEventActionResult = {
     tasks: TaskDisplay[];
+};
+
+export type EventCrewPanelResult = EventCrewPanel & {
+    // False when the host circle has neither Tasks nor Shifts on (the panel is then hidden).
+    show: boolean;
+    isOrganiser: boolean;
+    canCreateShift: boolean;
+    canCreateTask: boolean;
 };
 
 type HideCancelledEventResult = {
@@ -562,6 +572,73 @@ export async function getTasksByEventAction(
     } catch (error) {
         console.error("Error in getTasksByEventAction:", error);
         return defaultResult;
+    }
+}
+
+/**
+ * The event page's crew panel (Crew R1, item 3): the event's shifts (time, slots, confirmed and
+ * pending counts, the viewer's own status; who signed up for organisers only) and tasks (stage,
+ * assignee). Signed-in viewers who can see the event only; tasks and shifts go through
+ * filterTasksForViewer (audience, D3, decision B) first.
+ */
+export async function getEventCrewPanelAction(circleHandle: string, eventId: string): Promise<EventCrewPanelResult> {
+    const hidden: EventCrewPanelResult = {
+        show: false,
+        isOrganiser: false,
+        canCreateShift: false,
+        canCreateTask: false,
+        shifts: [],
+        tasks: [],
+    };
+
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return hidden;
+
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle?._id) return hidden;
+        const circleId = circle._id.toString();
+
+        const tasksEnabled = circle.enabledModules?.includes("tasks") ?? false;
+        const shiftsEnabled = circle.enabledModules?.includes("shifts") ?? false;
+        if (!tasksEnabled && !shiftsEnabled) return hidden;
+
+        // Same access as the event page itself (events.view, the event's audience).
+        const event = await getEventAction(circleHandle, eventId);
+        if (!event) return hidden;
+
+        const [canAssign, canModerate, isPlatformAdmin, canCreate] = await Promise.all([
+            isAuthorized(userDid, circleId, features.tasks.assign),
+            isAuthorized(userDid, circleId, features.tasks.moderate),
+            resolveViewerIsAdmin(userDid),
+            isAuthorized(userDid, circleId, features.tasks.create),
+        ]);
+        const isOrganiser = canAssign || canModerate || isPlatformAdmin;
+
+        const linked = await filterTasksForViewer(await getTasksByEventId(eventId, circleId), userDid);
+        const visible = linked.filter((task) =>
+            (task.taskType ?? "outcome") === "shift" ? shiftsEnabled : tasksEnabled,
+        );
+
+        let profilesByDid: Map<string, Circle> | undefined;
+        if (isOrganiser) {
+            const dids = Array.from(
+                new Set(visible.flatMap((task) => (task.participants ?? []).map((participant) => participant.userDid))),
+            );
+            const profiles = dids.length > 0 ? await getCirclesByDids(dids, { viewerDid: userDid }) : [];
+            profilesByDid = new Map(profiles.filter((p) => p.did).map((p) => [p.did as string, p]));
+        }
+
+        return {
+            show: true,
+            isOrganiser,
+            canCreateShift: shiftsEnabled && canCreate,
+            canCreateTask: tasksEnabled && canCreate,
+            ...summarizeEventCrew(visible, { viewerDid: userDid, isOrganiser, profilesByDid }),
+        };
+    } catch (error) {
+        console.error("Error in getEventCrewPanelAction:", error);
+        return hidden;
     }
 }
 

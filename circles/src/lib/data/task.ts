@@ -7,6 +7,7 @@ import { getMemberIdsByUserGroup } from "./member";
 import { isAuthorized } from "../auth/auth";
 import { features } from "./constants"; // RANKING_STALENESS_DAYS is now in ranking.ts
 import { redactLocationForViewer } from "../utils";
+import { isRestrictedTaskAudience } from "../tasks/task-audience";
 import { toPublicLocation } from "../utils/public-circle";
 import { createPost } from "./feed"; // Import createPost from feed.ts
 import { upsertVbdTasks } from "./vdb";
@@ -57,6 +58,10 @@ export const SAFE_TASK_PROJECTION = {
     targetDate: 1,
     goal: 1,
     event: 1,
+    // The ids too, so the edit form starts with the task's own goal and event (without them it sent
+    // an empty id and the edit unlinked the task).
+    goalId: 1,
+    eventId: 1,
     priority: 1,
     taskGroup: 1,
 } as const;
@@ -105,10 +110,16 @@ const getViewerMembershipsByCircleId = async (viewerDid?: string): Promise<Map<s
 };
 
 const canViewerAccessTaskUserGroups = (
-    task: Pick<TaskDisplay, "circleId" | "userGroups">,
+    task: Pick<TaskDisplay, "circleId" | "userGroups" | "createdBy">,
     viewerMembershipsByCircleId: Map<string, string[]>,
+    viewerDid?: string,
 ): boolean => {
     if (!task.userGroups || task.userGroups.length === 0) {
+        return true;
+    }
+
+    // The author always sees their own task, also when its audience (e.g. Crew only) leaves them out.
+    if (viewerDid && task.createdBy === viewerDid) {
         return true;
     }
 
@@ -141,7 +152,7 @@ export const filterTasksForViewer = async (tasks: TaskDisplay[], viewerDid?: str
             continue;
         }
 
-        if (!canViewerAccessTaskUserGroups(task, viewerMembershipsByCircleId)) {
+        if (!canViewerAccessTaskUserGroups(task, viewerMembershipsByCircleId, viewerDid)) {
             continue;
         }
 
@@ -163,6 +174,8 @@ export const filterTasksForViewer = async (tasks: TaskDisplay[], viewerDid?: str
  *   assignee and people signed up; others get participantNotesHidden instead;
  * - the "changes requested" note: for the author, the assignee, claimants and reviewers
  *   (tasks.review).
+ * Crew-only shifts (audience set, without "everyone"; decision B, 2026-11-14): "people signed up"
+ * above means confirmed participants only, and claimants don't get the exact location.
  */
 export const shapeTaskNotesForViewer = async <T extends TaskDisplay>(tasks: T[], viewerDid?: string): Promise<T[]> => {
     const hasRestricted = (task: T) =>
@@ -197,8 +210,15 @@ export const shapeTaskNotesForViewer = async <T extends TaskDisplay>(tasks: T[],
             if (!hasRestricted(task) || (circleId && (await manages(circleId)))) return task;
 
             const isMine = !!viewerDid && (task.createdBy === viewerDid || task.assignedTo === viewerDid);
-            const isParticipant = !!viewerDid && (task.participants ?? []).some((p) => p.userDid === viewerDid);
+            // Crew-only shifts (decision B, 2026-11-14): the exact location and "Important for
+            // participants" go to confirmed participants only, not to pending sign-ups or claimants.
+            // Shifts open to everyone keep D3: anyone signed up.
+            const confirmedOnly = (task.taskType ?? "outcome") === "shift" && isRestrictedTaskAudience(task.userGroups);
+            const isParticipant =
+                !!viewerDid &&
+                (task.participants ?? []).some((p) => p.userDid === viewerDid && (!confirmedOnly || !!p.verifiedAt));
             const isClaimant =
+                !confirmedOnly &&
                 !!viewerDid &&
                 (task.claims ?? []).some(
                     (claim) => claim.claimantDid === viewerDid && (claim.status === "pending" || claim.status === "approved"),

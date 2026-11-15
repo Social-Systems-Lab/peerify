@@ -39,6 +39,7 @@ import { CreatableItemDetail } from "@/components/global-create/global-create-di
 import { getGoalsAction } from "@/app/circles/[handle]/goals/actions"; // Corrected import for fetching goals
 import { getEventsAction } from "@/app/circles/[handle]/events/actions";
 import { SHIFT_DURATION_OPTIONS } from "./shift-task-utils";
+import { audienceFromUserGroups } from "@/lib/tasks/task-audience";
 
 const taskPriorityOptions: { value: TaskPriority; label: string; description: string }[] = [
     { value: "low", label: "Low", description: "Nice to have" },
@@ -90,6 +91,7 @@ const taskFormSchema = z
             z.string().max(1000, "Participant notes must be 1000 characters or fewer").optional(),
         ),
         publishToNoticeboard: z.boolean().default(false),
+        audience: z.enum(["everyone", "crew"]).default("everyone"),
         priority: z.enum(["low", "medium", "high", "critical"]).optional().nullable(),
         taskGroup: z.string().max(80, "Group/category must be 80 characters or fewer").optional(),
     })
@@ -181,6 +183,9 @@ interface TaskFormProps {
     };
     circle?: Circle; // Added for editing context
     successRedirectCollection?: "tasks" | "shifts";
+    // Prefills for a new task or shift, e.g. "Create shift" on an event page (the event and its date).
+    initialEventId?: string;
+    initialTargetDate?: string;
     // goals and goalsModuleEnabled will be fetched/determined internally
     onFormSubmitSuccess?: (data: { id?: string; circleHandle?: string }) => void; // Updated to include circleHandle
     onCancel?: () => void;
@@ -202,6 +207,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     labels,
     circle: circleProp, // Added for editing
     successRedirectCollection,
+    initialEventId,
+    initialTargetDate,
     onFormSubmitSuccess,
     onCancel,
 }) => {
@@ -222,7 +229,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     const selectedCircleRef = useRef<Circle | null>(null);
     const preselectedGoalId = searchParams.get("goalId");
     const preselectedEventId = searchParams.get("eventId");
-    const targetDateFromQuery = searchParams.get("targetDate");
+    const targetDateFromQuery = searchParams.get("targetDate") ?? initialTargetDate ?? null;
     let prefilledDate: Date | undefined = undefined;
     if (!isEditing && targetDateFromQuery) {
         const parsedDate = parseISO(targetDateFromQuery);
@@ -242,19 +249,21 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             location: task?.location,
             targetDate: prefilledDate ?? (task?.targetDate ? new Date(task.targetDate) : undefined),
             goalId: task?.goalId || preselectedGoalId || null,
-            eventId: (task as any)?.eventId || preselectedEventId || null,
+            eventId: task?.eventId || preselectedEventId || initialEventId || null,
             taskType: forcedTaskType ?? task?.taskType ?? initialOutcomeTaskType,
             slots: task?.slots,
             shiftStartTime: task?.shiftStartTime,
             shiftDurationMinutes: task?.shiftDurationMinutes,
             participantNotes: task?.participantNotes,
             publishToNoticeboard: Boolean(task?.noticeboardPostId),
+            audience: audienceFromUserGroups(task?.userGroups),
             priority: task?.priority || null,
             taskGroup: task?.taskGroup || "",
         },
     });
 
     const taskType = form.watch("taskType");
+    const audience = form.watch("audience");
     const shouldShowTaskTypeSelector = !hideTaskTypeSelector && !forcedTaskType;
     const moveTargetModuleHandle = taskType === "shift" ? "shifts" : "tasks";
     const circleSelectorItemDetail = useMemo(
@@ -449,9 +458,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         } else {
             formData.append("participantNotes", "");
         }
+        formData.append("audience", values.audience);
+        // A crew-only shift is never shared on the Noticeboard (the server refuses it too).
         formData.append(
             "publishToNoticeboard",
-            values.taskType === "shift" ? String(values.publishToNoticeboard) : "false",
+            values.taskType === "shift" && values.audience !== "crew" ? String(values.publishToNoticeboard) : "false",
         );
 
         if (values.priority) {
@@ -781,7 +792,46 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                             )}
                                         />
                                     )}
-                                    {taskType === "shift" && (
+                                    <FormField
+                                        control={form.control}
+                                        name="audience"
+                                        render={({ field }) => (
+                                            <FormItem className="py-3 md:col-span-2 md:py-4">
+                                                <FormLabel>Who is this {taskType === "shift" ? "shift" : "task"} for?</FormLabel>
+                                                <Select
+                                                    onValueChange={(value) => {
+                                                        field.onChange(value);
+                                                        if (value === "crew") {
+                                                            form.setValue("publishToNoticeboard", false, {
+                                                                shouldValidate: false,
+                                                            });
+                                                        }
+                                                    }}
+                                                    value={field.value}
+                                                    disabled={isSubmitting}
+                                                >
+                                                    <FormControl>
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        <SelectItem value="everyone">Everyone</SelectItem>
+                                                        <SelectItem value="crew">Crew only</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormDescription>
+                                                    {field.value === "crew"
+                                                        ? taskType === "shift"
+                                                            ? "Only this circle's Crew, moderators and admins can see it and sign up. The exact location and the participant notes are shown only once you confirm someone's sign-up."
+                                                            : "Only this circle's Crew, moderators and admins can see it."
+                                                        : "Anyone who can see this circle's tasks can see it."}
+                                                </FormDescription>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                    {taskType === "shift" && audience !== "crew" && (
                                         <FormField
                                             control={form.control}
                                             name="publishToNoticeboard"
@@ -801,7 +851,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
                                                             <FormLabel>Share this shift on the Noticeboard</FormLabel>
                                                             <FormDescription>
                                                                 Create or update one linked Noticeboard post for this
-                                                                volunteer shift.
+                                                                volunteer shift. It shows the description, never the
+                                                                participant notes.
                                                             </FormDescription>
                                                         </div>
                                                     </div>

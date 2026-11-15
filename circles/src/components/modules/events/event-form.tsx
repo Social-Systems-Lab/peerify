@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { EVENT_AUDIENCE_COPY } from "@/lib/events/event-audience-copy";
 import { useRouter } from "next/navigation";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
@@ -1043,7 +1044,7 @@ export default function EventForm({
                                         <div className="flex items-center gap-1">
                                             <Users className="h-3 w-3" />
                                             <span>
-                                                Post visible to:{" "}
+                                                {EVENT_AUDIENCE_COPY.buttonPrefix}{" "}
                                                 {userGroups.includes("everyone")
                                                     ? "Everyone"
                                                     : getUserGroupName(userGroups?.[0])}
@@ -1465,14 +1466,11 @@ export default function EventForm({
                 >
                     <DialogHeader>
                         <DialogTitle className="text-center text-xl font-bold">
-                            Who can see the Noticeboard post?
+                            {EVENT_AUDIENCE_COPY.dialogTitle}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="mt-2 space-y-4">
-                        <div className="text-sm text-gray-600">
-                            This only controls the linked Noticeboard post — it doesn&apos;t change who can see the
-                            event itself.
-                        </div>
+                        <div className="text-sm text-gray-600">{EVENT_AUDIENCE_COPY.dialogBody}</div>
                         <div className="max-h-[300px] space-y-3 overflow-y-auto py-2">
                             <div className="flex items-center rounded-lg p-2 hover:bg-gray-100">
                                 <div className="mr-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-200">

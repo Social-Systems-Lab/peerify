@@ -1235,7 +1235,9 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                         </div>
                         {!task.participantNotes && task.participantNotesHidden && (
                             <div className="mt-5 text-sm text-muted-foreground">
-                                Details for participants appear once you sign up.
+                                {currentShiftParticipant
+                                    ? "Details for participants appear once an organiser confirms your sign-up."
+                                    : "Details for participants appear once you sign up."}
                             </div>
                         )}
                         {task.participantNotes && (
