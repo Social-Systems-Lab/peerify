@@ -9,12 +9,13 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
 - **Prod = `68d0dfa0`** (moderator fix + comment-author fix; deployed 2026-11-14). **`staging` branch = `8a58800d`** (prod plus R1, the identity fixes and the login fix, merged 2026-11-15); **not deployed yet** (Tim deploys and runs the check lists). `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
-- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **R1 (items 1, 2, 3, 5, 9) merged into `staging` (`20945236`, 2026-11-15)**; next, Tim deploys staging and runs the R1 check list. **Identity fixes** (`fix/event-author-payload`: event author `26119ed1`, venue parent `6223e54c`, venue contact off `d82e8ea6`) and the **login `redirectTo` fix** (`fix/login-redirect`, `78ea3c7f`) **merged into `staging`** (`94316191`, `8a58800d`, 2026-11-15). Next: Tim deploys staging and runs the check lists in `20261114-1958-crew-r1`, `20261115-0503-identity-login` and `20261115-0530-venue-contact-off`. See the 2026-11-15 entries.
-- **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (design direction in the 2026-11-15 (cont.) entry).
+- **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **R1 (items 1, 2, 3, 5, 9) merged into `staging` (`20945236`, 2026-11-15)**; next, Tim deploys staging and runs the R1 check list. **Identity fixes** (`fix/event-author-payload`: event author `26119ed1`, venue parent `6223e54c`, venue contact off `d82e8ea6`) and the **login `redirectTo` fix** (`fix/login-redirect`, `78ea3c7f`) **merged into `staging`** (`94316191`, `8a58800d`, 2026-11-15). **Branch `fix/profile-circles-zar`** (personal profile Circles list owner-only `e4973b87`, ZAR for events `2fb4928e`): not pushed. Next: Tim deploys staging and runs the check lists in `20261114-1958-crew-r1`, `20261115-0503-identity-login` and `20261115-0530-venue-contact-off`. See the 2026-11-15 entries.
+- **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (it also covers a personal profile's Circles list, owner-only since `e4973b87`: default only me, options Contacts or Public) (design direction in the 2026-11-15 (cont.) entry).
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
 - **CANDIDATE BEFORE THE SHOW:** a "Shifts & tasks" view on the Crew page (my shifts, then open shifts by event) and the same status panel on the Crew Dashboard.
 - **LATER:**
   - the event audience picker should always be available, not only after ticking "Share on Noticeboard";
+  - `src/lib/auth/altcha.test.ts` is flaky (5-second timeouts in CPU-heavy tests); give it a longer timeout;
   - `ensureCircleConversationAction` (`components/modules/chat/actions.ts` ~283) lets anyone, even signed out, create an empty conversation document for any circle id. It should require sign-in and membership;
   - the venue/circle members chat room can't be opened by anyone (no participants are ever added to its conversation). Decide in the UX month whether to fix it or remove it.
 - **Security fix LIVE on prod (2026-11-14, `68d0dfa0`):** a moderator can no longer grant `admins` (the `??` precedence bug in `safeModifyMemberUserGroups`). See the 2026-11-14 (cont.) entry.
@@ -60,6 +61,28 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-15 (cont. 2) — Personal profile Circles list owner-only; ZAR for events
+
+Branch `fix/profile-circles-zar` (from staging `77d73a8e`; not pushed; report `20261115-0707-profile-circles-zar.tar.gz`):
+
+**`e4973b87` A personal profile's Circles list is for its owner only.**
+- **Read-only first:** the Circles tab (module `communities`, default on for personal profiles) listed, for everyone, signed out too, the published circles whose parent is the profile, such as a venue made from it. Only the owner also saw circles they created or joined (`getCircles` in `lib/data/circle.ts`).
+- **No setting existed:** personal profiles hide Pages and Access rules. So the D advice "turn off Circles on Tim's own profile" (2026-11-14 notes) was wrong.
+- **Now:** on a personal profile, the owner and platform admins only. The page and `CirclesModule` refuse everyone else (not found, nothing fetched), `/api/access` answers not found, and the tab is hidden. Bands, artists, venues and other circles are unchanged.
+- **Test:** `profile-circles-leaks`, 2 of 7 fail before (the tab cases test the new rule).
+- **Later:** part of the three-level visibility (default: only me; options Contacts or Public).
+
+**`2fb4928e` ZAR as an event ticket currency.**
+- The event form's own list (EUR, USD, GBP, SEK) gains ZAR. It moved to `lib/events/event-currency.ts`, with the booking-currency prefill.
+- Booking settings and pledges already had ZAR. The server accepts any code.
+- **Test:** `event-currency` (new module).
+
+**Checks, each commit:** all test files pass except the known `participation-readiness`; tsc only the old backup-test error; eslint clean; build succeeds.
+
+**Flaky test:** `src/lib/auth/altcha.test.ts` times out (5 s) now and then in CPU-heavy tests. It failed 1 run in 4 alone on unchanged `staging` code as well. Not caused by recent work; give it a longer timeout in a later session.
 
 ---
 
