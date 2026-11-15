@@ -1516,6 +1516,13 @@ export async function submitTaskClaimAction(
             return { success: false, message: "Task not found" };
         }
 
+        // The task's audience, as for joining a shift (2026-11-15): someone who can't see the task
+        // (a follower who isn't crew, on a crew-only task) can't claim it either.
+        const visibleTasks = await filterTasksForViewer([task], userDid);
+        if (visibleTasks.length === 0) {
+            return { success: false, message: "Task not found" };
+        }
+
         if ((task.taskType ?? "outcome") === "shift") {
             return { success: false, message: "Shift tasks cannot be claimed" };
         }
