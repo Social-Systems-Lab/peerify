@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { userAtom } from "@/lib/data/atoms";
+import { canSeeProfileCirclesTab, PROFILE_CIRCLES_MODULE } from "@/lib/peerify/profile-circles-list";
 import { canSeeFollowersLink } from "@/lib/peerify/follower-list";
 import { useAtom } from "jotai";
 import { useMemo, useCallback, useEffect, useState, useRef } from "react";
@@ -57,6 +58,8 @@ export function CircleTabs({ circle }: CircleTabsProps) {
             // The Followers tab is for the circle's admins and moderators (a personal profile's owner);
             // everyone else sees only the follower count (privacy by default, 2026-11-07).
             if (moduleHandle === "followers" && !canSeeFollowersLink(circle, user)) return false;
+            // A personal profile's Circles tab: its owner and platform admins only (2026-11-15).
+            if (moduleHandle === PROFILE_CIRCLES_MODULE && !canSeeProfileCirclesTab(circle, user)) return false;
             let allowedUserGroups =
                 circle.accessRules?.[accessModuleHandle]?.view ||
                 getFeature(accessModuleHandle, "view")?.defaultUserGroups ||
