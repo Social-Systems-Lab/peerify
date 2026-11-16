@@ -246,4 +246,45 @@ const runCases = (title: string, cases: Case[]) =>
         }
     });
 
+// The five smaller ones: the caller acts as themselves (assignee, claimant, sign-up). ADMIN_X is a
+// member of Y too, so the normal flow through Y works; through X (where they are admin) it must not.
+const FIVE: Case[] = [
+    {
+        name: "acceptTaskAction",
+        task: outcome({ assignedTo: ADMIN_X }),
+        crossActor: ADMIN_X,
+        ownActor: ADMIN_X,
+        run: (h) => actions.acceptTaskAction(h, TASK_ID),
+    },
+    {
+        name: "submitTaskForReviewAction",
+        task: outcome({ stage: "inProgress", assignedTo: ADMIN_X, acceptedBy: ADMIN_X, acceptedAt: past }),
+        crossActor: ADMIN_X,
+        ownActor: ADMIN_X,
+        run: (h) => actions.submitTaskForReviewAction(h, TASK_ID),
+    },
+    {
+        name: "submitTaskClaimAction",
+        task: outcome({}),
+        crossActor: ADMIN_X,
+        ownActor: ADMIN_X,
+        run: (h) => actions.submitTaskClaimAction(h, TASK_ID),
+    },
+    {
+        name: "joinShiftTaskAction",
+        task: shift({}),
+        crossActor: ADMIN_X,
+        ownActor: ADMIN_X,
+        run: (h) => actions.joinShiftTaskAction(h, TASK_ID),
+    },
+    {
+        name: "leaveShiftTaskAction",
+        task: shift({ participants: [{ userDid: ADMIN_X, joinedAt: past }] }),
+        crossActor: ADMIN_X,
+        ownActor: ADMIN_X,
+        run: (h) => actions.leaveShiftTaskAction(h, TASK_ID),
+    },
+];
+
 runCases("the eight manager actions only work through the task's own circle (2026-11-16)", EIGHT);
+runCases("the five smaller actions only work through the task's own circle (2026-11-16)", FIVE);

@@ -1276,6 +1276,10 @@ export async function acceptTaskAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16).
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         if ((task.taskType ?? "outcome") === "shift") {
             return { success: false, message: "Shift tasks are joined through participation, not assignment acceptance" };
@@ -1359,6 +1363,10 @@ export async function submitTaskForReviewAction(
 
         const task = await getTaskById(taskId, userDid);
         if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16).
+        if (!isTaskInCircle(task, circle)) {
             return { success: false, message: "Task not found" };
         }
 
@@ -1526,6 +1534,10 @@ export async function submitTaskClaimAction(
 
         const task = await getTaskById(taskId, userDid);
         if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16).
+        if (!isTaskInCircle(task, circle)) {
             return { success: false, message: "Task not found" };
         }
 
@@ -1792,6 +1804,10 @@ export async function joinShiftTaskAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16).
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         const visibleTasks = await filterTasksForViewer([task], userDid);
         if (visibleTasks.length === 0) {
@@ -1881,6 +1897,10 @@ export async function leaveShiftTaskAction(
 
         const task = await getTaskById(taskId, userDid);
         if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16).
+        if (!isTaskInCircle(task, circle)) {
             return { success: false, message: "Task not found" };
         }
 
