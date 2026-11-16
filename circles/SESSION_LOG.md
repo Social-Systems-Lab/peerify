@@ -12,8 +12,8 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. **Also live since `60108f48`:** the crew UI polish (6 items, `29fcd32f`..`e36894f6`). **Branch `fix/share-simple`** (1 commit, `1cc306eb`): not pushed. See the 2026-11-15 entries.
 - **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (it also covers a personal profile's Circles list, owner-only since `e4973b87`: default only me, options Contacts or Public) (design direction in the 2026-11-15 (cont.) entry).
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
-- **SECURITY, NEXT (2026-11-15 (cont. 6)):** 8 task/shift actions skip the circle check, so an admin of any circle can delete, assign, re-stage or confirm sign-ups on another circle's task by id. Fix on `fix/task-actions-circle-check`, waiting for Tim's yes. Branch `fix/task-claim-shadowpost` (claim audience, shadow post) not pushed.
-- **DESIGN DIRECTION (2026-11-15 (cont. 5)): "Asks"** in the Crew feed (Help / Lend / Host / Spread, private responses, Filled/Expired), as tasks of type `ask`. Proposal and open questions in `20261115-share-asks.tar.gz`. **Fix first:** the claim audience check and `ensureShadowPostForTaskAction` (see that entry).
+- **SECURITY (2026-11-16):** the cross-circle gap in 13 task/shift actions is fixed on branch `fix/task-actions-circle-check` (on top of `fix/task-claim-shadowpost`), together with private pending sign-ups and claims. Not pushed. **Tim runs the read-only prod check** (`scripts/check-cross-circle-task-actions.ts`, run sheet in `20261116-task-actions-circle-check.tar.gz`) before the release.
+- **DESIGN DIRECTION: "Asks"** in the Crew feed (2026-11-15 (cont. 5); Tim's answers 2026-11-16). They are **built after the home show**; until then artists use ordinary Crew posts.
 - **CANDIDATE BEFORE THE SHOW:** a "Shifts & tasks" view on the Crew page (my shifts, then open shifts by event) and the same status panel on the Crew Dashboard.
   - Its personal counterpart, later: **"My Crews"** on the personal profile, owner only: upcoming shifts across all crews plus those crews' broadcasts in one feed (2026-11-15 (cont. 4)).
 - **LATER:**
@@ -64,6 +64,41 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-16 — Cross-circle fix for 13 task actions; pending sign-ups and claims private; prod check script; Tim's answers on Asks
+
+**Branch `fix/task-actions-circle-check`** (from `fix/task-claim-shadowpost` `a7809ff2`; not pushed; report `20261116-task-actions-circle-check.tar.gz`):
+1. **`bca20e9e` The eight manager actions only work through the task's own circle.**
+   - The actions: priority, delete, request changes, review claim, confirm shift sign-up, attendance, change stage, assign.
+   - Each answers "Task not found" unless `isTaskInCircle(task, circle)` (`lib/tasks/task-circle.ts`), before anything is written.
+   - Test `tasks/task-actions-circle-check`: per action, an admin of another circle passing that circle's handle is refused and nothing is written; the task's own admins still can.
+   - Declining a claim was open; approving happened to be blocked already.
+2. **`8d48d22b` The same check for accept, submit for review, claim, join and leave.** Same test file: 13 of 26 cases fail before, 26/26 after.
+3. **`6f734907` Pending sign-ups and claims are private on the server** (the shift page's promise "A participant only appears publicly after admin confirmation").
+   - **Managers** (tasks.assign/moderate) and platform admins: everything, as before. The **author** also gets every participant and claim, with notes as before.
+   - **A person signed up or claiming:** their own entry in full.
+   - **Everyone else:** confirmed participants only, no claims, and `pendingParticipantCount` for the counts the page shows. `participantProfiles` follows `participants`.
+   - The count helpers, the join button, the home page's upcoming shifts and the event crew panel use that count.
+   - Test `tasks/task-signups-private` (6 of 10 fail before). The old `task-notes-leaks` case "the claim itself stays" now expects no claims.
+4. **`82bd12bf` Read-only prod check** `scripts/check-cross-circle-task-actions.ts`, with a run sheet `.md` next to it.
+   - It lists actions the stored data shows were made by someone outside the task's own admins, moderators and author: the "…By" fields, plus assignments and stage changes from notifications.
+   - It prints counts and task ids only.
+   - Deleted tasks and priority changes leave no trace.
+   - A test checks that the source has no write calls.
+   - **Next for Tim:** run it on prod (`EXPECT_DB=circles`) from `/tmp` before the release (run sheet in the report), and paste the output.
+
+**Tim's answers on Asks (2026-11-16):**
+- **Posting:** the circle's admins and moderators only.
+- **After acceptance:** others see only "Filled". Later perhaps connections or team members.
+- **Comments:** off. Questions go in the "I can help" note.
+- **Details:** a details field shown only to the accepted person, no DM.
+- **Spread:** no response button.
+- **Dates:** every Ask has a "needed by" date, and event-linked asks expire on the event date.
+- **Notice:** bell only.
+- **City matching:** postponed.
+- **When:** Asks are built **after the home show**. Until then, artists use ordinary Crew posts.
 
 ---
 
