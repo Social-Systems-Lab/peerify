@@ -77,7 +77,11 @@ export const summarizeEventCrew = (
                 shiftDurationMinutes: task.shiftDurationMinutes,
                 slots: task.slots ?? 0,
                 confirmedCount: participants.filter((p) => !!p.verifiedAt).length,
-                pendingCount: participants.filter((p) => !p.verifiedAt).length,
+                // Pending sign-ups other than the viewer's own aren't in participants[] for viewers who
+                // don't manage the task (2026-11-16); the count comes in pendingParticipantCount.
+                pendingCount:
+                    (task as { pendingParticipantCount?: number }).pendingParticipantCount ??
+                    participants.filter((p) => !p.verifiedAt).length,
                 crewOnly: isRestrictedTaskAudience(task.userGroups),
                 viewerStatus: own ? statusOf(own) : null,
             };

@@ -49,6 +49,7 @@ import {
 import { getMember, getMembers, getMemberIdsByUserGroup } from "@/lib/data/member"; // Will be created in member.ts
 import { updateAggregateRankCache } from "@/lib/data/ranking"; // Import cache update function
 import { getCirclesByDids } from "@/lib/data/circle";
+import { isTaskInCircle } from "@/lib/tasks/task-circle";
 import { taskMessage, taskNoun } from "@/lib/tasks/task-messages";
 import { listAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 // Import task notification functions (assuming they will be created)
@@ -1143,6 +1144,10 @@ export async function updateTaskPriorityAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         const isAuthor = userDid === task.createdBy;
         const canModerate = await isAuthorized(userDid, circle._id as string, features.tasks?.moderate);
@@ -1205,6 +1210,10 @@ export async function deleteTaskAction( // Renamed function
             // Renamed variable
             return { success: false, message: "Task not found" }; // Updated message
         }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         // Check permissions: Author or Moderator? (Placeholder feature handle)
         const isAuthor = userDid === task.createdBy; // Renamed variable
@@ -1265,6 +1274,10 @@ export async function acceptTaskAction(
 
         const task = await getTaskById(taskId, userDid);
         if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16).
+        if (!isTaskInCircle(task, circle)) {
             return { success: false, message: "Task not found" };
         }
 
@@ -1352,6 +1365,10 @@ export async function submitTaskForReviewAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16).
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         if ((task.taskType ?? "outcome") === "shift") {
             return { success: false, message: "Shift tasks do not use submit-for-review" };
@@ -1435,6 +1452,10 @@ export async function requestTaskChangesAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         if ((task.taskType ?? "outcome") === "shift") {
             return { success: false, message: "Shift tasks do not use review change requests" };
@@ -1515,6 +1536,17 @@ export async function submitTaskClaimAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16).
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
+
+        // The task's audience, as for joining a shift (2026-11-15): someone who can't see the task
+        // (a follower who isn't crew, on a crew-only task) can't claim it either.
+        const visibleTasks = await filterTasksForViewer([task], userDid);
+        if (visibleTasks.length === 0) {
+            return { success: false, message: "Task not found" };
+        }
 
         if ((task.taskType ?? "outcome") === "shift") {
             return { success: false, message: "Shift tasks cannot be claimed" };
@@ -1588,6 +1620,10 @@ export async function reviewTaskClaimAction(
 
         const task = await getTaskById(taskId, userDid);
         if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
             return { success: false, message: "Task not found" };
         }
 
@@ -1768,6 +1804,10 @@ export async function joinShiftTaskAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16).
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         const visibleTasks = await filterTasksForViewer([task], userDid);
         if (visibleTasks.length === 0) {
@@ -1859,6 +1899,10 @@ export async function leaveShiftTaskAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16).
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         const visibleTasks = await filterTasksForViewer([task], userDid);
         if (visibleTasks.length === 0) {
@@ -1948,6 +1992,10 @@ export async function verifyShiftParticipantAction(
 
         const task = await getTaskById(taskId, userDid);
         if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
             return { success: false, message: "Task not found" };
         }
 
@@ -2055,6 +2103,10 @@ export async function reviewShiftAttendanceAction(
 
         const task = await getTaskById(taskId, userDid);
         if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
             return { success: false, message: "Task not found" };
         }
 
@@ -2172,6 +2224,10 @@ export async function changeTaskStageAction( // Renamed function
         if (!task) {
             // Renamed variable
             return { success: false, message: "Task not found" }; // Updated message
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
         }
 
         // --- Permission Checks based on transition ---
@@ -2293,6 +2349,10 @@ export async function assignTaskAction( // Renamed function
             // Renamed variable
             return { success: false, message: "Task not found" }; // Updated message
         }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         if ((task.taskType ?? "outcome") === "shift") {
             return { success: false, message: "Shift tasks do not use assignees" };
@@ -2385,10 +2445,27 @@ export async function ensureShadowPostForTaskAction(taskId: string, circleId: st
             return null;
         }
 
+        // Fix first (2026-11-15): this is a server action, so anyone could call it directly. Only a
+        // signed-in user who can see the task, and only for a task of the circle passed in. The
+        // task and shift pages call it right after getTaskAction, so they pass all three checks.
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) {
+            return null;
+        }
+
         const task = await Tasks.findOne({ _id: new ObjectId(taskId) });
 
         if (!task) {
             console.error(`Task not found: ${taskId}`);
+            return null;
+        }
+
+        if (String(task.circleId) !== circleId) {
+            return null;
+        }
+
+        const visibleTasks = await filterTasksForViewer([task as unknown as TaskDisplay], userDid);
+        if (visibleTasks.length === 0) {
             return null;
         }
 

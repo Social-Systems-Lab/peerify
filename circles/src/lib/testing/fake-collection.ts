@@ -73,6 +73,15 @@ const matchesCondition = (value: unknown, condition: unknown): boolean => {
                         return !matchesCondition(value, arg);
                     case "$size":
                         return Array.isArray(value) && value.length === arg;
+                    case "$elemMatch":
+                        return (
+                            Array.isArray(value) &&
+                            value.some((element) =>
+                                element && typeof element === "object" && !Array.isArray(element)
+                                    ? matchesFilter(element as Doc, arg as Doc)
+                                    : matchesCondition(element, arg),
+                            )
+                        );
                     case "$gt":
                     case "$gte":
                     case "$lt":
@@ -106,8 +115,7 @@ const applyProjection = (doc: Doc, projection?: Record<string, unknown>): Doc =>
         return { ...doc };
     }
     const idSpec = projection._id;
-    const picked: Doc =
-        idSpec === 0 ? {} : { _id: idSpec && typeof idSpec === "object" ? String(doc._id) : doc._id };
+    const picked: Doc = idSpec === 0 ? {} : { _id: idSpec && typeof idSpec === "object" ? String(doc._id) : doc._id };
     for (const key of Object.keys(projection)) {
         if (key === "_id" || !projection[key]) continue;
         const value = getPath(doc, key);
@@ -234,7 +242,8 @@ export const createFakeCollection = (initial: Doc[] = []) => {
                 found[key] = [...(Array.isArray(found[key]) ? found[key] : []), value];
             }
             for (const [key, value] of Object.entries(update.$pull ?? {})) {
-                if (Array.isArray(found[key])) found[key] = found[key].filter((item: unknown) => !valueEquals(item, value));
+                if (Array.isArray(found[key]))
+                    found[key] = found[key].filter((item: unknown) => !valueEquals(item, value));
             }
             return { matchedCount: 1, modifiedCount: 1 };
         },

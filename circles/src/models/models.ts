@@ -2185,6 +2185,10 @@ export interface TaskDisplay extends Task {
     event?: EventDisplay; // Associated event details
     // Set instead of participantNotes for viewers who aren't signed up (D3, shapeTaskNotesForViewer).
     participantNotesHidden?: boolean;
+    // Set for viewers who don't manage the task (2026-11-16): their participants[] holds only confirmed
+    // participants and their own entry, so the number of pending sign-ups (theirs included) comes here,
+    // for "N pending" and "full" (getShiftPendingCount / getShiftSignedUpCount).
+    pendingParticipantCount?: number;
 }
 
 export const fundingAskStatusSchema = z.enum(["draft", "open", "in_progress", "completed", "closed"]);

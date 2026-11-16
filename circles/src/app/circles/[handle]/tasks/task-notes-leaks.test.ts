@@ -83,7 +83,8 @@ describe("task notes (getTaskAction)", () => {
         expect(t?.title).toBe("Load the van");
         expect(text(t)).not.toContain(CLAIM_NOTE);
         expect(text(t)).not.toContain(ATTENDANCE_NOTE);
-        expect(t?.claims?.[0]?.claimantDid).toBe(CLAIMANT); // the claim itself stays
+        // Since 2026-11-16 a stranger gets no claims at all, not even who claimed (task-signups-private).
+        expect(t?.claims).toEqual([]);
     });
 
     test("the claimant sees their own claim note, not someone's attendance note", async () => {
