@@ -253,7 +253,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
         isShiftTask &&
         !isShiftParticipant &&
         shiftSlots > 0 &&
-        shiftParticipants.length < shiftSlots &&
+        signedUpShiftParticipantsCount < shiftSlots &&
         shiftDisplayStatus !== "review" &&
         shiftDisplayStatus !== "completed";
     const canLeaveShift =

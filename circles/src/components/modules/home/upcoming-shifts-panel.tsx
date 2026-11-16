@@ -4,7 +4,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import type { TaskDisplay } from "@/models/models";
-import { getShiftEndAt, getShiftStartAt } from "@/components/modules/tasks/shift-task-utils";
+import { getShiftEndAt, getShiftSignedUpCount, getShiftStartAt } from "@/components/modules/tasks/shift-task-utils";
 
 type UpcomingShiftsPanelVisibility = "visible" | "sign_in" | "members_only";
 
@@ -31,7 +31,7 @@ const formatShiftDateTime = (task: TaskDisplay) => {
 
 const getCapacityLabel = (task: TaskDisplay) => {
     const slots = task.slots ?? 0;
-    const signedUpCount = task.participants?.length ?? 0;
+    const signedUpCount = getShiftSignedUpCount(task);
 
     if (slots < 1) {
         return "Capacity to be confirmed";

@@ -176,9 +176,16 @@ export const filterTasksForViewer = async (tasks: TaskDisplay[], viewerDid?: str
  *   (tasks.review).
  * Crew-only shifts (audience set, without "everyone"; decision B, 2026-11-14): "people signed up"
  * above means confirmed participants only, and claimants don't get the exact location.
+ * Sign-ups and claims (Tim, 2026-11-16; the shift page says "A participant only appears publicly
+ * after admin confirmation"): the author also gets every participant and claim (notes as above).
+ * Everyone else gets only confirmed participants plus their own entry, their own claim and no
+ * other claims, and pendingParticipantCount (pending sign-ups, theirs included) for the counts the
+ * page shows. participantProfiles follows participants.
  */
 export const shapeTaskNotesForViewer = async <T extends TaskDisplay>(tasks: T[], viewerDid?: string): Promise<T[]> => {
     const hasRestricted = (task: T) =>
+        (task.claims ?? []).length > 0 ||
+        (task.participants ?? []).some((participant) => !participant.verifiedAt) ||
         !!task.location ||
         !!task.participantNotes ||
         !!task.reviewRequestedChangesNote ||
@@ -224,16 +231,30 @@ export const shapeTaskNotesForViewer = async <T extends TaskDisplay>(tasks: T[],
                     (claim) => claim.claimantDid === viewerDid && (claim.status === "pending" || claim.status === "approved"),
                 );
 
+            const isAuthor = !!viewerDid && task.createdBy === viewerDid;
+            const isOwn = (did: string) => !!viewerDid && did === viewerDid;
+
             const shaped: T = { ...task };
             if (task.claims) {
-                shaped.claims = task.claims.map(({ note, ...claim }) =>
-                    claim.claimantDid === viewerDid ? { ...claim, note } : claim,
-                );
+                shaped.claims = task.claims
+                    .filter((claim) => isAuthor || isOwn(claim.claimantDid))
+                    .map(({ note, ...claim }) => (isOwn(claim.claimantDid) ? { ...claim, note } : claim));
             }
             if (task.participants) {
-                shaped.participants = task.participants.map(({ attendanceNote, ...participant }) =>
-                    participant.userDid === viewerDid ? { ...participant, attendanceNote } : participant,
-                );
+                shaped.participants = task.participants
+                    .filter((participant) => isAuthor || !!participant.verifiedAt || isOwn(participant.userDid))
+                    .map(({ attendanceNote, ...participant }) =>
+                        isOwn(participant.userDid) ? { ...participant, attendanceNote } : participant,
+                    );
+                if (!isAuthor) {
+                    shaped.pendingParticipantCount = task.participants.filter((p) => !p.verifiedAt).length;
+                    if (task.participantProfiles) {
+                        const kept = new Set(shaped.participants.map((participant) => participant.userDid));
+                        shaped.participantProfiles = task.participantProfiles.filter((profile) =>
+                            kept.has(profile.did as string),
+                        );
+                    }
+                }
             }
             if (task.location && !(isMine || isParticipant || isClaimant)) {
                 shaped.location = toPublicLocation(

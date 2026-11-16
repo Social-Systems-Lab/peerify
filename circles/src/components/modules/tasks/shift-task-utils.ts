@@ -71,23 +71,29 @@ export const getShiftDisplayStatus = (task: ShiftTaskLike, now = new Date()): Sh
     return "inProgress";
 };
 
-export const getShiftSignupSummary = (task: Pick<Task, "participants" | "slots">) => {
-    const signedUpCount = task.participants?.length ?? 0;
+// Counts (2026-11-16): a viewer who doesn't manage the task gets only confirmed participants and their
+// own entry in participants[], plus pendingParticipantCount; managers get every entry and no count.
+type ShiftCountable = Pick<Task, "participants"> & { pendingParticipantCount?: number };
+
+export const getShiftSignupSummary = (task: ShiftCountable & Pick<Task, "slots">) => {
+    const signedUpCount = getShiftSignedUpCount(task);
     return `${signedUpCount} / ${task.slots ?? "?"} signed up`;
 };
-
-export const getShiftSignedUpCount = (task: Pick<Task, "participants">) => task.participants?.length ?? 0;
 
 export const getShiftConfirmedCount = (task: Pick<Task, "participants">) =>
     task.participants?.filter((participant) => participant.verifiedAt).length ?? 0;
 
-export const getShiftPendingCount = (task: Pick<Task, "participants">) =>
-    task.participants?.filter((participant) => !participant.verifiedAt).length ?? 0;
+export const getShiftPendingCount = (task: ShiftCountable) =>
+    task.pendingParticipantCount ??
+    task.participants?.filter((participant) => !participant.verifiedAt).length ??
+    0;
+
+export const getShiftSignedUpCount = (task: ShiftCountable) => getShiftConfirmedCount(task) + getShiftPendingCount(task);
 
 export const getShiftConfirmedSummary = (task: Pick<Task, "participants" | "slots">) =>
     `${getShiftConfirmedCount(task)} / ${task.slots ?? "?"} confirmed`;
 
-export const getShiftPendingSummary = (task: Pick<Task, "participants">) => {
+export const getShiftPendingSummary = (task: ShiftCountable) => {
     const pendingCount = getShiftPendingCount(task);
     if (!pendingCount) {
         return null;
