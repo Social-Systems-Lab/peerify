@@ -38,3 +38,24 @@ export const buildEventShareText = (event: ShareableEvent, url: string): string 
 export const buildEventSharePayload = (event: ShareableEvent, url: string): ShareData => ({
     text: buildEventShareText(event, url),
 });
+
+// Desktop or phone (Tim, 2026-11-15): one "Share" button. A phone or tablet (touch first, and a share
+// sheet exists) opens the share sheet with the text above; everything else, desktop included even
+// where the browser has a share sheet (Safari on the Mac), opens a small dialog with the link and a
+// "Copy" button, like "Invite people to the circle".
+export type EventShareMode = "sheet" | "dialog";
+
+export const TOUCH_FIRST_QUERY = "(hover: none) and (pointer: coarse)";
+
+export const chooseEventShareMode = (env: { canShare: boolean; touchFirst: boolean }): EventShareMode =>
+    env.canShare && env.touchFirst ? "sheet" : "dialog";
+
+// Read at click time in the browser; anything missing counts as desktop.
+export const detectEventShareMode = (
+    nav: { share?: unknown } | undefined,
+    matchMedia: ((query: string) => { matches: boolean }) | undefined,
+): EventShareMode =>
+    chooseEventShareMode({
+        canShare: typeof nav?.share === "function",
+        touchFirst: typeof matchMedia === "function" && matchMedia(TOUCH_FIRST_QUERY).matches,
+    });
