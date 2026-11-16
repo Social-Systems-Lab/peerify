@@ -49,6 +49,7 @@ import {
 import { getMember, getMembers, getMemberIdsByUserGroup } from "@/lib/data/member"; // Will be created in member.ts
 import { updateAggregateRankCache } from "@/lib/data/ranking"; // Import cache update function
 import { getCirclesByDids } from "@/lib/data/circle";
+import { isTaskInCircle } from "@/lib/tasks/task-circle";
 import { taskMessage, taskNoun } from "@/lib/tasks/task-messages";
 import { listAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 // Import task notification functions (assuming they will be created)
@@ -1143,6 +1144,10 @@ export async function updateTaskPriorityAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         const isAuthor = userDid === task.createdBy;
         const canModerate = await isAuthorized(userDid, circle._id as string, features.tasks?.moderate);
@@ -1204,6 +1209,10 @@ export async function deleteTaskAction( // Renamed function
         if (!task) {
             // Renamed variable
             return { success: false, message: "Task not found" }; // Updated message
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
         }
 
         // Check permissions: Author or Moderator? (Placeholder feature handle)
@@ -1435,6 +1444,10 @@ export async function requestTaskChangesAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         if ((task.taskType ?? "outcome") === "shift") {
             return { success: false, message: "Shift tasks do not use review change requests" };
@@ -1595,6 +1608,10 @@ export async function reviewTaskClaimAction(
 
         const task = await getTaskById(taskId, userDid);
         if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
             return { success: false, message: "Task not found" };
         }
 
@@ -1957,6 +1974,10 @@ export async function verifyShiftParticipantAction(
         if (!task) {
             return { success: false, message: "Task not found" };
         }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
 
         if ((task.taskType ?? "outcome") !== "shift") {
             return { success: false, message: "Only shift tasks support participant verification" };
@@ -2062,6 +2083,10 @@ export async function reviewShiftAttendanceAction(
 
         const task = await getTaskById(taskId, userDid);
         if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
             return { success: false, message: "Task not found" };
         }
 
@@ -2179,6 +2204,10 @@ export async function changeTaskStageAction( // Renamed function
         if (!task) {
             // Renamed variable
             return { success: false, message: "Task not found" }; // Updated message
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
         }
 
         // --- Permission Checks based on transition ---
@@ -2299,6 +2328,10 @@ export async function assignTaskAction( // Renamed function
         if (!task) {
             // Renamed variable
             return { success: false, message: "Task not found" }; // Updated message
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
         }
 
         if ((task.taskType ?? "outcome") === "shift") {
