@@ -22,9 +22,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - `ensureCircleConversationAction` (`components/modules/chat/actions.ts` ~283) lets anyone, even signed out, create an empty conversation document for any circle id. It should require sign-in and membership;
   - the venue/circle members chat room can't be opened by anyone (no participants are ever added to its conversation). Decide in the UX month whether to fix it or remove it.
 - **Security fix LIVE on prod (2026-11-14, `68d0dfa0`):** a moderator can no longer grant `admins` (the `??` precedence bug in `safeModifyMemberUserGroups`). See the 2026-11-14 (cont.) entry.
-- **Released 2026-11-14 (`68d0dfa0`):** the comment-author fix (`22665e07`, `3890af70`) and both clean-up scripts are now on prod. **Next for Tim:** run both run sheets on prod (staging first where the sheet says so):
-  - comment and notification clean-up (`scripts/cleanup-comment-authors.ts`, `IMY_CLEARED=yes` for the notifications part), run sheet in `20261109-1239-comment-author-cleanup.tar.gz`;
-  - public-leftovers delete (`scripts/delete-public-leftovers.ts`), run sheet in `20261109-1119-public-leftovers.tar.gz`.
+- **CLEAN-UP COMMITMENT DONE (2026-11-17, before the 30 November commitment to IMY):** stored comment author copies, old notification content and the public-bucket leftovers are cleaned on prod and staging, all at 0 afterwards (see the 2026-11-17 (cont.) entry). **Backup copies made before the clean-up still hold the old data and expire within 29 days, by about 2026-12-16.** The manual dumps in prod's `~/backups` hold it too until they are shredded (DELETE-BY 2026-12-02 at the latest).
 - **Still open (see also the items below):**
   - the staging restore rehearsal;
   - the standing privacy check;
@@ -32,9 +30,9 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - the UX month: pin design (with storage step 2), an event-location session, the AI content declaration, performance quick wins.
 - **Storage steps on prod: 4, 5 and 6 DONE; step 2 held** for the UX month's pin design.
   - Step 5 finished 2026-11-09 ~09:45 UTC; step 6 (`53e81692`, `/storage` and `/uploads` refuse `offer-photo*` and `verification-attachment*` names) live since ~11:02 UTC. See the 2026-11-09 (cont.) entries.
-  - **Leftovers** (private-type names still in the public buckets, 404 since step 6): delete script `1c830a8b` on prod since 2026-11-14 (`68d0dfa0`). Next, Tim runs the prod listing, dry run and delete (package `20261109-1119-public-leftovers.tar.gz`). Staging: 3 left, all mentioned only by stale snapshots in `comments`/`notifications` (see the 2026-11-09 (cont. 4) entry), so kept for now.
-- **Stored comment author copies:** fix and clean-up script **on staging** since 2026-11-09 (`22665e07`, `3890af70`, `9eb9bc23`; reviewed by Tim, branch `fix/comment-author-not-stored` rebased onto staging). Next: Tim deploys staging and runs the comment part (run sheet in `20261109-1239-comment-author-cleanup.tar.gz`; the commit ids there are the pre-rebase `3c33dba1`, `91575fb4`, `2cd873f7`; same code, same script hash `59ed789b…`), then prod (the code is on prod since 2026-11-14, `68d0dfa0`).
-  - **The notification clean-up is CLEARED (2026-11-14).** IMY replied that it sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident (IMY-2026-19477). The script's `--notifications` part may now run with `IMY_CLEARED=yes`: on staging first, then on prod (released 2026-11-14). Tim sets the variable; the dry run and the `EXPECT_NOTIFICATION_COUNT` rule stay as before.
+  - **Leftovers** (private-type names still in the public buckets, 404 since step 6): **DONE 2026-11-17.** Prod 1 offer photo deleted (263 → 262 objects), staging 3; 0 left on both.
+- **Stored comment author copies: DONE 2026-11-17** on prod (5 removed) and staging (26 removed), 0 left. The fix (`22665e07`) has been on prod since 2026-11-14 (`68d0dfa0`), so no new copies are stored.
+  - **Notification clean-up: DONE 2026-11-17** (cleared by IMY's reply of 2026-11-14, IMY-2026-19477): prod 224 reduced, staging 155; 0 left on both.
 - **Old box unreachable** (2026-11-02): the 48-hour step is split, and the 7-day items wait. See PEERIFY_CONTEXT, Infrastructure, "Post-cutover follow-ups".
 - **ORPHANED-CIRCLES ISSUE:** still open. Phase 0 (block deleting an account that is the sole admin of a circle) went to staging on 2026-08-02. This log doesn't record whether it reached prod later, so check before relying on it. Phase 1/2 aren't done. See the 2026-08-02 (cont. 6) entry.
 - Personal-profile participation needs picture + About text + Community Guidelines. `getVerificationReadiness` is the single source of truth (2026-08-02 entry).
@@ -50,7 +48,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **IMY:** the new notification was submitted by Tim on 2026-11-08 at about 05:15 UTC, before the deadline. It refers to **IMY-2026-19477**. The supplement (M findings and the followers change) is drafted from `20261107-1242-r3-medium-final` and `20261107-1615-followers-count-only-final`.
   - **IMY reply (logged 2026-11-14):** IMY sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident. This clears the notification clean-up (see "Stored comment author copies" above).
     - **Affected members' email:** Tim sends it on 2026-11-14, as individual emails to the affected people.
-    - **Supplement:** not due now, since the case is closed. It is planned for later as a short closing note to IMY, once the notification clean-up and database authentication are done on prod.
+    - **Supplement:** not due now, since the case is closed. It is planned for later as a short closing note to IMY, once database authentication is confirmed done on prod (the notification clean-up is done since 2026-11-17).
   - **Live on prod:**
     - containment C1–C4, since 2026-11-05 08:51 UTC (`f67ab5ea`);
     - H3–H7 and H9, since 2026-11-06 05:52 UTC (`44bb7e4b`);
@@ -64,6 +62,25 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-17 (cont.) — Clean-up done on prod and staging (commitment to IMY)
+
+Run by Tim with run sheet `20261117-0459-cleanup-runsheet.tar.gz`, staging first, then prod, the same day. Scripts as deployed in `ac61f445` (`cleanup-comment-authors.ts` `59ed789b…`, `delete-public-leftovers.ts` `bd6cc124…`).
+
+- **Prod:**
+  - **Backup first:** a fresh `pre-cleanup` backup, snapshots `ac994421`, `1f86b535`, `6c6063b9`, `cf5fae77`, `163f9d3d`. This is the rollback point.
+  - **Comments:** 5 author copies removed, 0 left.
+  - **Notifications** (`IMY_CLEARED=yes`): 224 reduced, 0 changed meanwhile, 0 left. That matches Tim's earlier figure of 224.
+  - **Public leftovers:** 1 offer photo deleted (263 → 262 objects in `circles`), 0 left.
+  - **Browser checks passed:** comments still show names and pictures, a new comment works, and the bell shows old notifications.
+- **Staging:** 26 comments, 155 notifications, 3 leftovers (the offer photos only the old copies mentioned). All at 0 afterwards, and the browser checks passed.
+- **The commitment** (clean-up before 30 November) is **DONE** for the live systems.
+- **Backups:**
+  - Backup copies made before the clean-up still hold the old data. That includes the nightly snapshots and the `pre-cleanup` snapshots above. They expire within 29 days, **by about 2026-12-16**.
+  - The manual dumps in prod's `~/backups` also hold it. They may be shredded now (allowed since 2026-11-14), and at the latest by their DELETE-BY dates (`mongo-prod-20261102T151723Z`: 2026-12-02).
+- **Still open toward IMY:** database authentication on prod. Tim runs the read-only checks A–D in `DB-AUTH-STATUS.md` of the same package. Then the short closing note to IMY.
 
 ---
 
