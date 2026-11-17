@@ -70,6 +70,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 ## 2026-11-17 — Release: prod = `ac61f445`
 
 - Tim released `ac61f445` to prod and confirmed it. `/api/version`: prod `ac61f445` (built 2026-11-17 04:25 UTC), staging `ac61f445` (built 2026-11-16 10:29 UTC). `origin/main` = `ac61f445`.
+- **Staging check before the release (Tim, on staging `ac61f445`):** passed. One Share button with the copy dialog on the Mac; a pending sign-up was hidden from another user and visible to the person themselves and to Tim as admin; confirming the sign-up and changing the priority worked.
 - **Now live on prod:** one Share button (share sheet on phones, link dialog elsewhere); the 13 task/shift actions check the task's own circle; pending sign-ups and claims go only to managers and the person concerned; claims check the task's audience; the shadow comment post needs sign-in, the task's circle and view rights; the read-only `scripts/check-cross-circle-task-actions.ts`.
 - **Still open from this work:** `ensureShadowPostForTaskAction` uses any feed of the circle (low); `getActiveTasksByCircleId` is unfiltered (ids only); `ensureCircleConversationAction` should require sign-in and membership; the altcha test timeout.
 
