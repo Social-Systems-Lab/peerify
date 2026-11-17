@@ -22,7 +22,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - `ensureCircleConversationAction` (`components/modules/chat/actions.ts` ~283) lets anyone, even signed out, create an empty conversation document for any circle id. It should require sign-in and membership;
   - the venue/circle members chat room can't be opened by anyone (no participants are ever added to its conversation). Decide in the UX month whether to fix it or remove it.
 - **Security fix LIVE on prod (2026-11-14, `68d0dfa0`):** a moderator can no longer grant `admins` (the `??` precedence bug in `safeModifyMemberUserGroups`). See the 2026-11-14 (cont.) entry.
-- **CLEAN-UP COMMITMENT DONE (2026-11-17, before the 30 November commitment to IMY):** stored comment author copies, old notification content and the public-bucket leftovers are cleaned on prod and staging, all at 0 afterwards (see the 2026-11-17 (cont.) entry). **Backup copies made before the clean-up still hold the old data and expire within 29 days, by about 2026-12-16.** The manual dumps in prod's `~/backups` hold it too until they are shredded (DELETE-BY 2026-12-02 at the latest).
+- **CLEAN-UP COMMITMENT DONE (2026-11-17, before the 30 November commitment to IMY):** stored comment author copies, old notification content and the public-bucket leftovers are cleaned on prod and staging, all at 0 afterwards (see the 2026-11-17 (cont.) entry). **Backup copies made before the clean-up still hold the old data and expire within 29 days, by about 2026-12-16.** The manual dumps in prod's `~/backups` are already deleted (Tim, 2026-11-17), and staging has none.
 - **Still open (see also the items below):**
   - the staging restore rehearsal;
   - the standing privacy check;
@@ -41,7 +41,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **Backups:** live on both boxes since 2026-11-07 (nightly, prod 02:30, staging ~03:30; restic to Cleura Kna1, repos `peerify-backup-prod` / `-staging`, config in `/etc/peerify-backup`). Restore tests (see the 2026-11-08 and 2026-11-09 entries):
   - **Prod on-box check: passed on 2026-11-09** (`restic check --read-data` clean; database, key files and buckets restored identical). The scripts are on prod since 2026-11-14 (`68d0dfa0`); next time, use runbook section 6.
   - **Staging rehearsal:** not done yet. Possible from 2026-11-09, after tonight's backup records `fbb9ca9a`.
-  - **Prod's manual `~/backups`:** the on-box check has passed, so they can be shredded once prod has had 7 good nights (from 2026-11-14), and never later than their DELETE-BY dates.
+  - **Prod's manual `~/backups`: DONE.** Deleted by Tim (reported 2026-11-17): 9 mongo and 9 data archives, from 2026-11-01 to 2026-11-09. Staging has none.
   - **Installed copies:** refresh them on staging now (`fbb9ca9a` is deployed), and on prod now that `68d0dfa0` is deployed. The commands are in the 2026-11-08 entry.
   - **After that:** the erasure log (not built), then the registry question.
 - **PERSONAL-DATA BREACH, leak round 3 (found 2026-11-05 ~05:28 UTC):**
@@ -70,7 +70,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 Run by Tim with run sheet `20261117-0459-cleanup-runsheet.tar.gz`, staging first, then prod, the same day. Scripts as deployed in `ac61f445` (`cleanup-comment-authors.ts` `59ed789b…`, `delete-public-leftovers.ts` `bd6cc124…`).
 
 - **Prod:**
-  - **Backup first:** a fresh `pre-cleanup` backup, snapshots `ac994421`, `1f86b535`, `6c6063b9`, `cf5fae77`, `163f9d3d`. This is the rollback point.
+  - **Backup first:** a fresh `pre-cleanup` backup, snapshots `ac994421`, `1f86b535`, `6c6063b9`, `cf5fae77`, `163f9d3d`, all from one run. The database part makes one snapshot per database (`circles` and `admin`), so one run gives five, not four as the run sheet said. This is the rollback point.
   - **Comments:** 5 author copies removed, 0 left.
   - **Notifications** (`IMY_CLEARED=yes`): 224 reduced, 0 changed meanwhile, 0 left. That matches Tim's earlier figure of 224.
   - **Public leftovers:** 1 offer photo deleted (263 → 262 objects in `circles`), 0 left.
@@ -79,7 +79,7 @@ Run by Tim with run sheet `20261117-0459-cleanup-runsheet.tar.gz`, staging first
 - **The commitment** (clean-up before 30 November) is **DONE** for the live systems.
 - **Backups:**
   - Backup copies made before the clean-up still hold the old data. That includes the nightly snapshots and the `pre-cleanup` snapshots above. They expire within 29 days, **by about 2026-12-16**.
-  - The manual dumps in prod's `~/backups` also hold it. They may be shredded now (allowed since 2026-11-14), and at the latest by their DELETE-BY dates (`mongo-prod-20261102T151723Z`: 2026-12-02).
+  - **The manual dumps in prod's `~/backups` are already deleted** (Tim: 9 mongo and 9 data archives, from 2026-11-01 to 2026-11-09). Staging has none. So once the pre-clean-up snapshots expire (by about 2026-12-16), no backup copy known to this log holds the old data.
 - **Still open toward IMY:** database authentication on prod. Tim runs the read-only checks A–D in `DB-AUTH-STATUS.md` of the same package. Then the short closing note to IMY.
 
 ---
