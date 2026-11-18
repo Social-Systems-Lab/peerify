@@ -185,3 +185,10 @@ export const formatShiftDayAndTimes = (task: Pick<Task, "targetDate" | "shiftSta
 // Tasks list, due date column (shift dates 5/5): "6 Dec 2026", the calendar date in the zone.
 export const formatTaskListDate = (value?: Date | string | null) =>
     formatCalendarDate(value, "d MMM yyyy") ?? "No due date";
+
+// The hint where "Important for participants" is held back (Tim, 2026-11-18): signing up isn't
+// enough on a crew-only shift (decision B: confirmed participants only).
+export const getParticipantNotesHiddenHint = (isSignedUp: boolean) =>
+    isSignedUp
+        ? "Details for participants appear once an organiser confirms your sign-up."
+        : "Details for participants appear once you’re confirmed.";
