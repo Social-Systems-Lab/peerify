@@ -50,6 +50,8 @@ import { getMember, getMembers, getMemberIdsByUserGroup } from "@/lib/data/membe
 import { updateAggregateRankCache } from "@/lib/data/ranking"; // Import cache update function
 import { getCirclesByDids } from "@/lib/data/circle";
 import { isTaskInCircle } from "@/lib/tasks/task-circle";
+import { ALL_PLACES_CONFIRMED, confirmedBelowSlotsFilter } from "@/lib/tasks/shift-capacity";
+import { getShiftConfirmedCount } from "@/components/modules/tasks/shift-task-utils";
 import { taskMessage, taskNoun } from "@/lib/tasks/task-messages";
 import { listAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 // Import task notification functions (assuming they will be created)
@@ -2014,6 +2016,12 @@ export async function verifyShiftParticipantAction(
             return { success: true, message: "Participant already verified" };
         }
 
+        // Confirm cap (Crew round 2): confirmations never exceed places. Checked here for the message, and
+        // again in the write's filter so two confirms at the same moment can't go over.
+        if (getShiftConfirmedCount(task) >= (task.slots ?? 0)) {
+            return { success: false, message: ALL_PLACES_CONFIRMED };
+        }
+
         const now = new Date();
         const result = await Tasks.updateOne(
             {
@@ -2025,6 +2033,7 @@ export async function verifyShiftParticipantAction(
                         verifiedAt: { $exists: false },
                     },
                 },
+                ...confirmedBelowSlotsFilter(),
             },
             {
                 $set: {
@@ -2036,6 +2045,14 @@ export async function verifyShiftParticipantAction(
         );
 
         if (!result.modifiedCount) {
+            // Lost a race: if the places filled meanwhile, say so.
+            const latest = await Tasks.findOne(
+                { _id: new ObjectId(taskId) },
+                { projection: { slots: 1, participants: 1 } },
+            );
+            if (latest && getShiftConfirmedCount(latest as Task) >= ((latest as Task).slots ?? 0)) {
+                return { success: false, message: ALL_PLACES_CONFIRMED };
+            }
             return { success: false, message: "Unable to verify this participant right now" };
         }
 

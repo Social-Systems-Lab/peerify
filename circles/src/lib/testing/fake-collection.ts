@@ -5,7 +5,9 @@
 // find() with sort/limit/project, inclusion projections (dotted paths too), countDocuments, insertOne
 // (adds an ObjectId _id when there is none), deleteOne, deleteMany,
 // and updateOne ($set, $unset, $addToSet, $push (top-level, single value), $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
-// between its match and its write).
+// between its match and its write). $set takes dotted paths and the positional "$" (the first element
+// that the filter's $elemMatch or "array.field" condition matched). A top-level $expr supports the few
+// aggregation operators listed in evalExpr.
 
 import { ObjectId } from "mongodb";
 
@@ -100,8 +102,80 @@ const matchesCondition = (value: unknown, condition: unknown): boolean => {
     return valueEquals(value, condition);
 };
 
+const isMissing = (value: unknown) => value === null || value === undefined;
+
+// Aggregation expressions, as far as $expr in the code under test needs them: "$field.path",
+// "$$variable.path", literals, $lt/$lte/$gt/$gte/$eq/$ne, $size, $filter, $ifNull, $and/$or/$not.
+const evalExpr = (doc: Doc, expr: unknown, vars: Record<string, unknown> = {}): unknown => {
+    if (typeof expr === "string" && expr.startsWith("$$")) {
+        const [name, ...rest] = expr.slice(2).split(".");
+        const value = vars[name];
+        return rest.length ? getPath(value as Doc, rest.join(".")) : value;
+    }
+    if (typeof expr === "string" && expr.startsWith("$")) {
+        return getPath(doc, expr.slice(1));
+    }
+    if (Array.isArray(expr)) {
+        return expr.map((item) => evalExpr(doc, item, vars));
+    }
+    if (!isOperatorObject(expr)) {
+        return expr;
+    }
+    const [op, arg] = Object.entries(expr as Doc)[0];
+    const args = () => (arg as unknown[]).map((item) => evalExpr(doc, item, vars));
+    const truthy = (value: unknown) => !isMissing(value) && value !== false && value !== 0;
+    switch (op) {
+        case "$lt":
+        case "$lte":
+        case "$gt":
+        case "$gte":
+        case "$eq":
+        case "$ne": {
+            const [a, b] = args();
+            // As in MongoDB's order, null and missing come before numbers and dates.
+            const rank = (value: unknown) =>
+                isMissing(value) ? -Infinity : value instanceof Date ? value.getTime() : (value as number);
+            const x = rank(a);
+            const y = rank(b);
+            if (op === "$lt") return x < y;
+            if (op === "$lte") return x <= y;
+            if (op === "$gt") return x > y;
+            if (op === "$gte") return x >= y;
+            if (op === "$eq") return x === y;
+            return x !== y;
+        }
+        case "$size": {
+            const value = evalExpr(doc, arg, vars);
+            if (!Array.isArray(value)) throw new Error("fake-collection: $size of a non-array");
+            return value.length;
+        }
+        case "$filter": {
+            const { input, as, cond } = arg as { input: unknown; as: string; cond: unknown };
+            const list = evalExpr(doc, input, vars);
+            if (!Array.isArray(list)) throw new Error("fake-collection: $filter of a non-array");
+            return list.filter((item) => truthy(evalExpr(doc, cond, { ...vars, [as]: item })));
+        }
+        case "$ifNull": {
+            const values = args();
+            return values.find((value) => !isMissing(value)) ?? values[values.length - 1];
+        }
+        case "$and":
+            return args().every(truthy);
+        case "$or":
+            return args().some(truthy);
+        case "$not":
+            return !truthy(Array.isArray(arg) ? args()[0] : evalExpr(doc, arg, vars));
+        default:
+            throw new Error(`fake-collection: unsupported expression operator ${op}`);
+    }
+};
+
 export const matchesFilter = (doc: Doc, filter: Doc): boolean =>
     Object.entries(filter).every(([key, condition]) => {
+        if (key === "$expr") {
+            const value = evalExpr(doc, condition);
+            return !isMissing(value) && value !== false && value !== 0;
+        }
         if (key === "$or") return (condition as Doc[]).some((sub) => matchesFilter(doc, sub));
         if (key === "$and") return (condition as Doc[]).every((sub) => matchesFilter(doc, sub));
         if (key === "$nor") return !(condition as Doc[]).some((sub) => matchesFilter(doc, sub));
@@ -130,6 +204,49 @@ const applyProjection = (doc: Doc, projection?: Record<string, unknown>): Doc =>
         target[parts[parts.length - 1]] = value;
     }
     return picked;
+};
+
+// The index the positional "$" stands for in "array.$.field": the first element of `array` that the
+// filter's condition on it matched ($elemMatch, or "array.field" equality/operators).
+const positionalIndex = (doc: Doc, filter: Doc, arrayKey: string): number => {
+    const list = getPath(doc, arrayKey);
+    if (!Array.isArray(list)) return -1;
+    const direct = filter[arrayKey];
+    if (direct && typeof direct === "object" && "$elemMatch" in direct) {
+        return list.findIndex((element) => matchesFilter(element as Doc, (direct as Doc).$elemMatch));
+    }
+    const prefix = `${arrayKey}.`;
+    const subFilter = Object.fromEntries(
+        Object.entries(filter)
+            .filter(([key]) => key.startsWith(prefix))
+            .map(([key, value]) => [key.slice(prefix.length), value]),
+    );
+    if (Object.keys(subFilter).length === 0) return -1;
+    return list.findIndex((element) => matchesFilter(element as Doc, subFilter));
+};
+
+// Replaces each positional "$" with the matched index, worked out on the document before any write
+// (as MongoDB does), so a $set of several "list.$.x" keys all land on the same element.
+const resolvePositional = (doc: Doc, filter: Doc, key: string): string => {
+    const parts = key.split(".");
+    return parts
+        .map((part, i) => {
+            if (part !== "$") return part;
+            const index = positionalIndex(doc, filter, parts.slice(0, i).join("."));
+            if (index === -1) throw new Error(`fake-collection: no element for the positional $ in ${key}`);
+            return String(index);
+        })
+        .join(".");
+};
+
+// $set of a dotted path ("a.b", "list.2.field"), creating objects on the way.
+const setPath = (doc: Doc, key: string, value: unknown) => {
+    const parts = key.split(".");
+    let target: any = doc;
+    for (const part of parts.slice(0, -1)) {
+        target = target[part] ??= {};
+    }
+    target[parts[parts.length - 1]] = value;
 };
 
 export const createFakeCollection = (initial: Doc[] = []) => {
@@ -222,12 +339,15 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             if (!found) {
                 return { matchedCount: 0, modifiedCount: 0 };
             }
-            for (const [key, value] of Object.entries(update.$set ?? {})) {
+            const sets = Object.entries(update.$set ?? {}).map(
+                ([key, value]) => [resolvePositional(found, filter, key), value] as const,
+            );
+            for (const [key, value] of sets) {
                 if (value === undefined) {
                     // The real driver (no ignoreUndefined) would store null here; fail loudly instead.
                     throw new Error(`fake-collection: explicit undefined written to ${key}`);
                 }
-                found[key] = value;
+                setPath(found, key, value);
             }
             // Top-level fields only.
             for (const key of Object.keys(update.$unset ?? {})) {

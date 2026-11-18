@@ -93,6 +93,7 @@ import {
     getShiftSignedUpCount,
     isShiftTask as isShiftTaskItem,
 } from "./shift-task-utils";
+import { ALL_PLACES_CONFIRMED } from "@/lib/tasks/shift-capacity";
 import { getShiftStageInfo, getTaskPriorityInfo, getTaskStageInfo, getTaskWorkflowStatusBadge } from "./task-ui";
 import { getOutcomeTaskCompletionPlan } from "@/lib/task-completion-policy";
 
@@ -263,6 +264,8 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
         shiftDisplayStatus !== "review" &&
         shiftDisplayStatus !== "completed";
     const canVerifyShiftParticipants = isShiftTask && permissions.canModerate;
+    // Confirm cap (Crew round 2): confirmations never exceed places; the server refuses too.
+    const shiftPlacesAllConfirmed = isShiftTask && verifiedShiftParticipantsCount >= (task.slots ?? 0);
     const canReviewShiftAttendance = isShiftTask && permissions.canModerate && shiftDisplayStatus === "completed";
     const shiftHeroImage = isShiftTask && task.images && task.images.length > 0 ? task.images[0] : null;
     const attendeeVisibilityDidSet = new Set([currentUserDid, ...acceptedConnectionDids]);
@@ -1516,7 +1519,8 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                                                                     });
                                                                 })
                                                             }
-                                                            disabled={isPending}
+                                                            disabled={isPending || shiftPlacesAllConfirmed}
+                                                            title={shiftPlacesAllConfirmed ? ALL_PLACES_CONFIRMED : undefined}
                                                         >
                                                             {isPending ? (
                                                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1530,6 +1534,11 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                                     </div>
                                 ) : (
                                     <div className="mt-3 text-sm text-muted-foreground">No pending sign-ups.</div>
+                                )}
+                                {canVerifyShiftParticipants && shiftPlacesAllConfirmed && pendingShiftParticipants.length > 0 && (
+                                    <div className="mt-3 text-sm text-muted-foreground">
+                                        {ALL_PLACES_CONFIRMED}. Raise the number of places to confirm more people.
+                                    </div>
                                 )}
                             </div>
                         )}
