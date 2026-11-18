@@ -8,13 +8,17 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = staging = `main` = `ac61f445`** (released 2026-11-17; Tim confirmed prod, and `/api/version` on both reports `ac61f445`). `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **Prod = `main` = `ac61f445`** (released 2026-11-17; Tim confirmed prod, and `/api/version` reported `ac61f445` on both). **The `staging` branch is ahead:** Crew round 2 is merged (`e2c5550d` part 1, `a20762f1` part 2) plus this log entry; deploying it to staging is Tim's step. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
 - **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. **Also live since `60108f48`:** the crew UI polish (6 items, `29fcd32f`..`e36894f6`). **Also live since `ac61f445` (2026-11-17):** one Share button (`fix/share-simple`) and the task fixes (`fix/task-actions-circle-check`). See the 2026-11-15 entries.
 - **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (it also covers a personal profile's Circles list, owner-only since `e4973b87`: default only me, options Contacts or Public) (design direction in the 2026-11-15 (cont.) entry).
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
 - **SECURITY (2026-11-16):** the cross-circle gap in 13 task/shift actions is fixed, together with private pending sign-ups and claims, and **LIVE on prod since 2026-11-17 (`ac61f445`)**. Tim's read-only prod check before the release found **nothing flagged** (53 tasks read).
 - **DESIGN DIRECTION: "Asks"** in the Crew feed (2026-11-15 (cont. 5); Tim's answers 2026-11-16). They are **built after the home show**; until then artists use ordinary Crew posts.
-- **NEXT BUILD: Crew round 2, before the home show on 6 Dec** (decisions F1–F8 approved 2026-11-18; not started). Two features: the "Shifts & tasks" view on the Crew page (my shifts, then open shifts by event) and the Crew Dashboard, and more sign-ups than places while nothing is confirmed. The 9-commit build plan is in the 2026-11-18 (cont.) entry; the report is `crew-r2-investigation.tar.gz`.
+- **Crew round 2, for the home show on 6 Dec: BUILT and MERGED to `staging` (2026-11-18); BROWSER TESTS PENDING.**
+  - What's in it: more sign-ups than places with the confirm cap, decline, and the "Shifts & tasks" view on the Crew page and the Crew Dashboard. Part 1 is `e2c5550d`, part 2 is `a20762f1`.
+  - **Next:** Tim deploys staging and runs the browser test lists (part 1 in `crew-r2-part1.tar.gz`, part 2 in `crew-r2-part2.tar.gz`). Then the release to prod.
+  - Optional: run the read-only `scripts/count-null-signup-fields.mongosh.js` on staging and prod.
+  - See the 2026-11-18 (cont. 2) entry.
   - Its personal counterpart, later: **"My Crews"** on the personal profile, owner only: upcoming shifts across all crews plus those crews' broadcasts in one feed (2026-11-15 (cont. 4)).
 - **LATER:**
   - the event audience picker should always be available, not only after ticking "Share on Noticeboard";
@@ -63,6 +67,97 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-18 (cont. 2) — Crew round 2: built, merged to staging; browser tests pending
+
+**State:**
+- Built on `feature/crew-r2` from `staging` at `2f725519`, following the 9-commit plan in the entry below, with decisions F1–F8 as recommended.
+- **Merged to `staging` and pushed in two steps:**
+  - part 1: `e2c5550d` (commits 1–4, the fixes and the new wording);
+  - part 2: `a20762f1` (commits 5–8).
+  - Each merged tree is identical to the tested branch head.
+- **Not deployed by Claude.** Tim deploys staging.
+- **Browser tests: PENDING.** The lists are in the reports: part 1, 13 steps; part 2, 11 steps.
+- No database commands were run.
+
+**Reports:**
+- `~/cc-reports/outbox/crew-r2-part1.tar.gz`: commits 1–4.
+- `~/cc-reports/outbox/crew-r2-part2.tar.gz`: the fixes, the null check, and commits 5–8.
+
+**Checks:**
+- every commit had a test that fails before it and passes after;
+- tsc shows only the old `peerify-backup.test.ts(133,9)` error;
+- eslint is clean on the touched files;
+- the build succeeds;
+- final sweep at `86789d9e`: 78 test files, run one at a time, all pass.
+
+**Feature 2: more sign-ups than places**
+- **Confirm cap** (`05312161`):
+  - `verifyShiftParticipantAction` refuses with "All places are confirmed" when confirmed ≥ places;
+  - the write itself carries an `$expr` (`src/lib/tasks/shift-capacity.ts`), so two confirms at once can't go over;
+  - the Confirm button is disabled at capacity.
+- **Sign-up counts confirmed people only** (`bf249778`):
+  - sign-up is refused only when all places are confirmed, or at the F5 ceiling (3 × places, at least 10): "Many people have already offered for this shift";
+  - the write carries both conditions;
+  - places can't be set below the **confirmed** count.
+- **The browser follows the same rule** (`708fc2aa`):
+  - helpers `getShiftOpenPlaces`, `getShiftSignupBlock` and `formatShiftPlaces` ("2 places · 1 left", F3);
+  - the shift page banner, "Upcoming shifts" on the circle home, and the event crew panel all use them;
+  - on the event crew panel, **the pending count shows to organisers only**.
+- **Decline (F1) and closed-claim notices (F4)** (`f2e0eaaa`):
+  - `declineShiftParticipantAction` needs `tasks.moderate`, as confirm does, and works on pending sign-ups only. It removes the entry, so the person can offer again.
+  - New bell notice `task_shift_declined`: "Thanks for offering to help with <shift>. All places are filled this time, and we hope to see you on another one." (Tim's wording, `2d7a11fa`.) It doesn't name the organiser.
+  - Once all places are confirmed, the organiser's list is headed "Waiting list", and a pending person's banner says they're on the waiting list.
+  - Claims closed when another claim is approved get the existing `task_claim_declined` notice. **So do claims closed by direct assignment** (`ef6a35a2`, Tim), except the new assignee's own.
+- **Edit race fixed** (`a50db24f`): `updateTaskAction` no longer writes back `participants` as it read them. Before, a sign-up, confirm or decline that landed while the edit was being saved was erased.
+
+**Feature 1: the "Shifts & tasks" view**
+- **`src/lib/tasks/crew-shifts-view.ts`** (`4f56add3`): pure, over tasks already filtered by `filterTasksForViewer` and events already shaped by `shapeEventsForViewer`.
+  - **"My shifts":** upcoming only (F8). Statuses: pending, confirmed, waiting list, offered, assigned.
+  - **"Open shifts" by event:** events in date order. F2: a shift with all places confirmed, or at the ceiling, leaves the list. F4: open tasks are listed under their event.
+  - **"Review sign-ups":** organisers only.
+  - **Never carries** location, notes, description, claims or the participants list.
+  - **Shared counting:** the sign-up status and counts are in `crew-signup-status.ts`, shared with the event panel.
+- **`getCrewShiftsAndTasksAction`** (`components/modules/crew/actions.ts`, `60a1cbfe`):
+  - for admins, moderators and crew of the circle (the Crew page's own check), with Crew on and the Tasks/Shifts modules respected;
+  - only the linked events are loaded, through `shapeEventsForViewer`. A draft, an event in review or one outside the viewer's audience is dropped; its shifts go under "Other shifts" without the event's title;
+  - organisers are those with `tasks.assign` or `tasks.moderate`, so moderators count (F6), and platform admins.
+- **Crew page** (`0cb82dbd`, F7): the panel sits at the top of the left column. "My shifts" always shows; "Open shifts" shows the next 5 rows, then "Show all". Sign-up stays on the shift page.
+- **Crew Dashboard** (`86789d9e`): "Review sign-ups" only, for admins only (F6, unchanged).
+
+**Three choices Claude made in part 2 (Tim may change them):**
+1. **Tasks with no event, or an event the viewer can't see, aren't listed under "Open shifts".** F4 said "under each event", and listing every circle task would crowd the panel. Shifts with no event do show, under "Other shifts".
+2. **Organisers get a third section on the Crew page, "Review sign-ups".** It lists every upcoming shift, filled ones included, with names. Without it, a moderator, who has no Dashboard (F6), couldn't see a full shift's people. Organisers still see "My shifts" and "Open shifts".
+3. **A shift that has started** leaves "Open shifts" but stays in "My shifts" until it ends.
+
+**Null check (Tim asked: can any write store `verifiedAt` or a status date as null, which would block confirm and decline?)**
+- **Code paths checked:** every write to task `participants` and `claims`:
+  - create and edit;
+  - join, leave, confirm, decline and attendance;
+  - claim submit, approve, decline and close;
+  - `assignTask`;
+  - account erasure;
+  - the scripts.
+- **None of them store a participant's `verifiedAt` / `verifiedBy`, or a claim's status or dates, as null.**
+- **But the Mongo client has no `ignoreUndefined`** (`options = {}` in `db.ts`), so a field set to `undefined` is stored as `null`. `createTaskAction` stores `participants: null` on tasks (not shifts). Two fixes followed (`1534b7de`):
+  - **A regression from the edit-race fix, caught before release.** A task turned into a shift (allowed only in review) kept `participants: null`, and its first sign-up's `$push` would fail. The edit now sets `[]` in that case.
+  - **Hardening:** confirm, decline and leave now match pending entries on `verifiedAt: null` (null or missing) instead of `{ $exists: false }`. Older data with a stored null no longer blocks them.
+- **Outside the branch, unchanged:** `task-completion-policy.ts` matches a *task's* own `verifiedAt: { $exists: false }`. No path stores null there.
+- **Stored data is unknown.** `scripts/count-null-signup-fields.mongosh.js` (read-only, counts only, with the `EXPECT_DB` guard) is ready for Tim to run with the read-only user. It was not run.
+
+**Test fakes** (`src/lib/testing/`):
+- **Now supported:** `$expr`, dotted and positional `$set`, `$[name]` with `arrayFilters`, `$pull` with a condition object, and deep-copied `aggregate` reads.
+- **Bug fixed:** `$pull: { participants: { userDid } }` used to remove every participant (it never affected the app, only tests).
+
+**Not built:**
+- "Decline the remaining N" (optional in F1).
+
+**Still open from the investigation (not this round):**
+- organisers can't remove a confirmed person;
+- leaving a shift doesn't notify organisers;
+- `getTasksByCircleId` drops tasks whose author profile is missing.
 
 ---
 
