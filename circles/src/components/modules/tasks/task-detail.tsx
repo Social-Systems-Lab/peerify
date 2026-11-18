@@ -75,6 +75,7 @@ import {
     submitTaskClaimAction,
     updateTaskPriorityAction,
     verifyShiftParticipantAction,
+    declineShiftParticipantAction,
     verifyTaskCompletionAction,
     reviewTaskClaimAction,
 } from "@/app/circles/[handle]/tasks/actions"; // Updated path
@@ -86,13 +87,15 @@ import { CommentSection } from "../feeds/CommentSection"; // Import CommentSecti
 import {
     getShiftConfirmedParticipants,
     getShiftConfirmedCount,
+    getShiftSignupBlock,
+    isShiftOversubscribed,
     getShiftConfirmedSummary,
     getShiftDisplayStatus,
     getShiftPendingParticipants,
     getShiftPendingSummary,
-    getShiftSignedUpCount,
     isShiftTask as isShiftTaskItem,
 } from "./shift-task-utils";
+import { ALL_PLACES_CONFIRMED, MANY_HAVE_OFFERED } from "@/lib/tasks/shift-capacity";
 import { getShiftStageInfo, getTaskPriorityInfo, getTaskStageInfo, getTaskWorkflowStatusBadge } from "./task-ui";
 import { getOutcomeTaskCompletionPlan } from "@/lib/task-completion-policy";
 
@@ -198,6 +201,8 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
     const [changesRequestNote, setChangesRequestNote] = useState(task.reviewRequestedChangesNote ?? "");
     const [attendanceDialogOpen, setAttendanceDialogOpen] = useState(false);
     const [attendanceParticipant, setAttendanceParticipant] = useState<TaskParticipant | null>(null);
+    // Crew round 2 (F1): the pending sign-up the organiser is about to decline.
+    const [declineTarget, setDeclineTarget] = useState<{ did: string; name: string } | null>(null);
     const [attendanceStatus, setAttendanceStatus] = useState<TaskParticipantAttendanceStatus>("attended");
     const [attendanceNote, setAttendanceNote] = useState("");
     const [acceptedConnectionDids, setAcceptedConnectionDids] = useState<string[]>([]);
@@ -210,7 +215,6 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
     const taskClaims = task.claims ?? [];
     const pendingClaims = !isShiftTask ? taskClaims.filter((claim) => claim.status === "pending") : [];
     const shiftSlots = task.slots ?? 0;
-    const signedUpShiftParticipantsCount = getShiftSignedUpCount(task);
     const verifiedShiftParticipantsCount = getShiftConfirmedCount(task);
     const confirmedShiftParticipants = getShiftConfirmedParticipants(task);
     const pendingShiftParticipants = getShiftPendingParticipants(task);
@@ -249,13 +253,13 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
     const currentShiftParticipant = shiftParticipants.find((participant) => participant.userDid === currentUserDid);
     const isShiftParticipant = Boolean(currentShiftParticipant);
     const verifierLabel = task.verifier?.name || task.verifier?.handle;
+    // Crew round 2: sign-up stays open until all places are confirmed (or the F5 ceiling); pending
+    // sign-ups may exceed places. The server applies the same rule.
+    const shiftSignupBlock = isShiftTask ? getShiftSignupBlock(task) : null;
+    const shiftIsOpenForSignup =
+        isShiftTask && shiftDisplayStatus !== "review" && shiftDisplayStatus !== "completed";
     const canJoinShift =
-        isShiftTask &&
-        !isShiftParticipant &&
-        shiftSlots > 0 &&
-        signedUpShiftParticipantsCount < shiftSlots &&
-        shiftDisplayStatus !== "review" &&
-        shiftDisplayStatus !== "completed";
+        shiftIsOpenForSignup && !isShiftParticipant && shiftSlots > 0 && shiftSignupBlock === null;
     const canLeaveShift =
         isShiftTask &&
         Boolean(currentShiftParticipant) &&
@@ -263,6 +267,8 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
         shiftDisplayStatus !== "review" &&
         shiftDisplayStatus !== "completed";
     const canVerifyShiftParticipants = isShiftTask && permissions.canModerate;
+    // Confirm cap (Crew round 2): confirmations never exceed places; the server refuses too.
+    const shiftPlacesAllConfirmed = isShiftTask && verifiedShiftParticipantsCount >= (task.slots ?? 0);
     const canReviewShiftAttendance = isShiftTask && permissions.canModerate && shiftDisplayStatus === "completed";
     const shiftHeroImage = isShiftTask && task.images && task.images.length > 0 ? task.images[0] : null;
     const attendeeVisibilityDidSet = new Set([currentUserDid, ...acceptedConnectionDids]);
@@ -274,14 +280,12 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
             )
             .map((profile) => [profile.did, profile]),
     );
-    const shiftIsWaitlistedByPending =
-        isShiftTask &&
-        !isShiftParticipant &&
-        shiftSlots > 0 &&
-        signedUpShiftParticipantsCount >= shiftSlots &&
-        verifiedShiftParticipantsCount < shiftSlots &&
-        shiftDisplayStatus !== "review" &&
-        shiftDisplayStatus !== "completed";
+    // For someone not on the shift: more offers than places (they can still offer), the F5 ceiling, or
+    // all places confirmed.
+    const shiftSignupNotice: "oversubscribed" | "manyOffered" | "allConfirmed" | null =
+        !shiftIsOpenForSignup || isShiftParticipant || shiftSlots < 1
+            ? null
+            : shiftSignupBlock ?? (isShiftOversubscribed(task) ? "oversubscribed" : null);
     const attendedShiftParticipants = confirmedShiftParticipants.filter(
         ({ participant }) => participant.attendanceStatus === "attended",
     );
@@ -1269,13 +1273,17 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                         )}
                         {!isCompletedShift && currentShiftParticipant && !currentShiftParticipant.verifiedAt && (
                             <div className="mt-4 rounded-lg border border-[hsl(var(--shift-banner-pending-border))] bg-[hsl(var(--shift-banner-pending-bg))] px-4 py-3 text-sm text-[hsl(var(--shift-banner-pending-foreground))]">
-                                You are signed up and waiting for confirmation. You can still leave until an admin
-                                confirms you.
+                                {shiftPlacesAllConfirmed
+                                    ? "All places are confirmed, so you're on the waiting list. The organiser may confirm you if a place opens. You can still leave."
+                                    : "You are signed up and waiting for confirmation. You can still leave until an admin confirms you."}
                             </div>
                         )}
-                        {!isCompletedShift && shiftIsWaitlistedByPending && (
+                        {!isCompletedShift && shiftSignupNotice && (
                             <div className="mt-4 rounded-lg border border-[hsl(var(--shift-banner-pending-border))] bg-[hsl(var(--shift-banner-pending-bg))] px-4 py-3 text-sm text-[hsl(var(--shift-banner-pending-foreground))]">
-                                All current slots are pending confirmation. Contact an admin if you need help.
+                                {shiftSignupNotice === "oversubscribed" &&
+                                    "More people have offered than there are places. You can still offer; the organiser chooses who is confirmed."}
+                                {shiftSignupNotice === "manyOffered" && `${MANY_HAVE_OFFERED}.`}
+                                {shiftSignupNotice === "allConfirmed" && `${ALL_PLACES_CONFIRMED}.`}
                             </div>
                         )}
                         {canReviewShiftAttendance && (
@@ -1451,7 +1459,9 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
 
                         {permissions.canModerate && !isCompletedShift && (
                             <div className="mt-6">
-                                <h4 className="text-base font-semibold text-foreground">Pending Sign-ups</h4>
+                                <h4 className="text-base font-semibold text-foreground">
+                                    {shiftPlacesAllConfirmed ? "Waiting list" : "Pending Sign-ups"}
+                                </h4>
                                 {pendingShiftParticipants.length > 0 ? (
                                     <div className="mt-3 space-y-3">
                                         {pendingShiftParticipants.map(({ participant, profile }) => {
@@ -1485,51 +1495,74 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    {canVerifyShiftParticipants && (
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            onClick={() =>
-                                                                startTransition(async () => {
-                                                                    const result = await verifyShiftParticipantAction(
-                                                                        circle.handle!,
-                                                                        task._id as string,
-                                                                        participant.userDid,
-                                                                    );
+                                                    <div className="flex shrink-0 gap-2">
+                                                        {canVerifyShiftParticipants && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                onClick={() =>
+                                                                    startTransition(async () => {
+                                                                        const result = await verifyShiftParticipantAction(
+                                                                            circle.handle!,
+                                                                            task._id as string,
+                                                                            participant.userDid,
+                                                                        );
 
-                                                                    if (!result.success) {
+                                                                        if (!result.success) {
+                                                                            toast({
+                                                                                title: "Error",
+                                                                                description:
+                                                                                    result.message ||
+                                                                                    "Failed to confirm participant",
+                                                                                variant: "destructive",
+                                                                            });
+                                                                            return;
+                                                                        }
+
+                                                                        await refreshOpenTaskPreview();
+                                                                        router.refresh();
                                                                         toast({
-                                                                            title: "Error",
-                                                                            description:
-                                                                                result.message ||
-                                                                                "Failed to confirm participant",
-                                                                            variant: "destructive",
+                                                                            title: "Success",
+                                                                            description: "Participant confirmed",
                                                                         });
-                                                                        return;
-                                                                    }
-
-                                                                    await refreshOpenTaskPreview();
-                                                                    router.refresh();
-                                                                    toast({
-                                                                        title: "Success",
-                                                                        description: "Participant confirmed",
-                                                                    });
-                                                                })
-                                                            }
-                                                            disabled={isPending}
-                                                        >
-                                                            {isPending ? (
-                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                            ) : null}
-                                                            Confirm
-                                                        </Button>
-                                                    )}
+                                                                    })
+                                                                }
+                                                                disabled={isPending || shiftPlacesAllConfirmed}
+                                                                title={shiftPlacesAllConfirmed ? ALL_PLACES_CONFIRMED : undefined}
+                                                            >
+                                                                {isPending ? (
+                                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                ) : null}
+                                                                Confirm
+                                                            </Button>
+                                                        )}
+                                                        {canVerifyShiftParticipants && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="ghost"
+                                                                onClick={() =>
+                                                                    setDeclineTarget({
+                                                                        did: participant.userDid,
+                                                                        name: participantName,
+                                                                    })
+                                                                }
+                                                                disabled={isPending}
+                                                            >
+                                                                Decline
+                                                            </Button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 ) : (
                                     <div className="mt-3 text-sm text-muted-foreground">No pending sign-ups.</div>
+                                )}
+                                {canVerifyShiftParticipants && shiftPlacesAllConfirmed && pendingShiftParticipants.length > 0 && (
+                                    <div className="mt-3 text-sm text-muted-foreground">
+                                        {ALL_PLACES_CONFIRMED}. Raise the number of places to confirm more people, or decline the others.
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -1657,6 +1690,51 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
             {isPreview ? <div className="p-4">{mainContent}</div> : <Card className="mb-6">{mainContent}</Card>}
 
             {/* Dialogs remain outside the conditional wrapper */}
+            <Dialog open={declineTarget !== null} onOpenChange={(open) => !open && setDeclineTarget(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Decline sign-up</DialogTitle>
+                        <DialogDescription>
+                            {declineTarget?.name} will be taken off this shift and get a notice thanking them for
+                            offering. They can offer again if a place opens.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                        </DialogClose>
+                        <Button
+                            variant="destructive"
+                            disabled={isPending || !declineTarget}
+                            onClick={() =>
+                                startTransition(async () => {
+                                    if (!declineTarget) return;
+                                    const result = await declineShiftParticipantAction(
+                                        circle.handle!,
+                                        task._id as string,
+                                        declineTarget.did,
+                                    );
+                                    setDeclineTarget(null);
+                                    if (!result.success) {
+                                        toast({
+                                            title: "Error",
+                                            description: result.message || "Failed to decline sign-up",
+                                            variant: "destructive",
+                                        });
+                                        return;
+                                    }
+                                    await refreshOpenTaskPreview();
+                                    router.refresh();
+                                    toast({ title: "Success", description: "Sign-up declined" });
+                                })
+                            }
+                        >
+                            {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Decline
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
             <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <DialogContent
                     onInteractOutside={(e) => {

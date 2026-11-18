@@ -602,6 +602,7 @@ export const Notifications = ({
                 case "task_accepted":
                 case "task_shift_signup":
                 case "task_shift_confirmed":
+                case "task_shift_declined":
                 case "task_shift_attendance_verified":
                 case "task_status_changed":
                 case "task_claim_submitted":
@@ -678,6 +679,7 @@ export const Notifications = ({
             case "task_verified":
             case "task_claim_approved":
             case "task_claim_declined":
+            case "task_shift_declined":
             case "post_comment":
             case "comment_reply":
             case "post_mention":
@@ -870,6 +872,7 @@ export const Notifications = ({
             case "task_accepted":
             case "task_shift_signup":
             case "task_shift_confirmed":
+            case "task_shift_declined":
             case "task_shift_attendance_verified":
             case "task_status_changed":
             case "task_claim_submitted":
@@ -943,6 +946,7 @@ export const Notifications = ({
                                     "task_accepted",
                                     "task_shift_signup",
                                     "task_shift_confirmed",
+                                    "task_shift_declined",
                                     "task_shift_attendance_verified",
                                     "task_status_changed",
                                     "task_claim_submitted",

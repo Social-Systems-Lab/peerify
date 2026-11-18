@@ -46,8 +46,17 @@ const toIsoDate = (value?: Date | string) => {
     return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 };
 
-function ShiftRow({ circleHandle, shift }: { circleHandle: string; shift: EventCrewShift }) {
-    const openPlaces = Math.max(shift.slots - shift.confirmedCount - shift.pendingCount, 0);
+function ShiftRow({
+    circleHandle,
+    shift,
+    isOrganiser,
+}: {
+    circleHandle: string;
+    shift: EventCrewShift;
+    isOrganiser: boolean;
+}) {
+    // Crew round 2 (F3): places left count confirmed people only; the pending count is for organisers.
+    const openPlaces = Math.max(shift.slots - shift.confirmedCount, 0);
     return (
         <div className="rounded-md border bg-white px-3 py-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -63,20 +72,17 @@ function ShiftRow({ circleHandle, shift }: { circleHandle: string; shift: EventC
                         <Badge className="bg-green-200 text-green-800">You: confirmed</Badge>
                     )}
                     {shift.viewerStatus === "pending" && (
-                        <Badge className="bg-yellow-200 text-yellow-800">You: pending</Badge>
+                        <Badge className="bg-yellow-200 text-yellow-800">
+                            {openPlaces > 0 ? "You: pending" : "You: waiting list"}
+                        </Badge>
                     )}
                 </div>
             </div>
             <div className="mt-1 text-xs text-muted-foreground">{formatShiftWhen(shift)}</div>
             <div className="mt-1 text-xs">
                 {shift.confirmedCount} / {shift.slots} confirmed
-                {shift.pendingCount > 0 && ` · ${shift.pendingCount} pending`}
-                {openPlaces > 0 && (
-                    <span className="text-red-600">
-                        {" "}
-                        · {openPlaces} {openPlaces === 1 ? "place" : "places"} open
-                    </span>
-                )}
+                {isOrganiser && shift.pendingCount > 0 && ` · ${shift.pendingCount} pending`}
+                {openPlaces > 0 && <span className="text-red-600"> · {openPlaces} left</span>}
             </div>
             {shift.people && shift.people.length > 0 && (
                 <ul className="mt-2 space-y-0.5 text-xs">
@@ -154,7 +160,12 @@ export default function EventTasksPanel({ circleHandle, circleId, eventId, event
                         <div className="space-y-2">
                             <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Shifts</div>
                             {panel.shifts.map((shift) => (
-                                <ShiftRow key={shift.id} circleHandle={circleHandle} shift={shift} />
+                                <ShiftRow
+                                    key={shift.id}
+                                    circleHandle={circleHandle}
+                                    shift={shift}
+                                    isOrganiser={panel.isOrganiser}
+                                />
                             ))}
                         </div>
                     )}

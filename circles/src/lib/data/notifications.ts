@@ -171,6 +171,9 @@ export const buildNotificationBody = (type: string, payload: any): string => {
             return `${actorName} signed up for ${taskTitle}`;
         case "task_shift_confirmed":
             return `${actorName} confirmed you for ${taskTitle}`;
+        // Crew round 2 (F1): the organiser isn't named.
+        case "task_shift_declined":
+            return `Thanks for offering to help with ${taskTitle}. All places are filled this time, and we hope to see you on another one.`;
         case "task_shift_attendance_verified":
             return `Your attendance for ${taskTitle} was verified`;
         case "task_status_changed":
@@ -2226,6 +2229,35 @@ export async function notifyTaskShiftConfirmed(
         );
     } catch (error) {
         console.error("🔔 [NOTIFY] Error in notifyTaskShiftConfirmed:", error);
+    }
+}
+
+// Crew round 2 (F1): an organiser declined a pending sign-up. Bell only, to that person.
+export async function notifyTaskShiftDeclined(
+    task: TaskDisplay,
+    decliner: Circle,
+    participant: UserPrivate,
+): Promise<void> {
+    try {
+        if ((task.taskType ?? "outcome") !== "shift" || decliner.did === participant.did) {
+            return;
+        }
+
+        const circle = await getTaskCircle(task);
+        if (!circle) return;
+
+        await sendNotifications(
+            "task_shift_declined",
+            [participant],
+            sanitizeObjectForJSON({
+                circle,
+                user: decliner,
+                taskId: task._id?.toString(),
+                taskTitle: task.title,
+            }),
+        );
+    } catch (error) {
+        console.error("🔔 [NOTIFY] Error in notifyTaskShiftDeclined:", error);
     }
 }
 

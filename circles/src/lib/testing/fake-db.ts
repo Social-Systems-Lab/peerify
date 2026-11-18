@@ -55,6 +55,17 @@ const COLLECTION_NAMES = [
     "Spaces",
 ] as const;
 
+// Each read gets its own copy, as from a real database: a later write must not show through a document
+// read earlier (nested arrays and objects included). Dates, ObjectIds and other class instances are
+// kept as they are.
+const deepCopy = <T>(value: T): T => {
+    if (Array.isArray(value)) return value.map((item) => deepCopy(item)) as T;
+    if (value && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+        return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, deepCopy(v)])) as T;
+    }
+    return value;
+};
+
 export type CollectionName = (typeof COLLECTION_NAMES)[number];
 type Doc = Record<string, any>;
 
@@ -88,7 +99,7 @@ export const createFakeDb = () => {
                 const firstMatch = aggregateLeadingMatch.has(n) ? pipeline[0]?.$match : undefined;
                 return (aggregateResults[n] ?? [])
                     .filter((d) => !firstMatch || matchesFilter(d, firstMatch))
-                    .map((d) => ({ ...d }));
+                    .map((d) => deepCopy(d));
             },
         }),
         // Some modules create indexes at import time.

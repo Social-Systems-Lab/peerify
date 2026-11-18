@@ -4,7 +4,12 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import type { TaskDisplay } from "@/models/models";
-import { getShiftEndAt, getShiftSignedUpCount, getShiftStartAt } from "@/components/modules/tasks/shift-task-utils";
+import {
+    formatShiftPlaces,
+    getShiftConfirmedCount,
+    getShiftEndAt,
+    getShiftStartAt,
+} from "@/components/modules/tasks/shift-task-utils";
 
 type UpcomingShiftsPanelVisibility = "visible" | "sign_in" | "members_only";
 
@@ -29,17 +34,8 @@ const formatShiftDateTime = (task: TaskDisplay) => {
     return endLabel ? `${dayLabel} · ${startLabel} - ${endLabel}` : `${dayLabel} · ${startLabel}`;
 };
 
-const getCapacityLabel = (task: TaskDisplay) => {
-    const slots = task.slots ?? 0;
-    const signedUpCount = getShiftSignedUpCount(task);
-
-    if (slots < 1) {
-        return "Capacity to be confirmed";
-    }
-
-    const remainingSpots = Math.max(slots - signedUpCount, 0);
-    return `${remainingSpots} spot${remainingSpots === 1 ? "" : "s"} available`;
-};
+// F3 (Crew round 2): places left count confirmed people only.
+const getCapacityLabel = (task: TaskDisplay) => formatShiftPlaces(task.slots ?? 0, getShiftConfirmedCount(task));
 
 export function UpcomingShiftsPanel({ circleHandle, shifts, visibility }: UpcomingShiftsPanelProps) {
     const hasVisibleShifts = visibility === "visible" && shifts.length > 0;

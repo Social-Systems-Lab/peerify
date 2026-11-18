@@ -50,6 +50,13 @@ import { getMember, getMembers, getMemberIdsByUserGroup } from "@/lib/data/membe
 import { updateAggregateRankCache } from "@/lib/data/ranking"; // Import cache update function
 import { getCirclesByDids } from "@/lib/data/circle";
 import { isTaskInCircle } from "@/lib/tasks/task-circle";
+import {
+    ALL_PLACES_CONFIRMED,
+    MANY_HAVE_OFFERED,
+    confirmedBelowSlotsFilter,
+    getShiftSignupCeiling,
+} from "@/lib/tasks/shift-capacity";
+import { getShiftConfirmedCount } from "@/components/modules/tasks/shift-task-utils";
 import { taskMessage, taskNoun } from "@/lib/tasks/task-messages";
 import { listAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 // Import task notification functions (assuming they will be created)
@@ -62,6 +69,7 @@ import {
     notifyTaskShiftSignup,
     notifyTaskShiftAttendanceVerified,
     notifyTaskShiftConfirmed,
+    notifyTaskShiftDeclined,
     notifyTaskStatusChanged,
     notifyTaskVerified,
     notifyTaskClaimSubmitted,
@@ -900,10 +908,11 @@ export async function updateTaskAction(
             };
         }
 
-        if (data.taskType === "shift" && data.slots && data.slots < participantCount) {
+        // Crew round 2: pending sign-ups may exceed places; confirmed people may not.
+        if (data.taskType === "shift" && data.slots && data.slots < getShiftConfirmedCount(task)) {
             return {
                 success: false,
-                message: "Slots cannot be lower than the current participant count",
+                message: "Places can't be fewer than the people already confirmed",
             };
         }
 
@@ -1013,7 +1022,11 @@ export async function updateTaskAction(
             slots: data.taskType === "shift" ? data.slots : undefined,
             shiftStartTime: data.taskType === "shift" ? data.shiftStartTime : undefined,
             shiftDurationMinutes: data.taskType === "shift" ? data.shiftDurationMinutes : undefined,
-            participants: data.taskType === "shift" ? task.participants ?? [] : undefined,
+            // participants are not written back here: the edit form doesn't change them, and writing the copy
+            // read above would erase a sign-up, confirm or decline that landed meanwhile (2026-11-18). Only a
+            // task becoming a shift (review stage, so nobody can have signed up) gets an empty list in place
+            // of the stored null.
+            ...(data.taskType === "shift" && !Array.isArray(task.participants) ? { participants: [] } : {}),
             participantNotes: data.taskType === "shift" ? data.participantNotes : undefined,
             priority: data.priority ?? "",
             taskGroup: data.taskType === "shift" ? "" : (data.taskGroup ?? ""),
@@ -1583,6 +1596,25 @@ export async function submitTaskClaimAction(
     }
 }
 
+// F4 (Crew round 2, 2026-11-18): claims closed by approving another claim or by assigning the task
+// directly get the existing "claim declined" notice. Only claims that were pending before the change,
+// and never to the person now doing the task.
+async function notifyClosedClaimants(before: TaskDisplay, after: TaskDisplay, actor: Circle, assigneeDid?: string) {
+    const wasPending = new Set(
+        (before.claims ?? []).filter((claim) => claim.status === "pending").map((claim) => claim.claimId),
+    );
+    const closedDids = (after.claims ?? [])
+        .filter((claim) => claim.status === "closed" && wasPending.has(claim.claimId))
+        .map((claim) => claim.claimantDid)
+        .filter((did) => did !== assigneeDid);
+    for (const did of new Set(closedDids)) {
+        const claimant = await getUserPrivate(did);
+        if (claimant) {
+            await notifyTaskClaimDeclined(after, actor, claimant);
+        }
+    }
+}
+
 export async function reviewTaskClaimAction(
     circleHandle: string,
     taskId: string,
@@ -1660,6 +1692,11 @@ export async function reviewTaskClaimAction(
             } else {
                 await notifyTaskClaimDeclined(updatedTask, reviewer, claimant);
             }
+        }
+
+        // F4 (Crew round 2): approving one claim closes the other pending ones.
+        if (updatedTask && validated.data.decision === "approved") {
+            await notifyClosedClaimants(task, updatedTask, reviewer, claim.claimantDid);
         }
 
         revalidateTaskAndShiftRoutes(circleHandle, taskId);
@@ -1835,8 +1872,14 @@ export async function joinShiftTaskAction(
             return { success: false, message: "You have already joined this shift" };
         }
 
-        if (participants.length >= slots) {
-            return { success: false, message: "This shift is already full" };
+        // Crew round 2: more sign-ups than places while places aren't all confirmed. Refused only when
+        // all places are confirmed, or at the F5 ceiling. The write carries both conditions.
+        if (getShiftConfirmedCount(task) >= slots) {
+            return { success: false, message: ALL_PLACES_CONFIRMED };
+        }
+        const ceiling = getShiftSignupCeiling(slots);
+        if (participants.length >= ceiling) {
+            return { success: false, message: MANY_HAVE_OFFERED };
         }
 
         const now = new Date();
@@ -1844,8 +1887,9 @@ export async function joinShiftTaskAction(
             {
                 _id: new ObjectId(taskId),
                 taskType: "shift",
-                [`participants.${slots - 1}`]: { $exists: false },
+                [`participants.${ceiling - 1}`]: { $exists: false },
                 "participants.userDid": { $ne: userDid },
+                ...confirmedBelowSlotsFilter(),
             },
             {
                 $push: {
@@ -1859,6 +1903,17 @@ export async function joinShiftTaskAction(
         );
 
         if (!result.modifiedCount) {
+            // Lost a race: say which limit was reached meanwhile.
+            const latest = (await Tasks.findOne(
+                { _id: new ObjectId(taskId) },
+                { projection: { slots: 1, participants: 1 } },
+            )) as Task | null;
+            if (latest && getShiftConfirmedCount(latest) >= (latest.slots ?? 0)) {
+                return { success: false, message: ALL_PLACES_CONFIRMED };
+            }
+            if (latest && (latest.participants?.length ?? 0) >= getShiftSignupCeiling(latest.slots ?? 0)) {
+                return { success: false, message: MANY_HAVE_OFFERED };
+            }
             return { success: false, message: "Unable to join this shift right now" };
         }
 
@@ -1933,7 +1988,7 @@ export async function leaveShiftTaskAction(
                 participants: {
                     $elemMatch: {
                         userDid,
-                        verifiedAt: { $exists: false },
+                        verifiedAt: null,
                     },
                 },
             },
@@ -2014,6 +2069,12 @@ export async function verifyShiftParticipantAction(
             return { success: true, message: "Participant already verified" };
         }
 
+        // Confirm cap (Crew round 2): confirmations never exceed places. Checked here for the message, and
+        // again in the write's filter so two confirms at the same moment can't go over.
+        if (getShiftConfirmedCount(task) >= (task.slots ?? 0)) {
+            return { success: false, message: ALL_PLACES_CONFIRMED };
+        }
+
         const now = new Date();
         const result = await Tasks.updateOne(
             {
@@ -2022,9 +2083,10 @@ export async function verifyShiftParticipantAction(
                 participants: {
                     $elemMatch: {
                         userDid: validatedParticipant.data.participantDid,
-                        verifiedAt: { $exists: false },
+                        verifiedAt: null,
                     },
                 },
+                ...confirmedBelowSlotsFilter(),
             },
             {
                 $set: {
@@ -2036,6 +2098,14 @@ export async function verifyShiftParticipantAction(
         );
 
         if (!result.modifiedCount) {
+            // Lost a race: if the places filled meanwhile, say so.
+            const latest = (await Tasks.findOne(
+                { _id: new ObjectId(taskId) },
+                { projection: { slots: 1, participants: 1 } },
+            )) as Task | null;
+            if (latest && getShiftConfirmedCount(latest) >= (latest.slots ?? 0)) {
+                return { success: false, message: ALL_PLACES_CONFIRMED };
+            }
             return { success: false, message: "Unable to verify this participant right now" };
         }
 
@@ -2059,6 +2129,100 @@ export async function verifyShiftParticipantAction(
     } catch (error) {
         console.error("Error verifying shift participant:", error);
         return { success: false, message: "Failed to verify shift participant" };
+    }
+}
+
+// Crew round 2 (F1, 2026-11-18): an organiser declines a pending sign-up. The same rights and circle
+// check as confirming. The entry is removed, not kept, so the person can offer again if a place opens;
+// only that person gets a bell notice. Confirmed people can't be declined here.
+export async function declineShiftParticipantAction(
+    circleHandle: string,
+    taskId: string,
+    participantDid: string,
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const validatedParticipant = shiftParticipantSchema.safeParse({ participantDid });
+        if (!validatedParticipant.success) {
+            return { success: false, message: "Invalid participant" };
+        }
+
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) {
+            return { success: false, message: "User not authenticated" };
+        }
+
+        if (!ObjectId.isValid(taskId)) {
+            return { success: false, message: "Invalid task id" };
+        }
+
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle) {
+            return { success: false, message: "Circle not found" };
+        }
+
+        const canModerate = await isAuthorized(userDid, circle._id as string, features.tasks.moderate);
+        if (!canModerate) {
+            return { success: false, message: "Not authorized to decline shift sign-ups" };
+        }
+
+        const task = await getTaskById(taskId, userDid);
+        if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
+
+        if ((task.taskType ?? "outcome") !== "shift") {
+            return { success: false, message: "Only shift sign-ups can be declined" };
+        }
+
+        const declinedDid = validatedParticipant.data.participantDid;
+        const participant = (task.participants ?? []).find((entry) => entry.userDid === declinedDid);
+        if (!participant) {
+            return { success: false, message: "Participant not found on this shift" };
+        }
+        if (participant.verifiedAt) {
+            return { success: false, message: "Confirmed participants can't be declined" };
+        }
+
+        // Pending only, in the write too: a confirm landing meanwhile makes this a no-op.
+        const result = await Tasks.updateOne(
+            {
+                _id: new ObjectId(taskId),
+                taskType: "shift",
+                participants: { $elemMatch: { userDid: declinedDid, verifiedAt: null } },
+            },
+            {
+                $pull: { participants: { userDid: declinedDid, verifiedAt: null } },
+                $set: { updatedAt: new Date() },
+            },
+        );
+
+        if (!result.modifiedCount) {
+            return { success: false, message: "Unable to decline this sign-up right now" };
+        }
+
+        const [decliner, declinedParticipant] = await Promise.all([
+            getUserByDid(userDid),
+            getUserPrivate(declinedDid),
+        ]);
+        if (decliner && declinedParticipant) {
+            await notifyTaskShiftDeclined(task, decliner, declinedParticipant);
+        } else {
+            console.error("🔔 [ACTION] Failed to fetch shift decline notification context:", {
+                declinerDid: userDid,
+                participantDid: declinedDid,
+            });
+        }
+
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
+
+        return { success: true, message: "Sign-up declined" };
+    } catch (error) {
+        console.error("Error declining shift participant:", error);
+        return { success: false, message: "Failed to decline shift sign-up" };
     }
 }
 
@@ -2383,6 +2547,8 @@ export async function assignTaskAction( // Renamed function
         // --- Trigger Notification ---
         const updatedTask = await getTaskById(taskId, userDid); // Get updated task, Renamed function call, variable, param
         if (updatedTask && assigneeDid && assigneeDid !== "unassigned") {
+            // Pending claims closed by this assignment (Tim, 2026-11-18).
+            await notifyClosedClaimants(task, updatedTask, assignerUser, assigneeDid);
             // Renamed variable
             const assigneeUser = await getUserPrivate(assigneeDid); // Use getUserPrivate for UserPrivate type
             if (assigneeUser) {

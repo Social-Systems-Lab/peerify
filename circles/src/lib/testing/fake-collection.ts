@@ -5,7 +5,10 @@
 // find() with sort/limit/project, inclusion projections (dotted paths too), countDocuments, insertOne
 // (adds an ObjectId _id when there is none), deleteOne, deleteMany,
 // and updateOne ($set, $unset, $addToSet, $push (top-level, single value), $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
-// between its match and its write).
+// between its match and its write). $set takes dotted paths, the positional "$" (the first element
+// that the filter's $elemMatch or "array.field" condition matched), and "$[name]" with arrayFilters.
+// $pull takes a value or a condition object on the elements. A top-level $expr supports the few
+// aggregation operators listed in evalExpr.
 
 import { ObjectId } from "mongodb";
 
@@ -100,8 +103,80 @@ const matchesCondition = (value: unknown, condition: unknown): boolean => {
     return valueEquals(value, condition);
 };
 
+const isMissing = (value: unknown) => value === null || value === undefined;
+
+// Aggregation expressions, as far as $expr in the code under test needs them: "$field.path",
+// "$$variable.path", literals, $lt/$lte/$gt/$gte/$eq/$ne, $size, $filter, $ifNull, $and/$or/$not.
+const evalExpr = (doc: Doc, expr: unknown, vars: Record<string, unknown> = {}): unknown => {
+    if (typeof expr === "string" && expr.startsWith("$$")) {
+        const [name, ...rest] = expr.slice(2).split(".");
+        const value = vars[name];
+        return rest.length ? getPath(value as Doc, rest.join(".")) : value;
+    }
+    if (typeof expr === "string" && expr.startsWith("$")) {
+        return getPath(doc, expr.slice(1));
+    }
+    if (Array.isArray(expr)) {
+        return expr.map((item) => evalExpr(doc, item, vars));
+    }
+    if (!isOperatorObject(expr)) {
+        return expr;
+    }
+    const [op, arg] = Object.entries(expr as Doc)[0];
+    const args = () => (arg as unknown[]).map((item) => evalExpr(doc, item, vars));
+    const truthy = (value: unknown) => !isMissing(value) && value !== false && value !== 0;
+    switch (op) {
+        case "$lt":
+        case "$lte":
+        case "$gt":
+        case "$gte":
+        case "$eq":
+        case "$ne": {
+            const [a, b] = args();
+            // As in MongoDB's order, null and missing come before numbers and dates.
+            const rank = (value: unknown) =>
+                isMissing(value) ? -Infinity : value instanceof Date ? value.getTime() : (value as number);
+            const x = rank(a);
+            const y = rank(b);
+            if (op === "$lt") return x < y;
+            if (op === "$lte") return x <= y;
+            if (op === "$gt") return x > y;
+            if (op === "$gte") return x >= y;
+            if (op === "$eq") return x === y;
+            return x !== y;
+        }
+        case "$size": {
+            const value = evalExpr(doc, arg, vars);
+            if (!Array.isArray(value)) throw new Error("fake-collection: $size of a non-array");
+            return value.length;
+        }
+        case "$filter": {
+            const { input, as, cond } = arg as { input: unknown; as: string; cond: unknown };
+            const list = evalExpr(doc, input, vars);
+            if (!Array.isArray(list)) throw new Error("fake-collection: $filter of a non-array");
+            return list.filter((item) => truthy(evalExpr(doc, cond, { ...vars, [as]: item })));
+        }
+        case "$ifNull": {
+            const values = args();
+            return values.find((value) => !isMissing(value)) ?? values[values.length - 1];
+        }
+        case "$and":
+            return args().every(truthy);
+        case "$or":
+            return args().some(truthy);
+        case "$not":
+            return !truthy(Array.isArray(arg) ? args()[0] : evalExpr(doc, arg, vars));
+        default:
+            throw new Error(`fake-collection: unsupported expression operator ${op}`);
+    }
+};
+
 export const matchesFilter = (doc: Doc, filter: Doc): boolean =>
     Object.entries(filter).every(([key, condition]) => {
+        if (key === "$expr") {
+            const value = evalExpr(doc, condition);
+            return !isMissing(value) && value !== false && value !== 0;
+        }
         if (key === "$or") return (condition as Doc[]).some((sub) => matchesFilter(doc, sub));
         if (key === "$and") return (condition as Doc[]).every((sub) => matchesFilter(doc, sub));
         if (key === "$nor") return !(condition as Doc[]).some((sub) => matchesFilter(doc, sub));
@@ -130,6 +205,69 @@ const applyProjection = (doc: Doc, projection?: Record<string, unknown>): Doc =>
         target[parts[parts.length - 1]] = value;
     }
     return picked;
+};
+
+// The index the positional "$" stands for in "array.$.field": the first element of `array` that the
+// filter's condition on it matched ($elemMatch, or "array.field" equality/operators).
+const positionalIndex = (doc: Doc, filter: Doc, arrayKey: string): number => {
+    const list = getPath(doc, arrayKey);
+    if (!Array.isArray(list)) return -1;
+    const direct = filter[arrayKey];
+    if (direct && typeof direct === "object" && "$elemMatch" in direct) {
+        return list.findIndex((element) => matchesFilter(element as Doc, (direct as Doc).$elemMatch));
+    }
+    const prefix = `${arrayKey}.`;
+    const subFilter = Object.fromEntries(
+        Object.entries(filter)
+            .filter(([key]) => key.startsWith(prefix))
+            .map(([key, value]) => [key.slice(prefix.length), value]),
+    );
+    if (Object.keys(subFilter).length === 0) return -1;
+    return list.findIndex((element) => matchesFilter(element as Doc, subFilter));
+};
+
+// Turns a $set key into the concrete paths it writes, worked out on the document before any write (as
+// MongoDB does), so several "list.$.x" keys all land on the same element. "$" is the element the
+// filter matched; "$[name]" every element its arrayFilters entry matches; "$[]" every element.
+const expandUpdateKey = (doc: Doc, filter: Doc, key: string, arrayFilters: Doc[] = []): string[] => {
+    const parts = key.split(".");
+    let paths: string[][] = [[]];
+    parts.forEach((part, i) => {
+        if (part === "$") {
+            const index = positionalIndex(doc, filter, parts.slice(0, i).join("."));
+            if (index === -1) throw new Error(`fake-collection: no element for the positional $ in ${key}`);
+            paths = paths.map((path) => [...path, String(index)]);
+            return;
+        }
+        const named = /^\$\[(\w*)\]$/.exec(part);
+        if (!named) {
+            paths = paths.map((path) => [...path, part]);
+            return;
+        }
+        const name = named[1];
+        const prefix = `${name}.`;
+        const spec = name ? arrayFilters.find((f) => Object.keys(f).some((k) => k.startsWith(prefix))) : {};
+        if (!spec) throw new Error(`fake-collection: no arrayFilters entry for ${part} in ${key}`);
+        const subFilter = Object.fromEntries(Object.entries(spec).map(([k, value]) => [k.slice(prefix.length), value]));
+        paths = paths.flatMap((path) => {
+            const list = getPath(doc, path.join("."));
+            if (!Array.isArray(list)) return [];
+            return list.flatMap((element, index) =>
+                matchesFilter(element as Doc, subFilter) ? [[...path, String(index)]] : [],
+            );
+        });
+    });
+    return paths.map((path) => path.join("."));
+};
+
+// $set of a dotted path ("a.b", "list.2.field"), creating objects on the way.
+const setPath = (doc: Doc, key: string, value: unknown) => {
+    const parts = key.split(".");
+    let target: any = doc;
+    for (const part of parts.slice(0, -1)) {
+        target = target[part] ??= {};
+    }
+    target[parts[parts.length - 1]] = value;
 };
 
 export const createFakeCollection = (initial: Doc[] = []) => {
@@ -217,17 +355,24 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             }
             return { deletedCount };
         },
-        async updateOne(filter: Doc, update: { $set?: Doc; $unset?: Doc; $addToSet?: Doc; $push?: Doc; $pull?: Doc }) {
+        async updateOne(
+            filter: Doc,
+            update: { $set?: Doc; $unset?: Doc; $addToSet?: Doc; $push?: Doc; $pull?: Doc },
+            options?: { arrayFilters?: Doc[] },
+        ) {
             const found = docs.find((d) => matchesFilter(d, filter));
             if (!found) {
                 return { matchedCount: 0, modifiedCount: 0 };
             }
-            for (const [key, value] of Object.entries(update.$set ?? {})) {
+            const sets = Object.entries(update.$set ?? {}).flatMap(([key, value]) =>
+                expandUpdateKey(found, filter, key, options?.arrayFilters).map((path) => [path, value] as const),
+            );
+            for (const [key, value] of sets) {
                 if (value === undefined) {
                     // The real driver (no ignoreUndefined) would store null here; fail loudly instead.
                     throw new Error(`fake-collection: explicit undefined written to ${key}`);
                 }
-                found[key] = value;
+                setPath(found, key, value);
             }
             // Top-level fields only.
             for (const key of Object.keys(update.$unset ?? {})) {
@@ -241,9 +386,23 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             for (const [key, value] of Object.entries(update.$push ?? {})) {
                 found[key] = [...(Array.isArray(found[key]) ? found[key] : []), value];
             }
+            // A condition object ({ userDid: x, verifiedAt: { $exists: false } }) removes the elements it
+            // matches, as in MongoDB; any other value removes equal elements.
             for (const [key, value] of Object.entries(update.$pull ?? {})) {
-                if (Array.isArray(found[key]))
-                    found[key] = found[key].filter((item: unknown) => !valueEquals(item, value));
+                if (!Array.isArray(found[key])) continue;
+                const isCondition =
+                    !!value &&
+                    typeof value === "object" &&
+                    !(value instanceof Date) &&
+                    !(value instanceof ObjectId) &&
+                    !Array.isArray(value);
+                found[key] = found[key].filter((item: unknown) =>
+                    isCondition
+                        ? !(item && typeof item === "object"
+                              ? matchesFilter(item as Doc, value)
+                              : matchesCondition(item, value))
+                        : !valueEquals(item, value),
+                );
             }
             return { matchedCount: 1, modifiedCount: 1 };
         },
