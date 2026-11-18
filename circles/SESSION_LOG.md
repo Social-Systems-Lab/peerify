@@ -3,7 +3,7 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-11-17)
+## Current Status (2026-11-18)
 - Production: https://peerify.one, on the Cleura server `peerify-prod`. Staging: https://staging.peerify.one, on the Cleura server `peerify-staging`. On both, the app runs from `/srv/peerify/app/circles` as the `peerify` user, under PM2 (`peerify` :3000, `peerify-staging` :3001). Tim deploys.
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
@@ -22,6 +22,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - `ensureCircleConversationAction` (`components/modules/chat/actions.ts` ~283) lets anyone, even signed out, create an empty conversation document for any circle id. It should require sign-in and membership;
   - the venue/circle members chat room can't be opened by anyone (no participants are ever added to its conversation). Decide in the UX month whether to fix it or remove it.
 - **Security fix LIVE on prod (2026-11-14, `68d0dfa0`):** a moderator can no longer grant `admins` (the `??` precedence bug in `safeModifyMemberUserGroups`). See the 2026-11-14 (cont.) entry.
+- **DATABASE AUTHENTICATION ON PROD: DONE** (confirmed by Tim's read-only checks A–D, 2026-11-18). The app connects as `peerify_prod` (readWrite@circles only). **The only item left toward IMY is the short closing note.** See the 2026-11-18 entry.
 - **CLEAN-UP COMMITMENT DONE (2026-11-17, before the 30 November commitment to IMY):** stored comment author copies, old notification content and the public-bucket leftovers are cleaned on prod and staging, all at 0 afterwards (see the 2026-11-17 (cont.) entry). **Backup copies made before the clean-up still hold the old data and expire within 29 days, by about 2026-12-16.** The manual dumps in prod's `~/backups` are already deleted (Tim, 2026-11-17), and staging has none.
 - **Still open (see also the items below):**
   - the staging restore rehearsal;
@@ -48,7 +49,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **IMY:** the new notification was submitted by Tim on 2026-11-08 at about 05:15 UTC, before the deadline. It refers to **IMY-2026-19477**. The supplement (M findings and the followers change) is drafted from `20261107-1242-r3-medium-final` and `20261107-1615-followers-count-only-final`.
   - **IMY reply (logged 2026-11-14):** IMY sees no need to investigate the 2026-11-05 incident further, and the case is closed for that incident. This clears the notification clean-up (see "Stored comment author copies" above).
     - **Affected members' email:** Tim sends it on 2026-11-14, as individual emails to the affected people.
-    - **Supplement:** not due now, since the case is closed. It is planned for later as a short closing note to IMY, once database authentication is confirmed done on prod (the notification clean-up is done since 2026-11-17).
+    - **Supplement:** not due now, since the case is closed. It is planned as a short closing note to IMY. Both preconditions are now met: the notification clean-up (2026-11-17) and database authentication on prod (confirmed 2026-11-18). **The closing note is the only item left toward IMY.**
   - **Live on prod:**
     - containment C1–C4, since 2026-11-05 08:51 UTC (`f67ab5ea`);
     - H3–H7 and H9, since 2026-11-06 05:52 UTC (`44bb7e4b`);
@@ -62,6 +63,24 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-18 — Database authentication on prod confirmed DONE; only the IMY closing note left
+
+Tim ran the read-only checks A–D from `DB-AUTH-STATUS.md` on prod and reported the results:
+
+- **A:** `/etc/mongod.conf` has `authorization: enabled` and `bindIp: 127.0.0.1`. An unauthenticated count is refused ("requires authentication").
+- **B/C:** the app connects as `peerify_prod`, which has only `readWrite@circles`. The other logins:
+  - `peerify_backup`: `backup@admin`;
+  - `tim_admin`: `root@admin`;
+  - `peerify_prod_ro`: `read@circles`.
+- **`peerify_prod_ro`** is kept as the read-only login for checks. This settles item 3 of the 2026-11-05 "Next" list (its password was unknown then). Its URI and password are in `/home/tim/.config/peerify/prod-ro.env` on prod (mode 600, owner `tim`). One shell-history line that contained it was removed from `~/.bash_history` on prod; the Mac's zsh history had none.
+- **D:** the umask for the `peerify` user is `0077`.
+
+**Database authentication on prod: DONE.** OPERATIONS.md no longer says "no auth" (it now records the prod logins and where the read-only one is kept).
+
+**Toward IMY (IMY-2026-19477):** the clean-up is done (2026-11-17) and database authentication is done (2026-11-18), so **the only item left is the short closing note to IMY.** Tim sends it.
 
 ---
 

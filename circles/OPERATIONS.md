@@ -40,7 +40,7 @@
 - **nginx:** `/etc/nginx/sites-available/staging.peerify.one` → `127.0.0.1:3001`, own Let's Encrypt cert. Mirrors the prod block; does NOT carry a duplicate `ipv6only=on` (nginx allows it once per port).
 
 ### Shared infrastructure (one instance each, on the Peerify server)
-- **MongoDB:** `mongodb://127.0.0.1:27017`, no auth (local). **Database name is now derived from `MONGODB_URI`** (see §3). Prod DB = `circles`. Staging DB = `peerify_staging`.
+- **MongoDB:** `127.0.0.1:27017`. **Authentication is ON for prod (confirmed 2026-11-18, see `SESSION_LOG.md`).** Prod's `/etc/mongod.conf` has `authorization: enabled` and `bindIp: 127.0.0.1`; unauthenticated commands are refused. Prod logins: `peerify_prod` (the app, `readWrite@circles` only), `peerify_backup` (`backup@admin`), `tim_admin` (`root@admin`), `peerify_prod_ro` (`read@circles`, for read-only checks; its URI is in `/home/tim/.config/peerify/prod-ro.env`, mode 600, never paste it into a prompt or a log). This section otherwise still describes the old Hetzner box. **Database name is now derived from `MONGODB_URI`** (see §3). Prod DB = `circles`. Staging DB = `peerify_staging`.
 - **MinIO:** `127.0.0.1:9000`, mc alias `peerify-local`. Prod bucket = `circles`. Staging bucket = `circles-staging`.
 
 ### Isolation summary
