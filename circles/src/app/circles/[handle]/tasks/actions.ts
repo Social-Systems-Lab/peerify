@@ -1593,6 +1593,25 @@ export async function submitTaskClaimAction(
     }
 }
 
+// F4 (Crew round 2, 2026-11-18): claims closed by approving another claim or by assigning the task
+// directly get the existing "claim declined" notice. Only claims that were pending before the change,
+// and never to the person now doing the task.
+async function notifyClosedClaimants(before: TaskDisplay, after: TaskDisplay, actor: Circle, assigneeDid?: string) {
+    const wasPending = new Set(
+        (before.claims ?? []).filter((claim) => claim.status === "pending").map((claim) => claim.claimId),
+    );
+    const closedDids = (after.claims ?? [])
+        .filter((claim) => claim.status === "closed" && wasPending.has(claim.claimId))
+        .map((claim) => claim.claimantDid)
+        .filter((did) => did !== assigneeDid);
+    for (const did of new Set(closedDids)) {
+        const claimant = await getUserPrivate(did);
+        if (claimant) {
+            await notifyTaskClaimDeclined(after, actor, claimant);
+        }
+    }
+}
+
 export async function reviewTaskClaimAction(
     circleHandle: string,
     taskId: string,
@@ -1672,23 +1691,9 @@ export async function reviewTaskClaimAction(
             }
         }
 
-        // F4 (Crew round 2): approving one claim closes the other pending ones; tell those claimants, with
-        // the existing "claim declined" notice. Only claims that were pending before this approval.
+        // F4 (Crew round 2): approving one claim closes the other pending ones.
         if (updatedTask && validated.data.decision === "approved") {
-            const wasPending = new Set(
-                (task.claims ?? [])
-                    .filter((existing) => existing.status === "pending" && existing.claimId !== claim.claimId)
-                    .map((existing) => existing.claimId),
-            );
-            const closedClaimants = (updatedTask.claims ?? [])
-                .filter((existing) => existing.status === "closed" && wasPending.has(existing.claimId))
-                .map((existing) => existing.claimantDid);
-            for (const closedDid of closedClaimants) {
-                const closedClaimant = await getUserPrivate(closedDid);
-                if (closedClaimant) {
-                    await notifyTaskClaimDeclined(updatedTask, reviewer, closedClaimant);
-                }
-            }
+            await notifyClosedClaimants(task, updatedTask, reviewer, claim.claimantDid);
         }
 
         revalidateTaskAndShiftRoutes(circleHandle, taskId);
@@ -2539,6 +2544,8 @@ export async function assignTaskAction( // Renamed function
         // --- Trigger Notification ---
         const updatedTask = await getTaskById(taskId, userDid); // Get updated task, Renamed function call, variable, param
         if (updatedTask && assigneeDid && assigneeDid !== "unassigned") {
+            // Pending claims closed by this assignment (Tim, 2026-11-18).
+            await notifyClosedClaimants(task, updatedTask, assignerUser, assigneeDid);
             // Renamed variable
             const assigneeUser = await getUserPrivate(assigneeDid); // Use getUserPrivate for UserPrivate type
             if (assigneeUser) {

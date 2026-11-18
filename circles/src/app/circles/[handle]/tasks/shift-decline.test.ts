@@ -5,7 +5,8 @@
 //   notice (task_shift_declined). Confirmed people can't be declined. Only through the task's own
 //   circle, as for every task action since 2026-11-16.
 // - F4: approving one task claim closes the other pending claims; those claimants now get the existing
-//   task_claim_declined notice (before: nothing).
+//   task_claim_declined notice (before: nothing). The same when a task is assigned directly (Tim,
+//   2026-11-18), except to the new assignee.
 // The database is in-memory fakes; the session and permissions are stubbed; notifications are
 // recorded instead of sent.
 
@@ -239,6 +240,38 @@ describe("F4: claims closed when another is approved get a notice", () => {
             { type: "task_claim_declined", to: C2 },
             { type: "task_claim_declined", to: C3 },
         ]);
+    });
+
+    const assignForm = (did: string) => {
+        const form = new FormData();
+        form.set("assigneeDid", did);
+        return form;
+    };
+
+    test("direct assignment to C3 (no claim): C1 and C2 told their pending claims are declined", async () => {
+        seed({
+            title: "Bring a PA",
+            taskType: "outcome",
+            stage: "open",
+            claims: [claim("k1", C1), claim("k2", C2), claim("k0", "did:test:earlier", "declined")],
+        });
+        const result = await actions.assignTaskAction("y", TASK_ID, assignForm(C3));
+        expect(result.success).toBe(true);
+        expect(stored().assignedTo).toBe(C3);
+        const statuses = Object.fromEntries(
+            (stored().claims as { claimId: string; status: string }[]).map((c) => [c.claimId, c.status]),
+        );
+        expect(statuses).toEqual({ k1: "closed", k2: "closed", k0: "declined" });
+        expect(notices).toEqual([
+            { type: "task_claim_declined", to: C1 },
+            { type: "task_claim_declined", to: C2 },
+        ]);
+    });
+
+    test("direct assignment to C1, who had a pending claim: only C2 is told 'declined'", async () => {
+        seed({ title: "Bring a PA", taskType: "outcome", stage: "open", claims: [claim("k1", C1), claim("k2", C2)] });
+        expect((await actions.assignTaskAction("y", TASK_ID, assignForm(C1))).success).toBe(true);
+        expect(notices).toEqual([{ type: "task_claim_declined", to: C2 }]);
     });
 
     test("declining one claim still notifies that claimant only", async () => {
