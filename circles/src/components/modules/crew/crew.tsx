@@ -6,6 +6,8 @@ import CrewMemberRail from "./crew-member-rail";
 import CrewSpaceModule from "./crew-space";
 import CrewOffersWidget from "./crew-offers-widget";
 import CrewLanding from "./crew-landing";
+import CrewShiftsPanel from "./crew-shifts-panel";
+import { getCrewShiftsAndTasksAction } from "./actions";
 import ContentDisplayWrapper from "@/components/utils/content-display-wrapper";
 import { Circle } from "@/models/models";
 
@@ -42,11 +44,17 @@ export default async function CrewModule({ circle }: CrewModuleProps) {
     const viewerSeesEveryone =
         viewerMember?.userGroups?.some((group) => group === "admins" || group === "moderators") ?? false;
     const members = toCrewRosterForViewer(await getCrewMembers(circle?._id, viewerDid), viewerDid, viewerSeesEveryone);
+    // Crew round 2 (F7): "Shifts & tasks" at the top of the left column. The action repeats the
+    // eligibility check above, and shapes everything for this viewer.
+    const shiftsAndTasks = circle.handle ? await getCrewShiftsAndTasksAction(circle.handle) : null;
 
     return (
         <div className="mx-auto max-w-[1100px] px-0 py-0 md:px-4 md:py-6">
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                <div className="md:col-span-2">
+                <div className="flex flex-col gap-6 md:col-span-2">
+                    {shiftsAndTasks?.show && circle.handle && (
+                        <CrewShiftsPanel circleHandle={circle.handle} data={shiftsAndTasks} />
+                    )}
                     <CrewSpaceModule circle={circle} />
                 </div>
                 {/* self-start + sticky is the standard CSS-grid sticky-sidebar recipe: the grid
