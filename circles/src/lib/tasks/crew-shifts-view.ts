@@ -23,6 +23,7 @@ import {
 } from "@/components/modules/tasks/shift-task-utils";
 import { countShiftSignups, crewSignupStatusOf } from "./crew-signup-status";
 import { isRestrictedTaskAudience } from "./task-audience";
+import { calendarDateOf, endOfCalendarDay } from "./shift-calendar";
 
 export type CrewViewEvent = { id: string; title: string; startAt: string };
 
@@ -92,12 +93,10 @@ const toIso = (value: unknown): string | undefined => {
     return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 };
 
+// The end of a task's due day, in the zone (shift-calendar.ts), not the server's.
 const endOfDay = (value: unknown): Date | null => {
-    const iso = toIso(value);
-    if (!iso) return null;
-    const date = new Date(iso);
-    date.setHours(23, 59, 59, 999);
-    return date;
+    const date = calendarDateOf(value);
+    return date ? endOfCalendarDay(date) : null;
 };
 
 const isShift = (task: TaskDisplay) => (task.taskType ?? "outcome") === "shift";
