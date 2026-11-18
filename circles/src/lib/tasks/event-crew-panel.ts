@@ -138,3 +138,9 @@ export const formatShiftWhen = (
     }
     return parts.join(" · ");
 };
+
+// " · due 6 Dec" for a task row in the event's crew panel: the calendar date in the zone (shift dates 5/5).
+export const formatTaskDue = (task: Pick<EventCrewTask, "targetDate">) => {
+    const date = formatCalendarDate(task.targetDate, "d MMM");
+    return date ? ` · due ${date}` : "";
+};

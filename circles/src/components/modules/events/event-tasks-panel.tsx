@@ -10,12 +10,16 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getEventCrewPanelAction, type EventCrewPanelResult } from "@/app/circles/[handle]/events/actions";
 import { CreateShiftDialog } from "@/components/global-create/create-shift-dialog";
-import { formatShiftWhen, type EventCrewShift, type EventCrewTask } from "@/lib/tasks/event-crew-panel";
+import {
+    formatShiftWhen,
+    formatTaskDue,
+    type EventCrewShift,
+    type EventCrewTask,
+} from "@/lib/tasks/event-crew-panel";
 
 type Props = {
     circleHandle: string;
@@ -190,8 +194,7 @@ export default function EventTasksPanel({ circleHandle, circleId, eventId, event
                                                 {task.assigneeName
                                                     ? `Assigned to ${task.assigneeName}`
                                                     : "Not assigned"}
-                                                {task.targetDate &&
-                                                    ` · due ${format(new Date(task.targetDate), "d MMM")}`}
+                                                {formatTaskDue(task)}
                                             </div>
                                         </div>
                                         <Badge className={stageInfo.className}>{stageInfo.text}</Badge>

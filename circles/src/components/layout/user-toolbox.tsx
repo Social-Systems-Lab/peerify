@@ -61,6 +61,7 @@ const { flushSync } = require("react-dom");
 import { LoadingSpinner } from "../ui/loading-spinner";
 import { useToast } from "../ui/use-toast";
 import { getCircleDefaultPath } from "@/lib/utils/circle-routes";
+import { floatingDateOf } from "@/lib/tasks/shift-calendar";
 
 type Milestone = { id: string; type: "goal" | "task" | "issue"; title: string; date: Date | string; circleHandle?: string };
 type ToolboxTab = UserToolboxTab | "connections";
@@ -231,7 +232,8 @@ export const UserToolbox = () => {
                             id: (task as any)._id?.toString?.() || task._id,
                             type: "task" as const,
                             title: task.title,
-                            date: task.targetDate,
+                            // The due day as a local Date (shift-calendar.ts), not the creator's local midnight.
+                            date: floatingDateOf(task.targetDate) ?? task.targetDate,
                             circleHandle: task.circle?.handle,
                         })) || [];
 

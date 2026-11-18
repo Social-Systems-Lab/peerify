@@ -181,3 +181,7 @@ export const formatShiftDayAndTimes = (task: Pick<Task, "targetDate" | "shiftSta
         : null;
     return end ? `${day} · ${start} - ${end}` : `${day} · ${start}`;
 };
+
+// Tasks list, due date column (shift dates 5/5): "6 Dec 2026", the calendar date in the zone.
+export const formatTaskListDate = (value?: Date | string | null) =>
+    formatCalendarDate(value, "d MMM yyyy") ?? "No due date";

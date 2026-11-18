@@ -13,6 +13,7 @@ import { getIssuesAction } from "@/app/circles/[handle]/issues/actions";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
 import { getShiftEndAt, getShiftStartAt, isShiftTask } from "../tasks/shift-task-utils";
+import { floatingDateOf } from "@/lib/tasks/shift-calendar";
 
 type Props = {
     circle: Circle;
@@ -88,7 +89,8 @@ function EventsTabsContent({ circle, events, canCreate }: Props) {
                         id: (t as any)._id?.toString?.() || t._id,
                         type: "task",
                         title: t.title,
-                        date: t.targetDate,
+                        // The due day as a local Date (shift-calendar.ts), not the creator's local midnight.
+                        date: floatingDateOf(t.targetDate) ?? t.targetDate,
                         circleHandle: t.circle?.handle,
                     }));
 

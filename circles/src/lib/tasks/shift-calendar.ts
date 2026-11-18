@@ -178,3 +178,7 @@ export const pickerDateFromStored = (value: unknown, timeZone: string = DEFAULT_
     const date = calendarDateOf(value, timeZone);
     return (date && toFloatingDate(date)) || undefined;
 };
+
+// A local Date on the calendar day of a stored date, for UI that compares and groups dates in the
+// browser (the events calendar, the user toolbox): same as the picker's.
+export const floatingDateOf = pickerDateFromStored;
