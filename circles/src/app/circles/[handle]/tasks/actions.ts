@@ -56,7 +56,10 @@ import {
     confirmedBelowSlotsFilter,
     getShiftSignupCeiling,
 } from "@/lib/tasks/shift-capacity";
-import { getShiftConfirmedCount } from "@/components/modules/tasks/shift-task-utils";
+import {
+    getShiftConfirmedCount,
+    getShiftEndAt as getSharedShiftEndAt,
+} from "@/components/modules/tasks/shift-task-utils";
 import { taskMessage, taskNoun } from "@/lib/tasks/task-messages";
 import { listAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 // Import task notification functions (assuming they will be created)
@@ -101,28 +104,14 @@ const revalidateTaskAndShiftRoutes = (circleHandle: string, taskId?: string) => 
     }
 };
 
+// The shift's end in its own zone (shift-calendar.ts), not the server's: on a server in
+// Europe/Stockholm a shift picked in Cape Town used to end a day early (fix of 2026-11-18).
 const getShiftEndAt = (task: Pick<Task, "stage" | "targetDate" | "shiftStartTime" | "shiftDurationMinutes">) => {
     if (task.stage === "resolved") {
         return new Date(0);
     }
 
-    if (!task.targetDate || !task.shiftStartTime || !task.shiftDurationMinutes) {
-        return null;
-    }
-
-    const [hours, minutes] = task.shiftStartTime.split(":").map(Number);
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-        return null;
-    }
-
-    const shiftEndAt = new Date(task.targetDate);
-    if (Number.isNaN(shiftEndAt.getTime())) {
-        return null;
-    }
-
-    shiftEndAt.setHours(hours, minutes, 0, 0);
-    shiftEndAt.setMinutes(shiftEndAt.getMinutes() + task.shiftDurationMinutes);
-    return shiftEndAt;
+    return getSharedShiftEndAt(task);
 };
 
 const hasShiftCompleted = (task: Pick<Task, "stage" | "targetDate" | "shiftStartTime" | "shiftDurationMinutes">) => {
