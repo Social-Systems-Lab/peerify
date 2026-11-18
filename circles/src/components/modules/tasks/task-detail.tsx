@@ -86,6 +86,7 @@ import Link from "next/link";
 import { CommentSection } from "../feeds/CommentSection"; // Import CommentSection
 import {
     formatTargetDateLong,
+    getParticipantNotesHiddenHint,
     getShiftConfirmedParticipants,
     getShiftConfirmedCount,
     getShiftSignupBlock,
@@ -1240,9 +1241,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                         </div>
                         {!task.participantNotes && task.participantNotesHidden && (
                             <div className="mt-5 text-sm text-muted-foreground">
-                                {currentShiftParticipant
-                                    ? "Details for participants appear once an organiser confirms your sign-up."
-                                    : "Details for participants appear once you sign up."}
+                                {getParticipantNotesHiddenHint(Boolean(currentShiftParticipant))}
                             </div>
                         )}
                         {task.participantNotes && (

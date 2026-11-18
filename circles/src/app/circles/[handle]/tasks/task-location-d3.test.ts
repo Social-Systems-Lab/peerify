@@ -5,7 +5,7 @@
 // - location: exact for the author, the assignee, people signed up and claimants (pending or
 //   approved); city level for everyone else;
 // - "Important for participants": for the author, the assignee and people signed up; others get
-//   participantNotesHidden (the page says "Details for participants appear once you sign up");
+//   participantNotesHidden (the page says "Details for participants appear once you’re confirmed");
 // - "changes requested": for the author, the assignee, claimants and reviewers.
 // People with tasks.assign or tasks.moderate and platform admins still get everything. The
 // database is in-memory fakes; the session and permission checks are stubbed.

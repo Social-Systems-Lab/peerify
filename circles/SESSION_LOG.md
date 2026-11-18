@@ -8,7 +8,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `main` = `ac61f445`** (released 2026-11-17; Tim confirmed prod, and `/api/version` reported `ac61f445` on both). **The `staging` branch is ahead:** Crew round 2 is merged (`e2c5550d` part 1, `a20762f1` part 2) plus this log entry; deploying it to staging is Tim's step. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **Prod = `main` = `ac61f445`** (released 2026-11-17; Tim confirmed prod, and `/api/version` reported `ac61f445` on both). **The `staging` branch is ahead:** Crew round 2 is merged (`e2c5550d` part 1, `a20762f1` part 2), plus the first staging-round fixes (shift dates `849a1f31`, and the merge of `fix/crew-r2-fixes2`; see the 2026-11-18 (cont. 3) entry); deploying it to staging is Tim's step. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
 - **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. **Also live since `60108f48`:** the crew UI polish (6 items, `29fcd32f`..`e36894f6`). **Also live since `ac61f445` (2026-11-17):** one Share button (`fix/share-simple`) and the task fixes (`fix/task-actions-circle-check`). See the 2026-11-15 entries.
 - **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (it also covers a personal profile's Circles list, owner-only since `e4973b87`: default only me, options Contacts or Public) (design direction in the 2026-11-15 (cont.) entry).
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
@@ -19,10 +19,12 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Next:** Tim deploys staging and runs the browser test lists (part 1 in `crew-r2-part1.tar.gz`, part 2 in `crew-r2-part2.tar.gz`). Then the release to prod.
   - Optional: run the read-only `scripts/count-null-signup-fields.mongosh.js` on staging and prod.
   - See the 2026-11-18 (cont. 2) entry.
+  - **Staging round fixes (2026-11-18 (cont. 3)):** shift dates as calendar dates in `Africa/Johannesburg` (merged `849a1f31`); "Details for participants appear once you’re confirmed." (merged). **Waiting for Tim:** the text of the moderator / "Review sign-ups" bug, which didn't reach Claude.
   - Its personal counterpart, later: **"My Crews"** on the personal profile, owner only: upcoming shifts across all crews plus those crews' broadcasts in one feed (2026-11-15 (cont. 4)).
 - **LATER:**
   - the event audience picker should always be available, not only after ticking "Share on Noticeboard";
   - `src/lib/auth/altcha.test.ts` is flaky (5-second timeouts in CPU-heavy tests); give it a longer timeout;
+  - **known failing test:** `src/lib/auth/participation-readiness.test.ts` fails ("AssertionError: ready state: readiness.isReady true", an unhandled error between tests). It fails the same way on `staging` `4ad4d8a4`, before the shift date fix, so it isn't caused by it. Look at it later;
   - `ensureCircleConversationAction` (`components/modules/chat/actions.ts` ~283) lets anyone, even signed out, create an empty conversation document for any circle id. It should require sign-in and membership;
   - the venue/circle members chat room can't be opened by anyone (no participants are ever added to its conversation). Decide in the UX month whether to fix it or remove it.
 - **Security fix LIVE on prod (2026-11-14, `68d0dfa0`):** a moderator can no longer grant `admins` (the `??` precedence bug in `safeModifyMemberUserGroups`). See the 2026-11-14 (cont.) entry.
@@ -67,6 +69,29 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-18 (cont. 3) — Staging round fixes: shift dates; participant-notes wording; one bug waiting for its text
+
+**State:** merged to `staging` and pushed; not deployed (Tim's step). No database commands. Reports: `shift-date-tz.tar.gz` (investigation), `shift-date-tz-fix.tar.gz` (the fix), `crew-r2-fixes2.tar.gz` (this round).
+
+**1. Shift dates and time zones (Tim's staging test):** Door crew (Sun 6 Dec, 18:00) showed "Sat 5 Dec" while the Crew page loaded, then "Sun 6 Dec".
+- **Cause:** nothing stored has a time zone. The task form sent the picker's local midnight (`toISOString`): picked in Cape Town, Door crew is `2026-12-05T22:00Z`. Every reader turned it back into a date in its own zone: the server render (staging box: Europe/Stockholm) said Sat 5 Dec, the browser (Cape Town) Sun 6 Dec. The server also applied "18:00" to its own day, so it put Door crew ~23 hours early: out of "Open shifts" and "My shifts" a day early, and **attendance could be reviewed the day before**. Shifts pre-filled from the event (the event's start instant) were 1 hour off on the server.
+- **Notifications, emails, push and the `.ics` export carry no shift or task dates;** there are no shift reminders.
+- **Fix (Tim: recommended option, default `Africa/Johannesburg`, per-circle zone later, no `TZ` stopgap):** `src/lib/tasks/shift-calendar.ts` (Intl only). A shift's `targetDate` is a calendar date and its start time wall-clock time, both in `DEFAULT_TIME_ZONE`. Every stored value is read as its calendar date in that zone (Cape Town picks, Sweden picks, event starts), so **no data migration**. Shared start, end and status; the server actions' own copy removed; all shift and task date labels identical on server and browser; the form sends `"YYYY-MM-DD"` and the server stores 12:00 UTC of that day (an ISO datetime from an old page is still accepted).
+- **Commits:** `f6ef8ac7` (failing-first tests, read-only `scripts/shift-target-date-kinds.mongosh.js`, not run), `35e96db3`, `4951f7a6`, `ac9fc536`, `1dadf3ea`, `9cafd29c`; merge `849a1f31`. Each commit: tsc (old error only), eslint, build, touched tests. All 132 test files run one at a time: 131 pass (see "Known failing test" below).
+- **Visible side changes:** the shifts list prints "Sun 6 Dec 2026" and "18:00", the tasks list "6 Dec 2026" (they followed the browser's locale); saving a dated shift or task rewrites its date to 12:00 UTC of the same day.
+- **Not changed:** the event timeline shows shift times in the viewer's zone, like event times (Sweden sees 17:00 for 18:00 SAST, on the right day). **Goal and issue dates** use the same kind of picker and probably have the same bug; not done.
+- **Later:** a per-circle `timeZone` setting when a circle outside South Africa appears; callers already take a `timeZone` argument.
+
+**2. Wording:** on a shift whose participant notes are held back, someone not signed up now sees "Details for participants appear once you’re confirmed." (was "…once you sign up.": signing up isn't enough on a crew-only shift, decision B). A pending sign-up still sees "…once an organiser confirms your sign-up." Branch `fix/crew-r2-fixes2`, with a failing-first test (`participant-notes-hint.test.ts`).
+
+**3. The moderator / "Review sign-ups" bug: NOT DONE, waiting for its text.** Tim's request referred to "the moderator / Review sign-ups bug message from before", but that message isn't in this session (or any other on this box). Nothing was changed for it.
+
+**Known failing test:** `src/lib/auth/participation-readiness.test.ts` ("ready state: readiness.isReady true", an unhandled error between tests). It fails the same way on `staging` `4ad4d8a4`, before the date fix. Not looked into; noted under LATER in Current Status.
+
+**Staging checks for Tim:** the five steps in `shift-date-tz-fix.tar.gz` (Crew page with the browser on Cape Town and on Swedish time; Home, shifts list and shift page; edit without changes; create from the event; attendance refused before 20:00 SAST on 6 Dec), plus: open a crew-only shift with participant notes while not signed up, and see the new sentence.
 
 ---
 
