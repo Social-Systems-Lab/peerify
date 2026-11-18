@@ -14,7 +14,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
 - **SECURITY (2026-11-16):** the cross-circle gap in 13 task/shift actions is fixed, together with private pending sign-ups and claims, and **LIVE on prod since 2026-11-17 (`ac61f445`)**. Tim's read-only prod check before the release found **nothing flagged** (53 tasks read).
 - **DESIGN DIRECTION: "Asks"** in the Crew feed (2026-11-15 (cont. 5); Tim's answers 2026-11-16). They are **built after the home show**; until then artists use ordinary Crew posts.
-- **CANDIDATE BEFORE THE SHOW:** a "Shifts & tasks" view on the Crew page (my shifts, then open shifts by event) and the same status panel on the Crew Dashboard.
+- **NEXT BUILD: Crew round 2, before the home show on 6 Dec** (decisions F1–F8 approved 2026-11-18; not started). Two features: the "Shifts & tasks" view on the Crew page (my shifts, then open shifts by event) and the Crew Dashboard, and more sign-ups than places while nothing is confirmed. The 9-commit build plan is in the 2026-11-18 (cont.) entry; the report is `crew-r2-investigation.tar.gz`.
   - Its personal counterpart, later: **"My Crews"** on the personal profile, owner only: upcoming shifts across all crews plus those crews' broadcasts in one feed (2026-11-15 (cont. 4)).
 - **LATER:**
   - the event audience picker should always be available, not only after ticking "Share on Noticeboard";
@@ -63,6 +63,98 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-18 (cont.) — Crew round 2: investigation done, decisions F1–F8 approved, build plan (not started)
+
+**Investigation:** read-only, at `e5031264` (`src/` = `ac61f445`), report `~/cc-reports/outbox/crew-r2-investigation.tar.gz` (REPORT.md, code-refs.txt). No code changed, no database commands. **Building is not started:** Tim is rebooting `peerify-staging` first. A fresh session picks it up from here.
+
+**The two features:**
+1. A "Shifts & tasks" view on the Crew page: "My shifts" first (shifts and tasks I've signed up for, claimed or been confirmed on, soonest first), then "Open shifts" grouped by event (event date order). The same panel goes on the Crew Dashboard.
+2. More sign-ups than places while nothing is confirmed. The organiser chooses who is confirmed, and confirmations never exceed places.
+
+**Privacy rules that must hold:** decision B (exact location and the participants note for confirmed crew only, city level for everyone else); pending sign-ups and claims private (crew see only their own status, organisers the full list); crew-only shifts only for that circle's crew; nothing new in a SAFE/PUBLIC projection unless needed, checked against the anonymous and non-crew views.
+
+**Findings that shape the build:**
+- **`verifyShiftParticipantAction` (`[handle]/tasks/actions.ts:1963`, write at 2031) has no capacity check.** It's safe today only because sign-up stops at `participants.length >= slots`. The confirm cap must land before (or with) over-subscription.
+- **"Full" is enforced in:**
+  - **On the server:**
+    - `joinShiftTaskAction`: the check at :1838 and the atomic `participants.${slots-1}` filter at :1847;
+    - `updateTaskAction`: :903, slots can't go below all sign-ups.
+  - **In the browser:**
+    - `task-detail.tsx:252` `canJoinShift` and `:277` `shiftIsWaitlistedByPending`;
+    - `[handle]/home/page.tsx:151`;
+    - `upcoming-shifts-panel.tsx:40`;
+    - `event-tasks-panel.tsx:50`.
+  - The count helpers are in `shift-task-utils.ts`. `tasks-list.tsx:144` already counts confirmed people only.
+- **No decline or remove action exists for shift sign-ups.** Approving a task claim closes the other pending claims (`task.ts:1366`) with no notice.
+- **Gating to reuse:**
+  - fetch with `getTasksByCircleId(circleId, viewerDid)`, which ends in `filterTasksForViewer` → `shapeTaskNotesForViewer` (decision B, private sign-ups);
+  - build a small object for the browser as `summarizeEventCrew` does (`lib/tasks/event-crew-panel.ts`), with no location, notes or claims;
+  - event titles and dates go through `shapeEventsForViewer`.
+  - `getEventCrewPanelAction` (`[handle]/events/actions.ts:595`) is the model. Don't use `getActiveTasksByCircleId` (unfiltered).
+- **Notifications (bell only):**
+  - sign-up → members with `tasks.moderate` (default: admins);
+  - confirm → the person;
+  - claim submitted → `tasks.assign` (admins and moderators);
+  - claim approved or declined → the claimant;
+  - nothing on leaving, and no decline exists.
+- **Crew Dashboard** (`[handle]/settings/crew/page.tsx`): managed-identity circles only (others go to `settings/crew-applications`), and `settings.edit_about` (default: admins only). Moderators see sign-up names (`tasks.assign`) but can't confirm (`tasks.moderate` is admins only by default).
+
+**Decisions (Tim, 2026-11-18, all as recommended):**
+- **F1:** the organiser can decline a pending sign-up, and the person gets a bell notice. Until then, once all places are confirmed, their status reads "Waiting list". A declined sign-up is removed (not kept), so the person can offer again if a place opens. Optional: "Decline the remaining N" once full.
+- **F2:** a shift with all places confirmed leaves "Open shifts". It stays under "My shifts" for the people on it.
+- **F3:** crew see places left counting **confirmed only** ("2 places · 1 left"). No pending count in the label. `pendingParticipantCount` keeps being sent as today.
+- **F4:** open tasks appear in "Open shifts" under each event ("Offer to help" leads to the task page). Claimants whose claim is closed when another is approved get the existing `task_claim_declined` notice. Tasks keep one assignee.
+- **F5:** a ceiling on total sign-ups per shift of 3 × places, at least 10 ("Many people have already offered").
+- **F6:** the Crew Dashboard stays admins only. Moderators get the organiser view of the panel on the Crew page. If a moderator should confirm people for the show, Tim gives them `tasks.moderate` in that circle's access rules. **Tim's browser check:** does `/circles/<organiser-handle>/settings/crew` land on "Crew Applications"? If yes, that circle has no Dashboard, and the Crew page is where he works.
+- **F7:** on the Crew page, a section at the top of the left column above the feed. "My shifts" always shows; "Open shifts" shows the next 5 with "Show all".
+- **F8:** "My shifts" shows upcoming items only.
+
+**Build plan:**
+- Branch `feature/crew-r2` from `staging`.
+- One logical change per commit, each with a test that fails before it, plus tsc, eslint, build and the touched test files.
+- Commits 1–4 (feature 2) and 5–8 (feature 1) can ship separately.
+- About 4–5 days in total.
+
+1. **Confirm cap (server and button).**
+   - `verifyShiftParticipantAction` refuses with "All places are confirmed" when confirmed ≥ slots.
+   - The write itself carries the condition (an `$expr` counting `participants` that have `verifiedAt`, compared with `slots`), so two confirms at once can't go over.
+   - The confirm button is disabled at capacity.
+2. **Sign-up counts confirmed only (server).**
+   - `joinShiftTaskAction` refuses only when confirmed ≥ slots.
+   - Its atomic filter becomes "confirmed < slots, total sign-ups below the F5 ceiling, and not already signed up".
+   - `updateTaskAction`: `slots` can't go below the **confirmed** count.
+3. **The client follows the same rule.**
+   - Add `getShiftOpenPlaces` (= slots − confirmed) to `shift-task-utils.ts`.
+   - `canJoinShift` uses it.
+   - The waitlist banner is reworded for over-subscription.
+   - The home page filter, the `upcoming-shifts-panel` label and the `event-tasks-panel` label use confirmed only (F3).
+4. **Decline.**
+   - New `declineShiftParticipantAction`, with the same rights (`tasks.moderate`) and circle check as confirm. It works on pending entries only and removes the entry.
+   - New notification type `task_shift_declined`, bell only, to that person.
+   - "Waiting list" label (F1).
+   - `reviewTaskClaimAction` sends `task_claim_declined` to each claim it closes (F4).
+5. **The data for the view, `src/lib/tasks/crew-shifts-view.ts`.**
+   - Input: tasks already filtered, visible events, `viewerDid`, `isOrganiser`, `now`.
+   - `myShifts`: upcoming only (F8).
+   - `openByEvent`: event date order; shifts and open unassigned tasks (F4); past, review, resolved and fully confirmed ones (F2) left out; a hidden or missing event goes under "Other".
+   - It reuses `summarizeEventCrew`'s status and counting, moved into a shared helper rather than copied.
+   - It never carries location, notes or claims. People's names only for organisers.
+   - Tests: pure unit tests, including "no location or notes keys".
+6. **`getCrewShiftsAndTasksAction(circleHandle)` in `components/modules/crew/actions.ts`.**
+   - Requires sign-in, and admins, moderators or crew in the circle (the `crew.tsx` check).
+   - Crew must be on (`isCrewOn`). The tasks and shifts modules are respected as in `getEventCrewPanelAction`.
+   - `isOrganiser` = `tasks.assign` or `tasks.moderate`, or platform admin. Organisers get profiles via `getCirclesByDids(..., { viewerDid })`.
+   - Test (fake collection): anonymous, non-crew follower and another circle's admin get nothing; crew never see others' pending sign-ups; a pending crew member gets no location or notes on a crew-only shift; organisers see names.
+7. **Crew page panel** (`crew-shifts-panel.tsx`, F7). Rows: title, date and time, the viewer's status, places left (F3), and a link to the shift or task page. **Sign-up stays on the shift page:** no new sign-up path.
+8. **Crew Dashboard panel:** the organiser view (pending and confirmed names per shift, a "Review" link to the shift page). Admins only (F6).
+9. **SESSION_LOG.**
+
+**Staging test list:** REPORT.md section e, 18 steps. Accounts: A (admin), C1 and C2 (crew), F (follower), X (another circle's admin), and a signed-out window. Shifts: a crew-only shift with 2 places, a shift open to everyone with 1 place, and a task, all on one event.
+
+**Also found (later, not this round):** organisers can't remove a confirmed person; leaving a shift doesn't notify organisers; `getTasksByCircleId` drops tasks whose author profile is missing.
 
 ---
 
