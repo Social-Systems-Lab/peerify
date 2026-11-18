@@ -139,3 +139,25 @@ describe("formatting doesn't depend on the zone the code runs in", () => {
         }
     });
 });
+
+// Shift dates 4/5: the task form shows the stored day in its date picker and sends the picked day.
+describe("the task form's date picker", () => {
+    test("pickerDateFromStored: the stored day, in a browser in any zone", async () => {
+        const { pickerDateFromStored } = (await import("./shift-calendar")) as Record<string, unknown> as {
+            pickerDateFromStored?: (value: unknown) => Date | undefined;
+        };
+        expect(typeof pickerDateFromStored).toBe("function");
+        for (const tz of ZONES) {
+            for (const stored of ["2026-12-05T22:00:00.000Z", "2026-12-06T16:00:00.000Z", "2026-12-06T12:00:00.000Z"]) {
+                const picked = inZone(tz, () => pickerDateFromStored?.(stored));
+                expect(inZone(tz, () => (picked ? calendarDateOfFloating(picked) : null))).toBe("2026-12-06");
+            }
+        }
+        expect(pickerDateFromStored?.(undefined)).toBeUndefined();
+    });
+    test("parseTargetDateInput refuses anything but a calendar date or an ISO datetime", () => {
+        expect(parseTargetDateInput("2026-02-30")).toBeNull();
+        expect(parseTargetDateInput("12/06/2026")).toBeNull();
+        expect(parseTargetDateInput("")).toBeNull();
+    });
+});

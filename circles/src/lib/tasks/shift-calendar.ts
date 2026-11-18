@@ -23,6 +23,7 @@ export type CalendarDate = string;
 
 const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const WALL_TIME = /^([01]?\d|2[0-3]):([0-5]\d)$/;
+const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
 
 const toValidDate = (value: unknown): Date | null => {
     if (value === null || value === undefined || value === "") return null;
@@ -164,7 +165,16 @@ export const formatWallTime = (time: string | undefined, pattern: string, addMin
 // forms loaded before this change, an ISO datetime (stored as its calendar date in the zone).
 export const parseTargetDateInput = (raw: string, timeZone: string = DEFAULT_TIME_ZONE): Date | null => {
     const value = raw.trim();
-    if (isCalendarDate(value)) return toStoredCalendarDate(value);
+    if (CALENDAR_DATE.test(value)) return toStoredCalendarDate(value); // null for "2026-02-30"
+    if (!ISO_DATETIME.test(value)) return null;
     const date = calendarDateOf(value, timeZone);
     return date ? toStoredCalendarDate(date) : null;
+};
+
+// The task form's date picker (shift dates 4/5): a stored targetDate, an event's start or a
+// ?targetDate= value as the picker's local Date for that calendar day in the zone. The form sends
+// the picked day back with calendarDateOfFloating, as "YYYY-MM-DD".
+export const pickerDateFromStored = (value: unknown, timeZone: string = DEFAULT_TIME_ZONE): Date | undefined => {
+    const date = calendarDateOf(value, timeZone);
+    return (date && toFloatingDate(date)) || undefined;
 };

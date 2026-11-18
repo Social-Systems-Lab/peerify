@@ -61,6 +61,7 @@ import {
     getShiftEndAt as getSharedShiftEndAt,
 } from "@/components/modules/tasks/shift-task-utils";
 import { taskMessage, taskNoun } from "@/lib/tasks/task-messages";
+import { parseTargetDateInput } from "@/lib/tasks/shift-calendar";
 import { listAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 // Import task notification functions (assuming they will be created)
 import {
@@ -386,7 +387,12 @@ const baseTaskSchema = z.object({
             },
             { message: "Invalid location data format" },
         ),
-    targetDate: z.string().datetime({ offset: true }).optional(), // Expect ISO string from form
+    // The picked day, "YYYY-MM-DD" (shift dates 4/5, 2026-11-18); an ISO datetime from a form loaded
+    // before that is still accepted and read as its calendar date in the shift's zone.
+    targetDate: z
+        .string()
+        .refine((value) => parseTargetDateInput(value) !== null, { message: "Invalid date" })
+        .optional(),
     userGroups: z.array(z.string()).optional(), // Optional: User groups for visibility
     goalId: z.string().optional(), // Optional: Goal ID for task association
     eventId: z.string().optional(), // Optional: Event ID for task association
@@ -627,16 +633,10 @@ export async function createTaskAction( // Renamed function
         }
 
         // --- Parse Target Date ---
+        // Stored as 12:00 UTC of the picked day (shift-calendar.ts).
         let targetDateData: Task["targetDate"] = undefined;
         if (data.targetDate) {
-            try {
-                const d = new Date(data.targetDate);
-                if (!isNaN(d.getTime())) {
-                    targetDateData = d;
-                }
-            } catch (e) {
-                console.error("Invalid target date format received:", data.targetDate);
-            }
+            targetDateData = parseTargetDateInput(data.targetDate) ?? undefined;
         }
         // --- Handle Image Uploads ---
         let uploadedImages: Media[] = [];
@@ -929,14 +929,8 @@ export async function updateTaskAction(
             if (rawTargetDate.trim() === "") {
                 targetDateForUpdate = null; // unset
             } else {
-                try {
-                    const d = new Date(rawTargetDate);
-                    if (!isNaN(d.getTime())) {
-                        targetDateForUpdate = d;
-                    }
-                } catch (e) {
-                    // ignore parse error
-                }
+                // Stored as 12:00 UTC of the picked day (shift-calendar.ts).
+                targetDateForUpdate = parseTargetDateInput(rawTargetDate) ?? undefined;
             }
         }
         // ... (image handling) ...
