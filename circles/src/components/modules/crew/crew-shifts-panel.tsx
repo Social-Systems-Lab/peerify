@@ -3,7 +3,7 @@
 // The Crew page's "Shifts & tasks" panel (Crew round 2, 2026-11-18; F7: top of the left column, above
 // the feed). "My shifts" always shows; "Open shifts" by event shows the next 5 rows with "Show all".
 // Organisers (tasks.assign / tasks.moderate, so moderators too, F6) also get "Review sign-ups" with
-// names. Sign-up, confirm and decline stay on the shift and task pages: rows only link there. All
+// names; the Crew Dashboard shows only that ("dashboard" variant). Sign-up, confirm and decline stay on the shift and task pages: rows only link there. All
 // shaping happens on the server (getCrewShiftsAndTasksAction); this only renders what it was given.
 
 import React, { useState } from "react";
@@ -21,6 +21,8 @@ const OPEN_ROWS_SHOWN = 5;
 type Props = {
     circleHandle: string;
     data: CrewShiftsAndTasksResult;
+    // "dashboard": the Crew Dashboard's organiser view only ("Review sign-ups"; F6, admins only).
+    variant?: "crewPage" | "dashboard";
 };
 
 const itemHref = (circleHandle: string, item: CrewViewItem) =>
@@ -199,8 +201,24 @@ function GroupedList({
     );
 }
 
-export default function CrewShiftsPanel({ circleHandle, data }: Props) {
+export default function CrewShiftsPanel({ circleHandle, data, variant = "crewPage" }: Props) {
     if (!data.show) return null;
+
+    if (variant === "dashboard") {
+        if (!data.isOrganiser || !data.allByEvent) return null;
+        return (
+            <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <h2 className="text-xl font-semibold text-[#231f1a]">Shifts &amp; tasks</h2>
+                <h3 className="text-sm font-semibold text-foreground">Review sign-ups</h3>
+                <GroupedList
+                    circleHandle={circleHandle}
+                    groups={data.allByEvent}
+                    review
+                    emptyText="Nothing coming up to review."
+                />
+            </section>
+        );
+    }
 
     return (
         <div className="space-y-5 rounded-[15px] bg-white p-4 shadow-lg">

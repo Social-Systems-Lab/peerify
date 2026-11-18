@@ -139,3 +139,38 @@ describe("the Crew page panel", () => {
         expect(html).toContain("Review");
     });
 });
+
+// Crew round 2, commit 8: the same panel on the Crew Dashboard (admins only, F6), organiser view only.
+describe("the Crew Dashboard variant", () => {
+    const organiserData: Result = {
+        ...base,
+        isOrganiser: true,
+        myShifts: [shift("mine", { viewerStatus: "confirmed", title: "My own shift" })],
+        openByEvent: [{ event: EVENT, shifts: [shift("open1", { title: "An open shift" })], tasks: [] }],
+        allByEvent: [
+            {
+                event: EVENT,
+                shifts: [shift("s1", { pendingCount: 1, people: [{ did: "c", name: "Cy", status: "pending" }] })],
+                tasks: [],
+            },
+        ],
+    };
+    const renderDashboard = (data: Result) =>
+        renderToStaticMarkup(<CrewShiftsPanel circleHandle="venue" data={data} variant="dashboard" />);
+
+    test("only 'Review sign-ups', with names and Review links; no 'My shifts' or 'Open shifts'", () => {
+        const html = renderDashboard(organiserData);
+        expect(html).toContain("Shifts &amp; tasks");
+        expect(html).toContain("Review sign-ups");
+        expect(html).toContain("Cy");
+        expect(html).toContain('href="/circles/venue/shifts/s1"');
+        expect(html).not.toContain("My shifts");
+        expect(html).not.toContain("My own shift");
+        expect(html).not.toContain("Open shifts");
+    });
+
+    test("nothing without the organiser view (e.g. an admin whose access rules took tasks.assign away)", () => {
+        expect(renderDashboard({ ...organiserData, isOrganiser: false, allByEvent: undefined })).toBe("");
+        expect(renderDashboard({ ...organiserData, show: false })).toBe("");
+    });
+});
