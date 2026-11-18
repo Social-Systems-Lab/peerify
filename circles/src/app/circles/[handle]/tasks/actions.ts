@@ -50,7 +50,12 @@ import { getMember, getMembers, getMemberIdsByUserGroup } from "@/lib/data/membe
 import { updateAggregateRankCache } from "@/lib/data/ranking"; // Import cache update function
 import { getCirclesByDids } from "@/lib/data/circle";
 import { isTaskInCircle } from "@/lib/tasks/task-circle";
-import { ALL_PLACES_CONFIRMED, confirmedBelowSlotsFilter } from "@/lib/tasks/shift-capacity";
+import {
+    ALL_PLACES_CONFIRMED,
+    MANY_HAVE_OFFERED,
+    confirmedBelowSlotsFilter,
+    getShiftSignupCeiling,
+} from "@/lib/tasks/shift-capacity";
 import { getShiftConfirmedCount } from "@/components/modules/tasks/shift-task-utils";
 import { taskMessage, taskNoun } from "@/lib/tasks/task-messages";
 import { listAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
@@ -902,10 +907,11 @@ export async function updateTaskAction(
             };
         }
 
-        if (data.taskType === "shift" && data.slots && data.slots < participantCount) {
+        // Crew round 2: pending sign-ups may exceed places; confirmed people may not.
+        if (data.taskType === "shift" && data.slots && data.slots < getShiftConfirmedCount(task)) {
             return {
                 success: false,
-                message: "Slots cannot be lower than the current participant count",
+                message: "Places can't be fewer than the people already confirmed",
             };
         }
 
@@ -1837,8 +1843,14 @@ export async function joinShiftTaskAction(
             return { success: false, message: "You have already joined this shift" };
         }
 
-        if (participants.length >= slots) {
-            return { success: false, message: "This shift is already full" };
+        // Crew round 2: more sign-ups than places while places aren't all confirmed. Refused only when
+        // all places are confirmed, or at the F5 ceiling. The write carries both conditions.
+        if (getShiftConfirmedCount(task) >= slots) {
+            return { success: false, message: ALL_PLACES_CONFIRMED };
+        }
+        const ceiling = getShiftSignupCeiling(slots);
+        if (participants.length >= ceiling) {
+            return { success: false, message: MANY_HAVE_OFFERED };
         }
 
         const now = new Date();
@@ -1846,8 +1858,9 @@ export async function joinShiftTaskAction(
             {
                 _id: new ObjectId(taskId),
                 taskType: "shift",
-                [`participants.${slots - 1}`]: { $exists: false },
+                [`participants.${ceiling - 1}`]: { $exists: false },
                 "participants.userDid": { $ne: userDid },
+                ...confirmedBelowSlotsFilter(),
             },
             {
                 $push: {
@@ -1861,6 +1874,17 @@ export async function joinShiftTaskAction(
         );
 
         if (!result.modifiedCount) {
+            // Lost a race: say which limit was reached meanwhile.
+            const latest = (await Tasks.findOne(
+                { _id: new ObjectId(taskId) },
+                { projection: { slots: 1, participants: 1 } },
+            )) as Task | null;
+            if (latest && getShiftConfirmedCount(latest) >= (latest.slots ?? 0)) {
+                return { success: false, message: ALL_PLACES_CONFIRMED };
+            }
+            if (latest && (latest.participants?.length ?? 0) >= getShiftSignupCeiling(latest.slots ?? 0)) {
+                return { success: false, message: MANY_HAVE_OFFERED };
+            }
             return { success: false, message: "Unable to join this shift right now" };
         }
 
@@ -2046,11 +2070,11 @@ export async function verifyShiftParticipantAction(
 
         if (!result.modifiedCount) {
             // Lost a race: if the places filled meanwhile, say so.
-            const latest = await Tasks.findOne(
+            const latest = (await Tasks.findOne(
                 { _id: new ObjectId(taskId) },
                 { projection: { slots: 1, participants: 1 } },
-            );
-            if (latest && getShiftConfirmedCount(latest as Task) >= ((latest as Task).slots ?? 0)) {
+            )) as Task | null;
+            if (latest && getShiftConfirmedCount(latest) >= (latest.slots ?? 0)) {
                 return { success: false, message: ALL_PLACES_CONFIRMED };
             }
             return { success: false, message: "Unable to verify this participant right now" };

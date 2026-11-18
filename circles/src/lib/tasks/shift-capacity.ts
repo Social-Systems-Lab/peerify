@@ -21,3 +21,8 @@ export const confirmedBelowSlotsFilter = () => ({
 });
 
 export const ALL_PLACES_CONFIRMED = "All places are confirmed";
+
+// F5: total sign-ups (pending and confirmed) per shift stop at 3 × places, at least 10.
+export const getShiftSignupCeiling = (slots: number) => Math.max(3 * slots, 10);
+
+export const MANY_HAVE_OFFERED = "Many people have already offered for this shift";
