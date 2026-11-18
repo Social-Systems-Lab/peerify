@@ -5,8 +5,9 @@
 // find() with sort/limit/project, inclusion projections (dotted paths too), countDocuments, insertOne
 // (adds an ObjectId _id when there is none), deleteOne, deleteMany,
 // and updateOne ($set, $unset, $addToSet, $push (top-level, single value), $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
-// between its match and its write). $set takes dotted paths and the positional "$" (the first element
-// that the filter's $elemMatch or "array.field" condition matched). A top-level $expr supports the few
+// between its match and its write). $set takes dotted paths, the positional "$" (the first element
+// that the filter's $elemMatch or "array.field" condition matched), and "$[name]" with arrayFilters.
+// $pull takes a value or a condition object on the elements. A top-level $expr supports the few
 // aggregation operators listed in evalExpr.
 
 import { ObjectId } from "mongodb";
@@ -225,18 +226,38 @@ const positionalIndex = (doc: Doc, filter: Doc, arrayKey: string): number => {
     return list.findIndex((element) => matchesFilter(element as Doc, subFilter));
 };
 
-// Replaces each positional "$" with the matched index, worked out on the document before any write
-// (as MongoDB does), so a $set of several "list.$.x" keys all land on the same element.
-const resolvePositional = (doc: Doc, filter: Doc, key: string): string => {
+// Turns a $set key into the concrete paths it writes, worked out on the document before any write (as
+// MongoDB does), so several "list.$.x" keys all land on the same element. "$" is the element the
+// filter matched; "$[name]" every element its arrayFilters entry matches; "$[]" every element.
+const expandUpdateKey = (doc: Doc, filter: Doc, key: string, arrayFilters: Doc[] = []): string[] => {
     const parts = key.split(".");
-    return parts
-        .map((part, i) => {
-            if (part !== "$") return part;
+    let paths: string[][] = [[]];
+    parts.forEach((part, i) => {
+        if (part === "$") {
             const index = positionalIndex(doc, filter, parts.slice(0, i).join("."));
             if (index === -1) throw new Error(`fake-collection: no element for the positional $ in ${key}`);
-            return String(index);
-        })
-        .join(".");
+            paths = paths.map((path) => [...path, String(index)]);
+            return;
+        }
+        const named = /^\$\[(\w*)\]$/.exec(part);
+        if (!named) {
+            paths = paths.map((path) => [...path, part]);
+            return;
+        }
+        const name = named[1];
+        const prefix = `${name}.`;
+        const spec = name ? arrayFilters.find((f) => Object.keys(f).some((k) => k.startsWith(prefix))) : {};
+        if (!spec) throw new Error(`fake-collection: no arrayFilters entry for ${part} in ${key}`);
+        const subFilter = Object.fromEntries(Object.entries(spec).map(([k, value]) => [k.slice(prefix.length), value]));
+        paths = paths.flatMap((path) => {
+            const list = getPath(doc, path.join("."));
+            if (!Array.isArray(list)) return [];
+            return list.flatMap((element, index) =>
+                matchesFilter(element as Doc, subFilter) ? [[...path, String(index)]] : [],
+            );
+        });
+    });
+    return paths.map((path) => path.join("."));
 };
 
 // $set of a dotted path ("a.b", "list.2.field"), creating objects on the way.
@@ -334,13 +355,17 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             }
             return { deletedCount };
         },
-        async updateOne(filter: Doc, update: { $set?: Doc; $unset?: Doc; $addToSet?: Doc; $push?: Doc; $pull?: Doc }) {
+        async updateOne(
+            filter: Doc,
+            update: { $set?: Doc; $unset?: Doc; $addToSet?: Doc; $push?: Doc; $pull?: Doc },
+            options?: { arrayFilters?: Doc[] },
+        ) {
             const found = docs.find((d) => matchesFilter(d, filter));
             if (!found) {
                 return { matchedCount: 0, modifiedCount: 0 };
             }
-            const sets = Object.entries(update.$set ?? {}).map(
-                ([key, value]) => [resolvePositional(found, filter, key), value] as const,
+            const sets = Object.entries(update.$set ?? {}).flatMap(([key, value]) =>
+                expandUpdateKey(found, filter, key, options?.arrayFilters).map((path) => [path, value] as const),
             );
             for (const [key, value] of sets) {
                 if (value === undefined) {
@@ -361,9 +386,23 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             for (const [key, value] of Object.entries(update.$push ?? {})) {
                 found[key] = [...(Array.isArray(found[key]) ? found[key] : []), value];
             }
+            // A condition object ({ userDid: x, verifiedAt: { $exists: false } }) removes the elements it
+            // matches, as in MongoDB; any other value removes equal elements.
             for (const [key, value] of Object.entries(update.$pull ?? {})) {
-                if (Array.isArray(found[key]))
-                    found[key] = found[key].filter((item: unknown) => !valueEquals(item, value));
+                if (!Array.isArray(found[key])) continue;
+                const isCondition =
+                    !!value &&
+                    typeof value === "object" &&
+                    !(value instanceof Date) &&
+                    !(value instanceof ObjectId) &&
+                    !Array.isArray(value);
+                found[key] = found[key].filter((item: unknown) =>
+                    isCondition
+                        ? !(item && typeof item === "object"
+                              ? matchesFilter(item as Doc, value)
+                              : matchesCondition(item, value))
+                        : !valueEquals(item, value),
+                );
             }
             return { matchedCount: 1, modifiedCount: 1 };
         },

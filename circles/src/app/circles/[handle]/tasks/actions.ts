@@ -69,6 +69,7 @@ import {
     notifyTaskShiftSignup,
     notifyTaskShiftAttendanceVerified,
     notifyTaskShiftConfirmed,
+    notifyTaskShiftDeclined,
     notifyTaskStatusChanged,
     notifyTaskVerified,
     notifyTaskClaimSubmitted,
@@ -1670,6 +1671,25 @@ export async function reviewTaskClaimAction(
             }
         }
 
+        // F4 (Crew round 2): approving one claim closes the other pending ones; tell those claimants, with
+        // the existing "claim declined" notice. Only claims that were pending before this approval.
+        if (updatedTask && validated.data.decision === "approved") {
+            const wasPending = new Set(
+                (task.claims ?? [])
+                    .filter((existing) => existing.status === "pending" && existing.claimId !== claim.claimId)
+                    .map((existing) => existing.claimId),
+            );
+            const closedClaimants = (updatedTask.claims ?? [])
+                .filter((existing) => existing.status === "closed" && wasPending.has(existing.claimId))
+                .map((existing) => existing.claimantDid);
+            for (const closedDid of closedClaimants) {
+                const closedClaimant = await getUserPrivate(closedDid);
+                if (closedClaimant) {
+                    await notifyTaskClaimDeclined(updatedTask, reviewer, closedClaimant);
+                }
+            }
+        }
+
         revalidateTaskAndShiftRoutes(circleHandle, taskId);
 
         return {
@@ -2100,6 +2120,100 @@ export async function verifyShiftParticipantAction(
     } catch (error) {
         console.error("Error verifying shift participant:", error);
         return { success: false, message: "Failed to verify shift participant" };
+    }
+}
+
+// Crew round 2 (F1, 2026-11-18): an organiser declines a pending sign-up. The same rights and circle
+// check as confirming. The entry is removed, not kept, so the person can offer again if a place opens;
+// only that person gets a bell notice. Confirmed people can't be declined here.
+export async function declineShiftParticipantAction(
+    circleHandle: string,
+    taskId: string,
+    participantDid: string,
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const validatedParticipant = shiftParticipantSchema.safeParse({ participantDid });
+        if (!validatedParticipant.success) {
+            return { success: false, message: "Invalid participant" };
+        }
+
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) {
+            return { success: false, message: "User not authenticated" };
+        }
+
+        if (!ObjectId.isValid(taskId)) {
+            return { success: false, message: "Invalid task id" };
+        }
+
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle) {
+            return { success: false, message: "Circle not found" };
+        }
+
+        const canModerate = await isAuthorized(userDid, circle._id as string, features.tasks.moderate);
+        if (!canModerate) {
+            return { success: false, message: "Not authorized to decline shift sign-ups" };
+        }
+
+        const task = await getTaskById(taskId, userDid);
+        if (!task) {
+            return { success: false, message: "Task not found" };
+        }
+        // Only through the task's own circle (2026-11-16): the rights above are for the URL's circle.
+        if (!isTaskInCircle(task, circle)) {
+            return { success: false, message: "Task not found" };
+        }
+
+        if ((task.taskType ?? "outcome") !== "shift") {
+            return { success: false, message: "Only shift sign-ups can be declined" };
+        }
+
+        const declinedDid = validatedParticipant.data.participantDid;
+        const participant = (task.participants ?? []).find((entry) => entry.userDid === declinedDid);
+        if (!participant) {
+            return { success: false, message: "Participant not found on this shift" };
+        }
+        if (participant.verifiedAt) {
+            return { success: false, message: "Confirmed participants can't be declined" };
+        }
+
+        // Pending only, in the write too: a confirm landing meanwhile makes this a no-op.
+        const result = await Tasks.updateOne(
+            {
+                _id: new ObjectId(taskId),
+                taskType: "shift",
+                participants: { $elemMatch: { userDid: declinedDid, verifiedAt: { $exists: false } } },
+            },
+            {
+                $pull: { participants: { userDid: declinedDid, verifiedAt: { $exists: false } } },
+                $set: { updatedAt: new Date() },
+            },
+        );
+
+        if (!result.modifiedCount) {
+            return { success: false, message: "Unable to decline this sign-up right now" };
+        }
+
+        const [decliner, declinedParticipant] = await Promise.all([
+            getUserByDid(userDid),
+            getUserPrivate(declinedDid),
+        ]);
+        if (decliner && declinedParticipant) {
+            await notifyTaskShiftDeclined(task, decliner, declinedParticipant);
+        } else {
+            console.error("🔔 [ACTION] Failed to fetch shift decline notification context:", {
+                declinerDid: userDid,
+                participantDid: declinedDid,
+            });
+        }
+
+        revalidateTaskAndShiftRoutes(circleHandle, taskId);
+
+        return { success: true, message: "Sign-up declined" };
+    } catch (error) {
+        console.error("Error declining shift participant:", error);
+        return { success: false, message: "Failed to decline shift sign-up" };
     }
 }
 

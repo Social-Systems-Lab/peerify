@@ -1726,6 +1726,7 @@ export type NotificationType =
     | "task_accepted"
     | "task_shift_signup"
     | "task_shift_confirmed"
+    | "task_shift_declined"
     | "task_shift_attendance_verified"
     | "task_status_changed"
     | "task_claim_submitted"
@@ -1809,6 +1810,7 @@ export const notificationTypeValues = [
     "task_accepted",
     "task_shift_signup",
     "task_shift_confirmed",
+    "task_shift_declined",
     "task_shift_attendance_verified",
     "task_status_changed",
     "task_claim_submitted",
@@ -1905,6 +1907,7 @@ export const summaryNotificationTypeDetails: Record<
             "task_accepted",
             "task_shift_signup",
             "task_shift_confirmed",
+            "task_shift_declined",
             "task_shift_attendance_verified",
             "task_status_changed",
             "task_claim_submitted",

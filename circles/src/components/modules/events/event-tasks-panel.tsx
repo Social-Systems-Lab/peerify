@@ -72,7 +72,9 @@ function ShiftRow({
                         <Badge className="bg-green-200 text-green-800">You: confirmed</Badge>
                     )}
                     {shift.viewerStatus === "pending" && (
-                        <Badge className="bg-yellow-200 text-yellow-800">You: pending</Badge>
+                        <Badge className="bg-yellow-200 text-yellow-800">
+                            {openPlaces > 0 ? "You: pending" : "You: waiting list"}
+                        </Badge>
                     )}
                 </div>
             </div>
