@@ -15,6 +15,8 @@ import CrewOffNote from "@/components/modules/crew-applications/crew-off-note";
 import { isCrewOn } from "@/lib/peerify/crew-visibility";
 import { ArrowLeft, ArrowRight, LockKeyhole } from "lucide-react";
 import { CrewDashboardClient } from "./crew-dashboard-client";
+import CrewShiftsPanel from "@/components/modules/crew/crew-shifts-panel";
+import { getCrewShiftsAndTasksAction } from "@/components/modules/crew/actions";
 
 type PageProps = {
     params: Promise<{ handle: string }>;
@@ -49,12 +51,15 @@ export default async function CrewDashboardPage({ params }: PageProps) {
     // the roster (the source of truth for who's a Crew member at all) and the offerings lookup
     // are fetched separately and left-joined below rather than derived from one query — a member
     // with no offerings must still show up as a card, just with an empty offerings section.
-    const [members, offerers, applications] = await Promise.all([
+    const [members, offerers, applications, shiftsAndTasks] = await Promise.all([
         crewOn ? getCrewMembers(circle._id, userDid) : Promise.resolve([]),
         crewOn ? getCrewOfferings(circle._id, undefined, true) : Promise.resolve([]),
         // Same action and permission check (manage_crew_applications) as the Crew Applications
         // settings page; anyone without it gets success: false and no section.
         getAllCrewApplicationsAction(circle._id),
+        // Crew round 2: the organiser view of "Shifts & tasks" (names per shift, Review links). The
+        // action checks crew eligibility and organiser rights itself.
+        crewOn ? getCrewShiftsAndTasksAction(handle) : Promise.resolve(null),
     ]);
     const pendingApplications = applications.success ? (applications.pendingApplications ?? []) : null;
     // The table's approve/reject actions need only the circle's id, handle and name.
@@ -129,6 +134,10 @@ export default async function CrewDashboardPage({ params }: PageProps) {
                         <CrewApplicationsTable circle={identityCircle} applications={pendingApplications} />
                     </div>
                 </section>
+            ) : null}
+
+            {crewOn && shiftsAndTasks ? (
+                <CrewShiftsPanel circleHandle={handle} data={shiftsAndTasks} variant="dashboard" />
             ) : null}
 
             {!crewOn ? null : roster.length === 0 ? (

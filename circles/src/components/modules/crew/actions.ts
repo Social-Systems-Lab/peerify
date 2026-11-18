@@ -4,6 +4,16 @@ import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { getMember, setCrewVisibility, getCrewOfferings, CrewOfferer, updateMemberUserGroups } from "@/lib/data/member";
 import { getUserPendingCrewApplication } from "@/lib/data/crew-applications";
 import { tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
+import { ObjectId } from "mongodb";
+import { isAuthorized } from "@/lib/auth/auth";
+import { features } from "@/lib/data/constants";
+import { getCircleByHandle, getCirclesByDids, resolveViewerIsAdmin } from "@/lib/data/circle";
+import { Events } from "@/lib/data/db";
+import { shapeEventsForViewer } from "@/lib/data/event";
+import { getTasksByCircleId } from "@/lib/data/task";
+import { isCrewOn } from "@/lib/peerify/crew-visibility";
+import { summarizeCrewShiftsView, type CrewShiftsView } from "@/lib/tasks/crew-shifts-view";
+import type { Circle, EventDisplay } from "@/models/models";
 
 export type CrewOfferAggregateEntry = {
     type: string;
@@ -169,5 +179,91 @@ export const leaveCrewAction = async (circleId: string): Promise<LeaveCrewRespon
         return { success: true };
     } catch (error) {
         return { success: false, message: "Failed to leave Crew. " + error?.toString() };
+    }
+};
+
+export type CrewShiftsAndTasksResult = CrewShiftsView & {
+    // False when the viewer may not see the panel (or Crew is off): render nothing.
+    show: boolean;
+    isOrganiser: boolean;
+};
+
+// Crew round 2, feature 1 (2026-11-18): the data for the Crew page's "Shifts & tasks" panel and the
+// Crew Dashboard's organiser view. Signed-in admins, moderators and crew of the circle only (the Crew
+// page's own check in crew.tsx), with Crew on; the Tasks and Shifts modules are respected as in
+// getEventCrewPanelAction. Tasks come through getTasksByCircleId (which ends in filterTasksForViewer:
+// audience, decision B, private sign-ups and claims) and events through shapeEventsForViewer, then
+// summarizeCrewShiftsView sends a small object with no location, notes or claims. Organisers
+// (tasks.assign / tasks.moderate, or platform admins who are also crew-eligible here) get names.
+export const getCrewShiftsAndTasksAction = async (circleHandle: string): Promise<CrewShiftsAndTasksResult> => {
+    const hidden: CrewShiftsAndTasksResult = { show: false, isOrganiser: false, myShifts: [], openByEvent: [] };
+
+    try {
+        const viewerDid = await getAuthenticatedUserDid();
+        if (!viewerDid) return hidden;
+
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle?._id || !isCrewOn(circle)) return hidden;
+        const circleId = circle._id.toString();
+
+        const viewerMember = await getMember(viewerDid, circleId);
+        const isEligible =
+            viewerMember?.userGroups?.some(
+                (group) => group === "admins" || group === "moderators" || group === "crew",
+            ) ?? false;
+        if (!isEligible) return hidden;
+
+        const tasksEnabled = circle.enabledModules?.includes("tasks") ?? false;
+        const shiftsEnabled = circle.enabledModules?.includes("shifts") ?? false;
+
+        const [canAssign, canModerate, isPlatformAdmin] = await Promise.all([
+            isAuthorized(viewerDid, circleId, features.tasks.assign),
+            isAuthorized(viewerDid, circleId, features.tasks.moderate),
+            resolveViewerIsAdmin(viewerDid),
+        ]);
+        const isOrganiser = canAssign || canModerate || isPlatformAdmin;
+
+        if (!tasksEnabled && !shiftsEnabled) return hidden;
+
+        const visibleTasks = (await getTasksByCircleId(circleId, viewerDid)).filter((task) =>
+            (task.taskType ?? "outcome") === "shift" ? shiftsEnabled : tasksEnabled,
+        );
+
+        // Only the events these tasks link to, shaped for the viewer (drafts, events in review and
+        // events outside the viewer's audience are dropped; their shifts go under "Other").
+        const eventIds = Array.from(
+            new Set(
+                visibleTasks.map((task) => task.eventId).filter((id): id is string => !!id && ObjectId.isValid(id)),
+            ),
+        );
+        const linkedEvents =
+            eventIds.length > 0
+                ? ((await Events.find({ _id: { $in: eventIds.map((id) => new ObjectId(id)) } }).toArray()).map(
+                      (event) => ({ ...event, _id: event._id.toString() }),
+                  ) as unknown as EventDisplay[])
+                : [];
+        const events = await shapeEventsForViewer(linkedEvents, viewerDid);
+
+        let profilesByDid: Map<string, Circle> | undefined;
+        if (isOrganiser) {
+            const dids = Array.from(
+                new Set(
+                    visibleTasks.flatMap((task) => (task.participants ?? []).map((participant) => participant.userDid)),
+                ),
+            );
+            const profiles = dids.length > 0 ? await getCirclesByDids(dids, { viewerDid }) : [];
+            profilesByDid = new Map(profiles.filter((p) => p.did).map((p) => [p.did as string, p]));
+        }
+
+        const view = summarizeCrewShiftsView(visibleTasks, events, {
+            viewerDid,
+            isOrganiser,
+            now: new Date(),
+            profilesByDid,
+        });
+        return { show: true, isOrganiser, ...view };
+    } catch (error) {
+        console.error("Error in getCrewShiftsAndTasksAction:", error);
+        return hidden;
     }
 };
