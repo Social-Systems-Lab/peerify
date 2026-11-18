@@ -86,14 +86,15 @@ import { CommentSection } from "../feeds/CommentSection"; // Import CommentSecti
 import {
     getShiftConfirmedParticipants,
     getShiftConfirmedCount,
+    getShiftSignupBlock,
+    isShiftOversubscribed,
     getShiftConfirmedSummary,
     getShiftDisplayStatus,
     getShiftPendingParticipants,
     getShiftPendingSummary,
-    getShiftSignedUpCount,
     isShiftTask as isShiftTaskItem,
 } from "./shift-task-utils";
-import { ALL_PLACES_CONFIRMED } from "@/lib/tasks/shift-capacity";
+import { ALL_PLACES_CONFIRMED, MANY_HAVE_OFFERED } from "@/lib/tasks/shift-capacity";
 import { getShiftStageInfo, getTaskPriorityInfo, getTaskStageInfo, getTaskWorkflowStatusBadge } from "./task-ui";
 import { getOutcomeTaskCompletionPlan } from "@/lib/task-completion-policy";
 
@@ -211,7 +212,6 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
     const taskClaims = task.claims ?? [];
     const pendingClaims = !isShiftTask ? taskClaims.filter((claim) => claim.status === "pending") : [];
     const shiftSlots = task.slots ?? 0;
-    const signedUpShiftParticipantsCount = getShiftSignedUpCount(task);
     const verifiedShiftParticipantsCount = getShiftConfirmedCount(task);
     const confirmedShiftParticipants = getShiftConfirmedParticipants(task);
     const pendingShiftParticipants = getShiftPendingParticipants(task);
@@ -250,13 +250,13 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
     const currentShiftParticipant = shiftParticipants.find((participant) => participant.userDid === currentUserDid);
     const isShiftParticipant = Boolean(currentShiftParticipant);
     const verifierLabel = task.verifier?.name || task.verifier?.handle;
+    // Crew round 2: sign-up stays open until all places are confirmed (or the F5 ceiling); pending
+    // sign-ups may exceed places. The server applies the same rule.
+    const shiftSignupBlock = isShiftTask ? getShiftSignupBlock(task) : null;
+    const shiftIsOpenForSignup =
+        isShiftTask && shiftDisplayStatus !== "review" && shiftDisplayStatus !== "completed";
     const canJoinShift =
-        isShiftTask &&
-        !isShiftParticipant &&
-        shiftSlots > 0 &&
-        signedUpShiftParticipantsCount < shiftSlots &&
-        shiftDisplayStatus !== "review" &&
-        shiftDisplayStatus !== "completed";
+        shiftIsOpenForSignup && !isShiftParticipant && shiftSlots > 0 && shiftSignupBlock === null;
     const canLeaveShift =
         isShiftTask &&
         Boolean(currentShiftParticipant) &&
@@ -277,14 +277,12 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
             )
             .map((profile) => [profile.did, profile]),
     );
-    const shiftIsWaitlistedByPending =
-        isShiftTask &&
-        !isShiftParticipant &&
-        shiftSlots > 0 &&
-        signedUpShiftParticipantsCount >= shiftSlots &&
-        verifiedShiftParticipantsCount < shiftSlots &&
-        shiftDisplayStatus !== "review" &&
-        shiftDisplayStatus !== "completed";
+    // For someone not on the shift: more offers than places (they can still offer), the F5 ceiling, or
+    // all places confirmed.
+    const shiftSignupNotice: "oversubscribed" | "manyOffered" | "allConfirmed" | null =
+        !shiftIsOpenForSignup || isShiftParticipant || shiftSlots < 1
+            ? null
+            : shiftSignupBlock ?? (isShiftOversubscribed(task) ? "oversubscribed" : null);
     const attendedShiftParticipants = confirmedShiftParticipants.filter(
         ({ participant }) => participant.attendanceStatus === "attended",
     );
@@ -1276,9 +1274,12 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                                 confirms you.
                             </div>
                         )}
-                        {!isCompletedShift && shiftIsWaitlistedByPending && (
+                        {!isCompletedShift && shiftSignupNotice && (
                             <div className="mt-4 rounded-lg border border-[hsl(var(--shift-banner-pending-border))] bg-[hsl(var(--shift-banner-pending-bg))] px-4 py-3 text-sm text-[hsl(var(--shift-banner-pending-foreground))]">
-                                All current slots are pending confirmation. Contact an admin if you need help.
+                                {shiftSignupNotice === "oversubscribed" &&
+                                    "More people have offered than there are places. You can still offer; the organiser chooses who is confirmed."}
+                                {shiftSignupNotice === "manyOffered" && `${MANY_HAVE_OFFERED}.`}
+                                {shiftSignupNotice === "allConfirmed" && `${ALL_PLACES_CONFIRMED}.`}
                             </div>
                         )}
                         {canReviewShiftAttendance && (

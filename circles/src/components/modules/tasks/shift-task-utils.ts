@@ -1,5 +1,6 @@
 import { addMinutes } from "date-fns";
 import { Circle, Task, TaskDisplay, TaskParticipant } from "@/models/models";
+import { getShiftSignupCeiling } from "@/lib/tasks/shift-capacity";
 
 type ShiftTaskLike = Pick<
     Task,
@@ -89,6 +90,31 @@ export const getShiftPendingCount = (task: ShiftCountable) =>
     0;
 
 export const getShiftSignedUpCount = (task: ShiftCountable) => getShiftConfirmedCount(task) + getShiftPendingCount(task);
+
+// Crew round 2 (2026-11-18): places are counted by CONFIRMED people only. Pending sign-ups may exceed
+// places, up to the F5 ceiling; the server enforces the same rule (joinShiftTaskAction).
+export const getShiftOpenPlaces = (task: Pick<Task, "participants" | "slots">) =>
+    Math.max((task.slots ?? 0) - getShiftConfirmedCount(task), 0);
+
+// Why a new sign-up would be refused, or null when it wouldn't.
+export type ShiftSignupBlock = "allConfirmed" | "manyOffered" | null;
+export const getShiftSignupBlock = (task: ShiftCountable & Pick<Task, "slots">): ShiftSignupBlock => {
+    if (getShiftOpenPlaces(task) < 1) return "allConfirmed";
+    if (getShiftSignedUpCount(task) >= getShiftSignupCeiling(task.slots ?? 0)) return "manyOffered";
+    return null;
+};
+
+// More people have offered than there are places, and places are still open: the organiser chooses.
+export const isShiftOversubscribed = (task: ShiftCountable & Pick<Task, "slots">) =>
+    getShiftOpenPlaces(task) > 0 && getShiftSignedUpCount(task) >= (task.slots ?? 0);
+
+// F3: "2 places · 1 left", counting confirmed only; no pending count.
+export const formatShiftPlaces = (slots: number, confirmedCount: number) => {
+    if (slots < 1) return "Places to be confirmed";
+    const placesText = `${slots} ${slots === 1 ? "place" : "places"}`;
+    const left = Math.max(slots - confirmedCount, 0);
+    return left > 0 ? `${placesText} · ${left} left` : `${placesText} · all confirmed`;
+};
 
 export const getShiftConfirmedSummary = (task: Pick<Task, "participants" | "slots">) =>
     `${getShiftConfirmedCount(task)} / ${task.slots ?? "?"} confirmed`;

@@ -7,7 +7,7 @@ import type { VerifiedContributionItem } from "@/components/modules/home/Verifie
 import { VERIFIED_CONTRIBUTIONS_PANEL_ENABLED } from "@/components/modules/home/verified-contributions-config";
 import { getTasksByCircleId, getVerifiedTasksForUser } from "@/lib/data/task";
 import { features } from "@/lib/data/constants";
-import { getShiftEndAt, getShiftSignedUpCount, getShiftStartAt, isShiftTask } from "@/components/modules/tasks/shift-task-utils";
+import { getShiftEndAt, getShiftSignupBlock, getShiftStartAt, isShiftTask } from "@/components/modules/tasks/shift-task-utils";
 import type { Circle, EventDisplay, TaskDisplay, TaskPermissions } from "@/models/models";
 import type { FundingAskDisplay } from "@/models/models";
 import { getFundingCirclePermissions, isFundingEnabledForCircle, listFundingAsksByCircleId } from "@/lib/data/funding";
@@ -147,8 +147,9 @@ export default async function CircleHomePage(props: PageProps) {
                         return false;
                     }
 
-                    const signedUpCount = getShiftSignedUpCount(task);
-                    if (signedUpCount >= task.slots) {
+                    // Crew round 2: hidden once all places are confirmed (pending sign-ups may exceed
+                    // places), or at the F5 ceiling.
+                    if (getShiftSignupBlock(task) !== null) {
                         return false;
                     }
 
