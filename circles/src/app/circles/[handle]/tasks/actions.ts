@@ -1022,7 +1022,8 @@ export async function updateTaskAction(
             slots: data.taskType === "shift" ? data.slots : undefined,
             shiftStartTime: data.taskType === "shift" ? data.shiftStartTime : undefined,
             shiftDurationMinutes: data.taskType === "shift" ? data.shiftDurationMinutes : undefined,
-            participants: data.taskType === "shift" ? task.participants ?? [] : undefined,
+            // participants are never written here: the edit form doesn't change them, and writing back the
+            // copy read above would erase a sign-up, confirm or decline that landed meanwhile (2026-11-18).
             participantNotes: data.taskType === "shift" ? data.participantNotes : undefined,
             priority: data.priority ?? "",
             taskGroup: data.taskType === "shift" ? "" : (data.taskGroup ?? ""),
