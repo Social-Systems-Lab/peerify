@@ -7,8 +7,9 @@
 import type { Circle, TaskDisplay } from "@/models/models";
 import { format } from "date-fns";
 import { isRestrictedTaskAudience } from "./task-audience";
+import { countShiftSignups, crewSignupStatusOf, type CrewSignupStatus } from "./crew-signup-status";
 
-export type CrewSignupStatus = "confirmed" | "pending";
+export type { CrewSignupStatus };
 
 export type EventCrewPerson = {
     did: string;
@@ -66,8 +67,8 @@ export const summarizeEventCrew = (
         const id = String(task._id);
         if ((task.taskType ?? "outcome") === "shift") {
             const participants = task.participants ?? [];
-            const statusOf = (participant: { verifiedAt?: Date }): CrewSignupStatus =>
-                participant.verifiedAt ? "confirmed" : "pending";
+            const statusOf = crewSignupStatusOf;
+            const { confirmedCount, pendingCount } = countShiftSignups(task);
             const own = viewerDid ? participants.find((p) => p.userDid === viewerDid) : undefined;
             const shift: EventCrewShift = {
                 id,
@@ -76,12 +77,10 @@ export const summarizeEventCrew = (
                 shiftStartTime: task.shiftStartTime,
                 shiftDurationMinutes: task.shiftDurationMinutes,
                 slots: task.slots ?? 0,
-                confirmedCount: participants.filter((p) => !!p.verifiedAt).length,
+                confirmedCount,
                 // Pending sign-ups other than the viewer's own aren't in participants[] for viewers who
                 // don't manage the task (2026-11-16); the count comes in pendingParticipantCount.
-                pendingCount:
-                    (task as { pendingParticipantCount?: number }).pendingParticipantCount ??
-                    participants.filter((p) => !p.verifiedAt).length,
+                pendingCount,
                 crewOnly: isRestrictedTaskAudience(task.userGroups),
                 viewerStatus: own ? statusOf(own) : null,
             };
