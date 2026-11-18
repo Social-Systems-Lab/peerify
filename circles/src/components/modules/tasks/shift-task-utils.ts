@@ -1,7 +1,13 @@
 import { addMinutes } from "date-fns";
 import { Circle, Task, TaskDisplay, TaskParticipant } from "@/models/models";
 import { getShiftSignupCeiling } from "@/lib/tasks/shift-capacity";
-import { calendarDateOf, DEFAULT_TIME_ZONE, zonedInstant } from "@/lib/tasks/shift-calendar";
+import {
+    calendarDateOf,
+    DEFAULT_TIME_ZONE,
+    formatCalendarDate,
+    formatWallTime,
+    zonedInstant,
+} from "@/lib/tasks/shift-calendar";
 
 type ShiftTaskLike = Pick<
     Task,
@@ -149,3 +155,29 @@ export const getShiftConfirmedParticipants = (
 export const getShiftPendingParticipants = (
     task: Pick<TaskDisplay, "participants" | "participantProfiles">,
 ): ShiftParticipantEntry[] => mapShiftParticipantEntries(task, (participant) => !participant.verifiedAt);
+
+// Labels (shift dates 3/5, 2026-11-18): the calendar date in the shift's zone and the wall-clock
+// times as stored, so the server render and the browser print the same text.
+
+// Shifts list, date column: "Sun 6 Dec 2026".
+export const formatShiftListDate = (task: Pick<Task, "targetDate">) =>
+    formatCalendarDate(task.targetDate, "EEE d MMM yyyy") ?? "No date";
+
+// Shifts list, time column: "18:00".
+export const formatShiftListTime = (task: Pick<Task, "shiftStartTime">) =>
+    formatWallTime(task.shiftStartTime, "HH:mm") ?? "No time";
+
+// Shift and task page: "December 6th, 2026".
+export const formatTargetDateLong = (task: Pick<Task, "targetDate">) =>
+    formatCalendarDate(task.targetDate, "PPP") ?? "Not set";
+
+// Home's "Upcoming shifts": "Sun, 6 Dec · 6:00 PM - 8:00 PM".
+export const formatShiftDayAndTimes = (task: Pick<Task, "targetDate" | "shiftStartTime" | "shiftDurationMinutes">) => {
+    const day = formatCalendarDate(task.targetDate, "EEE, d MMM");
+    const start = formatWallTime(task.shiftStartTime, "h:mm a");
+    if (!day || !start) return "Schedule to be confirmed";
+    const end = task.shiftDurationMinutes
+        ? formatWallTime(task.shiftStartTime, "h:mm a", task.shiftDurationMinutes)
+        : null;
+    return end ? `${day} · ${start} - ${end}` : `${day} · ${start}`;
+};

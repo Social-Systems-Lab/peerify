@@ -1,14 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import type { TaskDisplay } from "@/models/models";
 import {
+    formatShiftDayAndTimes,
     formatShiftPlaces,
     getShiftConfirmedCount,
-    getShiftEndAt,
-    getShiftStartAt,
 } from "@/components/modules/tasks/shift-task-utils";
 
 type UpcomingShiftsPanelVisibility = "visible" | "sign_in" | "members_only";
@@ -17,21 +15,6 @@ type UpcomingShiftsPanelProps = {
     circleHandle: string;
     shifts: TaskDisplay[];
     visibility: UpcomingShiftsPanelVisibility;
-};
-
-const formatShiftDateTime = (task: TaskDisplay) => {
-    const startAt = getShiftStartAt(task);
-    const endAt = getShiftEndAt(task);
-
-    if (!startAt) {
-        return "Schedule to be confirmed";
-    }
-
-    const dayLabel = format(startAt, "EEE, d MMM");
-    const startLabel = format(startAt, "h:mm a");
-    const endLabel = endAt ? format(endAt, "h:mm a") : null;
-
-    return endLabel ? `${dayLabel} · ${startLabel} - ${endLabel}` : `${dayLabel} · ${startLabel}`;
 };
 
 // F3 (Crew round 2): places left count confirmed people only.
@@ -75,7 +58,7 @@ export function UpcomingShiftsPanel({ circleHandle, shifts, visibility }: Upcomi
                                 <div className="space-y-1.5">
                                     <div className="min-w-0 flex-1">
                                         <div className="text-sm font-semibold text-slate-900 sm:text-[15px]">{shift.title}</div>
-                                        <div className="mt-0.5 text-sm text-slate-600">{formatShiftDateTime(shift)}</div>
+                                        <div className="mt-0.5 text-sm text-slate-600">{formatShiftDayAndTimes(shift)}</div>
                                     </div>
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="text-sm font-medium text-emerald-700">{getCapacityLabel(shift)}</div>

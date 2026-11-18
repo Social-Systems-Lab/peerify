@@ -37,6 +37,8 @@ import { UserPicture } from "../members/user-picture";
 import { CreateShiftDialog } from "@/components/global-create/create-shift-dialog";
 import { deleteTaskAction } from "@/app/circles/[handle]/tasks/actions";
 import {
+    formatShiftListDate,
+    formatShiftListTime,
     getShiftConfirmedSummary,
     getShiftDisplayStatus,
     getShiftPendingSummary,
@@ -56,27 +58,6 @@ interface ShiftsListProps {
     circle: Circle;
     permissions: TaskPermissions;
 }
-
-const formatShiftDate = (task: TaskDisplay) => {
-    const startAt = getShiftStartAt(task);
-    const date = startAt ?? (task.targetDate ? new Date(task.targetDate) : null);
-
-    if (!date || Number.isNaN(date.getTime())) {
-        return "No date";
-    }
-
-    return date.toLocaleDateString();
-};
-
-const formatShiftTime = (task: TaskDisplay) => {
-    const startAt = getShiftStartAt(task);
-
-    if (!startAt) {
-        return task.shiftStartTime || "No time";
-    }
-
-    return startAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-};
 
 const formatShiftDuration = (durationMinutes?: number) => {
     if (!durationMinutes) {
@@ -201,11 +182,11 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ tasksData, circle, permissions 
                     </TableCell>
                 )}
                 <TableCell>
-                    <span className={shift.targetDate ? "" : "text-muted-foreground"}>{formatShiftDate(shift)}</span>
+                    <span className={shift.targetDate ? "" : "text-muted-foreground"}>{formatShiftListDate(shift)}</span>
                 </TableCell>
                 <TableCell>
                     <span className={shift.shiftStartTime ? "" : "text-muted-foreground"}>
-                        {formatShiftTime(shift)}
+                        {formatShiftListTime(shift)}
                     </span>
                 </TableCell>
                 <TableCell>

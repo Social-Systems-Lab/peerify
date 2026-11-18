@@ -32,7 +32,7 @@ import {
     Play,
     Target,
 } from "lucide-react"; // Added Target icon
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { UserPicture } from "../members/user-picture";
 import { cn, getFullLocationName } from "@/lib/utils";
 import { useAtom } from "jotai";
@@ -85,6 +85,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import Link from "next/link";
 import { CommentSection } from "../feeds/CommentSection"; // Import CommentSection
 import {
+    formatTargetDateLong,
     getShiftConfirmedParticipants,
     getShiftConfirmedCount,
     getShiftSignupBlock,
@@ -1217,7 +1218,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
                                 <div className="text-xs font-medium uppercase tracking-wide text-slate-500">Date</div>
                                 <div className="mt-1 text-sm font-medium text-slate-900">
-                                    {task.targetDate ? format(new Date(task.targetDate), "PPP") : "Not set"}
+                                    {formatTargetDateLong(task)}
                                 </div>
                             </div>
                             <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
