@@ -8,7 +8,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { format } from "date-fns";
+import { formatCalendarDate } from "@/lib/tasks/shift-calendar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { CrewShiftsAndTasksResult } from "./actions";
@@ -28,16 +28,10 @@ type Props = {
 const itemHref = (circleHandle: string, item: CrewViewItem) =>
     `/circles/${circleHandle}/${item.kind === "shift" ? "shifts" : "tasks"}/${item.id}`;
 
-const formatTaskWhen = (task: CrewViewTask) => {
-    if (!task.targetDate) return "No date set";
-    const date = new Date(task.targetDate);
-    return Number.isNaN(date.getTime()) ? "No date set" : format(date, "EEE d MMM");
-};
+// Dates in the shift's zone, the same on the server and in the browser (shift-calendar.ts, 2026-11-18).
+const formatTaskWhen = (task: CrewViewTask) => formatCalendarDate(task.targetDate, "EEE d MMM") ?? "No date set";
 
-const formatEventWhen = (startAt: string) => {
-    const date = new Date(startAt);
-    return Number.isNaN(date.getTime()) ? "" : format(date, "EEE d MMM");
-};
+const formatEventWhen = (startAt: string) => formatCalendarDate(startAt, "EEE d MMM") ?? "";
 
 function StatusBadge({ item }: { item: CrewViewItem }) {
     switch (item.viewerStatus) {

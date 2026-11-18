@@ -30,7 +30,8 @@ import LocationPicker from "@/components/forms/location-picker";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO, isValid } from "date-fns";
+import { format } from "date-fns";
+import { calendarDateOfFloating, pickerDateFromStored } from "@/lib/tasks/shift-calendar";
 import { cn } from "@/lib/utils";
 import { getFullLocationName } from "@/lib/utils";
 import { createTaskAction, updateTaskAction } from "@/app/circles/[handle]/tasks/actions";
@@ -230,12 +231,11 @@ export const TaskForm: React.FC<TaskFormProps> = ({
     const preselectedGoalId = searchParams.get("goalId");
     const preselectedEventId = searchParams.get("eventId");
     const targetDateFromQuery = searchParams.get("targetDate") ?? initialTargetDate ?? null;
+    // The picker shows the calendar day in the shift's zone, whatever the browser's zone
+    // (shift-calendar.ts, 2026-11-18): an event's start, a ?targetDate= value or the stored date.
     let prefilledDate: Date | undefined = undefined;
     if (!isEditing && targetDateFromQuery) {
-        const parsedDate = parseISO(targetDateFromQuery);
-        if (isValid(parsedDate)) {
-            prefilledDate = parsedDate;
-        }
+        prefilledDate = pickerDateFromStored(targetDateFromQuery);
     }
     const initialOutcomeTaskType = initialTaskType === "shift" ? "shift" : "outcome";
     const redirectCollection = successRedirectCollection ?? (forcedTaskType === "shift" ? "shifts" : "tasks");
@@ -247,7 +247,7 @@ export const TaskForm: React.FC<TaskFormProps> = ({
             description: task?.description || "",
             images: task?.images || [],
             location: task?.location,
-            targetDate: prefilledDate ?? (task?.targetDate ? new Date(task.targetDate) : undefined),
+            targetDate: prefilledDate ?? pickerDateFromStored(task?.targetDate),
             goalId: task?.goalId || preselectedGoalId || null,
             eventId: task?.eventId || preselectedEventId || initialEventId || null,
             taskType: forcedTaskType ?? task?.taskType ?? initialOutcomeTaskType,
@@ -416,7 +416,8 @@ export const TaskForm: React.FC<TaskFormProps> = ({
         }
 
         if (values.targetDate) {
-            formData.append("targetDate", values.targetDate.toISOString());
+            // The picked day as "YYYY-MM-DD"; the server stores 12:00 UTC of that day.
+            formData.append("targetDate", calendarDateOfFloating(values.targetDate));
         }
 
         // Add goalId if present and not null/empty/none

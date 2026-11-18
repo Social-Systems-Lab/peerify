@@ -5,7 +5,7 @@
 // filterTasksForViewer, so audiences and D3/decision B still apply.
 
 import type { Circle, TaskDisplay } from "@/models/models";
-import { format } from "date-fns";
+import { formatCalendarDate } from "./shift-calendar";
 import { isRestrictedTaskAudience } from "./task-audience";
 import { countShiftSignups, crewSignupStatusOf, type CrewSignupStatus } from "./crew-signup-status";
 
@@ -119,15 +119,14 @@ export const shouldShowEventCrewPanel = (
     rights: { canCreateShift: boolean; canCreateTask: boolean },
 ): boolean => panel.shifts.length > 0 || panel.tasks.length > 0 || rights.canCreateShift || rights.canCreateTask;
 
-// "Fri 5 Dec · 18:00–20:00" (date in the viewer's timezone; the times as stored).
+// "Fri 5 Dec · 18:00–20:00": the calendar date in the shift's zone and the wall-clock times as stored,
+// the same text on the server and in any browser (shift-calendar.ts, 2026-11-18).
 export const formatShiftWhen = (
     shift: Pick<EventCrewShift, "targetDate" | "shiftStartTime" | "shiftDurationMinutes">,
 ) => {
     const parts: string[] = [];
-    if (shift.targetDate) {
-        const date = new Date(shift.targetDate);
-        if (!Number.isNaN(date.getTime())) parts.push(format(date, "EEE d MMM"));
-    }
+    const date = formatCalendarDate(shift.targetDate, "EEE d MMM");
+    if (date) parts.push(date);
     if (shift.shiftStartTime) {
         let time = shift.shiftStartTime;
         const [hours, minutes] = shift.shiftStartTime.split(":").map(Number);
@@ -138,4 +137,10 @@ export const formatShiftWhen = (
         parts.push(time);
     }
     return parts.join(" · ");
+};
+
+// " · due 6 Dec" for a task row in the event's crew panel: the calendar date in the zone (shift dates 5/5).
+export const formatTaskDue = (task: Pick<EventCrewTask, "targetDate">) => {
+    const date = formatCalendarDate(task.targetDate, "d MMM");
+    return date ? ` · due ${date}` : "";
 };

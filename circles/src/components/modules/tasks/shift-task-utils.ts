@@ -1,6 +1,13 @@
 import { addMinutes } from "date-fns";
 import { Circle, Task, TaskDisplay, TaskParticipant } from "@/models/models";
 import { getShiftSignupCeiling } from "@/lib/tasks/shift-capacity";
+import {
+    calendarDateOf,
+    DEFAULT_TIME_ZONE,
+    formatCalendarDate,
+    formatWallTime,
+    zonedInstant,
+} from "@/lib/tasks/shift-calendar";
 
 type ShiftTaskLike = Pick<
     Task,
@@ -19,27 +26,24 @@ export type ShiftDisplayStatus = "review" | "upcoming" | "inProgress" | "complet
 
 export const isShiftTask = (task: Pick<Task, "taskType">) => (task.taskType ?? "outcome") === "shift";
 
-export const getShiftStartAt = (task: Pick<Task, "targetDate" | "shiftStartTime">) => {
+// The shift's date is a calendar date and its start time wall-clock time, both in the shift's zone
+// (shift-calendar.ts; fix of 2026-11-18). Never the zone this code happens to run in.
+export const getShiftStartAt = (
+    task: Pick<Task, "targetDate" | "shiftStartTime">,
+    timeZone: string = DEFAULT_TIME_ZONE,
+) => {
     if (!task.targetDate || !task.shiftStartTime) {
         return null;
     }
-
-    const [hours, minutes] = task.shiftStartTime.split(":").map(Number);
-    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
-        return null;
-    }
-
-    const shiftDate = new Date(task.targetDate);
-    if (Number.isNaN(shiftDate.getTime())) {
-        return null;
-    }
-
-    shiftDate.setHours(hours, minutes, 0, 0);
-    return shiftDate;
+    const date = calendarDateOf(task.targetDate, timeZone);
+    return date ? zonedInstant(date, task.shiftStartTime, timeZone) : null;
 };
 
-export const getShiftEndAt = (task: Pick<Task, "targetDate" | "shiftStartTime" | "shiftDurationMinutes">) => {
-    const shiftStartAt = getShiftStartAt(task);
+export const getShiftEndAt = (
+    task: Pick<Task, "targetDate" | "shiftStartTime" | "shiftDurationMinutes">,
+    timeZone: string = DEFAULT_TIME_ZONE,
+) => {
+    const shiftStartAt = getShiftStartAt(task, timeZone);
     if (!shiftStartAt || !task.shiftDurationMinutes) {
         return null;
     }
@@ -151,3 +155,33 @@ export const getShiftConfirmedParticipants = (
 export const getShiftPendingParticipants = (
     task: Pick<TaskDisplay, "participants" | "participantProfiles">,
 ): ShiftParticipantEntry[] => mapShiftParticipantEntries(task, (participant) => !participant.verifiedAt);
+
+// Labels (shift dates 3/5, 2026-11-18): the calendar date in the shift's zone and the wall-clock
+// times as stored, so the server render and the browser print the same text.
+
+// Shifts list, date column: "Sun 6 Dec 2026".
+export const formatShiftListDate = (task: Pick<Task, "targetDate">) =>
+    formatCalendarDate(task.targetDate, "EEE d MMM yyyy") ?? "No date";
+
+// Shifts list, time column: "18:00".
+export const formatShiftListTime = (task: Pick<Task, "shiftStartTime">) =>
+    formatWallTime(task.shiftStartTime, "HH:mm") ?? "No time";
+
+// Shift and task page: "December 6th, 2026".
+export const formatTargetDateLong = (task: Pick<Task, "targetDate">) =>
+    formatCalendarDate(task.targetDate, "PPP") ?? "Not set";
+
+// Home's "Upcoming shifts": "Sun, 6 Dec · 6:00 PM - 8:00 PM".
+export const formatShiftDayAndTimes = (task: Pick<Task, "targetDate" | "shiftStartTime" | "shiftDurationMinutes">) => {
+    const day = formatCalendarDate(task.targetDate, "EEE, d MMM");
+    const start = formatWallTime(task.shiftStartTime, "h:mm a");
+    if (!day || !start) return "Schedule to be confirmed";
+    const end = task.shiftDurationMinutes
+        ? formatWallTime(task.shiftStartTime, "h:mm a", task.shiftDurationMinutes)
+        : null;
+    return end ? `${day} · ${start} - ${end}` : `${day} · ${start}`;
+};
+
+// Tasks list, due date column (shift dates 5/5): "6 Dec 2026", the calendar date in the zone.
+export const formatTaskListDate = (value?: Date | string | null) =>
+    formatCalendarDate(value, "d MMM yyyy") ?? "No due date";

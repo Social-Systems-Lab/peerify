@@ -65,6 +65,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import {
+    formatTaskListDate,
     getShiftConfirmedParticipants,
     getShiftConfirmedSummary,
     getShiftDisplayStatus,
@@ -253,13 +254,8 @@ const sanitizePersistedTasksListViewState = (value: unknown): PersistedTasksList
     };
 };
 
-const formatTaskDate = (value?: Date | null) => {
-    if (!value) {
-        return "No due date";
-    }
-
-    return new Date(value).toLocaleDateString();
-};
+// The due date in the shift's zone, the same on the server and in the browser (shift-calendar.ts).
+const formatTaskDate = formatTaskListDate;
 
 const getTaskGroupLabel = (task: TaskDisplay) => task.taskGroup?.trim() || "";
 
