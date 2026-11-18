@@ -173,7 +173,7 @@ export const buildNotificationBody = (type: string, payload: any): string => {
             return `${actorName} confirmed you for ${taskTitle}`;
         // Crew round 2 (F1): the organiser isn't named.
         case "task_shift_declined":
-            return `Thanks for offering for ${taskTitle}. The places have gone to others this time`;
+            return `Thanks for offering to help with ${taskTitle}. All places are filled this time, and we hope to see you on another one.`;
         case "task_shift_attendance_verified":
             return `Your attendance for ${taskTitle} was verified`;
         case "task_status_changed":

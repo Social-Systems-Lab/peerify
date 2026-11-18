@@ -198,9 +198,9 @@ describe("F1: declining a pending shift sign-up", () => {
             taskTitle: "Door shift",
             user: { name: "Organiser Name" },
         });
-        expect(body).toContain("Door shift");
-        expect(body).toContain("Thanks for offering");
-        expect(body).not.toContain("Organiser Name");
+        expect(body).toBe(
+            "Thanks for offering to help with Door shift. All places are filled this time, and we hope to see you on another one.",
+        );
     });
 });
 
