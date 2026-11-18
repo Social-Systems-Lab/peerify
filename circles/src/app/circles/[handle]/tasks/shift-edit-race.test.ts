@@ -115,4 +115,19 @@ describe("editing a shift keeps sign-ups that landed meanwhile", () => {
         const after = fakeDb.col("Tasks").docs[0];
         expect((after.participants as { verifiedAt?: Date }[])[0].verifiedAt).toEqual(joined);
     });
+
+    test("a task turned into a shift (in review) gets an empty participants list, not the stored null", async () => {
+        // createTaskAction passes participants: undefined for tasks, which the driver stores as null.
+        const task = { ...shift([]), taskType: "outcome", stage: "review", slots: null, participants: null };
+        fakeDb.reset({
+            Circles: [{ _id: new ObjectId(CIRCLE_ID), did: "did:test:y", handle: "y", circleType: "circle" }],
+            Tasks: [task],
+        });
+        fakeDb.setAggregateResult("Tasks", fakeDb.col("Tasks").docs, { applyLeadingMatch: true });
+
+        expect((await updateTaskAction("y", TASK_ID, editForm())).success).toBe(true);
+        const after = fakeDb.col("Tasks").docs[0];
+        expect(after.taskType).toBe("shift");
+        expect(after.participants).toEqual([]);
+    });
 });

@@ -204,6 +204,36 @@ describe("F1: declining a pending shift sign-up", () => {
     });
 });
 
+describe("a pending entry stored with verifiedAt: null still counts as pending", () => {
+    // No code path writes null today (audit, 2026-11-18), but the driver stores undefined as null, so
+    // older data could have it. Confirm, decline and leave match "verifiedAt is null or missing".
+    const nullPending = (userDid: string) => ({ userDid, joinedAt: joined, verifiedAt: null });
+
+    test("it can be confirmed", async () => {
+        seed(shift([nullPending(C2)]));
+        expect((await actions.verifyShiftParticipantAction("y", TASK_ID, C2)).success).toBe(true);
+        expect((stored().participants as { verifiedAt?: Date }[])[0].verifiedAt instanceof Date).toBe(true);
+    });
+
+    test("it can be declined", async () => {
+        seed(shift([confirmed(C1), nullPending(C2)]));
+        expect((await actions.declineShiftParticipantAction("y", TASK_ID, C2)).success).toBe(true);
+        expect(dids()).toEqual([C1]);
+    });
+
+    test("the person can leave", async () => {
+        seed(shift([confirmed(C1), nullPending(C2)]));
+        sessionDid = C2;
+        expect((await actions.leaveShiftTaskAction("y", TASK_ID)).success).toBe(true);
+        expect(dids()).toEqual([C1]);
+    });
+
+    test("it doesn't count towards the confirm cap", async () => {
+        seed(shift([confirmed(C1), nullPending(C2), pending(C3)]));
+        expect((await actions.verifyShiftParticipantAction("y", TASK_ID, C3)).success).toBe(true);
+    });
+});
+
 describe("leaving a shift removes only the person leaving", () => {
     test("C2 leaves: C1 and C3 stay", async () => {
         seed(shift([confirmed(C1), pending(C2), pending(C3)]));

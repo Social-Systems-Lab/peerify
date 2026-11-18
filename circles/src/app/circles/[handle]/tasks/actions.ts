@@ -1022,8 +1022,11 @@ export async function updateTaskAction(
             slots: data.taskType === "shift" ? data.slots : undefined,
             shiftStartTime: data.taskType === "shift" ? data.shiftStartTime : undefined,
             shiftDurationMinutes: data.taskType === "shift" ? data.shiftDurationMinutes : undefined,
-            // participants are never written here: the edit form doesn't change them, and writing back the
-            // copy read above would erase a sign-up, confirm or decline that landed meanwhile (2026-11-18).
+            // participants are not written back here: the edit form doesn't change them, and writing the copy
+            // read above would erase a sign-up, confirm or decline that landed meanwhile (2026-11-18). Only a
+            // task becoming a shift (review stage, so nobody can have signed up) gets an empty list in place
+            // of the stored null.
+            ...(data.taskType === "shift" && !Array.isArray(task.participants) ? { participants: [] } : {}),
             participantNotes: data.taskType === "shift" ? data.participantNotes : undefined,
             priority: data.priority ?? "",
             taskGroup: data.taskType === "shift" ? "" : (data.taskGroup ?? ""),
@@ -1985,7 +1988,7 @@ export async function leaveShiftTaskAction(
                 participants: {
                     $elemMatch: {
                         userDid,
-                        verifiedAt: { $exists: false },
+                        verifiedAt: null,
                     },
                 },
             },
@@ -2080,7 +2083,7 @@ export async function verifyShiftParticipantAction(
                 participants: {
                     $elemMatch: {
                         userDid: validatedParticipant.data.participantDid,
-                        verifiedAt: { $exists: false },
+                        verifiedAt: null,
                     },
                 },
                 ...confirmedBelowSlotsFilter(),
@@ -2189,10 +2192,10 @@ export async function declineShiftParticipantAction(
             {
                 _id: new ObjectId(taskId),
                 taskType: "shift",
-                participants: { $elemMatch: { userDid: declinedDid, verifiedAt: { $exists: false } } },
+                participants: { $elemMatch: { userDid: declinedDid, verifiedAt: null } },
             },
             {
-                $pull: { participants: { userDid: declinedDid, verifiedAt: { $exists: false } } },
+                $pull: { participants: { userDid: declinedDid, verifiedAt: null } },
                 $set: { updatedAt: new Date() },
             },
         );
