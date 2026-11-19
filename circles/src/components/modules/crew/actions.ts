@@ -5,7 +5,7 @@ import { getMember, setCrewVisibility, getCrewOfferings, CrewOfferer, updateMemb
 import { getUserPendingCrewApplication } from "@/lib/data/crew-applications";
 import { tourTeamOfferingTypeLabels } from "@/lib/data/tour-team-offerings";
 import { ObjectId } from "mongodb";
-import { isAuthorized } from "@/lib/auth/auth";
+import { isAuthorized, isBlockedOnlyByVerification } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { getCircleByHandle, getCirclesByDids, resolveViewerIsAdmin } from "@/lib/data/circle";
 import { Events } from "@/lib/data/db";
@@ -186,6 +186,9 @@ export type CrewShiftsAndTasksResult = CrewShiftsView & {
     // False when the viewer may not see the panel (or Crew is off): render nothing.
     show: boolean;
     isOrganiser: boolean;
+    // Not an organiser only because their profile isn't verified (the circle's access rules give
+    // them Assign or Moderate Tasks): the panel says "Complete your profile" (2026-11-19).
+    organiserNeedsVerifiedProfile?: boolean;
 };
 
 // Crew round 2, feature 1 (2026-11-18): the data for the Crew page's "Shifts & tasks" panel and the
@@ -225,6 +228,17 @@ export const getCrewShiftsAndTasksAction = async (circleHandle: string): Promise
 
         if (!tasksEnabled && !shiftsEnabled) return hidden;
 
+        // tasks.assign and tasks.moderate need a verified profile (isAuthorized). Kept (Tim,
+        // 2026-11-19); a moderator or admin who has them by the access rules is told why instead.
+        const organiserNeedsVerifiedProfile =
+            !isOrganiser &&
+            (
+                await Promise.all([
+                    isBlockedOnlyByVerification(viewerDid, circleId, features.tasks.assign),
+                    isBlockedOnlyByVerification(viewerDid, circleId, features.tasks.moderate),
+                ])
+            ).some(Boolean);
+
         const visibleTasks = (await getTasksByCircleId(circleId, viewerDid)).filter((task) =>
             (task.taskType ?? "outcome") === "shift" ? shiftsEnabled : tasksEnabled,
         );
@@ -261,7 +275,12 @@ export const getCrewShiftsAndTasksAction = async (circleHandle: string): Promise
             now: new Date(),
             profilesByDid,
         });
-        return { show: true, isOrganiser, ...view };
+        return {
+            show: true,
+            isOrganiser,
+            ...(organiserNeedsVerifiedProfile ? { organiserNeedsVerifiedProfile } : {}),
+            ...view,
+        };
     } catch (error) {
         console.error("Error in getCrewShiftsAndTasksAction:", error);
         return hidden;

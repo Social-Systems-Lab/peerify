@@ -1,5 +1,5 @@
 import { addMinutes } from "date-fns";
-import { Circle, Task, TaskDisplay, TaskParticipant } from "@/models/models";
+import { Circle, Task, TaskDisplay, TaskParticipant, TaskPermissions } from "@/models/models";
 import { getShiftSignupCeiling } from "@/lib/tasks/shift-capacity";
 import {
     calendarDateOf,
@@ -192,3 +192,16 @@ export const getParticipantNotesHiddenHint = (isSignedUp: boolean) =>
     isSignedUp
         ? "Details for participants appear once an organiser confirms your sign-up."
         : "Details for participants appear once you’re confirmed.";
+
+// On a shift, for someone the circle's access rules give Moderate Tasks (confirm, decline,
+// attendance) whose profile isn't verified: those need a verified profile (kept, Tim 2026-11-19).
+export const SHIFT_MODERATE_NEEDS_PROFILE_TEXT =
+    "To confirm sign-ups and review attendance, complete your profile: a picture, a short About text and the Community Guidelines.";
+
+export const getShiftModerateProfileNote = (
+    task: Pick<TaskDisplay, "taskType">,
+    permissions: Pick<TaskPermissions, "canModerate" | "moderateNeedsVerifiedProfile">,
+): string | null =>
+    isShiftTask(task) && !permissions.canModerate && permissions.moderateNeedsVerifiedProfile
+        ? SHIFT_MODERATE_NEEDS_PROFILE_TEXT
+        : null;

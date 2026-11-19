@@ -36,6 +36,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { findOrCreateDMConversationAction } from "../modules/chat/actions";
 import { getConnectStatusesAction } from "../modules/home/actions";
 import type { RelationshipConnectStatus } from "@/lib/data/relationships";
+import { showsActorPicture } from "./notification-avatar";
 
 type Notification = {
     id: string;
@@ -927,32 +928,7 @@ export const Notifications = ({
                         >
                             <div className="relative h-[40px] w-[40px]">
                                 {/* Different layouts based on notification type */}
-                                {["post_comment", "comment_reply", "post_mention", "comment_mention"].includes(
-                                    groupedNotification.latestNotification.notificationType,
-                                ) ||
-                                // Add proposal/issue types that involve a user action
-                                [
-                                    "proposal_vote",
-                                    "proposal_submitted_for_review",
-                                    "issue_submitted_for_review", // Add issue types
-                                    "issue_approved",
-                                    "issue_assigned",
-                                    "issue_status_changed",
-                                    "task_submitted_for_review",
-                                    "task_changes_requested",
-                                    "task_verified",
-                                    "task_approved",
-                                    "task_assigned",
-                                    "task_accepted",
-                                    "task_shift_signup",
-                                    "task_shift_confirmed",
-                                    "task_shift_declined",
-                                    "task_shift_attendance_verified",
-                                    "task_status_changed",
-                                    "task_claim_submitted",
-                                    "task_claim_approved",
-                                    "task_claim_declined",
-                                ].includes(groupedNotification.latestNotification.notificationType) ? (
+                                {showsActorPicture(groupedNotification.latestNotification.notificationType) ? (
                                     <>
                                         {/* Show triggering user picture in the center */}
                                         {groupedNotification.latestNotification.user && (

@@ -383,6 +383,17 @@ export async function reopenRecentConnectionRequestNotification(
     return !!result;
 }
 
+// A stored notification's content as it may be shown. Stored before 2026-11-05, content can still
+// hold whole user/circle documents. A task_shift_declined stored before 2026-11-19 still names the
+// organiser in `user`; it is dropped, so the notice doesn't reveal who declined.
+export function shapeStoredNotificationContent<T>(type: string, content: T): T {
+    const shaped = shapeNotificationContent(content);
+    if (type === "task_shift_declined" && shaped && typeof shaped === "object") {
+        delete (shaped as Record<string, unknown>).user;
+    }
+    return shaped;
+}
+
 export async function listNotificationsForUser(
     userDid: string,
     limit: number = 50,
@@ -392,10 +403,9 @@ export async function listNotificationsForUser(
         .sort({ createdAt: -1, _id: -1 })
         .limit(limit)
         .toArray();
-    // Stored before 2026-11-05, content can still hold whole user/circle documents.
     return notifications.map((notification) => ({
         ...notification,
-        content: shapeNotificationContent(notification.content),
+        content: shapeStoredNotificationContent(notification.type, notification.content),
     }));
 }
 
@@ -2246,12 +2256,13 @@ export async function notifyTaskShiftDeclined(
         const circle = await getTaskCircle(task);
         if (!circle) return;
 
+        // The circle only, no `user` (2026-11-19): the bell would show the organiser's picture and
+        // the notice would carry who declined. Like crew_application_approved.
         await sendNotifications(
             "task_shift_declined",
             [participant],
             sanitizeObjectForJSON({
                 circle,
-                user: decliner,
                 taskId: task._id?.toString(),
                 taskTitle: task.title,
             }),

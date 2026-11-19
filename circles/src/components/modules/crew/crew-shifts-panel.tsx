@@ -18,6 +18,22 @@ import type { CrewViewGroup, CrewViewItem, CrewViewShift, CrewViewTask } from "@
 
 const OPEN_ROWS_SHOWN = 5;
 
+// Where "Review sign-ups" would be, for a moderator or admin who has Assign or Moderate Tasks by the
+// circle's access rules but whose profile isn't verified (those need one; kept, 2026-11-19).
+export const ORGANISER_NEEDS_PROFILE_TEXT =
+    "To review sign-ups, complete your profile: a picture, a short About text and the Community Guidelines.";
+
+function OrganiserNeedsProfileNote() {
+    return (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            {ORGANISER_NEEDS_PROFILE_TEXT}{" "}
+            <Link href="/onboarding/pilot" className="font-medium underline">
+                Complete your profile
+            </Link>
+        </div>
+    );
+}
+
 type Props = {
     circleHandle: string;
     data: CrewShiftsAndTasksResult;
@@ -199,6 +215,15 @@ export default function CrewShiftsPanel({ circleHandle, data, variant = "crewPag
     if (!data.show) return null;
 
     if (variant === "dashboard") {
+        if (!data.isOrganiser && data.organiserNeedsVerifiedProfile) {
+            return (
+                <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                    <h2 className="text-xl font-semibold text-[#231f1a]">Shifts &amp; tasks</h2>
+                    <h3 className="text-sm font-semibold text-foreground">Review sign-ups</h3>
+                    <OrganiserNeedsProfileNote />
+                </section>
+            );
+        }
         if (!data.isOrganiser || !data.allByEvent) return null;
         return (
             <section className="space-y-3 rounded-lg border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -251,6 +276,12 @@ export default function CrewShiftsPanel({ circleHandle, data, variant = "crewPag
                         review
                         emptyText="Nothing coming up to review."
                     />
+                </section>
+            )}
+            {!data.isOrganiser && data.organiserNeedsVerifiedProfile && (
+                <section className="space-y-2">
+                    <h3 className="text-sm font-semibold text-foreground">Review sign-ups</h3>
+                    <OrganiserNeedsProfileNote />
                 </section>
             )}
         </div>

@@ -3,12 +3,12 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-11-18)
+## Current Status (2026-11-19)
 - Production: https://peerify.one, on the Cleura server `peerify-prod`. Staging: https://staging.peerify.one, on the Cleura server `peerify-staging`. On both, the app runs from `/srv/peerify/app/circles` as the `peerify` user, under PM2 (`peerify` :3000, `peerify-staging` :3001). Tim deploys.
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `main` = `ac61f445`** (released 2026-11-17; Tim confirmed prod, and `/api/version` reported `ac61f445` on both). **The `staging` branch is ahead:** Crew round 2 is merged (`e2c5550d` part 1, `a20762f1` part 2), plus the first staging-round fixes (shift dates `849a1f31`, and the merge of `fix/crew-r2-fixes2`; see the 2026-11-18 (cont. 3) entry); deploying it to staging is Tim's step. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **Prod = `main` = `ac61f445`** (released 2026-11-17; Tim confirmed prod, and `/api/version` reported `ac61f445` on both). **The `staging` branch is ahead:** Crew round 2 is merged (`e2c5550d` part 1, `a20762f1` part 2), plus the staging-round fixes (shift dates `849a1f31`, the merges of `fix/crew-r2-fixes2` and `fix/crew-r2-fixes3`; see the 2026-11-18 (cont. 3) and 2026-11-19 entries); deploying it to staging is Tim's step. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
 - **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. **Also live since `60108f48`:** the crew UI polish (6 items, `29fcd32f`..`e36894f6`). **Also live since `ac61f445` (2026-11-17):** one Share button (`fix/share-simple`) and the task fixes (`fix/task-actions-circle-check`). See the 2026-11-15 entries.
 - **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (it also covers a personal profile's Circles list, owner-only since `e4973b87`: default only me, options Contacts or Public) (design direction in the 2026-11-15 (cont.) entry).
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
@@ -19,7 +19,8 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Next:** Tim deploys staging and runs the browser test lists (part 1 in `crew-r2-part1.tar.gz`, part 2 in `crew-r2-part2.tar.gz`). Then the release to prod.
   - Optional: run the read-only `scripts/count-null-signup-fields.mongosh.js` on staging and prod.
   - See the 2026-11-18 (cont. 2) entry.
-  - **Staging round fixes (2026-11-18 (cont. 3)):** shift dates as calendar dates in `Africa/Johannesburg` (merged `849a1f31`); "Details for participants appear once you’re confirmed." (merged). **Waiting for Tim:** the text of the moderator / "Review sign-ups" bug, which didn't reach Claude.
+  - **Staging round fixes (2026-11-18 (cont. 3)):** shift dates as calendar dates in `Africa/Johannesburg` (merged `849a1f31`); "Details for participants appear once you’re confirmed." (merged).
+  - **Staging round fixes 3 (2026-11-19):** a moderator or admin whose profile isn't verified sees "complete your profile" where "Review sign-ups" would be (verification gate kept, Tim); the declined notice shows the circle's picture. **Open, Tim to decide:** confirm and decline need Moderate Tasks, while the Crew panel's organiser view also counts Assign Tasks (see that entry).
   - Its personal counterpart, later: **"My Crews"** on the personal profile, owner only: upcoming shifts across all crews plus those crews' broadcasts in one feed (2026-11-15 (cont. 4)).
 - **LATER:**
   - the event audience picker should always be available, not only after ticking "Share on Noticeboard";
@@ -69,6 +70,25 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-19 — Staging round fixes 3: moderator without "Review sign-ups"; declined notice picture
+
+**State:** merged to `staging` and pushed; not deployed (Tim's step). No database commands. Report: `crew-r2-fixes3.tar.gz`. This is item 3 of the 2026-11-18 (cont. 3) entry, now with its text.
+
+**1. Moderator sees no "Review sign-ups" (Tim's step 5 of part 2):** Hello Peer, a Moderator of The Secret Space (Moderators ticked for Assign Tasks, Moderate Tasks admins only), saw only the crew view.
+- **Cause:** not the access rules. The Access rules page stores `accessRules.tasks.assign`, which is exactly what `isAuthorized` reads, and the groups match. **`tasks.assign` and `tasks.moderate` have `needsToBeVerified`:** `isAuthorized` refuses them to a profile that isn't verified (picture + About + Guidelines), whatever the rules say. The exceptions are the circle's creator and the circle itself. `crew-shifts-action.test.ts` faked `isAuthorized` with groups only, so it never saw this. Not checked in the database: whether Hello Peer is unverified (the code allows no other explanation).
+- **Decision (Tim, 2026-11-19): keep the gate, explain it.** `isBlockedOnlyByVerification` (`auth.ts`) is true only when the rules give the feature and verification is the only reason for the refusal; it grants nothing. Where "Review sign-ups" would be (Crew page and Crew Dashboard), such a moderator or admin sees "To review sign-ups, complete your profile: …" with a link to `/onboarding/pilot`. A shift page shows the same kind of note when the rules give Moderate Tasks. `isAuthorized` is split into two halves with no change in behaviour. **Not added:** the event page's crew panel (same rule, no note).
+- **Shifts take every right from the Tasks access rules** (there are no shift features): View, Create, Assign (organiser view), and Moderate (confirm and decline sign-ups, attendance, edit and delete any). The Shifts module switch only turns them on or off.
+- **Open, Tim to decide:** the Crew panel counts Assign Tasks as organiser, but confirm and decline need **Moderate Tasks**. A verified moderator with Assign only sees "Review sign-ups" with names, but gets no Confirm or Decline buttons. Options: (a) confirm and decline accept Assign Tasks; (b) tick Moderators for Moderate Tasks in that circle (it also lets them edit and delete any task).
+- **Commit:** `fca87aca`. Tests: `crew-shifts-moderator.test.ts` (real `isAuthorized`, real setup), `crew-shifts-profile-note.test.tsx`, `verification-gate.test.ts`; failing first.
+
+**2. The declined notice showed the organiser's picture:** `notifyTaskShiftDeclined` stored the organiser as `user`, so the bell showed their picture (and `/api/notifications` returned their name and did). It now carries the circle only, like `crew_application_approved`, and the bell shows the circle's picture. Older rows have `user` dropped when read (the bell, and the admin "email unread notifications" action). Commit `f94ee5f9`; test `shift-declined-notice.test.ts` (3 fail before, 4 pass after).
+
+**Checks:** tsc (old error only), eslint, build. All 137 test files run one at a time: 136 pass, plus the known failing `participation-readiness.test.ts`.
+
+**Staging checks for Tim:** in the report: Hello Peer before and after completing their profile; decline a sign-up as admin and look at the volunteer's bell.
 
 ---
 

@@ -95,6 +95,7 @@ import {
     getShiftDisplayStatus,
     getShiftPendingParticipants,
     getShiftPendingSummary,
+    getShiftModerateProfileNote,
     isShiftTask as isShiftTaskItem,
 } from "./shift-task-utils";
 import { ALL_PLACES_CONFIRMED, MANY_HAVE_OFFERED } from "@/lib/tasks/shift-capacity";
@@ -269,6 +270,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
         shiftDisplayStatus !== "review" &&
         shiftDisplayStatus !== "completed";
     const canVerifyShiftParticipants = isShiftTask && permissions.canModerate;
+    const shiftModerateProfileNote = getShiftModerateProfileNote(task, permissions);
     // Confirm cap (Crew round 2): confirmations never exceed places; the server refuses too.
     const shiftPlacesAllConfirmed = isShiftTask && verifiedShiftParticipantsCount >= (task.slots ?? 0);
     const canReviewShiftAttendance = isShiftTask && permissions.canModerate && shiftDisplayStatus === "completed";
@@ -1284,6 +1286,14 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                                     "More people have offered than there are places. You can still offer; the organiser chooses who is confirmed."}
                                 {shiftSignupNotice === "manyOffered" && `${MANY_HAVE_OFFERED}.`}
                                 {shiftSignupNotice === "allConfirmed" && `${ALL_PLACES_CONFIRMED}.`}
+                            </div>
+                        )}
+                        {shiftModerateProfileNote && (
+                            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                                {shiftModerateProfileNote}{" "}
+                                <Link href="/onboarding/pilot" className="font-medium underline">
+                                    Complete your profile
+                                </Link>
                             </div>
                         )}
                         {canReviewShiftAttendance && (
