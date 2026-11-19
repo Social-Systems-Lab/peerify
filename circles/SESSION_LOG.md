@@ -8,7 +8,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `main` = `ac61f445`** (released 2026-11-17; Tim confirmed prod, and `/api/version` reported `ac61f445` on both). **The `staging` branch is ahead:** Crew round 2 is merged (`e2c5550d` part 1, `a20762f1` part 2), plus the staging-round fixes (shift dates `849a1f31`, the merges of `fix/crew-r2-fixes2` and `fix/crew-r2-fixes3`; see the 2026-11-18 (cont. 3) and 2026-11-19 entries); deploying it to staging is Tim's step. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **Prod = `main` = `ac61f445`** (released 2026-11-17; Tim confirmed prod, and `/api/version` reported `ac61f445` on both). **The `staging` branch is ahead:** Crew round 2 is merged (`e2c5550d` part 1, `a20762f1` part 2), plus the staging-round fixes (shift dates `849a1f31`, the merges of `fix/crew-r2-fixes2`, `fix/crew-r2-fixes3` and `fix/crew-r2-fixes4`; see the 2026-11-18 (cont. 3), 2026-11-19 and 2026-11-19 (cont.) entries); deploying it to staging is Tim's step. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
 - **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. **Also live since `60108f48`:** the crew UI polish (6 items, `29fcd32f`..`e36894f6`). **Also live since `ac61f445` (2026-11-17):** one Share button (`fix/share-simple`) and the task fixes (`fix/task-actions-circle-check`). See the 2026-11-15 entries.
 - **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (it also covers a personal profile's Circles list, owner-only since `e4973b87`: default only me, options Contacts or Public) (design direction in the 2026-11-15 (cont.) entry).
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
@@ -20,7 +20,8 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - Optional: run the read-only `scripts/count-null-signup-fields.mongosh.js` on staging and prod.
   - See the 2026-11-18 (cont. 2) entry.
   - **Staging round fixes (2026-11-18 (cont. 3)):** shift dates as calendar dates in `Africa/Johannesburg` (merged `849a1f31`); "Details for participants appear once you’re confirmed." (merged).
-  - **Staging round fixes 3 (2026-11-19):** a moderator or admin whose profile isn't verified sees "complete your profile" where "Review sign-ups" would be (verification gate kept, Tim); the declined notice shows the circle's picture. **Open, Tim to decide:** confirm and decline need Moderate Tasks, while the Crew panel's organiser view also counts Assign Tasks (see that entry).
+  - **Staging round fixes 3 (2026-11-19):** a moderator or admin whose profile isn't verified sees "complete your profile" where "Review sign-ups" would be (verification gate kept, Tim); the declined notice shows the circle's picture.
+  - **Staging round fixes 4 (2026-11-19 (cont.)):** Assign Tasks can confirm and decline shift sign-ups (option (a), Tim); attendance, editing and deleting stay with Moderate Tasks. The Events timeline shows "N pending" to organisers only (F3).
   - Its personal counterpart, later: **"My Crews"** on the personal profile, owner only: upcoming shifts across all crews plus those crews' broadcasts in one feed (2026-11-15 (cont. 4)).
 - **LATER:**
   - the event audience picker should always be available, not only after ticking "Share on Noticeboard";
@@ -70,6 +71,30 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-19 (cont.) — Staging round fixes 4: Assign Tasks confirms and declines; timeline "N pending" for organisers only
+
+**State:** merged to `staging` and pushed; not deployed (Tim's step). No database commands.
+
+**1. Option (a) (Tim, 2026-11-19), closing the open question in the 2026-11-19 entry:** confirming and declining shift sign-ups need **Assign Tasks or Moderate Tasks** (before: Moderate only), on the server (`verifyShiftParticipantAction`, `declineShiftParticipantAction`) and on the page. **Attendance, editing and deleting stay with Moderate Tasks.**
+- Shift page: the Pending Sign-ups / Waiting list section, its Confirm and Decline buttons, and "N pending" now show to Assign or Moderate (`managesShiftSignups`). The shifts list and the tasks list show "N pending" on the same rule.
+- The shift page's "complete your profile" note now covers Assign: "To confirm sign-ups, …"; with Moderate also held back, "…and review attendance"; or "To review attendance, …" for someone who has Assign but whose Moderate is held back by verification.
+- In The Secret Space, a verified Hello Peer (Moderator, Assign Tasks) can now confirm and decline Door crew sign-ups, but not review attendance.
+
+**2. F3 on the circle Events timeline:** shift cards showed "N pending" to crew members. A crew member's copy of a shift carries `pendingParticipantCount` (the shift page uses it for "More people have offered than there are places"), and the timeline printed it. `getTasksAction` now returns `showsShiftPendingCounts` (Assign or Moderate Tasks, or a platform admin, as on the event crew panel). The timeline items (new `src/lib/tasks/shift-timeline.ts`, moved out of `events-tabs.tsx`) carry it, and the card prints the count only then. The user toolbox's timeline shows no shifts.
+
+**Commit:** `cf0403bb`. Tests, failing first:
+- `shift-decline.test.ts`: the old case "a moderator by default is refused" now says the opposite. Assign-only can decline and confirm; attendance and delete are still refused.
+- `shift-organiser-rights.test.ts`: the helpers, the note wording and the timeline items.
+- `timeline-pending-flag.test.ts`: the real `isAuthorized`; crew false, moderator, admin and platform admin true.
+
+**Checks:** tsc (old error only), eslint, build. All 139 test files run one at a time: 138 pass, plus the known failing `participation-readiness.test.ts`.
+
+**Staging checks for Tim:**
+1. As a verified moderator with Assign Tasks only, open Door crew with a pending sign-up: Confirm and Decline are there, and both work; attendance review isn't offered after the shift.
+2. As a crew member, the circle's Events tab: no "N pending" on shift cards. As an admin or moderator: the count is there.
 
 ---
 
