@@ -385,10 +385,13 @@ export async function reopenRecentConnectionRequestNotification(
 
 // A stored notification's content as it may be shown. Stored before 2026-11-05, content can still
 // hold whole user/circle documents. A task_shift_declined stored before 2026-11-19 still names the
-// organiser in `user`; it is dropped, so the notice doesn't reveal who declined.
+// organiser in `user`; it is dropped, so the notice doesn't reveal who declined. The same for
+// task_claim_declined (also 2026-11-19).
+const DECLINED_NOTICE_TYPES = new Set(["task_shift_declined", "task_claim_declined"]);
+
 export function shapeStoredNotificationContent<T>(type: string, content: T): T {
     const shaped = shapeNotificationContent(content);
-    if (type === "task_shift_declined" && shaped && typeof shaped === "object") {
+    if (DECLINED_NOTICE_TYPES.has(type) && shaped && typeof shaped === "object") {
         delete (shaped as Record<string, unknown>).user;
     }
     return shaped;
@@ -2125,12 +2128,13 @@ export async function notifyTaskClaimDeclined(task: TaskDisplay, reviewer: Circl
         const circle = await getTaskCircle(task);
         if (!circle) return;
 
+        // The circle only, no `user` (2026-11-19): like task_shift_declined, the notice doesn't say
+        // who declined.
         await sendNotifications(
             "task_claim_declined",
             [claimant],
             sanitizeObjectForJSON({
                 circle,
-                user: reviewer,
                 taskId: task._id?.toString(),
                 taskTitle: task.title,
             }),
