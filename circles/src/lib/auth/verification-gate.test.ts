@@ -14,7 +14,7 @@ const fakeDb = createFakeDb();
 mock.module("@/lib/data/db", () => fakeDb.module);
 
 const { isAuthorized, isBlockedOnlyByVerification } = await import("./auth");
-const { getShiftModerateProfileNote } = await import("@/components/modules/tasks/shift-task-utils");
+const { getShiftOrganiserProfileNote } = await import("@/components/modules/tasks/shift-task-utils");
 
 const CIRCLE_ID = "64f800000000000000000088";
 const CREATOR = "did:test:creator";
@@ -94,19 +94,19 @@ describe("the shift page's note", () => {
     const shift = { taskType: "shift" as const };
     test("shown on a shift when Moderate Tasks is held back only by the profile", () => {
         expect(
-            getShiftModerateProfileNote(shift, { canModerate: false, moderateNeedsVerifiedProfile: true }),
+            getShiftOrganiserProfileNote(shift, { canAssign: false, canModerate: false, moderateNeedsVerifiedProfile: true }),
         ).toContain("To confirm sign-ups and review attendance, complete your profile");
     });
 
     test("not shown otherwise", () => {
         expect(
-            getShiftModerateProfileNote(shift, { canModerate: true, moderateNeedsVerifiedProfile: true }),
+            getShiftOrganiserProfileNote(shift, { canAssign: false, canModerate: true, moderateNeedsVerifiedProfile: true }),
         ).toBeNull();
-        expect(getShiftModerateProfileNote(shift, { canModerate: false })).toBeNull();
+        expect(getShiftOrganiserProfileNote(shift, { canAssign: false, canModerate: false })).toBeNull();
         expect(
-            getShiftModerateProfileNote(
+            getShiftOrganiserProfileNote(
                 { taskType: "outcome" },
-                { canModerate: false, moderateNeedsVerifiedProfile: true },
+                { canAssign: false, canModerate: false, moderateNeedsVerifiedProfile: true },
             ),
         ).toBeNull();
     });

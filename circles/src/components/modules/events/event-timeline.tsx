@@ -18,7 +18,8 @@ import { hideCancelledEventAction } from "@/app/circles/[handle]/events/actions"
 import { getEventJoinState } from "./event-join-state";
 import { getPeerifyEventDisclosureDisplay, getPeerifySafeEventLocationText } from "./peerify-event-disclosure-display";
 import { EventTagBadgeList } from "./event-tag-badges";
-import { getShiftConfirmedSummary, getShiftDisplayStatus, getShiftPendingSummary } from "../tasks/shift-task-utils";
+import { getShiftConfirmedSummary, getShiftDisplayStatus } from "../tasks/shift-task-utils";
+import { getTimelineShiftPendingSummary, type ShiftTimelineItem } from "@/lib/tasks/shift-timeline";
 
 type Props = {
     circleHandle: string;
@@ -36,13 +37,7 @@ type Props = {
     onNavigate?: () => void;
 };
 
-export type ShiftTimelineItem = {
-    id: string;
-    task: TaskDisplay;
-    circleHandle?: string;
-    startAt: Date | string | null;
-    endAt?: Date | string | null;
-};
+export type { ShiftTimelineItem };
 
 const monthColorClasses = [
     "bg-red-400", // Jan
@@ -317,7 +312,8 @@ const ShiftCard: React.FC<{
     const task = shift.task;
     const taskCircleHandle = shift.circleHandle || fallbackCircleHandle;
     const shiftStage = getShiftStageLabel(task);
-    const pendingSummary = getShiftPendingSummary(task);
+    // Organisers only (F3, 2026-11-19).
+    const pendingSummary = getTimelineShiftPendingSummary(shift);
     const locationLabel = shiftLocationToString(task);
 
     return (

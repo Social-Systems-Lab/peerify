@@ -98,8 +98,11 @@ export default async function TaskDetailPage(props: PageProps) {
         canResolve: await isAuthorized(userDid, circle._id as string, features.tasks.resolve), // Updated feature
         canComment: await isAuthorized(userDid, circle._id as string, features.tasks.comment), // Updated feature
     };
-    // Moderate Tasks (confirm, decline, attendance) needs a verified profile; kept (2026-11-19). A
-    // shift says so to someone who has it by the access rules but isn't verified.
+    // Assign and Moderate Tasks need a verified profile; kept (2026-11-19). A shift says so to
+    // someone who has them by the access rules but isn't verified.
+    const assignNeedsVerifiedProfile =
+        !permissions.canAssign &&
+        isShiftTask(task) && (await isBlockedOnlyByVerification(userDid, circle._id as string, features.tasks.assign));
     const moderateNeedsVerifiedProfile =
         !permissions.canModerate &&
         isShiftTask(task) && (await isBlockedOnlyByVerification(userDid, circle._id as string, features.tasks.moderate));
@@ -121,7 +124,7 @@ export default async function TaskDetailPage(props: PageProps) {
 
             <div className="mx-auto w-full max-w-4xl px-4">
                 {/* Render TaskDetail component */}
-                <TaskDetail task={task} circle={publicCircle} permissions={{ ...permissions, moderateNeedsVerifiedProfile }} currentUserDid={userDid} />{" "}
+                <TaskDetail task={task} circle={publicCircle} permissions={{ ...permissions, assignNeedsVerifiedProfile, moderateNeedsVerifiedProfile }} currentUserDid={userDid} />{" "}
                 {/* Use TaskDetail, pass task */}
             </div>
         </div>

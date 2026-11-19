@@ -25,7 +25,7 @@ import {
     taskTypeSchema,
     postSchema,
 } from "@/models/models";
-import { getCircleByHandle, getCircleById } from "@/lib/data/circle";
+import { getCircleByHandle, getCircleById, resolveViewerIsAdmin } from "@/lib/data/circle";
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate } from "@/lib/data/user";
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
@@ -93,6 +93,9 @@ type GetTasksActionResult = {
     unrankedCount: number;
     userRankUpdatedAt: Date | null;
     userRankBecameStaleAt: Date | null;
+    // Shift pending counts ("N pending") are for organisers only (F3): Assign or Moderate Tasks, or a
+    // platform admin, as on the event crew panel. The Events timeline reads this (2026-11-19).
+    showsShiftPendingCounts?: boolean;
 };
 
 const revalidateTaskAndShiftRoutes = (circleHandle: string, taskId?: string) => {
@@ -262,8 +265,14 @@ export async function getTasksAction(
             includeAssignedFinal,
         );
 
+        const showsShiftPendingCounts =
+            (await isAuthorized(userDid, circleId, features.tasks.assign)) ||
+            (await isAuthorized(userDid, circleId, features.tasks.moderate)) ||
+            (await resolveViewerIsAdmin(userDid));
+
         return {
             tasks: allTasks,
+            showsShiftPendingCounts,
             hasUserRanked: false,
             totalRankers: 0,
             unrankedCount: 0,
@@ -1998,6 +2007,12 @@ export async function leaveShiftTaskAction(
     }
 }
 
+// Confirming and declining shift sign-ups: Assign Tasks or Moderate Tasks (Tim, 2026-11-19,
+// option (a)). Attendance, editing and deleting stay with Moderate Tasks.
+const canManageShiftSignups = async (userDid: string, circleId: string) =>
+    (await isAuthorized(userDid, circleId, features.tasks.assign)) ||
+    (await isAuthorized(userDid, circleId, features.tasks.moderate));
+
 export async function verifyShiftParticipantAction(
     circleHandle: string,
     taskId: string,
@@ -2023,8 +2038,8 @@ export async function verifyShiftParticipantAction(
             return { success: false, message: "Circle not found" };
         }
 
-        const canModerate = await isAuthorized(userDid, circle._id as string, features.tasks.moderate);
-        if (!canModerate) {
+        // Assign or Moderate Tasks (Tim, 2026-11-19, option (a)); attendance stays with Moderate.
+        if (!(await canManageShiftSignups(userDid, circle._id as string))) {
             return { success: false, message: "Not authorized to verify shift participation" };
         }
 
@@ -2143,8 +2158,8 @@ export async function declineShiftParticipantAction(
             return { success: false, message: "Circle not found" };
         }
 
-        const canModerate = await isAuthorized(userDid, circle._id as string, features.tasks.moderate);
-        if (!canModerate) {
+        // Assign or Moderate Tasks (Tim, 2026-11-19, option (a)); attendance stays with Moderate.
+        if (!(await canManageShiftSignups(userDid, circle._id as string))) {
             return { success: false, message: "Not authorized to decline shift sign-ups" };
         }
 

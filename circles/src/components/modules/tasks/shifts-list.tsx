@@ -42,6 +42,7 @@ import {
     getShiftConfirmedSummary,
     getShiftDisplayStatus,
     getShiftPendingSummary,
+    managesShiftSignups,
     getShiftStartAt,
     isShiftTask,
 } from "./shift-task-utils";
@@ -156,7 +157,8 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ tasksData, circle, permissions 
         const status = getShiftDisplayStatus(shift);
         const stageInfo = getShiftStageInfo(status);
         const StageIcon = stageInfo.icon;
-        const pendingSummary = permissions.canModerate ? getShiftPendingSummary(shift) : null;
+        // "N pending" for organisers: Assign or Moderate Tasks (F3; option (a), 2026-11-19).
+        const pendingSummary = managesShiftSignups(permissions) ? getShiftPendingSummary(shift) : null;
         const isAuthor = user?.did === shift.createdBy;
         const canEdit = (isAuthor && shift.stage === "review") || permissions.canModerate;
         const canDelete = isAuthor || permissions.canModerate;

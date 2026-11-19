@@ -5,14 +5,15 @@ import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CalendarView from "./calendar";
-import EventTimeline, { type ShiftTimelineItem } from "./event-timeline";
+import EventTimeline from "./event-timeline";
+import { toShiftTimelineItems, type ShiftTimelineItem } from "@/lib/tasks/shift-timeline";
 import { EventDisplay, Circle, TaskDisplay } from "@/models/models";
 import { getGoalsAction } from "@/app/circles/[handle]/goals/actions";
 import { getTasksAction } from "@/app/circles/[handle]/tasks/actions";
 import { getIssuesAction } from "@/app/circles/[handle]/issues/actions";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
-import { getShiftEndAt, getShiftStartAt, isShiftTask } from "../tasks/shift-task-utils";
+import { isShiftTask } from "../tasks/shift-task-utils";
 import { floatingDateOf } from "@/lib/tasks/shift-calendar";
 
 type Props = {
@@ -94,31 +95,12 @@ function EventsTabsContent({ circle, events, canCreate }: Props) {
                         circleHandle: t.circle?.handle,
                     }));
 
-                const now = new Date();
-                const shiftItems: ShiftTimelineItem[] = (tasksRes?.tasks || [])
-                    .filter((task: TaskDisplay) => isShiftTask(task))
-                    .map((task: TaskDisplay) => {
-                        const startAt = getShiftStartAt(task);
-                        const endAt = getShiftEndAt(task);
-                        return {
-                            id: (task as any)._id?.toString?.() || String(task._id || ""),
-                            task,
-                            circleHandle: task.circle?.handle,
-                            startAt: startAt?.toISOString() ?? null,
-                            endAt: endAt?.toISOString() ?? null,
-                        };
-                    })
-                    .filter((shift) => {
-                        if (!shift.startAt) {
-                            return false;
-                        }
-
-                        if (shift.endAt) {
-                            return new Date(shift.endAt) >= now;
-                        }
-
-                        return new Date(shift.startAt) >= now;
-                    });
+                // "N pending" on shift cards for organisers only (F3, 2026-11-19).
+                const shiftItems: ShiftTimelineItem[] = toShiftTimelineItems(
+                    (tasksRes?.tasks || []) as TaskDisplay[],
+                    new Date(),
+                    tasksRes?.showsShiftPendingCounts === true,
+                );
 
                 const issueMilestones: Milestone[] = (issuesRes || [])
                     .filter((i: any) => i?.targetDate && i?.stage !== "resolved")

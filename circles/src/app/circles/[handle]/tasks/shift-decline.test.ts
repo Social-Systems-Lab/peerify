@@ -1,6 +1,7 @@
 // Run: IS_BUILD=true bun test "src/app/circles/[handle]/tasks/shift-decline.test.ts"
 // Crew round 2, commit 4 (2026-11-18), decisions F1 and F4:
-// - F1: an organiser (tasks.moderate, as for confirming) can decline a PENDING shift sign-up. The entry
+// - F1: an organiser (tasks.assign or tasks.moderate, as for confirming; Assign added 2026-11-19,
+//   Tim's option (a)) can decline a PENDING shift sign-up. The entry
 //   is removed (so the person can offer again if a place opens), and only that person gets a bell
 //   notice (task_shift_declined). Confirmed people can't be declined. Only through the task's own
 //   circle, as for every task action since 2026-11-16.
@@ -157,8 +158,8 @@ describe("F1: declining a pending shift sign-up", () => {
         expect(notices).toEqual([]);
     });
 
-    test("refused without tasks.moderate (a moderator by default, a crew member)", async () => {
-        for (const did of [MODERATOR_Y, C1, undefined]) {
+    test("refused without tasks.assign or tasks.moderate (a crew member, signed out)", async () => {
+        for (const did of [C1, undefined]) {
             seed(shift([pending(C2)]));
             sessionDid = did;
             const before = snapshot();
@@ -167,6 +168,41 @@ describe("F1: declining a pending shift sign-up", () => {
             expect(snapshot()).toBe(before);
         }
         expect(notices).toEqual([]);
+    });
+
+    // Option (a) (Tim, 2026-11-19): Assign Tasks can confirm and decline sign-ups. Attendance,
+    // editing and deleting stay with Moderate Tasks.
+    test("Assign Tasks only (a moderator by default): can decline", async () => {
+        seed(shift([pending(C2)]));
+        sessionDid = MODERATOR_Y;
+        const result = await actions.declineShiftParticipantAction("y", TASK_ID, C2);
+        expect(result.success).toBe(true);
+        expect(dids()).toEqual([]);
+        expect(notices).toEqual([{ type: "task_shift_declined", to: C2 }]);
+    });
+
+    test("Assign Tasks only: can confirm", async () => {
+        seed(shift([pending(C2)]));
+        sessionDid = MODERATOR_Y;
+        const result = await actions.verifyShiftParticipantAction("y", TASK_ID, C2);
+        expect(result.success).toBe(true);
+        const entry = (stored().participants as { userDid: string; verifiedAt?: Date; verifiedBy?: string }[])[0];
+        expect(Boolean(entry.verifiedAt)).toBe(true);
+        expect(entry.verifiedBy).toBe(MODERATOR_Y);
+    });
+
+    test("Assign Tasks only: attendance and deleting are still refused", async () => {
+        seed({
+            ...shift([confirmed(C2)]),
+            targetDate: new Date("2026-01-10T00:00:00Z"), // long over
+        });
+        sessionDid = MODERATOR_Y;
+        const before = snapshot();
+        const attendance = await actions.reviewShiftAttendanceAction("y", TASK_ID, C2, "attended");
+        expect(attendance.success).toBe(false);
+        const deleted = await actions.deleteTaskAction("y", TASK_ID);
+        expect(deleted.success).toBe(false);
+        expect(snapshot()).toBe(before);
     });
 
     test("another circle's admin, through their own circle's handle: refused", async () => {

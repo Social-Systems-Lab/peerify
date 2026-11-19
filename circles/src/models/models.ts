@@ -1303,8 +1303,10 @@ export type TaskPermissions = {
     canAssign: boolean;
     canResolve: boolean;
     canComment: boolean;
-    // A shift: the access rules give Moderate Tasks (confirm, decline, attendance) but the profile
-    // isn't verified, so isAuthorized refuses it; the page says "complete your profile" (2026-11-19).
+    // A shift: the access rules give Assign Tasks (confirm, decline) or Moderate Tasks (also
+    // attendance) but the profile isn't verified, so isAuthorized refuses it; the page says
+    // "complete your profile" (2026-11-19).
+    assignNeedsVerifiedProfile?: boolean;
     moderateNeedsVerifiedProfile?: boolean;
 };
 
