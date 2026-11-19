@@ -6,7 +6,7 @@ import TaskDetail from "@/components/modules/tasks/task-detail"; // Use TaskDeta
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
+import { getAuthenticatedUserDid, isAuthorized, isBlockedOnlyByVerification } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { redirect, notFound } from "next/navigation";
 import { isShiftTask } from "@/components/modules/tasks/shift-task-utils";
@@ -98,6 +98,11 @@ export default async function TaskDetailPage(props: PageProps) {
         canResolve: await isAuthorized(userDid, circle._id as string, features.tasks.resolve), // Updated feature
         canComment: await isAuthorized(userDid, circle._id as string, features.tasks.comment), // Updated feature
     };
+    // Moderate Tasks (confirm, decline, attendance) needs a verified profile; kept (2026-11-19). A
+    // shift says so to someone who has it by the access rules but isn't verified.
+    const moderateNeedsVerifiedProfile =
+        !permissions.canModerate &&
+        isShiftTask(task) && (await isBlockedOnlyByVerification(userDid, circle._id as string, features.tasks.moderate));
 
     // Only what's serialised to client components is shaped; everything above reads the full circle.
     const publicCircle = await getPublicCircleForViewer(circle, userDid);
@@ -116,7 +121,7 @@ export default async function TaskDetailPage(props: PageProps) {
 
             <div className="mx-auto w-full max-w-4xl px-4">
                 {/* Render TaskDetail component */}
-                <TaskDetail task={task} circle={publicCircle} permissions={permissions} currentUserDid={userDid} />{" "}
+                <TaskDetail task={task} circle={publicCircle} permissions={{ ...permissions, moderateNeedsVerifiedProfile }} currentUserDid={userDid} />{" "}
                 {/* Use TaskDetail, pass task */}
             </div>
         </div>

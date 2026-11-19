@@ -348,27 +348,30 @@ export const isAuthorized = async (
 
     if (userDid) {
         const user = await Circles.findOne({ did: userDid });
-        if (
-            featureInput.needsToBeVerified &&
-            !isVerifiedUser(user) &&
-            user?._id.toString() !== circleId &&
-            user?.did !== circle.createdBy
-        ) {
+        if (featureInput.needsToBeVerified && !passesVerificationGate(user, circleId, circle)) {
             return false;
         }
     }
 
-    let feature: Feature;
-    let featureHandle: string;
-    let moduleHandle: string;
+    return await rulesAllow(userDid, circleId, circle, featureInput);
+};
 
-    // featureInput is a Feature object
-    feature = featureInput;
-    featureHandle = feature.handle;
-    moduleHandle = feature.module; // Use module handle from the object
+// needsToBeVerified: a verified profile, or the circle itself, or the circle's creator.
+const passesVerificationGate = (
+    user: (Parameters<typeof isVerifiedUser>[0] & { _id?: ObjectId; did?: string }) | null,
+    circleId: string,
+    circle: { createdBy?: string },
+) => isVerifiedUser(user) || user?._id?.toString() === circleId || user?.did === circle.createdBy;
 
+// The circle's access rules (or the feature's defaults) and the user's groups in that circle.
+const rulesAllow = async (
+    userDid: string | undefined,
+    circleId: string,
+    circle: { accessRules?: Record<string, Record<string, string[]>> },
+    feature: Feature,
+): Promise<boolean> => {
     // Lookup access rules using moduleHandle and featureHandle from the potentially nested structure
-    let allowedUserGroups: string[] | undefined = circle?.accessRules?.[moduleHandle]?.[featureHandle];
+    let allowedUserGroups: string[] | undefined = circle?.accessRules?.[feature.module]?.[feature.handle];
 
     // If feature not found in access rules (is undefined), get default user groups from the feature object
     if (allowedUserGroups === undefined) {
@@ -388,6 +391,23 @@ export const isAuthorized = async (
     // Ensure membership.userGroups is also an array before calling includes
     const memberGroups = membership.userGroups ?? [];
     return allowedUserGroups.some((group) => memberGroups.includes(group));
+};
+
+// True when the circle's access rules give this user the feature but isAuthorized refuses it only
+// because their profile isn't verified (needsToBeVerified). Used to say "Complete your profile"
+// where the organiser tools would be (2026-11-19: a Moderator with Assign Tasks saw no Review
+// sign-ups on the Crew page). Grants nothing.
+export const isBlockedOnlyByVerification = async (
+    userDid: string | undefined,
+    circleId: string,
+    feature: Feature,
+): Promise<boolean> => {
+    if (!userDid || !feature.needsToBeVerified) return false;
+    const circle = await Circles.findOne({ _id: new ObjectId(circleId) });
+    if (!circle) return false;
+    const user = await Circles.findOne({ did: userDid });
+    if (passesVerificationGate(user, circleId, circle)) return false;
+    return await rulesAllow(userDid, circleId, circle, feature);
 };
 
 export const getAuthorizedMembers = async (circle: string | Circle, feature: Feature): Promise<Circle[]> => {
