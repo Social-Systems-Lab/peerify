@@ -62,8 +62,11 @@ export default async function ShiftDetailPage(props: PageProps) {
         canResolve: await isAuthorized(userDid, circle._id as string, features.tasks.resolve),
         canComment: await isAuthorized(userDid, circle._id as string, features.tasks.comment),
     };
-    // Moderate Tasks (confirm, decline, attendance) needs a verified profile; kept (2026-11-19). A
-    // shift says so to someone who has it by the access rules but isn't verified.
+    // Assign and Moderate Tasks need a verified profile; kept (2026-11-19). A shift says so to
+    // someone who has them by the access rules but isn't verified.
+    const assignNeedsVerifiedProfile =
+        !permissions.canAssign &&
+        (await isBlockedOnlyByVerification(userDid, circle._id as string, features.tasks.assign));
     const moderateNeedsVerifiedProfile =
         !permissions.canModerate &&
         (await isBlockedOnlyByVerification(userDid, circle._id as string, features.tasks.moderate));
@@ -82,7 +85,7 @@ export default async function ShiftDetailPage(props: PageProps) {
             </div>
 
             <div className="mx-auto w-full max-w-4xl px-4">
-                <TaskDetail task={shift} circle={publicCircle} permissions={{ ...permissions, moderateNeedsVerifiedProfile }} currentUserDid={userDid} />
+                <TaskDetail task={shift} circle={publicCircle} permissions={{ ...permissions, assignNeedsVerifiedProfile, moderateNeedsVerifiedProfile }} currentUserDid={userDid} />
             </div>
         </div>
     );

@@ -193,15 +193,31 @@ export const getParticipantNotesHiddenHint = (isSignedUp: boolean) =>
         ? "Details for participants appear once an organiser confirms your sign-up."
         : "Details for participants appear once you’re confirmed.";
 
-// On a shift, for someone the circle's access rules give Moderate Tasks (confirm, decline,
-// attendance) whose profile isn't verified: those need a verified profile (kept, Tim 2026-11-19).
-export const SHIFT_MODERATE_NEEDS_PROFILE_TEXT =
-    "To confirm sign-ups and review attendance, complete your profile: a picture, a short About text and the Community Guidelines.";
+// Confirming and declining shift sign-ups, and seeing "N pending": Assign Tasks or Moderate Tasks
+// (Tim, 2026-11-19, option (a)). Attendance, editing and deleting stay with Moderate Tasks.
+export const managesShiftSignups = (permissions: Pick<TaskPermissions, "canAssign" | "canModerate">) =>
+    permissions.canAssign || permissions.canModerate;
 
-export const getShiftModerateProfileNote = (
+// On a shift, for someone the circle's access rules give Assign or Moderate Tasks whose profile isn't
+// verified: those need a verified profile (kept, Tim 2026-11-19), so the page says what's missing.
+const PROFILE_STEPS = "complete your profile: a picture, a short About text and the Community Guidelines.";
+
+export const getShiftOrganiserProfileNote = (
     task: Pick<TaskDisplay, "taskType">,
-    permissions: Pick<TaskPermissions, "canModerate" | "moderateNeedsVerifiedProfile">,
-): string | null =>
-    isShiftTask(task) && !permissions.canModerate && permissions.moderateNeedsVerifiedProfile
-        ? SHIFT_MODERATE_NEEDS_PROFILE_TEXT
-        : null;
+    permissions: Pick<
+        TaskPermissions,
+        "canAssign" | "canModerate" | "assignNeedsVerifiedProfile" | "moderateNeedsVerifiedProfile"
+    >,
+): string | null => {
+    if (!isShiftTask(task)) return null;
+    if (!managesShiftSignups(permissions)) {
+        if (permissions.moderateNeedsVerifiedProfile)
+            return `To confirm sign-ups and review attendance, ${PROFILE_STEPS}`;
+        if (permissions.assignNeedsVerifiedProfile) return `To confirm sign-ups, ${PROFILE_STEPS}`;
+        return null;
+    }
+    if (!permissions.canModerate && permissions.moderateNeedsVerifiedProfile) {
+        return `To review attendance, ${PROFILE_STEPS}`;
+    }
+    return null;
+};

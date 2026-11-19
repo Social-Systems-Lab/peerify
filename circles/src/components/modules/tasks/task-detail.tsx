@@ -95,7 +95,8 @@ import {
     getShiftDisplayStatus,
     getShiftPendingParticipants,
     getShiftPendingSummary,
-    getShiftModerateProfileNote,
+    getShiftOrganiserProfileNote,
+    managesShiftSignups,
     isShiftTask as isShiftTaskItem,
 } from "./shift-task-utils";
 import { ALL_PLACES_CONFIRMED, MANY_HAVE_OFFERED } from "@/lib/tasks/shift-capacity";
@@ -269,8 +270,9 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
         !currentShiftParticipant?.verifiedAt &&
         shiftDisplayStatus !== "review" &&
         shiftDisplayStatus !== "completed";
-    const canVerifyShiftParticipants = isShiftTask && permissions.canModerate;
-    const shiftModerateProfileNote = getShiftModerateProfileNote(task, permissions);
+    // Confirm and decline: Assign or Moderate Tasks (option (a), 2026-11-19).
+    const canVerifyShiftParticipants = isShiftTask && managesShiftSignups(permissions);
+    const shiftModerateProfileNote = getShiftOrganiserProfileNote(task, permissions);
     // Confirm cap (Crew round 2): confirmations never exceed places; the server refuses too.
     const shiftPlacesAllConfirmed = isShiftTask && verifiedShiftParticipantsCount >= (task.slots ?? 0);
     const canReviewShiftAttendance = isShiftTask && permissions.canModerate && shiftDisplayStatus === "completed";
@@ -1134,7 +1136,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                                 <span>{shiftConfirmedSummary}</span>
                             </div>
                         )}
-                        {isShiftTask && permissions.canModerate && shiftPendingSummary && (
+                        {canVerifyShiftParticipants && shiftPendingSummary && (
                             <div className="flex items-center gap-2">
                                 <Clock className="h-3 w-3 text-amber-600" />
                                 <span>{shiftPendingSummary}</span>
@@ -1467,7 +1469,7 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
                             )}
                         </div>
 
-                        {permissions.canModerate && !isCompletedShift && (
+                        {canVerifyShiftParticipants && !isCompletedShift && (
                             <div className="mt-6">
                                 <h4 className="text-base font-semibold text-foreground">
                                     {shiftPlacesAllConfirmed ? "Waiting list" : "Pending Sign-ups"}

@@ -671,7 +671,8 @@ const TasksList: React.FC<TasksListProps> = ({
                         return (
                             <ShiftAllocationPreview
                                 task={task}
-                                showPendingHint={permissions.canModerate}
+                                // Assign or Moderate Tasks (managesShiftSignups; option (a), 2026-11-19)
+                                showPendingHint={permissions.canAssign || permissions.canModerate}
                             />
                         );
                     }
