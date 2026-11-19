@@ -4,6 +4,7 @@
 // bell showed their picture (and /api/notifications returned their name and did). It now carries
 // the circle only, like the crew-joined notice (crew_application_approved), and the bell shows the
 // circle's picture. Rows stored before the fix still hold `user`; it is dropped when read.
+// The same for task_claim_declined (2026-11-19 (cont. 2)): a declined task claim.
 // The database is in-memory fakes (testing/fake-db.ts); nothing real is touched.
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
@@ -20,9 +21,8 @@ mock.module("@/lib/auth/auth", () => ({
     getAuthenticatedUserDid: async () => undefined,
 }));
 
-const { notifyTaskShiftDeclined, listNotificationsForUser, shapeStoredNotificationContent } = await import(
-    "./notifications"
-);
+const { notifyTaskShiftDeclined, notifyTaskClaimDeclined, listNotificationsForUser, shapeStoredNotificationContent } =
+    await import("./notifications");
 const { showsActorPicture } = await import("@/components/layout/notification-avatar");
 
 const CIRCLE_ID = "64f800000000000000000066";
@@ -110,5 +110,49 @@ describe("task_shift_declined does not reveal the organiser", () => {
         expect(showsActorPicture("task_shift_confirmed")).toBe(true);
         expect(showsActorPicture("task_shift_signup")).toBe(true);
         expect(showsActorPicture("post_comment")).toBe(true);
+    });
+});
+
+describe("task_claim_declined does not reveal the organiser", () => {
+    const outcomeTask = { ...task, taskType: "outcome", title: "Bring a PA" };
+    const storedClaim = () => fakeDb.col("Notifications").docs.filter((n) => n.type === "task_claim_declined");
+
+    test("the stored notice carries the circle and no user", async () => {
+        await notifyTaskClaimDeclined(outcomeTask as never, organiser as never, volunteer as never);
+        const rows = storedClaim();
+        expect(rows).toHaveLength(1);
+        const content = rows[0].content as Record<string, any>;
+        expect(content.circle?.handle).toBe("secret-space");
+        expect(content.user).toBeUndefined();
+        expect(JSON.stringify(rows[0])).not.toContain(ORGANISER);
+        expect(JSON.stringify(rows[0])).not.toContain("Canary Organiser");
+    });
+
+    test("a row stored before the fix is read without the organiser", async () => {
+        fakeDb.col("Notifications").docs.push({
+            _id: new ObjectId(),
+            userId: VOLUNTEER,
+            type: "task_claim_declined",
+            content: {
+                circle: { _id: CIRCLE_ID, handle: "secret-space", name: "The Secret Space", circleType: "circle" },
+                user: { did: ORGANISER, handle: "organiser", name: "Canary Organiser", circleType: "user" },
+                taskId: task._id.toString(),
+                taskTitle: "Bring a PA",
+                body: "Bring a PA claim declined",
+            },
+            isRead: false,
+            createdAt: new Date(),
+        });
+        const [row] = await listNotificationsForUser(VOLUNTEER);
+        expect((row.content as Record<string, any>).user).toBeUndefined();
+        expect(JSON.stringify(row)).not.toContain(ORGANISER);
+        expect(
+            (shapeStoredNotificationContent("task_claim_declined", { user: { did: ORGANISER } }) as any).user,
+        ).toBeUndefined();
+    });
+
+    test("the bell shows the circle's picture", () => {
+        expect(showsActorPicture("task_claim_declined")).toBe(false);
+        expect(showsActorPicture("task_claim_approved")).toBe(true);
     });
 });

@@ -1,7 +1,7 @@
 // Which bell notices show the picture of the person who acted (with a small type icon), rather than
 // the circle's picture. Moved out of notifications.tsx (2026-11-19) so it can be tested.
-// task_shift_declined is not here: it shows the circle's picture, not who declined (like
-// crew_application_approved).
+// task_shift_declined and task_claim_declined are not here: they show the circle's picture, not
+// who declined (like crew_application_approved).
 const ACTOR_PICTURE_NOTIFICATION_TYPES = new Set([
     "post_comment",
     "comment_reply",
@@ -25,7 +25,6 @@ const ACTOR_PICTURE_NOTIFICATION_TYPES = new Set([
     "task_status_changed",
     "task_claim_submitted",
     "task_claim_approved",
-    "task_claim_declined",
 ]);
 
 export const showsActorPicture = (notificationType: string): boolean =>
