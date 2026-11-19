@@ -8,7 +8,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
-- **Prod = `main` = `ac61f445`** (released 2026-11-17; Tim confirmed prod, and `/api/version` reported `ac61f445` on both). **The `staging` branch is ahead:** Crew round 2 is merged (`e2c5550d` part 1, `a20762f1` part 2), plus the staging-round fixes (shift dates `849a1f31`, the merges of `fix/crew-r2-fixes2`, `fix/crew-r2-fixes3` and `fix/crew-r2-fixes4`; see the 2026-11-18 (cont. 3), 2026-11-19 and 2026-11-19 (cont.) entries); deploying it to staging is Tim's step. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
+- **Prod = `main` = `ac61f445`** (released 2026-11-17; Tim confirmed prod, and `/api/version` reported `ac61f445` on both). **The `staging` branch is ahead:** Crew round 2 is merged (`e2c5550d` part 1, `a20762f1` part 2), plus the staging-round fixes (shift dates `849a1f31`, the merges of `fix/crew-r2-fixes2`, `fix/crew-r2-fixes3`, `fix/crew-r2-fixes4` and `fix/crew-r2-fixes5`; see the 2026-11-18 (cont. 3) and 2026-11-19 entries); deploying it to staging is Tim's step. `main` contains `staging`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
 - **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. **Also live since `60108f48`:** the crew UI polish (6 items, `29fcd32f`..`e36894f6`). **Also live since `ac61f445` (2026-11-17):** one Share button (`fix/share-simple`) and the task fixes (`fix/task-actions-circle-check`). See the 2026-11-15 entries.
 - **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (it also covers a personal profile's Circles list, owner-only since `e4973b87`: default only me, options Contacts or Public) (design direction in the 2026-11-15 (cont.) entry).
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
@@ -22,6 +22,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Staging round fixes (2026-11-18 (cont. 3)):** shift dates as calendar dates in `Africa/Johannesburg` (merged `849a1f31`); "Details for participants appear once you’re confirmed." (merged).
   - **Staging round fixes 3 (2026-11-19):** a moderator or admin whose profile isn't verified sees "complete your profile" where "Review sign-ups" would be (verification gate kept, Tim); the declined notice shows the circle's picture.
   - **Staging round fixes 4 (2026-11-19 (cont.)):** Assign Tasks can confirm and decline shift sign-ups (option (a), Tim); attendance, editing and deleting stay with Moderate Tasks. The Events timeline shows "N pending" to organisers only (F3).
+  - **Staging round fixes 5 (2026-11-19 (cont. 2)):** the claim-declined notice shows the circle's picture, like the shift-declined one.
   - Its personal counterpart, later: **"My Crews"** on the personal profile, owner only: upcoming shifts across all crews plus those crews' broadcasts in one feed (2026-11-15 (cont. 4)).
 - **LATER:**
   - the event audience picker should always be available, not only after ticking "Share on Noticeboard";
@@ -71,6 +72,22 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-19 (cont. 2) — Staging round fixes 5: claim declined notice shows the circle
+
+**State:** merged to `staging` and pushed; not deployed (Tim's step). No database commands. Report for rounds 4 and 5: `crew-r2-fixes4.tar.gz`.
+
+- **Fix:** like `task_shift_declined` (2026-11-19), `task_claim_declined` no longer stores the organiser as `user`.
+  - The bell shows the circle's picture, and `/api/notifications` no longer returns who declined.
+  - Older rows have `user` dropped when read, in the bell and in the admin "email unread notifications" action.
+  - The text ("… claim declined") never named anyone. `task_claim_approved` still shows who approved it.
+- **Commit:** `f5e4b884`. Test: `shift-declined-notice.test.ts` (3 claim cases fail before, all 7 pass after).
+- **Checks:**
+  - tsc (old error only), eslint and the build pass;
+  - all 139 test files run one at a time: 138 pass, plus the known failing `participation-readiness.test.ts`.
+- **Staging check for Tim:** as an admin, decline a pending task claim; the claimant's bell shows the circle's picture.
 
 ---
 
