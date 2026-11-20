@@ -35,6 +35,12 @@ import { getUserByDid, getUserPrivate, getPrivateUserByDid, updateUser } from "@
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
 import { features } from "@/lib/data/constants";
 import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
+import {
+    capacityBelowConfirmedMessage,
+    confirmedFitWithinFilter,
+    countConfirmedGuests,
+    parseEventCapacity,
+} from "@/lib/events/guest-capacity";
 
 // Data layer
 import {
@@ -458,6 +464,17 @@ const upsertEventNoticeboardPost = async ({
     return createdPost._id?.toString?.() ?? createdPost._id ?? null;
 };
 
+// How many guests are confirmed on an event (its base document for a recurring occurrence).
+const countConfirmedGuestsOf = async (eventId: string): Promise<number> => {
+    const baseEventId = String(eventId).split("_")[0];
+    if (!ObjectId.isValid(baseEventId)) return 0;
+    const event = await Events.findOne(
+        { _id: new ObjectId(baseEventId) },
+        { projection: { guestConfirmations: 1 } },
+    );
+    return event ? countConfirmedGuests(event) : 0;
+};
+
 // ----- Actions -----
 
 /**
@@ -708,8 +725,9 @@ export async function createEventAction(
         const isVirtual = parseBool(data.isVirtual);
         const isHybrid = parseBool(data.isHybrid);
         const virtualUrl = (data.virtualUrl || "").trim() || undefined;
-        const capacity =
-            typeof data.capacity === "string" && data.capacity.trim().length > 0 ? Number(data.capacity) : undefined;
+        const parsedCapacity = parseEventCapacity(data.capacity);
+        if (!parsedCapacity.ok) return { success: false, message: parsedCapacity.message };
+        const capacity = parsedCapacity.capacity;
 
         const locationData: EventModel["location"] = parseUsableLocationInput(data.location);
         if (eventNeedsLocation(isVirtual, isHybrid) && !locationData) {
@@ -881,6 +899,15 @@ export async function updateEventAction(
         if (usesHiddenEventOptions(data.visibility, parsedPeerifyMetadata?.metadata.peerify, event)) {
             return { success: false, message: HIDDEN_EVENT_OPTION_MESSAGE };
         }
+        // Checked before any upload; the write below checks it again atomically.
+        const parsedCapacity = parseEventCapacity(data.capacity);
+        if (!parsedCapacity.ok) return { success: false, message: parsedCapacity.message };
+        if (parsedCapacity.capacity !== undefined) {
+            const confirmed = await countConfirmedGuestsOf(eventId);
+            if (confirmed > parsedCapacity.capacity) {
+                return { success: false, message: capacityBelowConfirmedMessage(confirmed) };
+            }
+        }
 
         // Only replaced when the form sends one; an empty or incomplete value clears it. Not
         // required here even for physical events: existing events without a location must stay
@@ -981,10 +1008,7 @@ export async function updateEventAction(
             categories: (data.categories as string[])?.filter(Boolean),
             causes: (data.causes as string[])?.filter(Boolean),
             tags: normalizeEventTags(tagsData),
-            capacity:
-                typeof data.capacity === "string" && data.capacity.trim().length > 0
-                    ? Number(data.capacity)
-                    : undefined,
+            capacity: parsedCapacity.capacity,
             visibility: (data.visibility as any) ?? event.visibility,
             metadata,
             recurrence: recurrenceData as any,
@@ -994,6 +1018,18 @@ export async function updateEventAction(
 
         const user = await getUserByDid(userDid);
         if (!user) return { success: false, message: "User not found" };
+
+        // The capacity can't go below the guests already confirmed. Set it first with that condition
+        // in the write, so a confirm landing meanwhile can't leave more confirmed than places.
+        if (parsedCapacity.capacity !== undefined) {
+            const capacitySet = await Events.updateOne(
+                { _id: new ObjectId(eventId), ...confirmedFitWithinFilter(parsedCapacity.capacity) },
+                { $set: { capacity: parsedCapacity.capacity } },
+            );
+            if (capacitySet.matchedCount === 0) {
+                return { success: false, message: capacityBelowConfirmedMessage(await countConfirmedGuestsOf(eventId)) };
+            }
+        }
 
         const success = await updateEventDb(eventId, updateData, user);
         if (!success) return { success: false, message: "Failed to update event" };
