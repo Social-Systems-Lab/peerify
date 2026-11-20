@@ -1551,6 +1551,37 @@ export const canSeeEventGuests = async (
 };
 
 /**
+ * Whether senderDid may start a DM with recipientDid as an organiser of this event (event guests,
+ * the Message button, 2026-11-20): the event belongs to circleId, the sender sees its guests
+ * (canSeeEventGuests) and the recipient clicked Attend or Interested on it. eventId may be a
+ * recurring occurrence's id (RSVPs are stored under it); the event itself is read by its base id.
+ * Lives here, not in a "use server" file, so it can't be called from the browser to find out who
+ * RSVPed.
+ */
+export const mayMessageEventGuest = async (
+    senderDid: string,
+    recipientDid: string,
+    circleId: string,
+    eventId: string,
+): Promise<boolean> => {
+    if (!senderDid || !recipientDid || senderDid === recipientDid || !circleId || !eventId) return false;
+    const baseEventId = String(eventId).split("_")[0];
+    if (!ObjectId.isValid(baseEventId)) return false;
+    const event = await Events.findOne(
+        { _id: new ObjectId(baseEventId) },
+        { projection: { circleId: 1, createdBy: 1 } },
+    );
+    if (!event || String(event.circleId) !== String(circleId)) return false;
+    if (!(await canSeeEventGuests({ createdBy: event.createdBy, circleId: String(event.circleId) }, senderDid))) {
+        return false;
+    }
+    return !!(await EventRsvps.findOne(
+        { eventId: String(eventId), userDid: recipientDid, status: { $in: ["going", "interested"] } },
+        { projection: { _id: 1 } },
+    ));
+};
+
+/**
  * The event as a viewer-facing page or action may send it: unchanged for the event's managers;
  * everyone else gets sanitizePeerifyPublicEventDisplay, so a hidden address (non-public
  * locationDisclosure) and the private organiser note never reach them. null when a non-manager may
