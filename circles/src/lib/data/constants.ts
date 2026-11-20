@@ -375,6 +375,16 @@ export const features = {
             defaultUserGroups: ["admins", "moderators", "members", "everyone"],
             module: "events",
         } as Feature,
+        // Event guests (D1, 2026-11-20): who sees the people who clicked Attend or Interested, and
+        // can message them. The event's creator and platform admins also do (canSeeEventGuests).
+        guests: {
+            name: "See and manage guests",
+            handle: "guests",
+            description: "See who is attending or interested in an event, and message them",
+            defaultUserGroups: ["admins", "moderators"],
+            module: "events",
+            needsToBeVerified: true,
+        } as Feature,
     },
     music: {
         view: {

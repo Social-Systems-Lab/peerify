@@ -76,6 +76,11 @@ const matchesCondition = (value: unknown, condition: unknown): boolean => {
                         return !matchesCondition(value, arg);
                     case "$size":
                         return Array.isArray(value) && value.length === arg;
+                    case "$all":
+                        return (
+                            Array.isArray(value) &&
+                            (arg as unknown[]).every((wanted) => value.some((item) => valueEquals(item, wanted)))
+                        );
                     case "$elemMatch":
                         return (
                             Array.isArray(value) &&

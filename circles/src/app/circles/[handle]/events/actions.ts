@@ -30,7 +30,7 @@ import {
     getCirclesByIds,
     isCirclePublished,
 } from "@/lib/data/circle";
-import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
+import { getAuthenticatedUserDid, isAuthorized, isBlockedOnlyByVerification } from "@/lib/auth/auth";
 import { getUserByDid, getUserPrivate, getPrivateUserByDid, updateUser } from "@/lib/data/user";
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
 import { features } from "@/lib/data/constants";
@@ -53,10 +53,10 @@ import {
     canManageEvent,
     getEventRsvpRefusal,
     RSVP_EVENT_NOT_FOUND,
+    canSeeEventGuests,
 } from "@/lib/data/event";
 import { getCirclesByDids } from "@/lib/data/circle";
-import { upsertRsvp, cancelRsvp, listAttendees } from "@/lib/data/eventRsvp";
-import { listAttendeesWithDetails } from "@/lib/data/eventRsvp";
+import { upsertRsvp, cancelRsvp, listEventGuests, type EventGuest } from "@/lib/data/eventRsvp";
 import {
     notifyEventSubmittedForReview,
     notifyEventApproved,
@@ -1855,75 +1855,69 @@ export async function inviteUsersToEventAction(
     }
 }
 
-type GetAttendeesActionResult = {
-    users: Circle[];
-};
-
-export async function getAttendeesAction(circleHandle: string, eventId: string): Promise<GetAttendeesActionResult> {
-    const defaultResult: GetAttendeesActionResult = { users: [] };
-
-    try {
-        const userDid = await getAuthenticatedUserDid();
-        if (!userDid) return defaultResult;
-
-        const circle = await getCircleByHandle(circleHandle);
-        if (!circle) return defaultResult;
-
-        const canView = await isAuthorized(userDid, circle._id as string, features.events.view);
-        if (!canView) return defaultResult;
-
-        const scope = await getAttendeeListScope(circle, eventId, userDid);
-        if (!scope) return defaultResult;
-
-        const users = await listAttendees(eventId, "going");
-        return { users: scope === "all" ? users : users.filter((user) => user.did === userDid) };
-    } catch (error) {
-        console.error("Error in getAttendeesAction:", error);
-        return defaultResult;
-    }
-}
-
-// Attendee lists (Tim, 2026-10-20): the event's managers (canManageEvent) see everyone; anyone else
-// who may view the event sees only their own RSVP. null = the event doesn't exist for this viewer or
-// belongs to another circle than the one in the URL.
+// Attendee and invitee lists (Tim, 2026-10-20): the list's own people see everyone; anyone else who
+// may view the event sees only their own entry. Guests (who RSVPed) go to canSeeEventGuests (D1,
+// 2026-11-20: the creator, platform admins and "See and manage guests" on the event's circle, admins
+// and moderators by default); invitees to the event's managers (canManageEvent), who may invite.
+// null = the event doesn't exist for this viewer or belongs to another circle than the one in the URL.
 const getAttendeeListScope = async (
     circle: Circle,
     eventId: string,
     userDid: string,
+    list: "guests" | "invitees",
 ): Promise<"all" | "self" | null> => {
     const event = await getEventById(eventId, userDid);
     if (!event || event.circleId !== String(circle._id)) return null;
-    return (await canManageEvent(event, userDid)) ? "all" : "self";
+    const seesAll =
+        list === "guests" ? await canSeeEventGuests(event, userDid) : await canManageEvent(event, userDid);
+    return seesAll ? "all" : "self";
 };
 
-type GetAttendeesWithDetailsActionResult = {
-    attendees: { user: Circle; message?: string }[];
+export type EventGuestsResult = {
+    // True for the event's organisers (canSeeEventGuests): `guests` is everyone who clicked Attend or
+    // Interested. Anyone else gets only their own entry, if any.
+    canSeeGuests: boolean;
+    // The circle's access rules give this viewer "See and manage guests", but their profile isn't
+    // verified yet (that right needs one). The page says so where the list would be.
+    needsProfileToSeeGuests: boolean;
+    guests: EventGuest[];
 };
 
-export async function getAttendeesWithDetailsAction(
-    circleHandle: string,
-    eventId: string,
-): Promise<GetAttendeesWithDetailsActionResult> {
-    const defaultResult: GetAttendeesWithDetailsActionResult = { attendees: [] };
-
+/**
+ * An event's guest list (event guests, part 1, 2026-11-20): Attend and Interested, with each
+ * person's message to the organisers and when they replied. Organisers only; everyone else gets
+ * their own entry. Nothing for a signed-out viewer, a viewer who may not view the circle's events,
+ * or an event of another circle than the one in the URL.
+ */
+export async function getEventGuestsAction(circleHandle: string, eventId: string): Promise<EventGuestsResult> {
+    const nothing: EventGuestsResult = { canSeeGuests: false, needsProfileToSeeGuests: false, guests: [] };
     try {
         const userDid = await getAuthenticatedUserDid();
-        if (!userDid) return defaultResult;
+        if (!userDid) return nothing;
 
         const circle = await getCircleByHandle(circleHandle);
-        if (!circle) return defaultResult;
+        if (!circle) return nothing;
 
         const canView = await isAuthorized(userDid, circle._id as string, features.events.view);
-        if (!canView) return defaultResult;
+        if (!canView) return nothing;
 
-        const scope = await getAttendeeListScope(circle, eventId, userDid);
-        if (!scope) return defaultResult;
+        const scope = await getAttendeeListScope(circle, eventId, userDid, "guests");
+        if (!scope) return nothing;
 
-        const attendees = await listAttendeesWithDetails(eventId, "going");
-        return { attendees: scope === "all" ? attendees : attendees.filter(({ user }) => user.did === userDid) };
+        const guests = await listEventGuests(eventId);
+        if (scope === "all") return { canSeeGuests: true, needsProfileToSeeGuests: false, guests };
+        return {
+            canSeeGuests: false,
+            needsProfileToSeeGuests: await isBlockedOnlyByVerification(
+                userDid,
+                String(circle._id),
+                features.events.guests,
+            ),
+            guests: guests.filter((guest) => guest.user.did === userDid),
+        };
     } catch (error) {
-        console.error("Error in getAttendeesWithDetailsAction:", error);
-        return defaultResult;
+        console.error("Error in getEventGuestsAction:", error);
+        return nothing;
     }
 }
 
@@ -1948,7 +1942,7 @@ export async function getInvitedUsersAction(
 
         // Leak round 3, H3 (2026-11-05): the event must be one this viewer can open and must belong
         // to the URL circle; only its managers see who is invited, anyone else only themselves.
-        const scope = await getAttendeeListScope(circle, eventId, userDid);
+        const scope = await getAttendeeListScope(circle, eventId, userDid, "invitees");
         if (!scope) return defaultResult;
 
         // Invitations are stored in EventInvitations collection (not on the event document)

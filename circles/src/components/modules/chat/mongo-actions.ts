@@ -43,6 +43,7 @@ import { DM_REQUIRES_CONNECTION_MESSAGE, GROUP_REQUIRES_CONNECTIONS_MESSAGE } fr
 import { isAuthorized } from "@/lib/auth/auth";
 import { features } from "@/lib/data/constants";
 import { hasPeerifyPledgeFrom } from "@/lib/data/peerify-pledges";
+import { mayMessageEventGuest } from "@/lib/data/event";
 import type { DmGrantKind } from "@/lib/chat/mongo-types";
 import {
     formatPeerifyBookingEnquiryMessage,
@@ -966,14 +967,20 @@ export const toggleMongoReactionAction = async (
 };
 
 // An artist admin messaging one of the artist's pledgers or crew members from the Pledge or Crew
-// dashboard. The client only names the context; checkDmGrantContext verifies it on the server.
-export type DmGrantContext = { kind: Exclude<DmGrantKind, "enquiry">; circleId: string };
+// dashboard, or an event's organiser messaging one of its guests from the guest list. The client
+// only names the context; checkDmGrantContext verifies it on the server.
+export type DmGrantContext =
+    | { kind: "pledge" | "crew"; circleId: string }
+    | { kind: "event_guest"; circleId: string; eventId: string };
 
 const checkDmGrantContext = async (
     senderDid: string,
     recipientDid: string,
     context: DmGrantContext,
 ): Promise<boolean> => {
+    if (context?.kind === "event_guest") {
+        return await mayMessageEventGuest(senderDid, recipientDid, context.circleId, context.eventId);
+    }
     if (!context?.circleId || (context.kind !== "pledge" && context.kind !== "crew")) {
         return false;
     }
@@ -1029,6 +1036,7 @@ export const findOrCreateDMConversationAction = async (
         await addDmGrant(String(createdConversation._id), {
             kind: grantContext.kind,
             circleId: grantContext.circleId,
+            ...(grantContext.kind === "event_guest" ? { eventId: grantContext.eventId } : {}),
             grantedBy: userDid,
             createdAt: new Date(),
         });

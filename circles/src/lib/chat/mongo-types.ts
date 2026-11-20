@@ -54,12 +54,16 @@ export type ChatConversation = {
     dmGrants?: DmGrant[];
 };
 
-export type DmGrantKind = "pledge" | "crew" | "enquiry";
+// event_guest (2026-11-20): an event's organiser messaging someone who clicked Attend or Interested.
+export type DmGrantKind = "pledge" | "crew" | "enquiry" | "event_guest";
 
 export type DmGrant = {
     kind: DmGrantKind;
-    // The artist circle the pledge, crew membership or enquiry belongs to.
+    // The artist circle the pledge, crew membership or enquiry belongs to; for event_guest, the
+    // circle hosting the event.
     circleId: string;
+    // event_guest only: the event the guest replied to.
+    eventId?: string;
     grantedBy: string;
     createdAt: Date;
 };
