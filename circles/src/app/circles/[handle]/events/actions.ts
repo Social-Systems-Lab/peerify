@@ -4,7 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ObjectId } from "mongodb";
-import { Feeds, Events, EventInvitations } from "@/lib/data/db";
+import { Feeds, Events, EventInvitations, EventRsvps } from "@/lib/data/db";
 import { createDefaultFeed, createPost, getFeedByHandle, updatePost } from "@/lib/data/feed";
 import {
     Circle,
@@ -21,6 +21,7 @@ import {
     Post,
     TaskDisplay,
     postSchema,
+    Location,
 } from "@/models/models";
 import {
     getCircleByHandle,
@@ -282,6 +283,7 @@ type ParsedPeerifyEventMetadata = {
     metadata: NonNullable<EventModel["metadata"]>;
     clearPublicLocationLabel: boolean;
     clearPrivateLocationNote: boolean;
+    clearGuestNote: boolean;
     clearPublicMapLocation: boolean;
     clearPrice: boolean;
     clearPaymentInfo: boolean;
@@ -296,6 +298,7 @@ const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata |
     const parsed = peerifyEventMetadataFormSchema.parse(raw);
     const publicLocationLabel = parsed.publicLocationLabel?.trim();
     const privateLocationNote = parsed.privateLocationNote?.trim();
+    const guestNote = parsed.guestNote?.trim();
     const publicMapLocation = parsed.publicMapLocation ?? undefined;
     // `ticketed` gates persistence of price/currency/paymentInfo, not just their display — a
     // submit with the toggle off never saves them, even if the form still holds values (e.g. the
@@ -310,6 +313,7 @@ const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata |
         ticketed,
         ...(publicLocationLabel ? { publicLocationLabel } : {}),
         ...(privateLocationNote ? { privateLocationNote } : {}),
+        ...(guestNote ? { guestNote } : {}),
         ...(publicMapLocation ? { publicMapLocation } : {}),
         ...(parsed.venueCircleId ? { venueCircleId: parsed.venueCircleId } : {}),
         // currency travels with price — no price means no currency to show either.
@@ -323,6 +327,7 @@ const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata |
         },
         clearPublicLocationLabel: !publicLocationLabel,
         clearPrivateLocationNote: !privateLocationNote,
+        clearGuestNote: !guestNote,
         clearPublicMapLocation: !publicMapLocation,
         clearPrice: price === undefined,
         clearPaymentInfo: !paymentInfo,
@@ -346,6 +351,9 @@ const mergePeerifyEventMetadata = (
     }
     if (peerifyMetadata.clearPrivateLocationNote) {
         delete nextPeerify.privateLocationNote;
+    }
+    if (peerifyMetadata.clearGuestNote) {
+        delete nextPeerify.guestNote;
     }
     if (peerifyMetadata.clearPublicMapLocation) {
         delete nextPeerify.publicMapLocation;
@@ -1982,6 +1990,69 @@ export async function getEventGuestsAction(circleHandle: string, eventId: string
         };
     } catch (error) {
         console.error("Error in getEventGuestsAction:", error);
+        return nothing;
+    }
+}
+
+export type EventGuestDetails = {
+    // The viewer is a confirmed guest of this event.
+    isConfirmed: boolean;
+    // The note for confirmed guests: to confirmed guests and the event's organisers only.
+    guestNote?: string;
+    // D7: the exact location, for a confirmed guest of an event whose address is "revealed after
+    // acceptance". Organisers already have it on the event.
+    location?: Location;
+    // The viewer clicked Attend and isn't confirmed yet, and there's something for confirmed guests
+    // (a note, or a hidden address): the page says "Details for guests appear once you're confirmed."
+    detailsAfterConfirmation: boolean;
+};
+
+/**
+ * What the event page shows a viewer about being a guest (event guests, part 2, 2026-11-20): whether
+ * they're confirmed, and the guest note and hidden address when they may have them (decision B, as
+ * on shifts: confirmed guests and organisers only). Nothing for a signed-out viewer, an event they
+ * may not see, or an event of another circle than the one in the URL.
+ */
+export async function getEventGuestDetailsAction(circleHandle: string, eventId: string): Promise<EventGuestDetails> {
+    const nothing: EventGuestDetails = { isConfirmed: false, detailsAfterConfirmation: false };
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return nothing;
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle) return nothing;
+        const event = await getEventById(eventId, userDid);
+        if (!event || String(event.circleId) !== String(circle._id)) return nothing;
+
+        const isOrganiser = (await canSeeEventGuests(event, userDid)) || (await canManageEvent(event, userDid));
+        if (!isOrganiser && !(await shapeEventForViewer(event, userDid))) return nothing;
+
+        const baseEventId = String(eventId).split("_")[0];
+        if (!ObjectId.isValid(baseEventId)) return nothing;
+        const stored = (await Events.findOne(
+            { _id: new ObjectId(baseEventId) },
+            { projection: { guestConfirmations: 1, location: 1, metadata: 1, createdBy: 1, circleId: 1 } },
+        )) as EventModel | null;
+        if (!stored) return nothing;
+
+        const guestNote = stored.metadata?.peerify?.guestNote?.trim() || undefined;
+        const addressHidden = stored.metadata?.peerify?.locationDisclosure === "secret_after_acceptance";
+        if (isOrganiser) return { isConfirmed: false, detailsAfterConfirmation: false, ...(guestNote ? { guestNote } : {}) };
+
+        const isConfirmed =
+            !String(eventId).includes("_") &&
+            (stored.guestConfirmations ?? []).some((confirmation) => confirmation.userDid === userDid);
+        if (isConfirmed) {
+            return {
+                isConfirmed: true,
+                detailsAfterConfirmation: false,
+                ...(guestNote ? { guestNote } : {}),
+                ...(addressHidden && stored.location ? { location: stored.location } : {}),
+            };
+        }
+        const isGoing = !!(await EventRsvps.findOne({ eventId: String(eventId), userDid, status: "going" }));
+        return { isConfirmed: false, detailsAfterConfirmation: isGoing && (!!guestNote || addressHidden) };
+    } catch (error) {
+        console.error("Error in getEventGuestDetailsAction:", error);
         return nothing;
     }
 }

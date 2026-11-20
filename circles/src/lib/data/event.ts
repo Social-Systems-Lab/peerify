@@ -1506,10 +1506,11 @@ export const canViewerSeeCircleEvents = async (circle: Circle, viewerDid?: strin
  * public map point: an address line only ever names the area.
  */
 export const getEventLocationForViewer = async (
-    event: Pick<EventDisplay, "location" | "metadata" | "createdBy" | "circleId">,
+    event: Pick<EventDisplay, "location" | "metadata" | "createdBy" | "circleId" | "guestConfirmations">,
     viewerDid?: string,
 ): Promise<Location | undefined> => {
-    if (getPeerifyEventLocationDisclosure(event as EventDisplay) === "public") {
+    const disclosure = getPeerifyEventLocationDisclosure(event as EventDisplay);
+    if (disclosure === "public") {
         return event.location;
     }
     if (viewerDid) {
@@ -1517,6 +1518,13 @@ export const getEventLocationForViewer = async (
             return event.location;
         }
         if (event.circleId && (await isAuthorized(viewerDid, event.circleId, features.events.moderate))) {
+            return event.location;
+        }
+        // D7 (event guests, 2026-11-20): "Address revealed after acceptance" means once confirmed.
+        if (
+            disclosure === "secret_after_acceptance" &&
+            (event.guestConfirmations ?? []).some((confirmation) => confirmation.userDid === viewerDid)
+        ) {
             return event.location;
         }
     }

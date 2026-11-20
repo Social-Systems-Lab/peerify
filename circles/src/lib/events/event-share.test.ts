@@ -26,7 +26,7 @@ const event = (extra: Record<string, unknown> = {}) =>
             street: STREET,
             lngLat: { lng: 18.07, lat: 59.33 },
         },
-        metadata: { peerify: { privateLocationNote: NOTE } },
+        metadata: { peerify: { privateLocationNote: NOTE, guestNote: `${NOTE} for guests` } },
         ...extra,
     }) as Parameters<typeof buildEventShareText>[0];
 
@@ -95,7 +95,15 @@ describe("one Share button: share sheet on phones, link dialog on desktop (2026-
     test("what the phone's share sheet gets never has the street, the pin or the private note", () => {
         for (const e of [
             event(),
-            event({ metadata: { peerify: { privateLocationNote: NOTE, publicLocationLabel: "Södermalm" } } }),
+            event({
+                metadata: {
+                    peerify: {
+                        privateLocationNote: NOTE,
+                        guestNote: `${NOTE} for guests`,
+                        publicLocationLabel: "Södermalm",
+                    },
+                },
+            }),
         ]) {
             const payload = buildEventSharePayload(e, URL);
             const all = JSON.stringify(payload);

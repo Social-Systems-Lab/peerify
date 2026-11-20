@@ -2327,6 +2327,10 @@ export const peerifyEventMetadataSchema = z.object({
     accessMode: peerifyEventAccessModeSchema.optional(),
     publicLocationLabel: z.string().optional(),
     privateLocationNote: z.string().optional(),
+    // Event guests (2026-11-20): shown only to confirmed guests and the event's organisers (e.g. the
+    // exact address or a door code). Never in the public metadata (sanitizePeerifyPublicEventMetadata
+    // is an allowlist); confirmed guests get it from getEventGuestDetailsAction.
+    guestNote: z.string().max(2000).optional(),
     publicMapLocation: locationSchema.optional(),
     publicMapDisplay: z.enum(["exact", "area"]).optional(),
     publicMapRadiusKm: z.number().positive().optional(),

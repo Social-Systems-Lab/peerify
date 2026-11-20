@@ -186,3 +186,18 @@ describe("capacity on create and update", () => {
         expect(storedCapacity()).toBe(5);
     });
 });
+
+describe("the note for confirmed guests in the event form", () => {
+    const peerify = () => fakeDb.col("Events").docs[0]?.metadata?.peerify ?? {};
+    const withNote = (guestNote: string) =>
+        form({ peerifyEventMetadata: JSON.stringify({ locationDisclosure: "public", guestNote }) });
+
+    test("is saved trimmed, and an empty field clears it", async () => {
+        expect((await updateEventAction("host", EVENT_ID, withNote("  Gate code 2580  "))).success).toBe(true);
+        expect(peerify().guestNote).toBe("Gate code 2580");
+        // getEventById now returns what was saved.
+        fakeDb.setAggregateResult("Events", [{ ...fakeDb.col("Events").docs[0], _id: EVENT_ID }]);
+        expect((await updateEventAction("host", EVENT_ID, withNote(""))).success).toBe(true);
+        expect(peerify().guestNote).toBeUndefined();
+    });
+});
