@@ -41,12 +41,15 @@ export const upsertRsvp = async (
             selectedRoles: selectedRoles || [],
             // default to true if not provided to preserve existing public behavior
             isPublic: typeof isPublic === "boolean" ? isPublic : true,
-            message: message && message.trim().length > 0 ? message.trim() : undefined,
             updatedAt: now,
         };
+        // No message removes the old one. Never $set it to undefined: without ignoreUndefined the driver
+        // would store null.
+        const trimmed = message?.trim();
+        if (trimmed) update.message = trimmed;
         const result = await EventRsvps.updateOne(
             { eventId, userDid },
-            { $set: update, $setOnInsert: { createdAt: now } },
+            { $set: update, ...(trimmed ? {} : { $unset: { message: "" } }), $setOnInsert: { createdAt: now } },
             { upsert: true },
         );
         return result.acknowledged === true;
