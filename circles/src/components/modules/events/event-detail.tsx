@@ -949,7 +949,16 @@ export default function EventDetail({
                         canManageAllArtists={canManageAllArtists}
                         canRemoveSelfAsArtist={canRemoveSelfAsArtist}
                     />
-                    <AttendeesList circleHandle={circleHandle} eventId={event._id!.toString()} />
+                    {/* Organisers only (the action decides). Not in the "as a visitor" preview, which must
+                        look as it does to someone signed out. */}
+                    {effectiveUser && (
+                        <AttendeesList
+                            circleHandle={circleHandle}
+                            circleId={event.circleId}
+                            eventId={event._id!.toString()}
+                            viewerDid={effectiveUser.did}
+                        />
+                    )}
                     {event.invitations && event.invitations.length > 0 && (
                         <InvitedUserList
                             userDids={event.invitations}
