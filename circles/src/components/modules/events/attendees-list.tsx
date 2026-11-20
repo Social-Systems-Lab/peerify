@@ -1,14 +1,21 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { useSetAtom } from "jotai";
 import { TbMessage } from "react-icons/tb";
 import { Circle } from "@/models/models";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { getEventGuestsAction, type EventGuestsResult } from "@/app/circles/[handle]/events/actions";
+import {
+    confirmEventGuestAction,
+    getEventGuestsAction,
+    unconfirmEventGuestAction,
+    type EventGuestsResult,
+} from "@/app/circles/[handle]/events/actions";
+import { useToast } from "@/components/ui/use-toast";
 import { contentPreviewAtom } from "@/lib/data/atoms";
 import MessageGuestDialog from "./message-guest-dialog";
 
@@ -17,6 +24,8 @@ import MessageGuestDialog from "./message-guest-dialog";
 // "See and manage guests", admins and moderators by default). Each row has a Message button that
 // starts a DM from the organiser's own profile. Everyone else sees nothing here: their own reply
 // already shows in the RSVP box, and the public sees the count.
+// Part 2: organisers confirm people who clicked Attend (e.g. paid), up to the event's capacity, and
+// can undo a confirmation. Interested people can be messaged, not confirmed (D8).
 
 export const GUESTS_NEED_PROFILE_TEXT =
     "To see who's coming, complete your profile: a picture, a short About text and the Community Guidelines.";
@@ -28,7 +37,16 @@ type ViewProps = {
     viewerDid?: string;
     onMessage: (guest: Circle) => void;
     onOpenProfile: (guest: Circle) => void;
+    onConfirm?: (guestDid: string) => void;
+    onUnconfirm?: (guestDid: string) => void;
+    // The guest whose confirmation is being saved, if any.
+    busyDid?: string | null;
 };
+
+type RowActions = Omit<ViewProps, "result"> & { allConfirmed: boolean };
+
+export const confirmedSummary = (confirmedCount: number, capacity?: number) =>
+    typeof capacity === "number" ? `${confirmedCount} of ${capacity} confirmed` : `${confirmedCount} confirmed`;
 
 const formatSince = (since?: Date | string) => (since ? format(new Date(since), "d MMM yyyy") : null);
 
@@ -37,13 +55,13 @@ function GuestRow({
     viewerDid,
     onMessage,
     onOpenProfile,
-}: {
-    guest: Guest;
-    viewerDid?: string;
-    onMessage: (guest: Circle) => void;
-    onOpenProfile: (guest: Circle) => void;
-}) {
-    const { user, message, since } = guest;
+    onConfirm,
+    onUnconfirm,
+    busyDid,
+    allConfirmed,
+}: { guest: Guest } & RowActions) {
+    const { user, message, since, confirmed } = guest;
+    const busy = !!busyDid && busyDid === user.did;
     const sinceText = formatSince(since);
     return (
         <li className="flex items-start gap-3 rounded-md p-1">
@@ -57,7 +75,14 @@ function GuestRow({
                     <AvatarFallback>{user.name?.[0]}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0">
-                    <p className="m-0 truncate font-semibold">{user.name}</p>
+                    <p className="m-0 truncate font-semibold">
+                        {user.name}
+                        {confirmed ? (
+                            <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                                Confirmed
+                            </span>
+                        ) : null}
+                    </p>
                     <p className="m-0 text-xs text-muted-foreground">
                         {user.handle ? `@${user.handle}` : null}
                         {user.handle && sinceText ? " · " : null}
@@ -66,17 +91,42 @@ function GuestRow({
                     {message ? <p className="mt-1 text-sm italic text-muted-foreground">“{message}”</p> : null}
                 </div>
             </button>
-            {user.did && user.did !== viewerDid ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => onMessage(user)}>
-                    <TbMessage className="mr-1 h-4 w-4" />
-                    Message
-                </Button>
-            ) : null}
+            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                {guest.status === "going" && user.did && onConfirm && onUnconfirm ? (
+                    confirmed ? (
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            disabled={busy}
+                            onClick={() => onUnconfirm(user.did!)}
+                        >
+                            Undo
+                        </Button>
+                    ) : (
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={busy || allConfirmed}
+                            title={allConfirmed ? "All places are confirmed" : undefined}
+                            onClick={() => onConfirm(user.did!)}
+                        >
+                            Confirm
+                        </Button>
+                    )
+                ) : null}
+                {user.did && user.did !== viewerDid ? (
+                    <Button type="button" size="sm" variant="outline" onClick={() => onMessage(user)}>
+                        <TbMessage className="mr-1 h-4 w-4" />
+                        Message
+                    </Button>
+                ) : null}
+            </div>
         </li>
     );
 }
 
-function GuestGroup({ title, guests, ...rowProps }: { title: string; guests: Guest[] } & Omit<ViewProps, "result">) {
+function GuestGroup({ title, guests, ...rowProps }: { title: string; guests: Guest[] } & RowActions) {
     return (
         <div>
             <div className="mb-1 text-sm font-medium">
@@ -110,13 +160,18 @@ export function EventGuestListView({ result, ...rowProps }: ViewProps) {
 
     const attending = result.guests.filter((guest) => guest.status === "going");
     const interested = result.guests.filter((guest) => guest.status === "interested");
+    const confirmedCount = result.confirmedCount ?? result.guests.filter((guest) => guest.confirmed).length;
+    const allConfirmed = typeof result.capacity === "number" && confirmedCount >= result.capacity;
     return (
         <div className="rounded-md border p-4">
             <div className="mb-1 font-semibold">Guests</div>
-            <p className="mb-3 mt-0 text-xs text-muted-foreground">Only the organisers see this list.</p>
+            <p className="mb-3 mt-0 text-xs text-muted-foreground">
+                Only the organisers see this list. {confirmedSummary(confirmedCount, result.capacity)}
+                {allConfirmed ? " (all places)" : ""}.
+            </p>
             <div className="space-y-4">
-                <GuestGroup title="Attending" guests={attending} {...rowProps} />
-                <GuestGroup title="Interested" guests={interested} {...rowProps} />
+                <GuestGroup title="Attending" guests={attending} allConfirmed={allConfirmed} {...rowProps} />
+                <GuestGroup title="Interested" guests={interested} allConfirmed={allConfirmed} {...rowProps} />
             </div>
         </div>
     );
@@ -133,19 +188,39 @@ type Props = {
 export default function AttendeesList({ circleHandle, circleId, eventId, viewerDid }: Props) {
     const [result, setResult] = useState<EventGuestsResult | null>(null);
     const [messaging, setMessaging] = useState<Circle | null>(null);
+    const [busyDid, setBusyDid] = useState<string | null>(null);
     const setContentPreview = useSetAtom(contentPreviewAtom);
+    const router = useRouter();
+    const { toast } = useToast();
+
+    const load = useCallback(async () => {
+        try {
+            setResult(await getEventGuestsAction(circleHandle, eventId));
+        } catch (error) {
+            console.error("Failed to load event guests:", error);
+        }
+    }, [circleHandle, eventId]);
 
     useEffect(() => {
-        let mounted = true;
-        getEventGuestsAction(circleHandle, eventId)
-            .then((loaded) => {
-                if (mounted) setResult(loaded);
-            })
-            .catch((error) => console.error("Failed to load event guests:", error));
-        return () => {
-            mounted = false;
-        };
-    }, [circleHandle, eventId, viewerDid]);
+        void load();
+    }, [load, viewerDid]);
+
+    const changeConfirmation = async (guestDid: string, confirm: boolean) => {
+        setBusyDid(guestDid);
+        try {
+            const res = confirm
+                ? await confirmEventGuestAction(circleHandle, eventId, guestDid)
+                : await unconfirmEventGuestAction(circleHandle, eventId, guestDid);
+            if (!res.success) {
+                toast({ title: "Not saved", description: res.message, variant: "destructive" });
+            }
+            await load();
+            // The page's "N tickets left" comes with the event.
+            router.refresh();
+        } finally {
+            setBusyDid(null);
+        }
+    };
 
     if (!result) return null;
 
@@ -156,6 +231,9 @@ export default function AttendeesList({ circleHandle, circleId, eventId, viewerD
                 viewerDid={viewerDid}
                 onMessage={setMessaging}
                 onOpenProfile={(guest) => setContentPreview({ type: "user", content: guest })}
+                onConfirm={(guestDid) => changeConfirmation(guestDid, true)}
+                onUnconfirm={(guestDid) => changeConfirmation(guestDid, false)}
+                busyDid={busyDid}
             />
             <MessageGuestDialog
                 guest={messaging}

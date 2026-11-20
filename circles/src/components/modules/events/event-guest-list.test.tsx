@@ -9,7 +9,11 @@ import { describe, expect, mock, test } from "bun:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
-mock.module("@/app/circles/[handle]/events/actions", () => ({ getEventGuestsAction: async () => null }));
+mock.module("@/app/circles/[handle]/events/actions", () => ({
+    getEventGuestsAction: async () => null,
+    confirmEventGuestAction: async () => ({ success: true }),
+    unconfirmEventGuestAction: async () => ({ success: true }),
+}));
 mock.module("@/components/modules/chat/actions", () => ({
     findOrCreateDMConversationAction: async () => ({ success: false }),
     sendMongoMessageAction: async () => ({ success: false }),
@@ -36,13 +40,14 @@ const organiserResult: Result = {
         guest(ORGANISER, "Org", "going"),
     ],
 };
-const render = (result: Result) =>
+const render = (result: Result, withConfirm = false) =>
     renderToStaticMarkup(
         <EventGuestListView
             result={result}
             viewerDid={ORGANISER}
             onMessage={() => undefined}
             onOpenProfile={() => undefined}
+            {...(withConfirm ? { onConfirm: () => undefined, onUnconfirm: () => undefined } : {})}
         />,
     );
 const count = (html: string, text: string) => html.split(text).length - 1;
@@ -92,5 +97,41 @@ describe("event guest list", () => {
             "They'll see this comes from you, Tim. Only the two of you see the conversation.",
         );
         expect(GUEST_CANT_REPLY_NOTE).toContain("can't reply until they do");
+    });
+});
+
+describe("confirming guests on the list (part 2)", () => {
+    const withConfirmations: Result = {
+        canSeeGuests: true,
+        needsProfileToSeeGuests: false,
+        capacity: 2,
+        confirmedCount: 1,
+        guests: [
+            { ...guest("did:test:ann", "Ann", "going"), confirmed: true },
+            guest("did:test:cy", "Cy", "going"),
+            guest("did:test:bo", "Bo", "interested"),
+        ],
+    };
+
+    test("Attending rows have Confirm, or a Confirmed badge with Undo; Interested rows have neither", () => {
+        const html = render(withConfirmations, true);
+        expect(count(html, ">Confirmed</span>")).toBe(1);
+        expect(count(html, ">Undo</button>")).toBe(1);
+        expect(count(html, ">Confirm</button>")).toBe(1);
+        expect(html).toContain("1 of 2 confirmed");
+    });
+
+    test("when all places are confirmed, Confirm is disabled", () => {
+        const html = render({ ...withConfirmations, confirmedCount: 2 }, true);
+        expect(html).toContain("2 of 2 confirmed (all places)");
+        expect(/<button[^>]*disabled=""[^>]*title="All places are confirmed"[^>]*>Confirm<\/button>/.test(html)).toBe(
+            true,
+        );
+    });
+
+    test("no capacity: just the count", () => {
+        const html = render({ ...withConfirmations, capacity: undefined }, true);
+        expect(html).toContain("1 confirmed");
+        expect(html).not.toContain('disabled=""');
     });
 });

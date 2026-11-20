@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition } from "react";
+import React, { useEffect, useState, useTransition } from "react";
 import { EventDisplay } from "@/models/models";
 import { cn, haversineKm, getUserLocation } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,8 @@ import { useToast } from "@/components/ui/use-toast";
 import {
     rsvpEventAction,
     cancelRsvpAction,
+    getEventGuestDetailsAction,
+    type EventGuestDetails,
     changeEventStageAction,
     hideCancelledEventAction,
     unhideCancelledEventAction,
@@ -54,6 +56,7 @@ import EventArtistList from "./event-artist-list";
 import InviteModal from "./invite-modal";
 import AttendeesList from "./attendees-list";
 import RsvpDialog from "./rsvp-dialog";
+import RsvpPanel from "./rsvp-panel";
 import EventTasksPanel from "./event-tasks-panel";
 import ShareEventButton from "./share-event-button";
 import { eventSignInHref } from "@/lib/events/event-share";
@@ -150,6 +153,28 @@ export default function EventDetail({
     const compact = !!isPreview;
     const [hideUpdating, setHideUpdating] = useState(false);
     const eventId = ((event as any)._id?.toString?.() || (event as any)._id || "") as string;
+    // Event guests (part 2): whether the viewer is a confirmed guest, and the note and hidden address
+    // when they may have them. Fetched for signed-in viewers; refetched after their own RSVP changes.
+    const [guestDetails, setGuestDetails] = useState<EventGuestDetails | null>(null);
+    const [guestDetailsVersion, setGuestDetailsVersion] = useState(0);
+    const viewerDidForGuestDetails = effectiveUser?.did;
+    useEffect(() => {
+        if (!viewerDidForGuestDetails || !eventId || !circleHandle) {
+            setGuestDetails(null);
+            return;
+        }
+        let mounted = true;
+        getEventGuestDetailsAction(circleHandle, eventId)
+            .then((details) => {
+                if (mounted) setGuestDetails(details);
+            })
+            .catch((error) => console.error("Failed to load guest details:", error));
+        return () => {
+            mounted = false;
+        };
+    }, [circleHandle, eventId, viewerDidForGuestDetails, guestDetailsVersion, event.userRsvpStatus]);
+    // Only organisers get the note without being confirmed guests.
+    const guestDetailsForOrganiser = !!guestDetails?.guestNote && !guestDetails.isConfirmed;
     const hiddenCancelledIds = effectiveUser?.hiddenCancelledEventIds || [];
     const isEventHidden = eventId ? hiddenCancelledIds.includes(eventId) : false;
     // createdBy reaches the event's managers only (sanitizePeerifyPublicEventDisplay), so both sides
@@ -252,6 +277,7 @@ export default function EventDetail({
             const res = await rsvpEventAction(circleHandle, (event as any)._id?.toString?.() || "", status);
             if (res.success) {
                 toast({ title: "RSVP updated" });
+                setGuestDetailsVersion((version) => version + 1);
                 await refreshOpenEventPreview();
                 router.refresh();
             } else {
@@ -265,6 +291,7 @@ export default function EventDetail({
             const res = await cancelRsvpAction(circleHandle, (event as any)._id?.toString?.() || "");
             if (res.success) {
                 toast({ title: "RSVP cancelled" });
+                setGuestDetailsVersion((version) => version + 1);
                 await refreshOpenEventPreview();
                 router.refresh();
             } else {
@@ -531,73 +558,19 @@ export default function EventDetail({
 
                 <div className="px-4">
                     <div className="rounded-md border bg-white/60 p-3">
-                        <div className="mb-2 text-xs text-muted-foreground">RSVP</div>
-                        {accessBadge && (
-                            <div className="mb-2 w-fit rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-xs font-medium text-stone-700">
-                                {accessBadge.label}
-                            </div>
-                        )}
-                        {effectiveUser ? (
-                            <div className="flex flex-wrap gap-2">
-                                {event.userRsvpStatus === "going" ? (
-                                    <>
-                                        <Button
-                                            size="sm"
-                                            variant="destructive"
-                                            disabled={isPending}
-                                            onClick={onCancelRsvp}
-                                        >
-                                            Cancel RSVP
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            disabled={isPending}
-                                            onClick={() => onRsvp("interested")}
-                                        >
-                                            Interested
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Button size="sm" disabled={isPending} onClick={() => setRsvpDialogOpen(true)}>
-                                            Attend
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            disabled={isPending}
-                                            onClick={() => onRsvp("interested")}
-                                        >
-                                            Interested
-                                        </Button>
-                                        {event.userRsvpStatus && event.userRsvpStatus !== "none" && (
-                                            <Button
-                                                size="sm"
-                                                variant="destructive"
-                                                disabled={isPending}
-                                                onClick={onCancelRsvp}
-                                            >
-                                                Cancel RSVP
-                                            </Button>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="text-xs text-muted-foreground">
-                                <Link href={eventSignInHref(circleHandle, eventId ?? "")} className="underline">
-                                    Sign in to RSVP
-                                </Link>
-                                .
-                            </div>
-                        )}
-                        <div className="mt-2 text-xs text-muted-foreground">
-                            Attendees (going): {event.attendees ?? 0}
-                        </div>
-                        {effectiveUser && event.userRsvpStatus && event.userRsvpStatus !== "none" && (
-                            <div className="mt-1 text-xs">Your status: {event.userRsvpStatus === "going" ? "attending" : event.userRsvpStatus}</div>
-                        )}
+                        <RsvpPanel
+                            event={event}
+                            size="compact"
+                            signedIn={!!effectiveUser}
+                            signInHref={eventSignInHref(circleHandle, eventId ?? "")}
+                            accessBadgeLabel={accessBadge?.label}
+                            isPending={isPending}
+                            isOrganiser={guestDetailsForOrganiser}
+                            guestDetails={guestDetails}
+                            onAttend={() => setRsvpDialogOpen(true)}
+                            onInterested={() => onRsvp("interested")}
+                            onCancel={onCancelRsvp}
+                        />
                     </div>
                 </div>
 
@@ -637,7 +610,10 @@ export default function EventDetail({
                     eventId={event._id!.toString()}
                     open={isRsvpDialogOpen}
                     onOpenChange={setRsvpDialogOpen}
-                    onSuccess={refreshOpenEventPreview}
+                    onSuccess={async () => {
+                        setGuestDetailsVersion((version) => version + 1);
+                        await refreshOpenEventPreview();
+                    }}
                 />
             </div>
         );
@@ -873,73 +849,19 @@ export default function EventDetail({
 
                 <div className="space-y-4">
                     <div className="rounded-lg border bg-white/70 p-5 shadow-sm">
-                        <div className="mb-2 text-sm font-medium text-muted-foreground">RSVP</div>
-                        {accessBadge && (
-                            <div className="mb-3 w-fit rounded-full border border-stone-200 bg-stone-50 px-2 py-0.5 text-xs font-medium text-stone-700">
-                                {accessBadge.label}
-                            </div>
-                        )}
-                        {effectiveUser ? (
-                            <div className="flex flex-wrap gap-2">
-                                {event.userRsvpStatus === "going" ? (
-                                    <>
-                                        <Button
-                                            size="sm"
-                                            variant="destructive"
-                                            disabled={isPending}
-                                            onClick={onCancelRsvp}
-                                        >
-                                            Cancel RSVP
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            disabled={isPending}
-                                            onClick={() => onRsvp("interested")}
-                                        >
-                                            Interested
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Button size="sm" disabled={isPending} onClick={() => setRsvpDialogOpen(true)}>
-                                            Attend
-                                        </Button>
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            disabled={isPending}
-                                            onClick={() => onRsvp("interested")}
-                                        >
-                                            Interested
-                                        </Button>
-                                        {event.userRsvpStatus && event.userRsvpStatus !== "none" && (
-                                            <Button
-                                                size="sm"
-                                                variant="destructive"
-                                                disabled={isPending}
-                                                onClick={onCancelRsvp}
-                                            >
-                                                Cancel RSVP
-                                            </Button>
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="text-sm text-muted-foreground">
-                                <Link href={eventSignInHref(circleHandle, eventId ?? "")} className="underline">
-                                    Sign in to RSVP
-                                </Link>
-                                .
-                            </div>
-                        )}
-                        <div className="mt-3 text-sm text-muted-foreground">
-                            Attendees (going): {event.attendees ?? 0}
-                        </div>
-                        {effectiveUser && event.userRsvpStatus && event.userRsvpStatus !== "none" && (
-                            <div className="mt-1 text-sm">Your status: {event.userRsvpStatus === "going" ? "attending" : event.userRsvpStatus}</div>
-                        )}
+                        <RsvpPanel
+                            event={event}
+                            size="full"
+                            signedIn={!!effectiveUser}
+                            signInHref={eventSignInHref(circleHandle, eventId ?? "")}
+                            accessBadgeLabel={accessBadge?.label}
+                            isPending={isPending}
+                            isOrganiser={guestDetailsForOrganiser}
+                            guestDetails={guestDetails}
+                            onAttend={() => setRsvpDialogOpen(true)}
+                            onInterested={() => onRsvp("interested")}
+                            onCancel={onCancelRsvp}
+                        />
                     </div>
                     <EventArtistList
                         circleHandle={circleHandle}
@@ -1078,7 +1000,10 @@ export default function EventDetail({
                 eventId={event._id!.toString()}
                 open={isRsvpDialogOpen}
                 onOpenChange={setRsvpDialogOpen}
-                onSuccess={refreshOpenEventPreview}
+                onSuccess={async () => {
+                    setGuestDetailsVersion((version) => version + 1);
+                    await refreshOpenEventPreview();
+                }}
             />
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent>
