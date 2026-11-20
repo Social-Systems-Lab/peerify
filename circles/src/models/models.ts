@@ -1751,6 +1751,7 @@ export type NotificationType =
     | "event_artist_added" // A circle was added as an additional artist/band on an event
     | "event_host_change_requested" // A circle's admins are asked to approve an event moving to them
     | "event_host_change_decided" // The requester is told whether their host-change request was approved/rejected
+    | "event_guest_confirmed" // An organiser confirmed someone who clicked Attend (event guests, D3)
     // Ranking Notifications
     | "ranking_stale_reminder" // User's ranking list is stale, reminder sent
     | "ranking_grace_period_ended" // User's ranking list is past grace period
@@ -1834,6 +1835,7 @@ export const notificationTypeValues = [
     "event_artist_added",
     "event_host_change_requested",
     "event_host_change_decided",
+    "event_guest_confirmed",
     "ranking_stale_reminder",
     "ranking_grace_period_ended",
     "user_verified",

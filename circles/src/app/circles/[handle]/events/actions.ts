@@ -89,6 +89,7 @@ import { inviteUsersToEvent, InviteUsersToEventResult } from "@/lib/data/event";
 import { getMembers, isCircleAdmin, isCircleAdminOfAny } from "@/lib/data/member";
 import { addCommentToDiscussion } from "@/lib/data/discussion";
 import { getAllCommentsAction } from "@/components/modules/feeds/actions";
+import { notifyEventGuestConfirmed } from "@/lib/data/notifications";
 import { Comment } from "@/models/models";
 import { filterTasksForViewer, getTasksByEventId } from "@/lib/data/task";
 import { shouldShowEventCrewPanel, summarizeEventCrew, type EventCrewPanel } from "@/lib/tasks/event-crew-panel";
@@ -2018,6 +2019,17 @@ export async function confirmEventGuestAction(
 
         const result = await confirmEventGuest(eventId, guestDid, loaded.userDid);
         if (!result.ok) return { success: false, message: result.message };
+
+        // D3: tell the guest (bell only), once.
+        if (!result.alreadyConfirmed) {
+            const guest = await getUserPrivate(guestDid);
+            if (guest) {
+                await notifyEventGuestConfirmed(
+                    { _id: eventId, title: loaded.event.title, circleId: String(loaded.circle._id) },
+                    guest,
+                );
+            }
+        }
 
         revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
         return { success: true, message: result.alreadyConfirmed ? "Already confirmed" : "Guest confirmed" };

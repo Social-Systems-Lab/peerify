@@ -615,6 +615,7 @@ export const Notifications = ({
                 case "goal_status_changed":
                     return notification.goalId ? `/circles/${circleHandle}/goals/${notification.goalId}` : null;
                 case "event_invitation":
+                case "event_guest_confirmed":
                 case "event_artist_added":
                 case "event_host_change_decided":
                     return notification.eventId ? `/circles/${circleHandle}/events/${notification.eventId}` : null;

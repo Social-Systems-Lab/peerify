@@ -230,3 +230,33 @@ describe("a confirmed guest's own reply (D4)", () => {
         expect((await cancelRsvpAction("host", EVENT_ID)).success).toBe(true);
     });
 });
+
+describe("the confirmation notice (D3)", () => {
+    const notices = () => fakeDb.col("Notifications").docs.filter((n) => n.type === "event_guest_confirmed");
+
+    test("the guest gets one bell notice that names the event and the circle, not the organiser", async () => {
+        await confirm(ANN);
+        await confirm(ANN);
+        const rows = notices();
+        expect(rows).toHaveLength(1);
+        expect(rows[0].userId).toBe(ANN);
+        const content = rows[0].content as Record<string, any>;
+        expect(content.body).toBe("You're confirmed for Home show. Guest details are on the event page.");
+        expect(content.eventId).toBe(EVENT_ID);
+        expect(content.circle?.handle).toBe("host");
+        expect(content.user).toBeUndefined();
+        expect(JSON.stringify(rows[0])).not.toContain(ORGANISER);
+    });
+
+    test("no notice when the confirm is refused, or for undoing one", async () => {
+        await confirm(FAN);
+        await confirm(ANN);
+        await unconfirmEventGuestAction("host", EVENT_ID, ANN);
+        expect(notices().map((n) => n.userId)).toEqual([ANN]);
+    });
+
+    test("the bell shows the circle's picture for it", async () => {
+        const { showsActorPicture } = await import("@/components/layout/notification-avatar");
+        expect(showsActorPicture("event_guest_confirmed")).toBe(false);
+    });
+});

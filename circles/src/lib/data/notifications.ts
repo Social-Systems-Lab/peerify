@@ -202,6 +202,9 @@ export const buildNotificationBody = (type: string, payload: any): string => {
             return `${actorName} updated ${eventName}`;
         case "event_invitation":
             return `${actorName} invited you to ${eventName}`;
+        // Event guests, D3: the organiser isn't named.
+        case "event_guest_confirmed":
+            return `You're confirmed for ${eventName}. Guest details are on the event page.`;
         case "event_artist_added":
             return `${artistCircleName} was added to the lineup for ${eventName}`;
         case "event_host_change_requested":
@@ -2667,6 +2670,30 @@ export async function notifyProposalToGoal(
 /**
  * Send notification when a user is invited to an event.
  */
+// Event guests, D3 (2026-11-20): an organiser confirmed someone who clicked Attend. Bell only, to
+// that person. The circle only, no `user`: the notice doesn't say which organiser confirmed (like
+// task_shift_declined), so the bell shows the circle's picture.
+export async function notifyEventGuestConfirmed(
+    event: { _id?: unknown; title: string; circleId: string },
+    guest: UserPrivate,
+): Promise<void> {
+    try {
+        const circle = await getCircleById(event.circleId);
+        if (!circle) return;
+        await sendNotifications(
+            "event_guest_confirmed",
+            [guest],
+            sanitizeObjectForJSON({
+                circle,
+                eventId: String(event._id),
+                eventName: event.title,
+            }),
+        );
+    } catch (error) {
+        console.error("🔔 [NOTIFY] Error in notifyEventGuestConfirmed:", error);
+    }
+}
+
 export async function notifyEventInvitation(event: Event, inviter: Circle, invitedUser: UserPrivate): Promise<void> {
     try {
         console.log(`🔔 [NOTIFY] notifyEventInvitation called for event ${event._id} to user ${invitedUser.did}`);
