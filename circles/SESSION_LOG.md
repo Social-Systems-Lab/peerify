@@ -14,6 +14,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
 - **SECURITY (2026-11-16):** the cross-circle gap in 13 task/shift actions is fixed, together with private pending sign-ups and claims, and **LIVE on prod since 2026-11-17 (`ac61f445`)**. Tim's read-only prod check before the release found **nothing flagged** (53 tasks read).
 - **DESIGN DIRECTION: "Asks"** in the Crew feed (2026-11-15 (cont. 5); Tim's answers 2026-11-16). They are **built after the home show**; until then artists use ordinary Crew posts.
+- **Event guests, for the home show on 6 Dec (2026-11-20):** G1 (the RSVP guard) is merged to `staging` on its own for testing and release to prod first. Part 1 (the organiser guest list) is built on `feature/event-guests`. Decisions D1–D9 are in the 2026-11-20 entry.
 - **Crew round 2, for the home show on 6 Dec: BUILT and MERGED to `staging` (2026-11-18); BROWSER TESTS PENDING.**
   - What's in it: more sign-ups than places with the confirm cap, decline, and the "Shifts & tasks" view on the Crew page and the Crew Dashboard. Part 1 is `e2c5550d`, part 2 is `a20762f1`.
   - **Next:** Tim deploys staging and runs the browser test lists (part 1 in `crew-r2-part1.tar.gz`, part 2 in `crew-r2-part2.tar.gz`). Then the release to prod.
@@ -72,6 +73,36 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-20 — Event guests: investigation, decisions D1–D9; G1 (RSVP guard) merged to staging on its own
+
+**State:** G1 merged to `staging` (`d8851dce`, commit `139d38c7`) and pushed on its own, for Tim to test and release to prod before the rest. Not deployed by Claude. No database commands. Part 1 of the event guest list follows on `feature/event-guests`.
+
+**Investigation** (read-only, at `cbd8c7c1`): `~/cc-reports/outbox/event-guests-investigation.tar.gz`. Goal for the 6 Dec show: (1) a guest list for organisers (Attend and Interested, with a Message button); (2) capacity, a Confirmed state with a cap, "N tickets left" / "Sold out", and a note for confirmed guests only.
+
+**Decisions (Tim, 2026-11-20): D1–D9 as recommended; D10 (a counts script) skipped.**
+- D1: a new right "See and manage guests" (admins and moderators by default, verified), plus the event's creator and platform admins; not delegated artist admins.
+- D2: the Message button sends from the organiser's own profile, and the dialog says so.
+- D3: a bell notice on confirm, circle only. D4: a confirmed guest can't un-RSVP themselves.
+- D5: "tickets left" / "Sold out" for ticketed events, otherwise "places left" / "Full".
+- D6: the Attend dialog's "appear publicly" switch goes; it says only the organisers see who's attending.
+- D7: "Address revealed after acceptance" means confirmed. D8: Interested can be messaged, not confirmed; sold out, Attend means the waiting list.
+- D9: invite_only needs an invitation; approval_required lets anyone Attend, and confirming is the approval.
+
+**G1 (`139d38c7`):** Attend, Interested and Cancel RSVP never loaded the event. An RSVP could go to another circle's event, a draft, one in review, a cancelled or invitation-only event, and an RSVP opened a private event (getEventById lets in anyone who has RSVPed).
+- `getEventRsvpRefusal` (`lib/data/event.ts`): the event of the URL's circle; visible to the viewer (`shapeEventsForViewer`); stage open; private: managers, invitees, admins of a listed artist circle (an existing RSVP doesn't count); invite_only: managers and invitees.
+- Cancel needs only the event of the URL's circle, so people can always withdraw.
+- `upsertRsvp` no longer stores `message: null`. The test fake supports `updateOne` upsert / `$setOnInsert`.
+- Test `rsvp-guard.test.ts`: 9 of 13 fail before, all pass after.
+- Checks: tsc (old error only), eslint, build; all test files one at a time: all pass except the known `participation-readiness.test.ts`.
+
+**Staging checks for Tim (G1):**
+1. As a signed-in member, Attend, Interested and Cancel on an open public event still work.
+2. On an invitation-only event you're not invited to: Attend says "This event is by invitation only". Invited: it works.
+3. A private event you're not invited to can't be opened or RSVPed (a crafted request fails).
+4. A draft or cancelled event: no RSVP (a crafted request says "This event isn't taking RSVPs"); Cancel RSVP still works on your own RSVP.
 
 ---
 
