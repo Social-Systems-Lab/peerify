@@ -14,7 +14,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
 - **SECURITY (2026-11-16):** the cross-circle gap in 13 task/shift actions is fixed, together with private pending sign-ups and claims, and **LIVE on prod since 2026-11-17 (`ac61f445`)**. Tim's read-only prod check before the release found **nothing flagged** (53 tasks read).
 - **DESIGN DIRECTION: "Asks"** in the Crew feed (2026-11-15 (cont. 5); Tim's answers 2026-11-16). They are **built after the home show**; until then artists use ordinary Crew posts.
-- **Event guests, for the home show on 6 Dec (2026-11-20):** **G1 (the RSVP guard) is LIVE on prod (`22692897`; Tim's check passed).** **Part 1 (the organiser guest list with Message) is merged to `staging` (`53bfb6ab`) and pushed; not deployed (Tim's step); browser tests pending** (11 steps in `event-guests-part1.tar.gz`). **Part 2 (capacity, Confirmed, places left, guest note) is merged to `staging` (`303779da`) and pushed; not deployed (Tim's step); browser tests pending** (13 steps in `event-guests-part2.tar.gz`). Decisions D1–D9 are in the 2026-11-20 entry.
+- **Event guests, for the home show on 6 Dec (2026-11-20):** **G1 (the RSVP guard) is LIVE on prod (`22692897`; Tim's check passed).** **Part 1 (the organiser guest list with Message) is merged to `staging` (`53bfb6ab`) and pushed; not deployed (Tim's step); browser tests pending** (11 steps in `event-guests-part1.tar.gz`). **Part 2 (capacity, Confirmed, places left, guest note) is merged to `staging` (`303779da`) and pushed; not deployed (Tim's step); browser tests pending** (13 steps in `event-guests-part2.tar.gz`). Since `cd382439`, confirming also opens a DM between the organiser and the guest. Decisions D1–D9 are in the 2026-11-20 entry.
 - **Crew round 2, for the home show on 6 Dec: BUILT and MERGED to `staging` (2026-11-18); BROWSER TESTS PENDING.**
   - What's in it: more sign-ups than places with the confirm cap, decline, and the "Shifts & tasks" view on the Crew page and the Crew Dashboard. Part 1 is `e2c5550d`, part 2 is `a20762f1`.
   - **Next:** Tim deploys staging and runs the browser test lists (part 1 in `crew-r2-part1.tar.gz`, part 2 in `crew-r2-part2.tar.gz`). Then the release to prod.
@@ -73,6 +73,19 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-20 (cont. 3) — Event guests: confirming opens a DM with the organiser
+
+**State:** commit `cd382439` on `staging` (fast-forward, on its own), pushed; not deployed (Tim's step). No database commands.
+
+- **Tim (2026-11-20): yes** to opening the event_guest DM on confirm, so a confirmed guest can always message the organisers. Same rules otherwise.
+- On a new confirmation, `openEventGuestConversation` (`lib/data/event-guests.ts`) finds or creates the DM between the organiser who confirmed and the guest, with the `event_guest` grant. No message is sent; it appears in both people's Messages.
+- Same rules as the Message button: `mayMessageEventGuest`, and the organiser needs a verified profile (otherwise the confirm happens without a DM). Confirming again opens nothing new; a failure never undoes the confirm.
+- Wording: "To cancel, please message the organisers (see your Messages)."
+- Test: `event-guest-confirm.test.ts`, 5 new cases (3 fail before). Checks: tsc (old error only), eslint, prettier, build; 146 test files, 145 pass plus the known `participation-readiness.test.ts`.
+- **Staging check for Tim:** confirm a guest who isn't connected to you; both of you see the conversation in Messages, and the guest can write first.
 
 ---
 
