@@ -1,8 +1,11 @@
 // Run: IS_BUILD=true bun test "src/app/circles/[handle]/events/attendees.test.ts"
-// Round 3, item 3 (2026-10-20): event attendee lists go only to the event's managers in full; any
+// Round 3, item 3 (2026-10-20): event attendee lists go only to the event's organisers in full; any
 // other viewer gets just their own RSVP. Identity fields only (name, handle, picture), and only for
 // an event of the circle in the URL. In-memory fakes, session and permissions stubbed. The tests
-// fail on the code before this change: every member got every attendee's full profile.
+// failed on the code before that change: every member got every attendee's full profile.
+// Event guests, part 1 (2026-11-20): one list, getEventGuestsAction, with Attend and Interested,
+// whatever the person chose for the old "appear publicly" switch (D6), each with when they replied.
+// Who the organisers are is in event-guests-organisers.test.ts.
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { ObjectId } from "mongodb";
@@ -18,7 +21,10 @@ const EVENT_ID = "64d0000000000000000000e1";
 const AUTHOR = "did:test:author";
 const GUEST_A = "did:test:guest-a";
 const GUEST_B = "did:test:guest-b";
+const GUEST_C = "did:test:guest-c";
+const GUEST_D = "did:test:guest-d";
 const MEMBER = "did:test:member";
+const at = (day: number) => new Date(Date.UTC(2026, 10, day, 12));
 
 let sessionDid: string | undefined;
 const realAuth = await import("@/lib/auth/auth");
@@ -31,7 +37,7 @@ mock.module("@/lib/auth/auth", () => ({
 }));
 mock.module("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined }));
 
-const { getAttendeesAction, getAttendeesWithDetailsAction } = await import("./actions");
+const { getEventGuestsAction } = await import("./actions");
 
 const STREET = "Gästgatan 5";
 const EMAIL_HINT = "guest-private-bio";
@@ -53,15 +59,32 @@ beforeEach(() => {
     fakeDb.reset({
         Circles: [
             { _id: new ObjectId(HOST_ID), did: "did:test:host", handle: "host", name: "Host", circleType: "circle" },
-            { _id: new ObjectId(OTHER_ID), did: "did:test:other", handle: "other", name: "Other", circleType: "circle" },
+            {
+                _id: new ObjectId(OTHER_ID),
+                did: "did:test:other",
+                handle: "other",
+                name: "Other",
+                circleType: "circle",
+            },
             user(AUTHOR, "author"),
             user(GUEST_A, "guest-a"),
             user(GUEST_B, "guest-b"),
+            user(GUEST_C, "guest-c"),
+            user(GUEST_D, "guest-d"),
             user(MEMBER, "member"),
         ],
         EventRsvps: [
-            { eventId: EVENT_ID, userDid: GUEST_A, status: "going", isPublic: true },
-            { eventId: EVENT_ID, userDid: GUEST_B, status: "going", isPublic: true, message: "See you" },
+            { eventId: EVENT_ID, userDid: GUEST_A, status: "going", isPublic: true, updatedAt: at(2) },
+            {
+                eventId: EVENT_ID,
+                userDid: GUEST_B,
+                status: "going",
+                isPublic: true,
+                message: "See you",
+                updatedAt: at(3),
+            },
+            { eventId: EVENT_ID, userDid: GUEST_C, status: "interested", isPublic: true, updatedAt: at(1) },
+            { eventId: EVENT_ID, userDid: GUEST_D, status: "going", isPublic: false, updatedAt: at(4) },
         ],
     });
     fakeDb.setAggregateResult("Events", [event()]);
@@ -73,35 +96,54 @@ const leaksProfile = (output: unknown) => {
     return text.includes(STREET) || text.includes(EMAIL_HINT) || text.includes("secret-interest");
 };
 
-describe("event attendee lists", () => {
-    test("a member who isn't attending and doesn't manage the event sees nobody", async () => {
-        sessionDid = MEMBER;
-        expect((await getAttendeesAction("host", EVENT_ID)).users).toEqual([]);
-        expect((await getAttendeesWithDetailsAction("host", EVENT_ID)).attendees).toEqual([]);
+const guestsFor = async (did: string | undefined) => {
+    sessionDid = did;
+    return getEventGuestsAction("host", EVENT_ID);
+};
+
+describe("event guest list", () => {
+    test("a member who isn't a guest and doesn't organise sees nobody", async () => {
+        const result = await guestsFor(MEMBER);
+        expect(result.canSeeGuests).toBe(false);
+        expect(result.guests).toEqual([]);
     });
 
-    test("an attendee sees only their own entry", async () => {
-        sessionDid = GUEST_A;
-        expect(dids((await getAttendeesAction("host", EVENT_ID)).users)).toEqual([GUEST_A]);
-        const details = (await getAttendeesWithDetailsAction("host", EVENT_ID)).attendees;
-        expect(dids(details.map((a) => a.user))).toEqual([GUEST_A]);
+    test("a guest sees only their own entry, Attend or Interested", async () => {
+        expect(dids((await guestsFor(GUEST_A)).guests.map((g) => g.user))).toEqual([GUEST_A]);
+        const interested = (await guestsFor(GUEST_C)).guests;
+        expect(interested.map((g) => [g.user.did, g.status])).toEqual([[GUEST_C, "interested"]]);
     });
 
-    test("the event's author sees everyone, with identity fields only", async () => {
-        sessionDid = AUTHOR;
-        const users = (await getAttendeesAction("host", EVENT_ID)).users;
-        expect(dids(users)).toEqual([GUEST_A, GUEST_B].sort());
-        expect(leaksProfile(users)).toBe(false);
-        const details = (await getAttendeesWithDetailsAction("host", EVENT_ID)).attendees;
-        expect(details.find((a) => a.user.did === GUEST_B)?.message).toBe("See you");
-        expect(leaksProfile(details)).toBe(false);
-        expect(typeof details[0].user.name).toBe("string");
+    test("the event's creator sees Attend and Interested, earliest reply first, with dates and messages", async () => {
+        const result = await guestsFor(AUTHOR);
+        expect(result.canSeeGuests).toBe(true);
+        expect(result.guests.map((g) => [g.user.did, g.status])).toEqual([
+            [GUEST_C, "interested"],
+            [GUEST_A, "going"],
+            [GUEST_B, "going"],
+            [GUEST_D, "going"],
+        ]);
+        expect(result.guests.find((g) => g.user.did === GUEST_B)?.message).toBe("See you");
+        expect(result.guests.find((g) => g.user.did === GUEST_A)?.since).toEqual(at(2));
+    });
+
+    test("someone who said not to appear publicly is still on the organisers' list (D6)", async () => {
+        expect(dids((await guestsFor(AUTHOR)).guests.map((g) => g.user))).toContain(GUEST_D);
+    });
+
+    test("identity fields only", async () => {
+        const guests = (await guestsFor(AUTHOR)).guests;
+        expect(leaksProfile(guests)).toBe(false);
+        expect(typeof guests[0].user.name).toBe("string");
+        expect(guests[0].user.picture?.url).toContain("img.test");
     });
 
     test("an event of another circle gives no list through this circle's URL", async () => {
         fakeDb.setAggregateResult("Events", [event(OTHER_ID)]);
-        sessionDid = AUTHOR;
-        expect((await getAttendeesAction("host", EVENT_ID)).users).toEqual([]);
-        expect((await getAttendeesWithDetailsAction("host", EVENT_ID)).attendees).toEqual([]);
+        expect((await guestsFor(AUTHOR)).guests).toEqual([]);
+    });
+
+    test("signed out: nothing", async () => {
+        expect(await guestsFor(undefined)).toEqual({ canSeeGuests: false, needsProfileToSeeGuests: false, guests: [] });
     });
 });

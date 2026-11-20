@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { Circle } from "@/models/models";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAttendeesWithDetailsAction } from "@/app/circles/[handle]/events/actions";
+import { getEventGuestsAction } from "@/app/circles/[handle]/events/actions";
 import { useSetAtom } from "jotai";
 import { contentPreviewAtom } from "@/lib/data/atoms";
 
@@ -21,8 +21,9 @@ export default function AttendeesList({ circleHandle, eventId }: Props) {
         let mounted = true;
         const fetchUsers = async () => {
             try {
-                const result = await getAttendeesWithDetailsAction(circleHandle, eventId);
-                if (mounted) setAttendees(result.attendees || []);
+                const result = await getEventGuestsAction(circleHandle, eventId);
+                const going = result.guests.filter((guest) => guest.status === "going");
+                if (mounted) setAttendees(going.map(({ user, message }) => ({ user, message })));
             } finally {
                 if (mounted) setLoading(false);
             }

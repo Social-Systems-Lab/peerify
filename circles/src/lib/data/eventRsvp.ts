@@ -105,63 +105,49 @@ export const getEventAttendees = async (
     }
 };
 
-/**
- * Optionally list attendees (Circles) for a given status. Identity fields only (name, handle,
- * picture): the list goes to the browser (getAttendeesAction).
- */
-export const listAttendees = async (eventId: string, status: "going" | "interested" | "waitlist") => {
-    try {
-        const rsvps = await EventRsvps.find({ eventId, status }).project({ userDid: 1, _id: 0 }).toArray();
-        const dids = rsvps.map((r) => r.userDid).filter(Boolean);
-        if (dids.length === 0) return [];
-
-        const users = await Circles.find({ did: { $in: dids }, circleType: "user" })
-            .project({ ...IDENTITY_CIRCLE_PROJECTION, _id: { $toString: "$_id" } as any })
-            .toArray();
-
-        return users as unknown as Circle[];
-    } catch (error) {
-        console.error("Error listing attendees:", error);
-        return [];
-    }
+// One person on an event's guest list (event guests, 2026-11-20): identity fields only (name,
+// handle, picture), their reply, their optional message to the organisers and when they last
+// replied. Goes to the browser (getEventGuestsAction).
+export type EventGuest = {
+    user: Circle;
+    status: "going" | "interested";
+    message?: string;
+    since?: Date;
 };
 
 /**
- * List public attendees with optional messages for a given status.
- * Returns an array of { user: Circle; message?: string }.
- * Legacy RSVPs without isPublic are treated as public. Identity fields only.
+ * Everyone who clicked Attend or Interested on an event, earliest reply first, whatever they chose
+ * for the old "appear publicly" switch (D6: only the organisers see the list). People whose
+ * personal profile is gone are left out. Callers decide who may see it (canSeeEventGuests).
  */
-export const listAttendeesWithDetails = async (
-    eventId: string,
-    status: "going" | "interested" | "waitlist",
-): Promise<{ user: Circle; message?: string }[]> => {
+export const listEventGuests = async (eventId: string): Promise<EventGuest[]> => {
     try {
-        const rsvps = await EventRsvps.find({
-            eventId,
-            status,
-            $or: [{ isPublic: { $exists: false } }, { isPublic: true }],
-        })
-            .project({ userDid: 1, message: 1, _id: 0 })
+        const rsvps = await EventRsvps.find({ eventId, status: { $in: ["going", "interested"] } })
+            .project({ userDid: 1, status: 1, message: 1, createdAt: 1, updatedAt: 1, _id: 0 })
             .toArray();
-
         const dids = rsvps.map((r) => r.userDid).filter(Boolean);
         if (dids.length === 0) return [];
 
         const users = (await Circles.find({ did: { $in: dids }, circleType: "user" })
             .project({ ...IDENTITY_CIRCLE_PROJECTION, _id: { $toString: "$_id" } as any })
             .toArray()) as unknown as Circle[];
-
         const userByDid = new Map(users.map((u) => [u.did!, u]));
-        const result: { user: Circle; message?: string }[] = [];
+
+        const guests: EventGuest[] = [];
         for (const r of rsvps) {
-            const u = userByDid.get(r.userDid);
-            if (u) {
-                result.push({ user: u, message: (r as any).message || undefined });
-            }
+            const user = userByDid.get(r.userDid);
+            if (!user) continue;
+            const since = r.updatedAt ?? r.createdAt;
+            guests.push({
+                user,
+                status: r.status as EventGuest["status"],
+                ...(r.message ? { message: r.message as string } : {}),
+                ...(since ? { since: new Date(since) } : {}),
+            });
         }
-        return result;
+        return guests.sort((a, b) => (a.since?.getTime() ?? 0) - (b.since?.getTime() ?? 0));
     } catch (error) {
-        console.error("Error listing attendees with details:", error);
+        console.error("Error listing event guests:", error);
         return [];
     }
 };

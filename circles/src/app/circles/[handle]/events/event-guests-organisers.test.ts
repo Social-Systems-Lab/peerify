@@ -45,7 +45,7 @@ mock.module("@/lib/data/circle", () => ({
     },
 }));
 
-const { getAttendeesWithDetailsAction } = await import("./actions");
+const { getEventGuestsAction } = await import("./actions");
 
 // What the Access rules form stored before "See and manage guests" existed: every other event feature.
 const STORED_EVENT_RULES = {
@@ -134,7 +134,7 @@ beforeEach(() => {
 
 const seenBy = async (did: string) => {
     sessionDid = did;
-    return (await getAttendeesWithDetailsAction("host", EVENT_ID)).attendees.map((a) => a.user.did).sort();
+    return (await getEventGuestsAction("host", EVENT_ID)).guests.map((g) => g.user.did).sort();
 };
 
 describe("who sees an event's guests (D1)", () => {
@@ -148,8 +148,12 @@ describe("who sees an event's guests (D1)", () => {
         expect(await seenBy(PLATFORM_ADMIN)).toEqual([GUEST_A, GUEST_B]);
     });
 
-    test("a moderator whose profile isn't verified sees nobody", async () => {
+    test("a moderator whose profile isn't verified sees nobody, and is told to complete it", async () => {
         expect(await seenBy(UNVERIFIED_MODERATOR)).toEqual([]);
+        expect((await getEventGuestsAction("host", EVENT_ID)).needsProfileToSeeGuests).toBe(true);
+        expect((await getEventGuestsAction("host", EVENT_ID)).canSeeGuests).toBe(false);
+        sessionDid = MEMBER;
+        expect((await getEventGuestsAction("host", EVENT_ID)).needsProfileToSeeGuests).toBe(false);
     });
 
     test("an admin of a delegated artist circle sees nobody, although they may edit the event", async () => {
@@ -160,7 +164,7 @@ describe("who sees an event's guests (D1)", () => {
         expect(await seenBy(MEMBER)).toEqual([]);
         expect(await seenBy(OTHER_ADMIN)).toEqual([]);
         sessionDid = undefined;
-        expect((await getAttendeesWithDetailsAction("host", EVENT_ID)).attendees).toEqual([]);
+        expect((await getEventGuestsAction("host", EVENT_ID)).guests).toEqual([]);
     });
 
     test("a guest still sees only their own entry", async () => {
