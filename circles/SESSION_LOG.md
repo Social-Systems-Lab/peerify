@@ -14,7 +14,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
 - **SECURITY (2026-11-16):** the cross-circle gap in 13 task/shift actions is fixed, together with private pending sign-ups and claims, and **LIVE on prod since 2026-11-17 (`ac61f445`)**. Tim's read-only prod check before the release found **nothing flagged** (53 tasks read).
 - **DESIGN DIRECTION: "Asks"** in the Crew feed (2026-11-15 (cont. 5); Tim's answers 2026-11-16). They are **built after the home show**; until then artists use ordinary Crew posts.
-- **Event guests, for the home show on 6 Dec (2026-11-20):** **G1 (the RSVP guard) is LIVE on prod (`22692897`; Tim's check passed).** **Part 1 (the organiser guest list with Message) is merged to `staging` (`53bfb6ab`) and pushed; not deployed (Tim's step); browser tests pending** (11 steps in `event-guests-part1.tar.gz`). Then part 2. Decisions D1–D9 are in the 2026-11-20 entry.
+- **Event guests, for the home show on 6 Dec (2026-11-20):** **G1 (the RSVP guard) is LIVE on prod (`22692897`; Tim's check passed).** **Part 1 (the organiser guest list with Message) is merged to `staging` (`53bfb6ab`) and pushed; not deployed (Tim's step); browser tests pending** (11 steps in `event-guests-part1.tar.gz`). **Part 2 (capacity, Confirmed, places left, guest note) is built and pushed on `feature/event-guests-2`, not merged** (report `event-guests-part2.tar.gz`). Decisions D1–D9 are in the 2026-11-20 entry.
 - **Crew round 2, for the home show on 6 Dec: BUILT and MERGED to `staging` (2026-11-18); BROWSER TESTS PENDING.**
   - What's in it: more sign-ups than places with the confirm cap, decline, and the "Shifts & tasks" view on the Crew page and the Crew Dashboard. Part 1 is `e2c5550d`, part 2 is `a20762f1`.
   - **Next:** Tim deploys staging and runs the browser test lists (part 1 in `crew-r2-part1.tar.gz`, part 2 in `crew-r2-part2.tar.gz`). Then the release to prod.
@@ -73,6 +73,24 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-20 (cont. 2) — Event guests part 2: capacity, Confirmed, places left, guest note, on a branch (not merged)
+
+**State:** built on `feature/event-guests-2` (from `staging` at `d90f4e9e`, which has part 1), pushed to origin, **not merged** (Tim). Not deployed. No database commands. Report: `~/cc-reports/outbox/event-guests-part2.tar.gz` (browser test list in it). Decisions D3, D4, D5, D7, D8 as recommended.
+
+**Commits:**
+- `216d5e93` Capacity: a whole number 1–100,000 or empty (`parseEventCapacity`); before, any `Number(...)` was stored. Can't go below the confirmed guests (checked before uploads, then in the write itself). Model: `guestConfirmations` on the event (server only, in neither projection), `EventDisplay.confirmedGuests` (count). Test `event-capacity.test.ts`.
+- `33a96914` `confirmEventGuestAction` / `unconfirmEventGuestAction` (organisers: `canSeeEventGuests`), Attend only. One conditional write: not already confirmed and room for one more ("All places are confirmed"); two confirms for the last place can't both win. Not on repeating events. The five event pipelines project only the count. The guest list carries `confirmed`, and for organisers `capacity` and `confirmedCount`. Account erasure: an erased guest's confirmation goes; an erased organiser's `confirmedBy` becomes `DELETED_USER_DID`. Tests `event-guest-confirm.test.ts`, `account-erasure.test.ts`.
+- `4862c147` D4: a confirmed guest can't cancel or switch to Interested ("You're confirmed for this event. To cancel, please contact the organisers."); Attend again still works.
+- `37bd56b9` D3: bell notice `event_guest_confirmed` to the guest, circle only, no organiser; registered for push with the other event notices.
+- `724a4f49` Guest note `metadata.peerify.guestNote` (≤ 2,000), saved and cleared with the form. `getEventGuestDetailsAction`: note to confirmed guests and organisers; `detailsAfterConfirmation` for someone going and unconfirmed. D7: confirmed guests get the exact location for `secret_after_acceptance`, also in ICS (`getEventLocationForViewer`). Guest-note canaries added to the event list, location, share and public-event leak tests. Test `event-guest-note.test.ts`.
+- `476e4837` UI: Confirm / Confirmed + Undo on the guest list ("1 of 2 confirmed"); one `RsvpPanel` for page and popup with places left (D5), "Join the waiting list" / "on the waiting list" (D8), "You're confirmed" (D4), the guest details box and the decision B line; form field "Note for confirmed guests". Tests `rsvp-panel.test.tsx`, `event-guest-list.test.tsx`.
+
+**Checks:** tsc (old error only), eslint and prettier on touched code, build; all 146 test files one at a time: 145 pass, plus the known failing `participation-readiness.test.ts` (`altcha.test.ts` timed out once in a sweep and passed alone: the known flake).
+
+**Noticed, not changed:** new events can only have a public address for now, so D7 only matters for older events; for the home show, the guest note carries the address. A confirmed guest can only message an organiser if connected or messaged first. Places left show on the event page and popup, not on cards, the map or the timeline. Organisers can't remove someone's RSVP (they undo the confirmation; the guest can then cancel).
 
 ---
 
