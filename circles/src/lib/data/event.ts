@@ -28,6 +28,7 @@ import { getCircleById, resolveViewerIsAdmin } from "./circle";
 import { isAcceptedConnectionForUserDid } from "./relationships";
 import { isCircleAdmin, isCircleAdminOfAny } from "./member";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
+import { confirmedGuestCountExpr } from "@/lib/events/guest-capacity";
 
 // Safe projection for event queries
 export const SAFE_EVENT_PROJECTION = {
@@ -467,6 +468,8 @@ function buildPublicEventDisplayPipeline(match: Record<string, unknown>) {
                 _id: { $toString: "$_id" },
                 author: "$authorDetails",
                 circle: "$circleDetails",
+                // How many guests are confirmed, for "N tickets left" (event guests): never who.
+                confirmedGuests: confirmedGuestCountExpr,
                 attendees: {
                     $let: {
                         vars: {
@@ -763,6 +766,8 @@ export const getEventsByCircleId = async (
                     _id: { $toString: "$_id" },
                     author: "$authorDetails",
                     circle: "$circleDetails",
+                    // How many guests are confirmed, for "N tickets left" (event guests): never who.
+                    confirmedGuests: confirmedGuestCountExpr,
                     attendees: {
                         $let: {
                             vars: {
@@ -1017,6 +1022,8 @@ export const getEventById = async (eventId: string, userDid: string): Promise<Ev
                     _id: { $toString: "$_id" },
                     author: "$authorDetails",
                     circle: "$circleDetails",
+                    // How many guests are confirmed, for "N tickets left" (event guests): never who.
+                    confirmedGuests: confirmedGuestCountExpr,
                     attendees: {
                         $let: {
                             vars: {
@@ -1922,6 +1929,8 @@ export const getOpenEventsForMap = async (
                     _id: { $toString: "$_id" },
                     author: "$authorDetails",
                     circle: "$circleDetails",
+                    // How many guests are confirmed, for "N tickets left" (event guests): never who.
+                    confirmedGuests: confirmedGuestCountExpr,
                     attendees: {
                         $let: {
                             vars: {
@@ -2163,6 +2172,8 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
                     _id: { $toString: "$_id" },
                     author: "$authorDetails",
                     circle: "$circleDetails",
+                    // How many guests are confirmed, for "N tickets left" (event guests): never who.
+                    confirmedGuests: confirmedGuestCountExpr,
                     attendees: {
                         $let: {
                             vars: {

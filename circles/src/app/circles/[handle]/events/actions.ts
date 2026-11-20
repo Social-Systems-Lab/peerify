@@ -63,6 +63,7 @@ import {
 } from "@/lib/data/event";
 import { getCirclesByDids } from "@/lib/data/circle";
 import { upsertRsvp, cancelRsvp, listEventGuests, type EventGuest } from "@/lib/data/eventRsvp";
+import { confirmEventGuest, getConfirmedGuestDids, unconfirmEventGuest } from "@/lib/data/event-guests";
 import {
     notifyEventSubmittedForReview,
     notifyEventApproved,
@@ -1916,7 +1917,10 @@ export type EventGuestsResult = {
     // The circle's access rules give this viewer "See and manage guests", but their profile isn't
     // verified yet (that right needs one). The page says so where the list would be.
     needsProfileToSeeGuests: boolean;
-    guests: EventGuest[];
+    guests: (EventGuest & { confirmed: boolean })[];
+    // Organisers only: the event's capacity (none = no limit) and how many guests are confirmed.
+    capacity?: number;
+    confirmedCount?: number;
 };
 
 /**
@@ -1940,8 +1944,18 @@ export async function getEventGuestsAction(circleHandle: string, eventId: string
         const scope = await getAttendeeListScope(circle, eventId, userDid, "guests");
         if (!scope) return nothing;
 
-        const guests = await listEventGuests(eventId);
-        if (scope === "all") return { canSeeGuests: true, needsProfileToSeeGuests: false, guests };
+        const [listed, confirmedDids] = await Promise.all([listEventGuests(eventId), getConfirmedGuestDids(eventId)]);
+        const guests = listed.map((guest) => ({ ...guest, confirmed: confirmedDids.has(guest.user.did!) }));
+        if (scope === "all") {
+            const event = await getEventById(eventId, userDid);
+            return {
+                canSeeGuests: true,
+                needsProfileToSeeGuests: false,
+                guests,
+                ...(typeof event?.capacity === "number" ? { capacity: event.capacity } : {}),
+                confirmedCount: confirmedDids.size,
+            };
+        }
         return {
             canSeeGuests: false,
             needsProfileToSeeGuests: await isBlockedOnlyByVerification(
@@ -1954,6 +1968,69 @@ export async function getEventGuestsAction(circleHandle: string, eventId: string
     } catch (error) {
         console.error("Error in getEventGuestsAction:", error);
         return nothing;
+    }
+}
+
+// The event, if the signed-in viewer is one of its organisers (canSeeEventGuests) and it belongs to the
+// circle in the URL.
+const loadEventForOrganiser = async (
+    circleHandle: string,
+    eventId: string,
+): Promise<{ ok: true; userDid: string; circle: Circle; event: EventDisplay } | { ok: false; message: string }> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) return { ok: false, message: "User not authenticated" };
+    const circle = await getCircleByHandle(circleHandle);
+    if (!circle) return { ok: false, message: "Circle not found" };
+    const event = await getEventById(eventId, userDid);
+    if (!event || String(event.circleId) !== String(circle._id)) return { ok: false, message: "Event not found" };
+    if (!(await canSeeEventGuests(event, userDid))) {
+        return { ok: false, message: "Only the event's organisers can confirm guests" };
+    }
+    return { ok: true, userDid, circle, event };
+};
+
+/**
+ * Mark someone who clicked Attend as a confirmed guest (event guests, part 2): organisers only.
+ * Confirmed guests never exceed the event's capacity ("All places are confirmed").
+ */
+export async function confirmEventGuestAction(
+    circleHandle: string,
+    eventId: string,
+    guestDid: string,
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const loaded = await loadEventForOrganiser(circleHandle, eventId);
+        if (!loaded.ok) return { success: false, message: loaded.message };
+
+        const result = await confirmEventGuest(eventId, guestDid, loaded.userDid);
+        if (!result.ok) return { success: false, message: result.message };
+
+        revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
+        return { success: true, message: result.alreadyConfirmed ? "Already confirmed" : "Guest confirmed" };
+    } catch (error) {
+        console.error("Error confirming event guest:", error);
+        return { success: false, message: "Failed to confirm the guest" };
+    }
+}
+
+/** Take back a confirmation (organisers only). The person stays on the list as Attending. */
+export async function unconfirmEventGuestAction(
+    circleHandle: string,
+    eventId: string,
+    guestDid: string,
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const loaded = await loadEventForOrganiser(circleHandle, eventId);
+        if (!loaded.ok) return { success: false, message: loaded.message };
+
+        if (!(await unconfirmEventGuest(eventId, guestDid))) {
+            return { success: false, message: "Failed to undo the confirmation" };
+        }
+        revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
+        return { success: true, message: "Confirmation undone" };
+    } catch (error) {
+        console.error("Error unconfirming event guest:", error);
+        return { success: false, message: "Failed to undo the confirmation" };
     }
 }
 

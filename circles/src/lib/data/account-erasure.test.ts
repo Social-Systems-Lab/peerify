@@ -179,6 +179,8 @@ function seed() {
         { _id: id("aEvent"), circleId: s(A_ID), createdBy: A, commentPostId: s(id("aEventShadow")), images: [{ fileInfo: { url: `/storage/${s(A_ID)}/event1700.png` } }] },
         { _id: id("aEventAtV"), circleId: s(V_ID), createdBy: A, images: [{ fileInfo: { url: `/storage/${s(V_ID)}/aliceevent1700.png` } }] },
         { _id: id("bEvent"), circleId: s(V_ID), createdBy: B, invitations: [A, B], additionalArtistCircleIds: [s(ART_ID), s(CO_ID)], metadata: { peerify: { venueCircleId: s(V_ID) } } },
+        // Event guests: Alice confirmed as a guest and confirming Carol; an event that references her only there.
+        { _id: id("guestEvent"), circleId: s(CO_ID), createdBy: B, guestConfirmations: [{ userDid: A, confirmedBy: B }, { userDid: C, confirmedBy: A }] },
     );
     d.eventRsvps.docs.push(
         { _id: oid(), eventId: s(id("aEvent")), userDid: B },
@@ -474,6 +476,7 @@ describe("eraseAccount", () => {
         const bEvent = find("events", id("bEvent"))!;
         expect(bEvent.invitations).toEqual([B]);
         expect(bEvent.additionalArtistCircleIds).toEqual([s(CO_ID)]);
+        expect(find("events", id("guestEvent"))!.guestConfirmations).toEqual([{ userDid: C, confirmedBy: DELETED_USER_DID }]);
         expect(find("events", id("aEventAtV"))).toBeUndefined();
         const bTask = find("tasks", id("bTask"))!;
         expect(bTask.assignedTo).toBeUndefined();

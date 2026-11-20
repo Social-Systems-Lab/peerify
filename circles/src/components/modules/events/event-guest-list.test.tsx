@@ -23,6 +23,7 @@ const ORGANISER = "did:test:organiser";
 const guest = (did: string, name: string, status: "going" | "interested", extra: Record<string, unknown> = {}) => ({
     user: { did, name, handle: name.toLowerCase(), picture: { url: `https://img.test/${name}.png` } },
     status,
+    confirmed: false,
     since: new Date(Date.UTC(2026, 10, 20, 12)),
     ...extra,
 });
