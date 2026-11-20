@@ -1535,6 +1535,22 @@ export const canManageEvent = async (
 };
 
 /**
+ * Who sees an event's guests (the people who clicked Attend or Interested) and may message them
+ * (event guests, D1, 2026-11-20): the event's creator, platform admins, and whoever has "See and
+ * manage guests" (events.guests: admins and moderators by default, verified profile) on the
+ * event's own circle. Narrower than canManageEvent: admins of a delegated artist circle may edit
+ * the event but don't see the host's guests.
+ */
+export const canSeeEventGuests = async (
+    event: Pick<EventDisplay, "createdBy" | "circleId">,
+    viewerDid?: string,
+): Promise<boolean> => {
+    if (!viewerDid) return false;
+    if (event.createdBy === viewerDid || (await resolveViewerIsAdmin(viewerDid))) return true;
+    return !!event.circleId && (await isAuthorized(viewerDid, event.circleId, features.events.guests));
+};
+
+/**
  * The event as a viewer-facing page or action may send it: unchanged for the event's managers;
  * everyone else gets sanitizePeerifyPublicEventDisplay, so a hidden address (non-public
  * locationDisclosure) and the private organiser note never reach them. null when a non-manager may

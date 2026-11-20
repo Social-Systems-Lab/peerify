@@ -53,6 +53,7 @@ import {
     canManageEvent,
     getEventRsvpRefusal,
     RSVP_EVENT_NOT_FOUND,
+    canSeeEventGuests,
 } from "@/lib/data/event";
 import { getCirclesByDids } from "@/lib/data/circle";
 import { upsertRsvp, cancelRsvp, listAttendees } from "@/lib/data/eventRsvp";
@@ -1872,7 +1873,7 @@ export async function getAttendeesAction(circleHandle: string, eventId: string):
         const canView = await isAuthorized(userDid, circle._id as string, features.events.view);
         if (!canView) return defaultResult;
 
-        const scope = await getAttendeeListScope(circle, eventId, userDid);
+        const scope = await getAttendeeListScope(circle, eventId, userDid, "guests");
         if (!scope) return defaultResult;
 
         const users = await listAttendees(eventId, "going");
@@ -1883,17 +1884,22 @@ export async function getAttendeesAction(circleHandle: string, eventId: string):
     }
 }
 
-// Attendee lists (Tim, 2026-10-20): the event's managers (canManageEvent) see everyone; anyone else
-// who may view the event sees only their own RSVP. null = the event doesn't exist for this viewer or
-// belongs to another circle than the one in the URL.
+// Attendee and invitee lists (Tim, 2026-10-20): the list's own people see everyone; anyone else who
+// may view the event sees only their own entry. Guests (who RSVPed) go to canSeeEventGuests (D1,
+// 2026-11-20: the creator, platform admins and "See and manage guests" on the event's circle, admins
+// and moderators by default); invitees to the event's managers (canManageEvent), who may invite.
+// null = the event doesn't exist for this viewer or belongs to another circle than the one in the URL.
 const getAttendeeListScope = async (
     circle: Circle,
     eventId: string,
     userDid: string,
+    list: "guests" | "invitees",
 ): Promise<"all" | "self" | null> => {
     const event = await getEventById(eventId, userDid);
     if (!event || event.circleId !== String(circle._id)) return null;
-    return (await canManageEvent(event, userDid)) ? "all" : "self";
+    const seesAll =
+        list === "guests" ? await canSeeEventGuests(event, userDid) : await canManageEvent(event, userDid);
+    return seesAll ? "all" : "self";
 };
 
 type GetAttendeesWithDetailsActionResult = {
@@ -1916,7 +1922,7 @@ export async function getAttendeesWithDetailsAction(
         const canView = await isAuthorized(userDid, circle._id as string, features.events.view);
         if (!canView) return defaultResult;
 
-        const scope = await getAttendeeListScope(circle, eventId, userDid);
+        const scope = await getAttendeeListScope(circle, eventId, userDid, "guests");
         if (!scope) return defaultResult;
 
         const attendees = await listAttendeesWithDetails(eventId, "going");
@@ -1948,7 +1954,7 @@ export async function getInvitedUsersAction(
 
         // Leak round 3, H3 (2026-11-05): the event must be one this viewer can open and must belong
         // to the URL circle; only its managers see who is invited, anyone else only themselves.
-        const scope = await getAttendeeListScope(circle, eventId, userDid);
+        const scope = await getAttendeeListScope(circle, eventId, userDid, "invitees");
         if (!scope) return defaultResult;
 
         // Invitations are stored in EventInvitations collection (not on the event document)
