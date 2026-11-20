@@ -234,9 +234,55 @@ export const canViewerGetJoinLink = async (event: EventDisplay, viewerDid?: stri
     if (!isJoinLinkGated(event)) return true;
     if (!viewerDid) return false;
     if (await canManageEvent(event, viewerDid)) return true;
+    return isEventInvitee(event, viewerDid);
+};
+
+// Invited to the event (the event's own list or an invitation not declined). A recurring
+// occurrence's invitations are stored on its base event.
+const isEventInvitee = async (event: EventDisplay, viewerDid: string): Promise<boolean> => {
     if (event.invitations?.includes(viewerDid)) return true;
     const eventId = String((event as { originalEventId?: unknown }).originalEventId ?? event._id).split("_")[0];
     return !!(await EventInvitations.findOne({ eventId, userDid: viewerDid, status: { $ne: "declined" } }));
+};
+
+export const RSVP_EVENT_NOT_FOUND = "Event not found";
+export const RSVP_EVENT_NOT_OPEN = "This event isn't taking RSVPs";
+export const RSVP_INVITE_ONLY = "This event is by invitation only";
+
+/**
+ * Why this viewer may not Attend or mark Interested on this event, or null if they may (event
+ * guests G1, 2026-11-20). Before, the RSVP actions never loaded the event: an RSVP could go to
+ * another circle's event, a draft or a cancelled one, and an RSVP opened a private event (getEventById
+ * lets in anyone who has RSVPed). `event` is getEventById's (unshaped) result; `circleId` is the
+ * circle in the URL. Rules:
+ * - the event exists and belongs to that circle;
+ * - a non-manager may see it (shapeEventsForViewer: no draft or review, audience respected);
+ * - it is open (not draft, review or cancelled), for managers too;
+ * - a private event: its managers, invitees and admins of a listed artist circle only. Having
+ *   RSVPed doesn't count, so an RSVP can't let itself in;
+ * - access mode invite_only: managers and invitees only (D9). Open RSVP, ticket required and
+ *   approval required: anyone who may see it (for approval required, confirming is the approval).
+ */
+export const getEventRsvpRefusal = async (
+    event: EventDisplay | null,
+    circleId: string,
+    viewerDid: string,
+): Promise<string | null> => {
+    if (!event || String(event.circleId) !== String(circleId)) return RSVP_EVENT_NOT_FOUND;
+    const isManager = await canManageEvent(event, viewerDid);
+    if (!isManager && !(await shapeEventForViewer(event, viewerDid))) return RSVP_EVENT_NOT_FOUND;
+    if (event.stage !== "open") return RSVP_EVENT_NOT_OPEN;
+    if (isManager) return null;
+    const invited = await isEventInvitee(event, viewerDid);
+    if (
+        event.visibility === "private" &&
+        !invited &&
+        !(await isCircleAdminOfAny(viewerDid, event.additionalArtistCircleIds))
+    ) {
+        return RSVP_EVENT_NOT_FOUND;
+    }
+    if (getNormalizedPeerifyEventMetadata(event).accessMode === "invite_only" && !invited) return RSVP_INVITE_ONLY;
+    return null;
 };
 
 export function sanitizePeerifyPublicEventDisplay(fullEvent: EventDisplay): EventDisplay {

@@ -340,10 +340,10 @@ export const createFakeCollection = (initial: Doc[] = []) => {
             queries.push(filter);
             const index = docs.findIndex((d) => matchesFilter(d, filter));
             if (index === -1) {
-                return { deletedCount: 0 };
+                return { acknowledged: true, deletedCount: 0 };
             }
             docs.splice(index, 1);
-            return { deletedCount: 1 };
+            return { acknowledged: true, deletedCount: 1 };
         },
         async deleteMany(filter: Doc) {
             let deletedCount = 0;
@@ -357,12 +357,34 @@ export const createFakeCollection = (initial: Doc[] = []) => {
         },
         async updateOne(
             filter: Doc,
-            update: { $set?: Doc; $unset?: Doc; $addToSet?: Doc; $push?: Doc; $pull?: Doc },
-            options?: { arrayFilters?: Doc[] },
+            update: { $set?: Doc; $setOnInsert?: Doc; $unset?: Doc; $addToSet?: Doc; $push?: Doc; $pull?: Doc },
+            options?: { arrayFilters?: Doc[]; upsert?: boolean },
         ) {
             const found = docs.find((d) => matchesFilter(d, filter));
+            if (!found && options?.upsert) {
+                // Upsert: the filter's plain equality fields, then $set and $setOnInsert (top level).
+                const seed = Object.fromEntries(
+                    Object.entries(filter).filter(
+                        ([key, value]) =>
+                            !key.startsWith("$") &&
+                            (value === null || typeof value !== "object" || value instanceof ObjectId),
+                    ),
+                );
+                const { insertedId } = await this.insertOne({
+                    ...seed,
+                    ...(update.$set ?? {}),
+                    ...(update.$setOnInsert ?? {}),
+                });
+                return {
+                    acknowledged: true,
+                    matchedCount: 0,
+                    modifiedCount: 0,
+                    upsertedCount: 1,
+                    upsertedId: insertedId,
+                };
+            }
             if (!found) {
-                return { matchedCount: 0, modifiedCount: 0 };
+                return { acknowledged: true, matchedCount: 0, modifiedCount: 0 };
             }
             const sets = Object.entries(update.$set ?? {}).flatMap(([key, value]) =>
                 expandUpdateKey(found, filter, key, options?.arrayFilters).map((path) => [path, value] as const),
@@ -404,7 +426,7 @@ export const createFakeCollection = (initial: Doc[] = []) => {
                         : !valueEquals(item, value),
                 );
             }
-            return { matchedCount: 1, modifiedCount: 1 };
+            return { acknowledged: true, matchedCount: 1, modifiedCount: 1 };
         },
         async findOneAndUpdate(filter: Doc, update: { $set?: Doc }, options?: { returnDocument?: "before" | "after" }) {
             queries.push(filter);

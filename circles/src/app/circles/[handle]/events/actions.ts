@@ -51,6 +51,8 @@ import {
     shapeEventForViewer,
     shapeEventsForViewer,
     canManageEvent,
+    getEventRsvpRefusal,
+    RSVP_EVENT_NOT_FOUND,
 } from "@/lib/data/event";
 import { getCirclesByDids } from "@/lib/data/circle";
 import { upsertRsvp, cancelRsvp, listAttendees } from "@/lib/data/eventRsvp";
@@ -1687,6 +1689,9 @@ export async function rsvpEventAction(
         const canRsvp = await isAuthorized(userDid, circle._id as string, features.events.rsvp);
         if (!canRsvp) return { success: false, message: "Not authorized to RSVP" };
 
+        const refusal = await getEventRsvpRefusal(await getEventById(eventId, userDid), String(circle._id), userDid);
+        if (refusal) return { success: false, message: refusal };
+
         const ok = await upsertRsvp(eventId, circle._id!.toString(), userDid, status);
         if (!ok) return { success: false, message: "Failed to RSVP" };
 
@@ -1715,6 +1720,13 @@ export async function cancelRsvpAction(
 
         const canRsvp = await isAuthorized(userDid, circle._id as string, features.events.rsvp);
         if (!canRsvp) return { success: false, message: "Not authorized to RSVP" };
+
+        // Only an event of the circle in the URL (G1). Withdrawing needs nothing more: it removes the
+        // viewer's own RSVP, even on an event that has since gone back to draft or been cancelled.
+        const event = await getEventById(eventId, userDid);
+        if (!event || String(event.circleId) !== String(circle._id)) {
+            return { success: false, message: RSVP_EVENT_NOT_FOUND };
+        }
 
         const ok = await cancelRsvp(eventId, userDid);
         if (!ok) return { success: false, message: "Failed to cancel RSVP" };
@@ -1975,6 +1987,9 @@ export async function rsvpEventWithOptionsAction(
 
         const canRsvp = await isAuthorized(userDid, circle._id as string, features.events.rsvp);
         if (!canRsvp) return { success: false, message: "Not authorized to RSVP" };
+
+        const refusal = await getEventRsvpRefusal(await getEventById(eventId, userDid), String(circle._id), userDid);
+        if (refusal) return { success: false, message: refusal };
 
         const ok = await upsertRsvp(
             eventId,
