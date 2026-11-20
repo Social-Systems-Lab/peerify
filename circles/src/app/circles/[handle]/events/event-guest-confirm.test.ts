@@ -45,13 +45,16 @@ const {
     rsvpEventWithOptionsAction,
     cancelRsvpAction,
 } = await import("./actions");
+const { getDmEligibility } = await import("@/lib/data/relationships");
 
+// Verified profiles (picture, About, Guidelines), except the event's creator: starting a DM needs one.
 const person = (did: string) => ({
     _id: new ObjectId(),
     did,
     handle: did.split(":")[2],
     name: did.split(":")[2],
     circleType: "user",
+    ...(did === CREATOR ? {} : { verificationStatus: "verified", isVerified: true }),
 });
 const eventDoc = (extra: Record<string, unknown> = {}) => ({
     circleId: HOST_ID,
@@ -83,6 +86,9 @@ const seed = (extra: Record<string, unknown> = {}) => {
             { eventId: EVENT_ID, circleId: HOST_ID, userDid: FAN, status: "interested", updatedAt: new Date(4) },
         ],
         Members: [],
+        ChatConversations: [],
+        ChatMessageDocs: [],
+        UserRelationships: [],
     });
     fakeDb.setAggregateResult("Events", [{ _id: EVENT_ID, ...eventDoc(extra) }]);
 };
@@ -201,7 +207,7 @@ describe("the guest list shows confirmations", () => {
 });
 
 describe("a confirmed guest's own reply (D4)", () => {
-    const CANT = "You're confirmed for this event. To cancel, please contact the organisers.";
+    const CANT = "You're confirmed for this event. To cancel, please message the organisers (see your Messages).";
     const statusOf = async (did: string) => (await fakeDb.col("EventRsvps").findOne({ userDid: did }))?.status;
 
     test("can't cancel or switch to Interested; can still update their Attend message", async () => {
@@ -258,5 +264,52 @@ describe("the confirmation notice (D3)", () => {
     test("the bell shows the circle's picture for it", async () => {
         const { showsActorPicture } = await import("@/components/layout/notification-avatar");
         expect(showsActorPicture("event_guest_confirmed")).toBe(false);
+    });
+});
+
+describe("confirming opens a DM with the organiser (Tim, 2026-11-20)", () => {
+    const dms = () => fakeDb.col("ChatConversations").docs.filter((c) => c.type === "dm");
+
+    test("the guest and the organiser who confirmed get a DM with an event_guest grant, and no message", async () => {
+        await confirm(ANN);
+        const [dm, ...more] = dms();
+        expect(more).toEqual([]);
+        expect(dm.participants).toEqual([ANN, ORGANISER].sort());
+        expect(dm.dmGrants).toHaveLength(1);
+        const { kind, circleId, eventId, grantedBy } = dm.dmGrants[0];
+        expect({ kind, circleId, eventId, grantedBy }).toEqual({
+            kind: "event_guest",
+            circleId: HOST_ID,
+            eventId: EVENT_ID,
+            grantedBy: ORGANISER,
+        });
+        expect(fakeDb.col("ChatMessageDocs").docs).toEqual([]);
+    });
+
+    test("the confirmed guest can write to the organiser without being connected", async () => {
+        await confirm(ANN);
+        // The check sendMongoMessageAction makes before storing a message (getDmSendBlock).
+        expect((await getDmEligibility(ANN, ORGANISER)).isAllowed).toBe(true);
+        expect((await getDmEligibility(BO, ORGANISER)).isAllowed).toBe(false);
+    });
+
+    test("confirming again opens nothing new", async () => {
+        await confirm(ANN);
+        await confirm(ANN);
+        expect(dms()).toHaveLength(1);
+        expect(dms()[0].dmGrants).toHaveLength(1);
+    });
+
+    test("no DM when the confirm is refused", async () => {
+        await confirm(FAN);
+        sessionDid = MEMBER;
+        await confirm(ANN);
+        expect(dms()).toEqual([]);
+    });
+
+    test("an organiser without a verified profile still confirms, but no DM is opened (same rule as Message)", async () => {
+        sessionDid = CREATOR;
+        expect((await confirm(ANN)).success).toBe(true);
+        expect(dms()).toEqual([]);
     });
 });
