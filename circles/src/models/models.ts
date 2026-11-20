@@ -1751,6 +1751,7 @@ export type NotificationType =
     | "event_artist_added" // A circle was added as an additional artist/band on an event
     | "event_host_change_requested" // A circle's admins are asked to approve an event moving to them
     | "event_host_change_decided" // The requester is told whether their host-change request was approved/rejected
+    | "event_guest_confirmed" // An organiser confirmed someone who clicked Attend (event guests, D3)
     // Ranking Notifications
     | "ranking_stale_reminder" // User's ranking list is stale, reminder sent
     | "ranking_grace_period_ended" // User's ranking list is past grace period
@@ -1834,6 +1835,7 @@ export const notificationTypeValues = [
     "event_artist_added",
     "event_host_change_requested",
     "event_host_change_decided",
+    "event_guest_confirmed",
     "ranking_stale_reminder",
     "ranking_grace_period_ended",
     "user_verified",
@@ -2325,6 +2327,10 @@ export const peerifyEventMetadataSchema = z.object({
     accessMode: peerifyEventAccessModeSchema.optional(),
     publicLocationLabel: z.string().optional(),
     privateLocationNote: z.string().optional(),
+    // Event guests (2026-11-20): shown only to confirmed guests and the event's organisers (e.g. the
+    // exact address or a door code). Never in the public metadata (sanitizePeerifyPublicEventMetadata
+    // is an allowlist); confirmed guests get it from getEventGuestDetailsAction.
+    guestNote: z.string().max(2000).optional(),
     publicMapLocation: locationSchema.optional(),
     publicMapDisplay: z.enum(["exact", "area"]).optional(),
     publicMapRadiusKm: z.number().positive().optional(),
@@ -2401,6 +2407,12 @@ export const eventSchema = z.object({
     tags: eventTagsSchema.optional(),
     // Capacity
     capacity: z.number().optional(),
+    // Guests an organiser confirmed among those who clicked Attend (event guests, 2026-11-20). Never
+    // more than `capacity`. Server only: not in SAFE_EVENT_PROJECTION or PUBLIC_EVENT_PROJECTION;
+    // pages get the count (EventDisplay.confirmedGuests) and the guest list action the names.
+    guestConfirmations: z
+        .array(z.object({ userDid: didSchema, confirmedAt: z.date(), confirmedBy: didSchema }))
+        .optional(),
     // Invitations
     invitations: z.array(didSchema).optional(),
     // Recurrence
@@ -2423,6 +2435,7 @@ export interface EventDisplay extends Event {
     author: Circle; // Creator's details
     circle?: Circle; // Circle details
     attendees?: number; // Aggregated RSVP count (e.g., 'going')
+    confirmedGuests?: number; // How many guests are confirmed (for "N tickets left"); never who
     userRsvpStatus?: "going" | "interested" | "none"; // Current user RSVP status
 }
 

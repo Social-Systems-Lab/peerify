@@ -451,10 +451,19 @@ export async function planAccountErasure(did: string): Promise<ErasurePlan> {
             { additionalArtistCircleIds: inOwn },
             { artistAdminCircleIds: inOwn },
             { "metadata.peerify.venueCircleId": inOwn },
+            { "guestConfirmations.userDid": inDids },
+            { "guestConfirmations.confirmedBy": inDids },
         ],
     })) {
         const set: Fields = {};
         if (Array.isArray(e.invitations)) set.invitations = dropDids(e.invitations);
+        // Event guests (2026-11-20): an erased guest's confirmation goes; an erased organiser who
+        // confirmed someone is marked, as on tasks.
+        if (Array.isArray(e.guestConfirmations)) {
+            set.guestConfirmations = e.guestConfirmations
+                .filter((c: any) => !didSet.has(c?.userDid))
+                .map((c: any) => (didSet.has(c?.confirmedBy) ? { ...c, confirmedBy: DELETED_USER_DID } : c));
+        }
         if (Array.isArray(e.additionalArtistCircleIds)) set.additionalArtistCircleIds = dropOwn(e.additionalArtistCircleIds);
         if (Array.isArray(e.artistAdminCircleIds)) set.artistAdminCircleIds = dropOwn(e.artistAdminCircleIds);
         if (ownSet.has(str(e.metadata?.peerify?.venueCircleId ?? ""))) {

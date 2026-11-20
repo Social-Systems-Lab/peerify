@@ -309,6 +309,8 @@ export default function EventForm({
     // Same for "private" visibility: offered only to an event that's already private.
     const canChoosePrivateVisibility = event?.visibility === "private";
     const [privateLocationNote, setPrivateLocationNote] = useState<string>(peerifyMetadata?.privateLocationNote || "");
+    // Event guests (2026-11-20): shown only to confirmed guests and the organisers.
+    const [guestNote, setGuestNote] = useState<string>(peerifyMetadata?.guestNote || "");
     const [publicMapLocation, setPublicMapLocation] = useState<Location | undefined>(
         peerifyMetadata?.publicMapLocation,
     );
@@ -696,6 +698,7 @@ export default function EventForm({
                         accessMode,
                         publicLocationLabel: publicLocationLabel.trim(),
                         privateLocationNote: privateLocationNote.trim(),
+                        guestNote: guestNote.trim(),
                         publicMapLocation: publicMapLocation ?? null,
                         ticketed: isTicketed,
                         price: Number.isFinite(parsedPrice) ? parsedPrice : undefined,
@@ -1310,11 +1313,33 @@ export default function EventForm({
                         <Input
                             id="capacity"
                             type="number"
+                            min={1}
+                            step={1}
                             inputMode="numeric"
                             placeholder="e.g., 50"
                             value={capacity}
                             onChange={(e) => setCapacity(e.target.value)}
                         />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            How many guests you can confirm. Leave empty for no limit. The event shows how many
+                            places are left.
+                        </p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="guestNote">Note for confirmed guests (optional)</Label>
+                        <Textarea
+                            id="guestNote"
+                            value={guestNote}
+                            onChange={(e) => setGuestNote(e.target.value)}
+                            className="min-h-[90px]"
+                            maxLength={2000}
+                            placeholder="e.g. the exact address, a door code, what to bring"
+                        />
+                        <p className="text-xs text-muted-foreground">
+                            Only confirmed guests and the organisers see this. Everyone who clicked Attend sees that
+                            details come once they&apos;re confirmed.
+                        </p>
                     </div>
 
                     <div className="space-y-4 rounded-lg border p-4">

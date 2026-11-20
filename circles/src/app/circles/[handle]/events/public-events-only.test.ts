@@ -51,7 +51,7 @@ const storedEvent = (extra: Record<string, unknown> = {}) => ({
     startAt: new Date("2026-11-01T18:00:00Z"),
     endAt: new Date("2026-11-01T21:00:00Z"),
     location: { precision: 4, city: "Uppsala", street: STREET, lngLat: { lng: 17.64, lat: 59.85 } },
-    metadata: { peerify: { locationDisclosure: "approximate", privateLocationNote: NOTE } },
+    metadata: { peerify: { locationDisclosure: "approximate", privateLocationNote: NOTE, guestNote: `${NOTE} (guests)` } },
     ...extra,
 });
 const leaks = (output: unknown) => {

@@ -116,7 +116,13 @@ describe("getOpenEventsForList", () => {
                 circleId: "c1",
                 stage: "open",
                 location: exactLocation(),
-                metadata: { peerify: { locationDisclosure: "approximate", privateLocationNote: "Door code 1234" } },
+                metadata: {
+                    peerify: {
+                        locationDisclosure: "approximate",
+                        privateLocationNote: "Door code 1234",
+                        guestNote: "Door code 5678 for guests",
+                    },
+                },
             },
         ]);
         const events = await getOpenEventsForList("");

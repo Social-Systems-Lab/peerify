@@ -4,7 +4,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { ObjectId } from "mongodb";
-import { Feeds, Events, EventInvitations } from "@/lib/data/db";
+import { Feeds, Events, EventInvitations, EventRsvps } from "@/lib/data/db";
 import { createDefaultFeed, createPost, getFeedByHandle, updatePost } from "@/lib/data/feed";
 import {
     Circle,
@@ -21,6 +21,7 @@ import {
     Post,
     TaskDisplay,
     postSchema,
+    Location,
 } from "@/models/models";
 import {
     getCircleByHandle,
@@ -35,6 +36,12 @@ import { getUserByDid, getUserPrivate, getPrivateUserByDid, updateUser } from "@
 import { saveFile, deleteFile, FileInfo as StorageFileInfo, isFile } from "@/lib/data/storage";
 import { features } from "@/lib/data/constants";
 import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tags";
+import {
+    capacityBelowConfirmedMessage,
+    confirmedFitWithinFilter,
+    countConfirmedGuests,
+    parseEventCapacity,
+} from "@/lib/events/guest-capacity";
 
 // Data layer
 import {
@@ -58,6 +65,13 @@ import {
 import { getCirclesByDids } from "@/lib/data/circle";
 import { upsertRsvp, cancelRsvp, listEventGuests, type EventGuest } from "@/lib/data/eventRsvp";
 import {
+    CONFIRMED_GUEST_CANT_CHANGE,
+    confirmEventGuest,
+    getConfirmedGuestDids,
+    isConfirmedGuest,
+    unconfirmEventGuest,
+} from "@/lib/data/event-guests";
+import {
     notifyEventSubmittedForReview,
     notifyEventApproved,
     notifyEventStatusChanged,
@@ -76,6 +90,7 @@ import { inviteUsersToEvent, InviteUsersToEventResult } from "@/lib/data/event";
 import { getMembers, isCircleAdmin, isCircleAdminOfAny } from "@/lib/data/member";
 import { addCommentToDiscussion } from "@/lib/data/discussion";
 import { getAllCommentsAction } from "@/components/modules/feeds/actions";
+import { notifyEventGuestConfirmed } from "@/lib/data/notifications";
 import { Comment } from "@/models/models";
 import { filterTasksForViewer, getTasksByEventId } from "@/lib/data/task";
 import { shouldShowEventCrewPanel, summarizeEventCrew, type EventCrewPanel } from "@/lib/tasks/event-crew-panel";
@@ -268,6 +283,7 @@ type ParsedPeerifyEventMetadata = {
     metadata: NonNullable<EventModel["metadata"]>;
     clearPublicLocationLabel: boolean;
     clearPrivateLocationNote: boolean;
+    clearGuestNote: boolean;
     clearPublicMapLocation: boolean;
     clearPrice: boolean;
     clearPaymentInfo: boolean;
@@ -282,6 +298,7 @@ const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata |
     const parsed = peerifyEventMetadataFormSchema.parse(raw);
     const publicLocationLabel = parsed.publicLocationLabel?.trim();
     const privateLocationNote = parsed.privateLocationNote?.trim();
+    const guestNote = parsed.guestNote?.trim();
     const publicMapLocation = parsed.publicMapLocation ?? undefined;
     // `ticketed` gates persistence of price/currency/paymentInfo, not just their display — a
     // submit with the toggle off never saves them, even if the form still holds values (e.g. the
@@ -296,6 +313,7 @@ const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata |
         ticketed,
         ...(publicLocationLabel ? { publicLocationLabel } : {}),
         ...(privateLocationNote ? { privateLocationNote } : {}),
+        ...(guestNote ? { guestNote } : {}),
         ...(publicMapLocation ? { publicMapLocation } : {}),
         ...(parsed.venueCircleId ? { venueCircleId: parsed.venueCircleId } : {}),
         // currency travels with price — no price means no currency to show either.
@@ -309,6 +327,7 @@ const parsePeerifyEventMetadata = (value?: string): ParsedPeerifyEventMetadata |
         },
         clearPublicLocationLabel: !publicLocationLabel,
         clearPrivateLocationNote: !privateLocationNote,
+        clearGuestNote: !guestNote,
         clearPublicMapLocation: !publicMapLocation,
         clearPrice: price === undefined,
         clearPaymentInfo: !paymentInfo,
@@ -332,6 +351,9 @@ const mergePeerifyEventMetadata = (
     }
     if (peerifyMetadata.clearPrivateLocationNote) {
         delete nextPeerify.privateLocationNote;
+    }
+    if (peerifyMetadata.clearGuestNote) {
+        delete nextPeerify.guestNote;
     }
     if (peerifyMetadata.clearPublicMapLocation) {
         delete nextPeerify.publicMapLocation;
@@ -456,6 +478,17 @@ const upsertEventNoticeboardPost = async ({
         }),
     );
     return createdPost._id?.toString?.() ?? createdPost._id ?? null;
+};
+
+// How many guests are confirmed on an event (its base document for a recurring occurrence).
+const countConfirmedGuestsOf = async (eventId: string): Promise<number> => {
+    const baseEventId = String(eventId).split("_")[0];
+    if (!ObjectId.isValid(baseEventId)) return 0;
+    const event = await Events.findOne(
+        { _id: new ObjectId(baseEventId) },
+        { projection: { guestConfirmations: 1 } },
+    );
+    return event ? countConfirmedGuests(event) : 0;
 };
 
 // ----- Actions -----
@@ -708,8 +741,9 @@ export async function createEventAction(
         const isVirtual = parseBool(data.isVirtual);
         const isHybrid = parseBool(data.isHybrid);
         const virtualUrl = (data.virtualUrl || "").trim() || undefined;
-        const capacity =
-            typeof data.capacity === "string" && data.capacity.trim().length > 0 ? Number(data.capacity) : undefined;
+        const parsedCapacity = parseEventCapacity(data.capacity);
+        if (!parsedCapacity.ok) return { success: false, message: parsedCapacity.message };
+        const capacity = parsedCapacity.capacity;
 
         const locationData: EventModel["location"] = parseUsableLocationInput(data.location);
         if (eventNeedsLocation(isVirtual, isHybrid) && !locationData) {
@@ -881,6 +915,15 @@ export async function updateEventAction(
         if (usesHiddenEventOptions(data.visibility, parsedPeerifyMetadata?.metadata.peerify, event)) {
             return { success: false, message: HIDDEN_EVENT_OPTION_MESSAGE };
         }
+        // Checked before any upload; the write below checks it again atomically.
+        const parsedCapacity = parseEventCapacity(data.capacity);
+        if (!parsedCapacity.ok) return { success: false, message: parsedCapacity.message };
+        if (parsedCapacity.capacity !== undefined) {
+            const confirmed = await countConfirmedGuestsOf(eventId);
+            if (confirmed > parsedCapacity.capacity) {
+                return { success: false, message: capacityBelowConfirmedMessage(confirmed) };
+            }
+        }
 
         // Only replaced when the form sends one; an empty or incomplete value clears it. Not
         // required here even for physical events: existing events without a location must stay
@@ -981,10 +1024,7 @@ export async function updateEventAction(
             categories: (data.categories as string[])?.filter(Boolean),
             causes: (data.causes as string[])?.filter(Boolean),
             tags: normalizeEventTags(tagsData),
-            capacity:
-                typeof data.capacity === "string" && data.capacity.trim().length > 0
-                    ? Number(data.capacity)
-                    : undefined,
+            capacity: parsedCapacity.capacity,
             visibility: (data.visibility as any) ?? event.visibility,
             metadata,
             recurrence: recurrenceData as any,
@@ -994,6 +1034,18 @@ export async function updateEventAction(
 
         const user = await getUserByDid(userDid);
         if (!user) return { success: false, message: "User not found" };
+
+        // The capacity can't go below the guests already confirmed. Set it first with that condition
+        // in the write, so a confirm landing meanwhile can't leave more confirmed than places.
+        if (parsedCapacity.capacity !== undefined) {
+            const capacitySet = await Events.updateOne(
+                { _id: new ObjectId(eventId), ...confirmedFitWithinFilter(parsedCapacity.capacity) },
+                { $set: { capacity: parsedCapacity.capacity } },
+            );
+            if (capacitySet.matchedCount === 0) {
+                return { success: false, message: capacityBelowConfirmedMessage(await countConfirmedGuestsOf(eventId)) };
+            }
+        }
 
         const success = await updateEventDb(eventId, updateData, user);
         if (!success) return { success: false, message: "Failed to update event" };
@@ -1691,6 +1743,10 @@ export async function rsvpEventAction(
 
         const refusal = await getEventRsvpRefusal(await getEventById(eventId, userDid), String(circle._id), userDid);
         if (refusal) return { success: false, message: refusal };
+        // D4: a confirmed guest can't switch to Interested themselves (Attend again is fine).
+        if (status !== "going" && (await isConfirmedGuest(eventId, userDid))) {
+            return { success: false, message: CONFIRMED_GUEST_CANT_CHANGE };
+        }
 
         const ok = await upsertRsvp(eventId, circle._id!.toString(), userDid, status);
         if (!ok) return { success: false, message: "Failed to RSVP" };
@@ -1727,6 +1783,10 @@ export async function cancelRsvpAction(
         if (!event || String(event.circleId) !== String(circle._id)) {
             return { success: false, message: RSVP_EVENT_NOT_FOUND };
         }
+
+        // D4: a confirmed guest (often paid) can't cancel themselves: an organiser undoes the
+        // confirmation first.
+        if (await isConfirmedGuest(eventId, userDid)) return { success: false, message: CONFIRMED_GUEST_CANT_CHANGE };
 
         const ok = await cancelRsvp(eventId, userDid);
         if (!ok) return { success: false, message: "Failed to cancel RSVP" };
@@ -1880,7 +1940,10 @@ export type EventGuestsResult = {
     // The circle's access rules give this viewer "See and manage guests", but their profile isn't
     // verified yet (that right needs one). The page says so where the list would be.
     needsProfileToSeeGuests: boolean;
-    guests: EventGuest[];
+    guests: (EventGuest & { confirmed: boolean })[];
+    // Organisers only: the event's capacity (none = no limit) and how many guests are confirmed.
+    capacity?: number;
+    confirmedCount?: number;
 };
 
 /**
@@ -1904,8 +1967,18 @@ export async function getEventGuestsAction(circleHandle: string, eventId: string
         const scope = await getAttendeeListScope(circle, eventId, userDid, "guests");
         if (!scope) return nothing;
 
-        const guests = await listEventGuests(eventId);
-        if (scope === "all") return { canSeeGuests: true, needsProfileToSeeGuests: false, guests };
+        const [listed, confirmedDids] = await Promise.all([listEventGuests(eventId), getConfirmedGuestDids(eventId)]);
+        const guests = listed.map((guest) => ({ ...guest, confirmed: confirmedDids.has(guest.user.did!) }));
+        if (scope === "all") {
+            const event = await getEventById(eventId, userDid);
+            return {
+                canSeeGuests: true,
+                needsProfileToSeeGuests: false,
+                guests,
+                ...(typeof event?.capacity === "number" ? { capacity: event.capacity } : {}),
+                confirmedCount: confirmedDids.size,
+            };
+        }
         return {
             canSeeGuests: false,
             needsProfileToSeeGuests: await isBlockedOnlyByVerification(
@@ -1918,6 +1991,143 @@ export async function getEventGuestsAction(circleHandle: string, eventId: string
     } catch (error) {
         console.error("Error in getEventGuestsAction:", error);
         return nothing;
+    }
+}
+
+export type EventGuestDetails = {
+    // The viewer is a confirmed guest of this event.
+    isConfirmed: boolean;
+    // The note for confirmed guests: to confirmed guests and the event's organisers only.
+    guestNote?: string;
+    // D7: the exact location, for a confirmed guest of an event whose address is "revealed after
+    // acceptance". Organisers already have it on the event.
+    location?: Location;
+    // The viewer clicked Attend and isn't confirmed yet, and there's something for confirmed guests
+    // (a note, or a hidden address): the page says "Details for guests appear once you're confirmed."
+    detailsAfterConfirmation: boolean;
+};
+
+/**
+ * What the event page shows a viewer about being a guest (event guests, part 2, 2026-11-20): whether
+ * they're confirmed, and the guest note and hidden address when they may have them (decision B, as
+ * on shifts: confirmed guests and organisers only). Nothing for a signed-out viewer, an event they
+ * may not see, or an event of another circle than the one in the URL.
+ */
+export async function getEventGuestDetailsAction(circleHandle: string, eventId: string): Promise<EventGuestDetails> {
+    const nothing: EventGuestDetails = { isConfirmed: false, detailsAfterConfirmation: false };
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return nothing;
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle) return nothing;
+        const event = await getEventById(eventId, userDid);
+        if (!event || String(event.circleId) !== String(circle._id)) return nothing;
+
+        const isOrganiser = (await canSeeEventGuests(event, userDid)) || (await canManageEvent(event, userDid));
+        if (!isOrganiser && !(await shapeEventForViewer(event, userDid))) return nothing;
+
+        const baseEventId = String(eventId).split("_")[0];
+        if (!ObjectId.isValid(baseEventId)) return nothing;
+        const stored = (await Events.findOne(
+            { _id: new ObjectId(baseEventId) },
+            { projection: { guestConfirmations: 1, location: 1, metadata: 1, createdBy: 1, circleId: 1 } },
+        )) as EventModel | null;
+        if (!stored) return nothing;
+
+        const guestNote = stored.metadata?.peerify?.guestNote?.trim() || undefined;
+        const addressHidden = stored.metadata?.peerify?.locationDisclosure === "secret_after_acceptance";
+        if (isOrganiser) return { isConfirmed: false, detailsAfterConfirmation: false, ...(guestNote ? { guestNote } : {}) };
+
+        const isConfirmed =
+            !String(eventId).includes("_") &&
+            (stored.guestConfirmations ?? []).some((confirmation) => confirmation.userDid === userDid);
+        if (isConfirmed) {
+            return {
+                isConfirmed: true,
+                detailsAfterConfirmation: false,
+                ...(guestNote ? { guestNote } : {}),
+                ...(addressHidden && stored.location ? { location: stored.location } : {}),
+            };
+        }
+        const isGoing = !!(await EventRsvps.findOne({ eventId: String(eventId), userDid, status: "going" }));
+        return { isConfirmed: false, detailsAfterConfirmation: isGoing && (!!guestNote || addressHidden) };
+    } catch (error) {
+        console.error("Error in getEventGuestDetailsAction:", error);
+        return nothing;
+    }
+}
+
+// The event, if the signed-in viewer is one of its organisers (canSeeEventGuests) and it belongs to the
+// circle in the URL.
+const loadEventForOrganiser = async (
+    circleHandle: string,
+    eventId: string,
+): Promise<{ ok: true; userDid: string; circle: Circle; event: EventDisplay } | { ok: false; message: string }> => {
+    const userDid = await getAuthenticatedUserDid();
+    if (!userDid) return { ok: false, message: "User not authenticated" };
+    const circle = await getCircleByHandle(circleHandle);
+    if (!circle) return { ok: false, message: "Circle not found" };
+    const event = await getEventById(eventId, userDid);
+    if (!event || String(event.circleId) !== String(circle._id)) return { ok: false, message: "Event not found" };
+    if (!(await canSeeEventGuests(event, userDid))) {
+        return { ok: false, message: "Only the event's organisers can confirm guests" };
+    }
+    return { ok: true, userDid, circle, event };
+};
+
+/**
+ * Mark someone who clicked Attend as a confirmed guest (event guests, part 2): organisers only.
+ * Confirmed guests never exceed the event's capacity ("All places are confirmed").
+ */
+export async function confirmEventGuestAction(
+    circleHandle: string,
+    eventId: string,
+    guestDid: string,
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const loaded = await loadEventForOrganiser(circleHandle, eventId);
+        if (!loaded.ok) return { success: false, message: loaded.message };
+
+        const result = await confirmEventGuest(eventId, guestDid, loaded.userDid);
+        if (!result.ok) return { success: false, message: result.message };
+
+        // D3: tell the guest (bell only), once.
+        if (!result.alreadyConfirmed) {
+            const guest = await getUserPrivate(guestDid);
+            if (guest) {
+                await notifyEventGuestConfirmed(
+                    { _id: eventId, title: loaded.event.title, circleId: String(loaded.circle._id) },
+                    guest,
+                );
+            }
+        }
+
+        revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
+        return { success: true, message: result.alreadyConfirmed ? "Already confirmed" : "Guest confirmed" };
+    } catch (error) {
+        console.error("Error confirming event guest:", error);
+        return { success: false, message: "Failed to confirm the guest" };
+    }
+}
+
+/** Take back a confirmation (organisers only). The person stays on the list as Attending. */
+export async function unconfirmEventGuestAction(
+    circleHandle: string,
+    eventId: string,
+    guestDid: string,
+): Promise<{ success: boolean; message?: string }> {
+    try {
+        const loaded = await loadEventForOrganiser(circleHandle, eventId);
+        if (!loaded.ok) return { success: false, message: loaded.message };
+
+        if (!(await unconfirmEventGuest(eventId, guestDid))) {
+            return { success: false, message: "Failed to undo the confirmation" };
+        }
+        revalidatePath(`/circles/${circleHandle}/events/${eventId}`);
+        return { success: true, message: "Confirmation undone" };
+    } catch (error) {
+        console.error("Error unconfirming event guest:", error);
+        return { success: false, message: "Failed to undo the confirmation" };
     }
 }
 
@@ -1984,6 +2194,10 @@ export async function rsvpEventWithOptionsAction(
 
         const refusal = await getEventRsvpRefusal(await getEventById(eventId, userDid), String(circle._id), userDid);
         if (refusal) return { success: false, message: refusal };
+        // D4: a confirmed guest can't switch to Interested themselves (Attend again is fine).
+        if (status !== "going" && (await isConfirmedGuest(eventId, userDid))) {
+            return { success: false, message: CONFIRMED_GUEST_CANT_CHANGE };
+        }
 
         const ok = await upsertRsvp(
             eventId,

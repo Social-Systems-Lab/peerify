@@ -23,6 +23,7 @@ export const PUSH_NOTIFICATION_CATEGORIES: Record<
         defaultEnabled: true,
         notificationTypes: [
             "event_invitation",
+            "event_guest_confirmed",
             "event_artist_added",
             "event_host_change_requested",
             "event_host_change_decided",
@@ -136,6 +137,7 @@ export const resolvePushUrl = (type: string, payload: any): string | undefined =
         case "contact_request_accepted":
             return payload?.user?.handle ? getCircleDefaultPath(payload.user) : undefined;
         case "event_invitation":
+        case "event_guest_confirmed":
         case "event_artist_added":
         case "event_host_change_decided":
             return circleHandle && payload?.eventId ? `/circles/${circleHandle}/events/${payload.eventId}` : undefined;

@@ -64,7 +64,7 @@ const listFromDatabase = () => [
     event("e2", {
         title: "House show",
         location: { precision: 4, city: "Stockholm", street: HIDDEN_STREET, lngLat: { lng: HIDDEN_LNG, lat: 59.3 } },
-        metadata: { peerify: { locationDisclosure: "approximate", privateLocationNote: NOTE } },
+        metadata: { peerify: { locationDisclosure: "approximate", privateLocationNote: NOTE, guestNote: `${NOTE} (guests)` } },
         invitations: [INVITEE],
     }),
     event("e3", { title: DRAFT_TITLE, stage: "draft" }),

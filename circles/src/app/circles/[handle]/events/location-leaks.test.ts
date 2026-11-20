@@ -66,7 +66,13 @@ const event = (id: string, extra: Record<string, unknown> = {}) => ({
     startAt: future(3),
     endAt: future(4),
     location: location(),
-    metadata: { peerify: { locationDisclosure: "approximate", privateLocationNote: "Door code 1234" } },
+    metadata: {
+        peerify: {
+            locationDisclosure: "approximate",
+            privateLocationNote: "Door code 1234",
+            guestNote: "Door code 1234 (guests)",
+        },
+    },
     additionalArtistCircleIds: [ARTIST_ID],
     ...extra,
 });
