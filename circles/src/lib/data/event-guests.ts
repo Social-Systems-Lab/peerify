@@ -9,6 +9,8 @@ import { ALL_TICKETS_CONFIRMED, roomForAnotherConfirmationFilter } from "@/lib/e
 
 export const CONFIRM_NEEDS_ATTEND = "Only someone who clicked Attend can be confirmed";
 export const CONFIRM_NOT_ON_REPEATING = "Guests can't be confirmed on a repeating event yet";
+// D4 (2026-11-20): a confirmed guest can't cancel or switch to Interested themselves.
+export const CONFIRMED_GUEST_CANT_CHANGE = "You're confirmed for this event. To cancel, please contact the organisers.";
 
 type ConfirmResult = { ok: true; alreadyConfirmed?: boolean } | { ok: false; message: string };
 

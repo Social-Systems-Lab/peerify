@@ -63,7 +63,13 @@ import {
 } from "@/lib/data/event";
 import { getCirclesByDids } from "@/lib/data/circle";
 import { upsertRsvp, cancelRsvp, listEventGuests, type EventGuest } from "@/lib/data/eventRsvp";
-import { confirmEventGuest, getConfirmedGuestDids, unconfirmEventGuest } from "@/lib/data/event-guests";
+import {
+    CONFIRMED_GUEST_CANT_CHANGE,
+    confirmEventGuest,
+    getConfirmedGuestDids,
+    isConfirmedGuest,
+    unconfirmEventGuest,
+} from "@/lib/data/event-guests";
 import {
     notifyEventSubmittedForReview,
     notifyEventApproved,
@@ -1728,6 +1734,10 @@ export async function rsvpEventAction(
 
         const refusal = await getEventRsvpRefusal(await getEventById(eventId, userDid), String(circle._id), userDid);
         if (refusal) return { success: false, message: refusal };
+        // D4: a confirmed guest can't switch to Interested themselves (Attend again is fine).
+        if (status !== "going" && (await isConfirmedGuest(eventId, userDid))) {
+            return { success: false, message: CONFIRMED_GUEST_CANT_CHANGE };
+        }
 
         const ok = await upsertRsvp(eventId, circle._id!.toString(), userDid, status);
         if (!ok) return { success: false, message: "Failed to RSVP" };
@@ -1764,6 +1774,10 @@ export async function cancelRsvpAction(
         if (!event || String(event.circleId) !== String(circle._id)) {
             return { success: false, message: RSVP_EVENT_NOT_FOUND };
         }
+
+        // D4: a confirmed guest (often paid) can't cancel themselves: an organiser undoes the
+        // confirmation first.
+        if (await isConfirmedGuest(eventId, userDid)) return { success: false, message: CONFIRMED_GUEST_CANT_CHANGE };
 
         const ok = await cancelRsvp(eventId, userDid);
         if (!ok) return { success: false, message: "Failed to cancel RSVP" };
@@ -2097,6 +2111,10 @@ export async function rsvpEventWithOptionsAction(
 
         const refusal = await getEventRsvpRefusal(await getEventById(eventId, userDid), String(circle._id), userDid);
         if (refusal) return { success: false, message: refusal };
+        // D4: a confirmed guest can't switch to Interested themselves (Attend again is fine).
+        if (status !== "going" && (await isConfirmedGuest(eventId, userDid))) {
+            return { success: false, message: CONFIRMED_GUEST_CANT_CHANGE };
+        }
 
         const ok = await upsertRsvp(
             eventId,

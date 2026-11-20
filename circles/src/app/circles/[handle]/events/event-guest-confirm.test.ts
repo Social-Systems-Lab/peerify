@@ -31,13 +31,20 @@ mock.module("@/lib/auth/auth", () => ({
     // Everyone signed in may view HOST's events; ORGANISER has "See and manage guests" there.
     isAuthorized: async (did: string | undefined, circleId: string, feature: unknown) => {
         if (!did || String(circleId) !== HOST_ID) return false;
-        if (feature === features.events.view) return true;
+        if (feature === features.events.view || feature === features.events.rsvp) return true;
         return feature === features.events.guests && did === ORGANISER;
     },
 }));
 mock.module("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined }));
 
-const { confirmEventGuestAction, unconfirmEventGuestAction, getEventGuestsAction } = await import("./actions");
+const {
+    confirmEventGuestAction,
+    unconfirmEventGuestAction,
+    getEventGuestsAction,
+    rsvpEventAction,
+    rsvpEventWithOptionsAction,
+    cancelRsvpAction,
+} = await import("./actions");
 
 const person = (did: string) => ({
     _id: new ObjectId(),
@@ -190,5 +197,36 @@ describe("the guest list shows confirmations", () => {
         expect(result.guests.map((g) => [g.user.did, g.confirmed])).toEqual([[BO, true]]);
         expect(result.capacity).toBeUndefined();
         expect(result.confirmedCount).toBeUndefined();
+    });
+});
+
+describe("a confirmed guest's own reply (D4)", () => {
+    const CANT = "You're confirmed for this event. To cancel, please contact the organisers.";
+    const statusOf = async (did: string) => (await fakeDb.col("EventRsvps").findOne({ userDid: did }))?.status;
+
+    test("can't cancel or switch to Interested; can still update their Attend message", async () => {
+        await confirm(ANN);
+        sessionDid = ANN;
+        expect(await cancelRsvpAction("host", EVENT_ID)).toEqual({ success: false, message: CANT });
+        expect(await rsvpEventAction("host", EVENT_ID, "interested")).toEqual({ success: false, message: CANT });
+        expect(await statusOf(ANN)).toBe("going");
+        expect((await rsvpEventWithOptionsAction("host", EVENT_ID, "going", { message: "Running late" })).success).toBe(
+            true,
+        );
+        expect(confirmedDids()).toEqual([ANN]);
+    });
+
+    test("once an organiser undoes the confirmation, they can cancel", async () => {
+        await confirm(ANN);
+        await unconfirmEventGuestAction("host", EVENT_ID, ANN);
+        sessionDid = ANN;
+        expect((await cancelRsvpAction("host", EVENT_ID)).success).toBe(true);
+        expect(await statusOf(ANN)).toBeUndefined();
+    });
+
+    test("a guest who isn't confirmed can cancel and switch as before", async () => {
+        sessionDid = BO;
+        expect((await rsvpEventAction("host", EVENT_ID, "interested")).success).toBe(true);
+        expect((await cancelRsvpAction("host", EVENT_ID)).success).toBe(true);
     });
 });
