@@ -24,9 +24,9 @@ import { notifyEventInvitation } from "./notifications";
 import { getUserPrivate } from "./user";
 import { isAuthorized } from "../auth/auth";
 import { features } from "./constants";
-import { getCircleById, resolveViewerIsAdmin } from "./circle";
+import { getCircleById, isCirclePublished, resolveViewerIsAdmin } from "./circle";
 import { isAcceptedConnectionForUserDid } from "./relationships";
-import { isCircleAdmin, isCircleAdminOfAny } from "./member";
+import { canViewUnpublishedCircle, isCircleAdmin, isCircleAdminOfAny } from "./member";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
 import { confirmedGuestCountExpr } from "@/lib/events/guest-capacity";
 
@@ -1477,14 +1477,25 @@ export const countUpcomingEventsHostedByCircle = async (circleId: string): Promi
  * sign-in wall here.
  */
 export const canAnonymousViewCircleEvents = async (circle: Circle): Promise<boolean> => {
-    if (isPeerifyManagedIdentity(circle)) return true;
     if (!circle._id) return false;
 
+    // First, before the managed-identity shortcut: a draft artist's events were readable logged
+    // out by handle (L3, draft artist profiles, 2026-11-21).
     const isPublished = circle.publishStatus === "published" || circle.publishStatus === undefined;
-    if (!isPublished || circle.circleType === "user") return false;
+    if (!isPublished) return false;
+    if (isPeerifyManagedIdentity(circle)) return true;
+    if (circle.circleType === "user") return false;
 
     return isAuthorized(undefined, circle._id.toString(), features.events.view);
 };
+
+/**
+ * Whether this viewer may open the circle at all: published, or an unpublished circle they may
+ * already see (canViewUnpublishedCircle: creator, admins, moderators). The circle layout's rule,
+ * for server actions that take a handle and so never pass through the layout.
+ */
+export const canViewerOpenCircle = async (circle: Circle, viewerDid?: string): Promise<boolean> =>
+    isCirclePublished(circle) || (await canViewUnpublishedCircle(circle, viewerDid));
 
 /**
  * Whether this viewer may see the circle's events at all: the same rule getEventAction and the
@@ -1495,6 +1506,7 @@ export const canAnonymousViewCircleEvents = async (circle: Circle): Promise<bool
 export const canViewerSeeCircleEvents = async (circle: Circle, viewerDid?: string): Promise<boolean> => {
     if (!viewerDid) return canAnonymousViewCircleEvents(circle);
     if (!circle._id) return false;
+    if (!(await canViewerOpenCircle(circle, viewerDid))) return false;
     return isAuthorized(viewerDid, circle._id.toString(), features.events.view);
 };
 

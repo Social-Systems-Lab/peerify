@@ -55,6 +55,7 @@ import {
     changeEventStage as changeEventStageDb,
     applyEventHostChange,
     canAnonymousViewCircleEvents,
+    canViewerOpenCircle,
     shapeEventForViewer,
     shapeEventsForViewer,
     canManageEvent,
@@ -511,6 +512,9 @@ export async function getEventsAction(
 
         const circle = await getCircleByHandle(circleHandle);
         if (!circle) return defaultResult;
+        // Unpublished: nothing, as for a missing handle, unless the viewer may open the circle
+        // (signed-in viewers' events.view includes "everyone", so it doesn't stop strangers).
+        if (!(await canViewerOpenCircle(circle, userDid))) return defaultResult;
 
         const range =
             params && (params.from || params.to)
@@ -566,6 +570,9 @@ export async function getEventAction(circleHandle: string, eventId: string): Pro
 
         const circle = await getCircleByHandle(circleHandle);
         if (!circle) return null;
+        // Unpublished: nothing, as for a missing handle, unless the viewer may open the circle
+        // (signed-in viewers' events.view includes "everyone", so it doesn't stop strangers).
+        if (!(await canViewerOpenCircle(circle, userDid))) return null;
 
         const isPublicEvents = !userDid && (await canAnonymousViewCircleEvents(circle));
         if (isPublicEvents) {
@@ -1547,6 +1554,9 @@ export async function getEventArtistsAction(
 
         const circle = await getCircleByHandle(circleHandle);
         if (!circle) return defaultResult;
+        // Unpublished: nothing, as for a missing handle, unless the viewer may open the circle
+        // (signed-in viewers' events.view includes "everyone", so it doesn't stop strangers).
+        if (!(await canViewerOpenCircle(circle, userDid))) return defaultResult;
 
         // Logged out: only for an event the public may open, the same public path getEventAction
         // uses (circle's events open to everyone, event open and not private).
