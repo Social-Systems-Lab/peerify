@@ -15,6 +15,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **SECURITY (2026-11-16):** the cross-circle gap in 13 task/shift actions is fixed, together with private pending sign-ups and claims, and **LIVE on prod since 2026-11-17 (`ac61f445`)**. Tim's read-only prod check before the release found **nothing flagged** (53 tasks read).
 - **DESIGN DIRECTION: "Asks"** in the Crew feed (2026-11-15 (cont. 5); Tim's answers 2026-11-16). They are **built after the home show**; until then artists use ordinary Crew posts.
 - **Event guests, for the home show on 6 Dec (2026-11-20):** **G1 (the RSVP guard) is LIVE on prod (`22692897`; Tim's check passed).** **Part 1 (the organiser guest list with Message) is merged to `staging` (`53bfb6ab`) and pushed; not deployed (Tim's step); browser tests pending** (11 steps in `event-guests-part1.tar.gz`). **Part 2 (capacity, Confirmed, places left, guest note) is merged to `staging` (`303779da`) and pushed; not deployed (Tim's step); browser tests pending** (13 steps in `event-guests-part2.tar.gz`). **Follow-up (2026-11-21, pushed to `staging`, not deployed):** guest list rows stack for the narrow column; confirming no longer opens a DM (`cd382439` reverted), a confirmed guest has a "Message the organisers" button instead; the event page updates after the "You're confirmed" notice. Browser tests in `event-guests-followup.tar.gz`. Decisions D1–D9 are in the 2026-11-20 entry.
+- **Draft artist profiles for outreach (2026-11-21):** plan in `draft-artist-profiles-investigation.tar.gz`. **Leak fixes L1–L7 committed on `staging` (`b56def2b`..`02dabed3`), NOT pushed, NOT deployed** (Tim asked to be asked first); report `draft-leak-fixes.tar.gz`. **On hold until Tim decides:** the import script, preview links, the superadmin transfer action.
 - **Crew round 2, for the home show on 6 Dec: BUILT and MERGED to `staging` (2026-11-18); BROWSER TESTS PENDING.**
   - What's in it: more sign-ups than places with the confirm cap, decline, and the "Shifts & tasks" view on the Crew page and the Crew Dashboard. Part 1 is `e2c5550d`, part 2 is `a20762f1`.
   - **Next:** Tim deploys staging and runs the browser test lists (part 1 in `crew-r2-part1.tar.gz`, part 2 in `crew-r2-part2.tar.gz`). Then the release to prod.
@@ -73,6 +74,23 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-21 (cont.) — Drafts: leak fixes L1–L7 before bulk draft artist profiles
+
+**State:** seven commits on `staging` plus this log entry. **Not pushed, not deployed:** Tim asked to be asked before any push or deploy. No database commands. Plan: `draft-artist-profiles-investigation.tar.gz`; this round: `draft-leak-fixes.tar.gz`.
+
+- **L1** (`b56def2b`): `followCircle` / `requestMembershipAction` / `applyForCrewMembership` answer "Circle not found" for an unpublished circle unless the caller may open it (`canViewUnpublishedCircle`). Before: anyone with a draft's `_id` joined it (drafts are `isPublic: true`) and got its bio and location through memberships.
+- **L2** (`18936f64`): `/api/access` reads the viewer from the session cookie; middleware forwards the Cookie header and no longer sends `userDid`. Before: a claimed did answered yes/no for drafts, hidden admins (settings), platform admins (profile Circles list) and followers (members-only modules). Booleans only; middleware and pages always used the real session.
+- **L3** (`6965e2e2`): new `canViewerOpenCircle` (lib/data/event.ts, the layout's rule). Logged-out managed identities no longer skip the publish check; `getEventsAction`, `getEventAction`, `getEventArtistsAction`, `canViewerSeeCircleEvents` refuse unpublished circles for signed-in strangers too (events.view includes "everyone").
+- **L4** (`0794fb14`): `getTracksForCirclePreviewAction` gives `[]` for an unpublished circle (signed-out and signed-in).
+- **L5** (`98eedc4c`): `addArtistToEvent` refuses an unpublished artist; `getEventArtistsAction` leaves out artists the viewer can't open.
+- **L6** (`a0d23585`): `countCirclesAndUsers` counts published circles only.
+- **L7** (`02dabed3`): `getPublicFeeds` leaves out draft/pending circles' feeds. Posts made *as* a draft identity in other feeds are not covered.
+- **Invited admins lack the `members` group:** no default access rule depends on it (every default with `members` also has `admins` and `moderators`; rules are a plain group match). It matters only where a circle edited a rule to `members` without admins/moderators, and on the managers-only follower list (empty label).
+- Tests: 7 new files (39 cases), each run at its own commit; leak cases fail on the old code. Existing events, feed, access and crew tests pass. tsc (old error only), eslint clean, prettier clean on new lines, build passes.
+- **Still open (UNCLEAR in the plan):** other handle/id-keyed actions that only check `isAuthorized` (tasks, goals, proposals, enquiry/contact, pledges); handle-taken checks reveal a draft's handle (accepted).
 
 ---
 
