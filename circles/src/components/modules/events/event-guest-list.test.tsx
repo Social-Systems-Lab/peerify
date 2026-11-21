@@ -135,3 +135,33 @@ describe("confirming guests on the list (part 2)", () => {
         expect(html).not.toContain('disabled=""');
     });
 });
+
+describe("row layout for the narrow column and phones (2026-11-21)", () => {
+    // One row's markup: the <li> holding the given name.
+    const rowOf = (html: string, name: string) =>
+        html.split("<li").find((part) => part.includes(`>${name}</span>`)) ?? "";
+
+    test("name and @handle first, the note below, then the buttons and the date on their own line", () => {
+        const row = rowOf(render(organiserResult, true), "Ann");
+        const at = (text: string) => row.indexOf(text);
+        expect(at(">Ann</span>")).toBeGreaterThan(-1);
+        expect(at("@ann")).toBeGreaterThan(at(">Ann</span>"));
+        expect(at("Bringing a friend")).toBeGreaterThan(at("@ann"));
+        expect(at(">Confirm</button>")).toBeGreaterThan(at("Bringing a friend"));
+        expect(at(">Message</button>")).toBeGreaterThan(at(">Confirm</button>"));
+        expect(at("since 20 Nov 2026")).toBeGreaterThan(at(">Message</button>"));
+        // Stacked: the row is a column, and the buttons aren't a fixed-width side column.
+        expect(row.startsWith(' class="flex min-w-0 flex-col')).toBe(true);
+        expect(row).not.toContain("shrink-0 flex-wrap justify-end");
+    });
+
+    test("the Confirmed badge sits on the name line", () => {
+        const html = render(
+            { ...organiserResult, guests: [{ ...guest("did:test:ann", "Ann", "going"), confirmed: true }] },
+            true,
+        );
+        const row = rowOf(html, "Ann");
+        expect(row.indexOf(">Confirmed</span>")).toBeGreaterThan(row.indexOf("@ann"));
+        expect(row.indexOf("</button>")).toBeGreaterThan(row.indexOf(">Confirmed</span>"));
+    });
+});

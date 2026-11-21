@@ -63,35 +63,31 @@ function GuestRow({
     const { user, message, since, confirmed } = guest;
     const busy = !!busyDid && busyDid === user.did;
     const sinceText = formatSince(since);
+    // Stacked, so it fits the event page's narrow right column and a phone (2026-11-21): the person
+    // on the first line, their note below, then the buttons on their own line.
     return (
-        <li className="flex items-start gap-3 rounded-md p-1">
+        <li className="flex min-w-0 flex-col gap-1 rounded-md p-1">
             <button
                 type="button"
                 onClick={() => onOpenProfile(user)}
-                className="flex min-w-0 flex-1 items-start gap-3 text-left hover:opacity-80"
+                className="flex min-w-0 items-center gap-2 text-left hover:opacity-80"
             >
-                <Avatar>
+                <Avatar className="h-8 w-8 shrink-0">
                     <AvatarImage src={user.picture?.url} />
                     <AvatarFallback>{user.name?.[0]}</AvatarFallback>
                 </Avatar>
-                <div className="min-w-0">
-                    <p className="m-0 truncate font-semibold">
-                        {user.name}
-                        {confirmed ? (
-                            <span className="ml-2 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
-                                Confirmed
-                            </span>
-                        ) : null}
-                    </p>
-                    <p className="m-0 text-xs text-muted-foreground">
-                        {user.handle ? `@${user.handle}` : null}
-                        {user.handle && sinceText ? " · " : null}
-                        {sinceText ? `since ${sinceText}` : null}
-                    </p>
-                    {message ? <p className="mt-1 text-sm italic text-muted-foreground">“{message}”</p> : null}
-                </div>
+                <span className="min-w-0 truncate font-semibold">{user.name}</span>
+                {user.handle ? (
+                    <span className="min-w-0 shrink truncate text-xs text-muted-foreground">@{user.handle}</span>
+                ) : null}
+                {confirmed ? (
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                        Confirmed
+                    </span>
+                ) : null}
             </button>
-            <div className="flex shrink-0 flex-wrap justify-end gap-2">
+            {message ? <p className="m-0 break-words text-sm italic text-muted-foreground">“{message}”</p> : null}
+            <div className="flex flex-wrap items-center gap-2">
                 {guest.status === "going" && user.did && onConfirm && onUnconfirm ? (
                     confirmed ? (
                         <Button
@@ -120,6 +116,9 @@ function GuestRow({
                         <TbMessage className="mr-1 h-4 w-4" />
                         Message
                     </Button>
+                ) : null}
+                {sinceText ? (
+                    <span className="ml-auto text-xs text-muted-foreground">{`since ${sinceText}`}</span>
                 ) : null}
             </div>
         </li>
