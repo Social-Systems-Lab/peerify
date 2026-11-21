@@ -3,7 +3,7 @@
 Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 (This log was migrated from the Kamooni/Circles repo during the 2026-06 split; entries before ~June 2026 describe Kamooni lineage and shared Circles work.)
 
-## Current Status (2026-11-19)
+## Current Status (2026-11-21)
 - Production: https://peerify.one, on the Cleura server `peerify-prod`. Staging: https://staging.peerify.one, on the Cleura server `peerify-staging`. On both, the app runs from `/srv/peerify/app/circles` as the `peerify` user, under PM2 (`peerify` :3000, `peerify-staging` :3001). Tim deploys.
 - Claude works in `~/work/peerify` on `peerify-staging`, branch `staging`, and pushes to `staging` only. See `CLAUDE.md` for the rules (no edits under `/srv/peerify`, no secrets, no database commands without asking).
 - The old Hetzner box (`peerify-old`) is unreachable and being retired. Entries before 2026-11-02 describe it: `~/apps/...` paths, prod and staging on one box, files in its `~/cc-reports`.
@@ -14,7 +14,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
 - **SECURITY (2026-11-16):** the cross-circle gap in 13 task/shift actions is fixed, together with private pending sign-ups and claims, and **LIVE on prod since 2026-11-17 (`ac61f445`)**. Tim's read-only prod check before the release found **nothing flagged** (53 tasks read).
 - **DESIGN DIRECTION: "Asks"** in the Crew feed (2026-11-15 (cont. 5); Tim's answers 2026-11-16). They are **built after the home show**; until then artists use ordinary Crew posts.
-- **Event guests, for the home show on 6 Dec (2026-11-20):** **G1 (the RSVP guard) is LIVE on prod (`22692897`; Tim's check passed).** **Part 1 (the organiser guest list with Message) is merged to `staging` (`53bfb6ab`) and pushed; not deployed (Tim's step); browser tests pending** (11 steps in `event-guests-part1.tar.gz`). **Part 2 (capacity, Confirmed, places left, guest note) is merged to `staging` (`303779da`) and pushed; not deployed (Tim's step); browser tests pending** (13 steps in `event-guests-part2.tar.gz`). Since `cd382439`, confirming also opens a DM between the organiser and the guest. Decisions D1–D9 are in the 2026-11-20 entry.
+- **Event guests, for the home show on 6 Dec (2026-11-20):** **G1 (the RSVP guard) is LIVE on prod (`22692897`; Tim's check passed).** **Part 1 (the organiser guest list with Message) is merged to `staging` (`53bfb6ab`) and pushed; not deployed (Tim's step); browser tests pending** (11 steps in `event-guests-part1.tar.gz`). **Part 2 (capacity, Confirmed, places left, guest note) is merged to `staging` (`303779da`) and pushed; not deployed (Tim's step); browser tests pending** (13 steps in `event-guests-part2.tar.gz`). **Follow-up (2026-11-21, pushed to `staging`, not deployed):** guest list rows stack for the narrow column; confirming no longer opens a DM (`cd382439` reverted), a confirmed guest has a "Message the organisers" button instead; the event page updates after the "You're confirmed" notice. Browser tests in `event-guests-followup.tar.gz`. Decisions D1–D9 are in the 2026-11-20 entry.
 - **Crew round 2, for the home show on 6 Dec: BUILT and MERGED to `staging` (2026-11-18); BROWSER TESTS PENDING.**
   - What's in it: more sign-ups than places with the confirm cap, decline, and the "Shifts & tasks" view on the Crew page and the Crew Dashboard. Part 1 is `e2c5550d`, part 2 is `a20762f1`.
   - **Next:** Tim deploys staging and runs the browser test lists (part 1 in `crew-r2-part1.tar.gz`, part 2 in `crew-r2-part2.tar.gz`). Then the release to prod.
@@ -73,6 +73,21 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-21 — Event guests follow-up: guest list layout, "Message the organisers", refresh after the notice
+
+**State:** four commits on `staging` (`6d11ac75`, `54e00a51`, `23058d09`, `d216cb52`) plus this log entry, pushed; not deployed (Tim's step). No database commands. Report and browser test list: `event-guests-followup.tar.gz`.
+
+- **Guest list rows** (`6d11ac75`): stacked so they fit the narrow right column and phones. Avatar, name, smaller @handle and the Confirmed badge on the first line; the RSVP note below; Confirm / Undo and Message on their own line, with "since <date>" at its right.
+- **No DM on confirm** (`54e00a51`, reverts `cd382439`; Tim: an empty thread in the inbox is noise). Conversations it opened during testing stay in people's Messages.
+- **"Message the organisers"** (`23058d09`): a confirmed guest's RSVP box reads "To cancel, message the organisers." with the button next to it; the server refusal to cancel uses the same wording.
+  - Pressing it (`messageEventOrganisersAction` -> `openConversationWithOrganisers`) finds or creates the DM, only then. It's with the organiser who confirmed; if they can no longer see the guests or their account is gone, the event's creator; nobody left: "Please leave a comment on the event."
+  - Same rules: confirmed guest of this circle's event only, verified profile to start a DM, the organiser must pass `mayMessageEventGuest`. If not already allowed to write, the DM gets the `event_guest` grant (granted by the guest).
+  - **Replying as the venue circle** (asked, not built): not a small step. Chat has no circle sender; the closest pattern is the booking enquiry group thread with all the circle's admins. About the size of this round; a true "venue as sender" is bigger. Belongs with "Secret Soirées" / venue contact threads.
+- **Refresh after the notice** (`d216cb52`, `lib/events/event-guest-refresh.ts`): clicking "You're confirmed" tells an open event page to refetch its guest details; while a waiting guest (Attend, not confirmed) is on the page, a rise in the unread notice count (polled every 15 s) does the same. Once confirmed, the page reloads the event (places left) and the popup's copy.
+- Tests: `event-guest-list.test.tsx` (+2), `event-guest-confirm.test.ts` (+10, 28 pass), `rsvp-panel.test.tsx` (+2), `event-guest-refresh.test.ts` (5). Checks per commit: tsc (old error only), eslint, prettier on touched code, build. Sweep of 147 files: 145 pass, plus the known `participation-readiness.test.ts` and the `altcha.test.ts` timing flake (passed on its own).
 
 ---
 
