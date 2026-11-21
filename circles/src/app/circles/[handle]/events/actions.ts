@@ -69,7 +69,6 @@ import {
     confirmEventGuest,
     getConfirmedGuestDids,
     isConfirmedGuest,
-    openEventGuestConversation,
     unconfirmEventGuest,
 } from "@/lib/data/event-guests";
 import {
@@ -2092,14 +2091,8 @@ export async function confirmEventGuestAction(
         const result = await confirmEventGuest(eventId, guestDid, loaded.userDid);
         if (!result.ok) return { success: false, message: result.message };
 
-        // D3: tell the guest (bell only), once. And open the DM with the organiser who confirmed, so the
-        // guest can always reach the organisers (to cancel, D4). Neither failing undoes the confirm.
+        // D3: tell the guest (bell only), once.
         if (!result.alreadyConfirmed) {
-            try {
-                await openEventGuestConversation(loaded.userDid, guestDid, String(loaded.circle._id), eventId);
-            } catch (dmError) {
-                console.error("Error opening the event guest DM:", dmError);
-            }
             const guest = await getUserPrivate(guestDid);
             if (guest) {
                 await notifyEventGuestConfirmed(

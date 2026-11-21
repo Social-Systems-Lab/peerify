@@ -17,8 +17,7 @@ import type { EventDisplay, Location } from "@/models/models";
 //   told details come once they are (decision B wording, as on shifts).
 
 export const GUEST_DETAILS_AFTER_CONFIRMATION = "Details for guests appear once you're confirmed.";
-// Confirming opens a DM with the organiser who confirmed (openEventGuestConversation).
-export const CONFIRMED_CONTACT_ORGANISERS = "To cancel, please message the organisers (see your Messages).";
+export const CONFIRMED_CONTACT_ORGANISERS = "To cancel, please contact the organisers.";
 
 export type GuestDetailsForPanel = {
     isConfirmed: boolean;
