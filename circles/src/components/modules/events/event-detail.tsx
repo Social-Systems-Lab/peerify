@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useTransition } from "react";
+import React, { useEffect, useRef, useState, useTransition } from "react";
 import { EventDisplay } from "@/models/models";
 import { cn, haversineKm, getUserLocation } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -70,7 +70,19 @@ import {
 import { EventTagBadgeList, getEventTagBadges } from "./event-tag-badges";
 import { CommentSection } from "../feeds/CommentSection";
 import RichText from "../feeds/RichText";
-import { userAtom, mapboxKeyAtom, zoomContentAtom, triggerMapOpenAtom, contentPreviewAtom } from "@/lib/data/atoms";
+import {
+    userAtom,
+    mapboxKeyAtom,
+    zoomContentAtom,
+    triggerMapOpenAtom,
+    contentPreviewAtom,
+    notificationUnreadCountAtom,
+} from "@/lib/data/atoms";
+import {
+    EVENT_GUEST_UPDATED,
+    isEventGuestUpdateFor,
+    shouldRecheckGuestDetails,
+} from "@/lib/events/event-guest-refresh";
 import { useAtom } from "jotai";
 import { formatFundingAmount } from "@/components/modules/funding/funding-shared";
 import { FALLBACK_HERO_URL } from "@/lib/default-heroes";
@@ -174,6 +186,38 @@ export default function EventDetail({
             mounted = false;
         };
     }, [circleHandle, eventId, viewerDidForGuestDetails, guestDetailsVersion, event.userRsvpStatus]);
+    // The "You're confirmed" notice: clicking it while this page is open (the link alone reloads
+    // nothing here), or its arrival while the viewer waits as someone who clicked Attend.
+    useEffect(() => {
+        if (!eventId) return;
+        const onGuestUpdate = (update: Event) => {
+            if (isEventGuestUpdateFor(update, eventId)) setGuestDetailsVersion((version) => version + 1);
+        };
+        window.addEventListener(EVENT_GUEST_UPDATED, onGuestUpdate);
+        return () => window.removeEventListener(EVENT_GUEST_UPDATED, onGuestUpdate);
+    }, [eventId]);
+    const [notificationUnreadCount] = useAtom(notificationUnreadCountAtom);
+    const previousUnreadCount = useRef<number | undefined>(undefined);
+    const wasConfirmed = useRef<boolean | undefined>(undefined);
+    useEffect(() => {
+        const previous = previousUnreadCount.current;
+        previousUnreadCount.current = notificationUnreadCount;
+        const isConfirmed = !!guestDetails?.isConfirmed;
+        if (shouldRecheckGuestDetails(previous, notificationUnreadCount, event.userRsvpStatus, isConfirmed)) {
+            setGuestDetailsVersion((version) => version + 1);
+        }
+    }, [notificationUnreadCount, event.userRsvpStatus, guestDetails?.isConfirmed]);
+    // Newly confirmed (after either of the above): the places left come with the event, so reload it.
+    useEffect(() => {
+        if (!guestDetails) return;
+        const before = wasConfirmed.current;
+        wasConfirmed.current = guestDetails.isConfirmed;
+        if (before === false && guestDetails.isConfirmed) {
+            void refreshOpenEventPreview();
+            router.refresh();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [guestDetails?.isConfirmed]);
     // Only organisers get the note without being confirmed guests.
     const guestDetailsForOrganiser = !!guestDetails?.guestNote && !guestDetails.isConfirmed;
     const hiddenCancelledIds = effectiveUser?.hiddenCancelledEventIds || [];

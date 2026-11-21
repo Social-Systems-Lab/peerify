@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { getCrewApplicationsReviewPath } from "@/lib/utils/crew-paths";
 import { notificationUnreadCountAtom, userAtom } from "@/lib/data/atoms";
+import { announceIfEventGuestNotice } from "@/lib/events/event-guest-refresh";
 import { useAtom } from "jotai";
 import { useRouter } from "next/navigation";
 import { timeSince } from "@/lib/utils";
@@ -749,6 +750,9 @@ export const Notifications = ({
 
         const href = getNotificationHref(groupedNotification.latestNotification);
         if (href) {
+            // Pushing the event page you're already on reloads nothing there, so it's also told to
+            // reload its RSVP details (event-guest-refresh.ts).
+            announceIfEventGuestNotice(groupedNotification.latestNotification);
             router.push(href);
             return;
         }
