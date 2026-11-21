@@ -2,7 +2,7 @@
 
 import { verifyUserToken } from "@/lib/auth/jwt";
 import { readAuthToken } from "@/lib/auth/cookie";
-import { addMember, countAdmins, getMember, removeMember } from "@/lib/data/member";
+import { addMember, canViewUnpublishedCircle, countAdmins, getMember, removeMember } from "@/lib/data/member";
 import { ChatRoom, Circle, UserPrivate } from "@/models/models";
 import { cookies } from "next/headers";
 import { createPendingMembershipRequest, deletePendingMembershipRequest } from "@/lib/data/membership-requests";
@@ -105,7 +105,13 @@ export const followCircle = async (circle: Circle, answers?: Record<string, stri
 
         let updatedCircle = await getCircleById(circle._id ?? "");
 
-        if (!updatedCircle) {
+        // A draft (or pending) circle is "not found" to anyone who can't already open it, so
+        // following by id can't join it and receive its name, bio and location through the
+        // membership list. Same answer as a missing circle, so it doesn't confirm the id exists.
+        if (
+            !updatedCircle ||
+            (!isCirclePublished(updatedCircle) && !(await canViewUnpublishedCircle(updatedCircle, userDid)))
+        ) {
             return { success: false, message: isUser ? "User not found" : "Circle not found" };
         }
 
@@ -191,7 +197,11 @@ export const applyForCrewMembership = async (circle: Circle, message: string): P
         }
 
         let updatedCircle = await getCircleById(circle._id ?? "");
-        if (!updatedCircle) {
+        // Unpublished: "not found", as in followCircle.
+        if (
+            !updatedCircle ||
+            (!isCirclePublished(updatedCircle) && !(await canViewUnpublishedCircle(updatedCircle, userDid)))
+        ) {
             return { success: false, message: "Circle not found" };
         }
 
