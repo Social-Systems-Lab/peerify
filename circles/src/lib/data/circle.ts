@@ -625,7 +625,9 @@ export const getCircles = async (
 };
 
 export const countCirclesAndUsers = async (): Promise<PlatformMetrics> => {
-    const circles = await Circles.countDocuments({ circleType: "circle" });
+    // Published only: the count is shown without sign-in (onboarding), so drafts mustn't move it
+    // (L6, draft artist profiles, 2026-11-21).
+    const circles = await Circles.countDocuments({ $and: [{ circleType: "circle" }, getPublishedCircleQuery()] });
     const users = await Circles.countDocuments({ circleType: "user" });
 
     return { circles, users };
