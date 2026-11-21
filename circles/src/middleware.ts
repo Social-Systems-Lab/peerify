@@ -36,8 +36,6 @@ export async function middleware(request: NextRequest) {
         }
     }
 
-    let userDid: string | undefined = undefined;
-
     const host = process.env.CIRCLES_HOST;
     const port = process.env.CIRCLES_PORT || 3000;
     const accessApiUrls = getAccessApiUrls(request, host, port);
@@ -48,9 +46,9 @@ export async function middleware(request: NextRequest) {
 
     try {
         const token = readAuthToken(request.cookies);
+        // Verified here only so a bad cookie is cleared below; /api/access reads the viewer itself.
         if (token) {
-            let payload = await verifyUserToken(token);
-            userDid = typeof payload.userDid === "string" ? payload.userDid : undefined;
+            await verifyUserToken(token);
         }
     } catch (error) {
         console.error("Error verifying token", error);
@@ -104,7 +102,12 @@ export async function middleware(request: NextRequest) {
 
     // fetch access rules for specified circle and module
     try {
-        const response = await fetchFirstAccessApi(accessApiUrls, { userDid, circleHandle, moduleHandle });
+        // /api/access reads the viewer from this Cookie header itself; userDid is no longer sent.
+        const response = await fetchFirstAccessApi(
+            accessApiUrls,
+            { circleHandle, moduleHandle },
+            request.headers.get("cookie"),
+        );
         const { authenticated, authorized, notFound, notFoundType, error } = await response.json();
         if (error) {
             return redirectToErrorPage(request);
@@ -163,7 +166,8 @@ function getAccessApiUrls(request: NextRequest, host: string | undefined, port: 
 
 async function fetchFirstAccessApi(
     accessApiUrls: string[],
-    body: { userDid: string | undefined; circleHandle: string; moduleHandle: string },
+    body: { circleHandle: string; moduleHandle: string },
+    cookieHeader: string | null,
 ) {
     let lastError: unknown;
 
@@ -174,6 +178,7 @@ async function fetchFirstAccessApi(
                 body: JSON.stringify(body),
                 headers: {
                     "Content-Type": "application/json",
+                    ...(cookieHeader ? { Cookie: cookieHeader } : {}),
                 },
             });
 

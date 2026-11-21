@@ -2,13 +2,20 @@ import { getCircleByHandle, isCirclePublished } from "@/lib/data/circle";
 import { canViewUnpublishedCircle, getMember } from "@/lib/data/member";
 import { Circle } from "@/models/models";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { isModuleEnabled } from "@/lib/auth/client-auth";
 import { canViewProfileCirclesList } from "@/lib/data/profile-circles-access";
 import { PROFILE_CIRCLES_MODULE } from "@/lib/peerify/profile-circles-list";
 
 export async function POST(req: Request) {
     try {
-        const { userDid, circleHandle, moduleHandle } = await req.json();
+        // The viewer comes from the session cookie (middleware forwards the visitor's Cookie
+        // header), never from the body: this route is reachable from outside, and a claimed
+        // userDid let anyone ask "may person X see circle Y / module Z?", e.g. whether a draft
+        // handle exists or whether X is in a members-only group. A bad or missing token is a
+        // signed-out viewer; middleware already cleared bad cookies before calling here.
+        const { circleHandle, moduleHandle } = await req.json();
+        const userDid = await getAuthenticatedUserDid().catch(() => undefined);
 
         // get circle
         let circle: Circle | null = null;
