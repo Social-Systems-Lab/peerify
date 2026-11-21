@@ -3,6 +3,7 @@
 import { getAuthenticatedUserDid, isAuthorized } from "@/lib/auth/auth";
 import { getOpenEventsForMap, getOpenEventsForList } from "@/lib/data/event";
 import { getCircleById, getOfferDetailsForMember, getOfferMapPins } from "@/lib/data/circle";
+import { canViewerOpenCircle } from "@/lib/data/event";
 import { getSpaceDetailsForMember, getSpaceMapPins } from "@/lib/data/space";
 import { getTracksByCircleId } from "@/lib/data/track";
 import { signAudioToken } from "@/lib/audio/audio-token";
@@ -163,6 +164,10 @@ export async function getTracksForCirclePreviewAction(circleId: string): Promise
         if (!circle || !isPeerifyArtistIdentity(circle)) return [];
 
         const userDid = (await getAuthenticatedUserDid()) || "";
+        // A draft's tracks streamed by circleId, logged out (managed identity) or signed in
+        // (music.view includes "everyone") (L4, draft artist profiles, 2026-11-21). Only map pins,
+        // which are all published, call this; anyone who may open the draft still gets them.
+        if (!(await canViewerOpenCircle(circle, userDid || undefined))) return [];
         const isPublicPeerifyManagedMusic = !userDid && isPeerifyManagedIdentity(circle);
         const canViewMusic = isPublicPeerifyManagedMusic
             ? true
