@@ -132,7 +132,19 @@ export const getAccessibleFeedIdsForUser = async (userDid: string, circleHandle?
 
 export async function getPublicFeeds(): Promise<Feed[]> {
     // Keep this export
-    const feeds = await Feeds.find({ userGroups: "everyone" }).toArray();
+    // Not an unpublished circle's feeds: they'd put a draft's posts in the global feed (L7, draft
+    // artist profiles, 2026-11-21). Its own creator/admins/moderators still reach them through
+    // their memberships (getAccessibleFeedIds). Few circles are unpublished, so list those.
+    const unpublished = await Circles.find(
+        { publishStatus: { $in: ["draft", "pending_verification"] } },
+        { projection: { _id: 1 } },
+    ).toArray();
+    const unpublishedIds = unpublished.map((circle) => circle._id.toString());
+    const feeds = await Feeds.find(
+        unpublishedIds.length > 0
+            ? { userGroups: "everyone", circleId: { $nin: unpublishedIds } }
+            : { userGroups: "everyone" },
+    ).toArray();
     return feeds;
 }
 
