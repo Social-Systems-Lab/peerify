@@ -1369,7 +1369,10 @@ export async function addArtistToEvent(
         }
 
         const artistCircle = await getCircleById(circleId);
-        if (!artistCircle || !isPeerifyArtistIdentity(artistCircle)) {
+        // Unpublished artists can't be added, as in the picker (searchArtistCirclesAction): a
+        // lineup is public, so a draft's _id put its name and picture on the event page (L5,
+        // draft artist profiles, 2026-11-21). Same answer as a non-artist id.
+        if (!artistCircle || !isPeerifyArtistIdentity(artistCircle) || !isCirclePublished(artistCircle)) {
             return { success: false, message: "Selected circle is not an artist profile" };
         }
 
@@ -1571,7 +1574,15 @@ export async function getEventArtistsAction(
 
         // Public list shape: no street, exact pin or private metadata unless the viewer owns that
         // artist circle or is a platform admin. Already shaped: redacting again would drop the pin.
-        const artistCircles = await getCirclesByIds(artistCircleIds, { viewerDid: userDid });
+        // An artist unpublished after being added (or added before addArtistToEvent checked) is
+        // left out for viewers who couldn't open its page; they'd see a draft's name and picture.
+        const artistCircles = (
+            await Promise.all(
+                (await getCirclesByIds(artistCircleIds, { viewerDid: userDid })).map(async (c) =>
+                    (await canViewerOpenCircle(c, userDid)) ? c : null,
+                ),
+            )
+        ).filter((c): c is Circle => c !== null);
         const adminDelegatedIds = event?.artistAdminCircleIds || [];
 
         const bands = await Promise.all(
