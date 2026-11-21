@@ -69,6 +69,8 @@ import {
     confirmEventGuest,
     getConfirmedGuestDids,
     isConfirmedGuest,
+    ONLY_CONFIRMED_GUESTS_MESSAGE,
+    openConversationWithOrganisers,
     unconfirmEventGuest,
 } from "@/lib/data/event-guests";
 import {
@@ -2054,6 +2056,34 @@ export async function getEventGuestDetailsAction(circleHandle: string, eventId: 
     } catch (error) {
         console.error("Error in getEventGuestDetailsAction:", error);
         return nothing;
+    }
+}
+
+/**
+ * "Message the organisers" in a confirmed guest's RSVP box (2026-11-21): opens the guest's DM with
+ * the organiser who confirmed them (or the event's creator), creating it only now. The rules are in
+ * openConversationWithOrganisers. Returns the conversation id to open.
+ */
+export async function messageEventOrganisersAction(
+    circleHandle: string,
+    eventId: string,
+): Promise<{ success: boolean; conversationId?: string; message?: string }> {
+    try {
+        const userDid = await getAuthenticatedUserDid();
+        if (!userDid) return { success: false, message: "User not authenticated" };
+        const circle = await getCircleByHandle(circleHandle);
+        if (!circle) return { success: false, message: "Circle not found" };
+        const event = await getEventById(eventId, userDid);
+        if (!event || String(event.circleId) !== String(circle._id) || !(await shapeEventForViewer(event, userDid))) {
+            return { success: false, message: ONLY_CONFIRMED_GUESTS_MESSAGE };
+        }
+        const result = await openConversationWithOrganisers(userDid, String(circle._id), eventId);
+        return result.ok
+            ? { success: true, conversationId: result.conversationId }
+            : { success: false, message: result.message };
+    } catch (error) {
+        console.error("Error in messageEventOrganisersAction:", error);
+        return { success: false, message: "Could not open the conversation" };
     }
 }
 

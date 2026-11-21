@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { TbMessage } from "react-icons/tb";
 import { Button } from "@/components/ui/button";
 import { formatEventPlacesLeft } from "@/lib/events/guest-capacity";
 import type { EventDisplay, Location } from "@/models/models";
@@ -17,7 +18,8 @@ import type { EventDisplay, Location } from "@/models/models";
 //   told details come once they are (decision B wording, as on shifts).
 
 export const GUEST_DETAILS_AFTER_CONFIRMATION = "Details for guests appear once you're confirmed.";
-export const CONFIRMED_CONTACT_ORGANISERS = "To cancel, please contact the organisers.";
+// Next to the "Message the organisers" button (2026-11-21), which opens the DM only when pressed.
+export const CONFIRMED_CONTACT_ORGANISERS = "To cancel, message the organisers.";
 
 export type GuestDetailsForPanel = {
     isConfirmed: boolean;
@@ -39,6 +41,8 @@ type Props = {
     onAttend: () => void;
     onInterested: () => void;
     onCancel: () => void;
+    // A confirmed guest's "Message the organisers" button. No button without it.
+    onMessageOrganisers?: () => void;
 };
 
 const formatAddress = (location: Location) =>
@@ -90,6 +94,7 @@ export default function RsvpPanel({
     onAttend,
     onInterested,
     onCancel,
+    onMessageOrganisers,
 }: Props) {
     const text = size === "compact" ? "text-xs" : "text-sm";
     const placesLeft = formatEventPlacesLeft(event);
@@ -126,7 +131,15 @@ export default function RsvpPanel({
                 isConfirmed && status === "going" ? (
                     <div className={text}>
                         <p className="m-0 font-medium text-emerald-800">You&apos;re confirmed.</p>
-                        <p className="m-0 text-muted-foreground">{CONFIRMED_CONTACT_ORGANISERS}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                            <span className="text-muted-foreground">{CONFIRMED_CONTACT_ORGANISERS}</span>
+                            {onMessageOrganisers && (
+                                <Button size="sm" variant="outline" disabled={isPending} onClick={onMessageOrganisers}>
+                                    <TbMessage className="mr-1 h-4 w-4" />
+                                    Message the organisers
+                                </Button>
+                            )}
+                        </div>
                     </div>
                 ) : (
                     <div className="flex flex-wrap gap-2">

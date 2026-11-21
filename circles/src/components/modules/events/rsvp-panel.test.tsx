@@ -85,6 +85,24 @@ describe("a confirmed guest (D4)", () => {
         expect(html).toContain(NOTE);
     });
 
+    test("To cancel, message the organisers, next to a Message the organisers button (2026-11-21)", () => {
+        let pressed = 0;
+        const html = render({ ...confirmed, onMessageOrganisers: () => pressed++ }, { userRsvpStatus: "going" });
+        expect(CONFIRMED_CONTACT_ORGANISERS).toBe("To cancel, message the organisers.");
+        const textAt = html.indexOf(CONFIRMED_CONTACT_ORGANISERS);
+        const buttonAt = html.indexOf("Message the organisers</button>");
+        expect(textAt).toBeGreaterThan(-1);
+        expect(buttonAt).toBeGreaterThan(textAt);
+        expect(html).not.toContain("see your Messages");
+        expect(pressed).toBe(0);
+    });
+
+    test("no button for anyone who isn't a confirmed guest", () => {
+        const onMessageOrganisers = () => undefined;
+        expect(render({ onMessageOrganisers }, { userRsvpStatus: "going" })).not.toContain("Message the organisers");
+        expect(render({ onMessageOrganisers })).not.toContain("Message the organisers");
+    });
+
     test("D7: sees the address when the server sent it", () => {
         const html = render(
             {

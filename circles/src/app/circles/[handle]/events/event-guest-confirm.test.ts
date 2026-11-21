@@ -44,14 +44,18 @@ const {
     rsvpEventAction,
     rsvpEventWithOptionsAction,
     cancelRsvpAction,
+    messageEventOrganisersAction,
 } = await import("./actions");
+const { getDmEligibility } = await import("@/lib/data/relationships");
 
+// Verified profiles (picture, About, Guidelines), except CY: starting a DM needs one.
 const person = (did: string) => ({
     _id: new ObjectId(),
     did,
     handle: did.split(":")[2],
     name: did.split(":")[2],
     circleType: "user",
+    ...(did === CY ? {} : { verificationStatus: "verified", isVerified: true }),
 });
 const eventDoc = (extra: Record<string, unknown> = {}) => ({
     circleId: HOST_ID,
@@ -83,6 +87,9 @@ const seed = (extra: Record<string, unknown> = {}) => {
             { eventId: EVENT_ID, circleId: HOST_ID, userDid: FAN, status: "interested", updatedAt: new Date(4) },
         ],
         Members: [],
+        ChatConversations: [],
+        ChatMessageDocs: [],
+        UserRelationships: [],
     });
     fakeDb.setAggregateResult("Events", [{ _id: EVENT_ID, ...eventDoc(extra) }]);
 };
@@ -201,7 +208,7 @@ describe("the guest list shows confirmations", () => {
 });
 
 describe("a confirmed guest's own reply (D4)", () => {
-    const CANT = "You're confirmed for this event. To cancel, please contact the organisers.";
+    const CANT = "You're confirmed for this event. To cancel, message the organisers.";
     const statusOf = async (did: string) => (await fakeDb.col("EventRsvps").findOne({ userDid: did }))?.status;
 
     test("can't cancel or switch to Interested; can still update their Attend message", async () => {
@@ -258,5 +265,108 @@ describe("the confirmation notice (D3)", () => {
     test("the bell shows the circle's picture for it", async () => {
         const { showsActorPicture } = await import("@/components/layout/notification-avatar");
         expect(showsActorPicture("event_guest_confirmed")).toBe(false);
+    });
+});
+
+describe("Message the organisers (Tim, 2026-11-21)", () => {
+    const dms = () => fakeDb.col("ChatConversations").docs.filter((c) => c.type === "dm");
+    const press = (did: string, handle = "host") => {
+        sessionDid = did;
+        return messageEventOrganisersAction(handle, EVENT_ID);
+    };
+    const setConfirmedBy = (did: string) => {
+        fakeDb.col("Events").docs[0].guestConfirmations[0].confirmedBy = did;
+    };
+
+    test("confirming creates no conversation", async () => {
+        await confirm(ANN);
+        expect(dms()).toEqual([]);
+    });
+
+    test("a confirmed guest gets a DM with the organiser who confirmed them, with an event_guest grant, and no message", async () => {
+        await confirm(ANN);
+        const res = await press(ANN);
+        expect(res.success).toBe(true);
+        const [dm, ...more] = dms();
+        expect(more).toEqual([]);
+        expect(res.conversationId).toBe(String(dm._id));
+        expect(dm.participants).toEqual([ANN, ORGANISER].sort());
+        const { kind, circleId, eventId, grantedBy } = dm.dmGrants[0];
+        expect({ kind, circleId, eventId, grantedBy }).toEqual({
+            kind: "event_guest",
+            circleId: HOST_ID,
+            eventId: EVENT_ID,
+            grantedBy: ANN,
+        });
+        expect(fakeDb.col("ChatMessageDocs").docs).toEqual([]);
+        // The check sendMongoMessageAction makes before storing a message, both ways.
+        expect((await getDmEligibility(ANN, ORGANISER)).isAllowed).toBe(true);
+        expect((await getDmEligibility(ORGANISER, ANN)).isAllowed).toBe(true);
+    });
+
+    test("pressing again opens the same conversation", async () => {
+        await confirm(ANN);
+        const first = await press(ANN);
+        const second = await press(ANN);
+        expect(second.conversationId).toBe(first.conversationId!);
+        expect(dms()).toHaveLength(1);
+        expect(dms()[0].dmGrants).toHaveLength(1);
+    });
+
+    test("only a confirmed guest: not someone who clicked Attend, Interested or another member", async () => {
+        await confirm(ANN);
+        for (const did of [BO, FAN, MEMBER]) {
+            expect(await press(did)).toEqual({
+                success: false,
+                message: "Only confirmed guests can message the organisers from here",
+            });
+        }
+        expect(dms()).toEqual([]);
+    });
+
+    test("after an organiser undoes the confirmation, the button's action is refused", async () => {
+        await confirm(ANN);
+        await unconfirmEventGuestAction("host", EVENT_ID, ANN);
+        expect((await press(ANN)).success).toBe(false);
+        expect(dms()).toEqual([]);
+    });
+
+    test("not through another circle's URL", async () => {
+        await confirm(ANN);
+        expect((await press(ANN, "other")).success).toBe(false);
+        expect(dms()).toEqual([]);
+    });
+
+    test("a guest without a verified profile is told to verify, as for any new DM", async () => {
+        await confirm(CY);
+        const res = await press(CY);
+        expect(res.success).toBe(false);
+        expect(res.message).toContain("verify your account");
+        expect(dms()).toEqual([]);
+    });
+
+    test("if the person who confirmed can't see the guests any more, it's the event's creator", async () => {
+        await confirm(ANN);
+        setConfirmedBy(MEMBER);
+        expect((await press(ANN)).success).toBe(true);
+        expect(dms()[0].participants).toEqual([ANN, CREATOR].sort());
+    });
+
+    test("if their account is gone, it's the event's creator", async () => {
+        await confirm(ANN);
+        setConfirmedBy("deleted-user");
+        expect((await press(ANN)).success).toBe(true);
+        expect(dms()[0].participants).toEqual([ANN, CREATOR].sort());
+    });
+
+    test("nobody to reach: the guest is told to comment on the event", async () => {
+        await confirm(ANN);
+        setConfirmedBy(MEMBER);
+        fakeDb.col("Events").docs[0].createdBy = "did:test:gone";
+        expect(await press(ANN)).toEqual({
+            success: false,
+            message: "The organisers can't be messaged from here right now. Please leave a comment on the event.",
+        });
+        expect(dms()).toEqual([]);
     });
 });

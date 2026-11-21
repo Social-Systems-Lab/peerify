@@ -9,6 +9,7 @@ import {
     rsvpEventAction,
     cancelRsvpAction,
     getEventGuestDetailsAction,
+    messageEventOrganisersAction,
     type EventGuestDetails,
     changeEventStageAction,
     hideCancelledEventAction,
@@ -282,6 +283,22 @@ export default function EventDetail({
                 router.refresh();
             } else {
                 toast({ title: "Error", description: res.message || "Failed to RSVP", variant: "destructive" });
+            }
+        });
+    };
+
+    // A confirmed guest's "Message the organisers": the DM is found or created only now (2026-11-21).
+    const onMessageOrganisers = () => {
+        startTransition(async () => {
+            const res = await messageEventOrganisersAction(circleHandle, eventId);
+            if (res.success && res.conversationId) {
+                router.push(`/chat/${res.conversationId}`);
+            } else {
+                toast({
+                    title: "Message the organisers",
+                    description: res.message || "Could not open the conversation",
+                    variant: "destructive",
+                });
             }
         });
     };
@@ -570,6 +587,7 @@ export default function EventDetail({
                             onAttend={() => setRsvpDialogOpen(true)}
                             onInterested={() => onRsvp("interested")}
                             onCancel={onCancelRsvp}
+                            onMessageOrganisers={onMessageOrganisers}
                         />
                     </div>
                 </div>
@@ -861,6 +879,7 @@ export default function EventDetail({
                             onAttend={() => setRsvpDialogOpen(true)}
                             onInterested={() => onRsvp("interested")}
                             onCancel={onCancelRsvp}
+                            onMessageOrganisers={onMessageOrganisers}
                         />
                     </div>
                     <EventArtistList
