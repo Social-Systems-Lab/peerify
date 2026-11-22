@@ -4,7 +4,7 @@
 // $ne, $exists, $not, $size, $gt/$gte/$lt/$lte, RegExp values, top-level $or/$and/$nor, find().toArray() and
 // find() with sort/limit/project, inclusion projections (dotted paths too), countDocuments, insertOne
 // (adds an ObjectId _id when there is none), deleteOne, deleteMany,
-// and updateOne ($set, $unset, $addToSet, $push (top-level, single value), $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
+// and updateOne ($set, $unset, $inc, $addToSet, $push (top-level, single value), $pull) / findOneAndUpdate with $set (findOneAndUpdate is atomic, as in MongoDB: nothing can run
 // between its match and its write). $set takes dotted paths, the positional "$" (the first element
 // that the filter's $elemMatch or "array.field" condition matched), and "$[name]" with arrayFilters.
 // $pull takes a value or a condition object on the elements. A top-level $expr supports the few
@@ -368,7 +368,15 @@ export const createFakeCollection = (initial: Doc[] = []) => {
         },
         async updateOne(
             filter: Doc,
-            update: { $set?: Doc; $setOnInsert?: Doc; $unset?: Doc; $addToSet?: Doc; $push?: Doc; $pull?: Doc },
+            update: {
+                $set?: Doc;
+                $setOnInsert?: Doc;
+                $unset?: Doc;
+                $addToSet?: Doc;
+                $push?: Doc;
+                $pull?: Doc;
+                $inc?: Doc;
+            },
             options?: { arrayFilters?: Doc[]; upsert?: boolean },
         ) {
             const found = docs.find((d) => matchesFilter(d, filter));
@@ -406,6 +414,11 @@ export const createFakeCollection = (initial: Doc[] = []) => {
                     throw new Error(`fake-collection: explicit undefined written to ${key}`);
                 }
                 setPath(found, key, value);
+            }
+            // Dotted paths; a missing field counts as 0, as in MongoDB.
+            for (const [key, amount] of Object.entries(update.$inc ?? {})) {
+                const current = getPath(found, key);
+                setPath(found, key, (typeof current === "number" ? current : 0) + (amount as number));
             }
             // Top-level fields only.
             for (const key of Object.keys(update.$unset ?? {})) {

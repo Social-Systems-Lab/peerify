@@ -2450,16 +2450,24 @@ export const unlikeContent = async (
     contentType: "post" | "comment",
     userDid: string,
     reactionType: string = "like",
-): Promise<void> => {
-    await Reactions.deleteOne({
+): Promise<boolean> => {
+    // Only this user's own reaction; the count drops only when one was removed, and never below zero.
+    const { deletedCount } = await Reactions.deleteOne({
         contentId,
         contentType,
         userDid,
         reactionType,
     });
+    if (deletedCount === 0) {
+        return false;
+    }
 
     const collection = contentType === "post" ? Posts : Comments;
-    await collection.updateOne({ _id: new ObjectId(contentId) }, { $inc: { [`reactions.${reactionType}`]: -1 } });
+    const countField = `reactions.${reactionType}`;
+    await collection.updateOne(
+        { _id: new ObjectId(contentId), [countField]: { $gt: 0 } },
+        { $inc: { [countField]: -1 } },
+    );
 
     if (contentType === "comment") {
         const comment = await Comments.findOne({ _id: new ObjectId(contentId) });
@@ -2467,6 +2475,7 @@ export const unlikeContent = async (
             await updateHighlightedComment(comment.postId!);
         }
     }
+    return true;
 };
 
 export const getReactions = async (

@@ -1072,12 +1072,15 @@ export async function likeContentAction(
             return { success: false, message: "Post not found" };
         }
 
+        // Liking needs what commenting needs, a verified profile included (2026-11-22). It used to
+        // check only the view permission, and skipped even that when the feed was missing.
         const feed = await getFeed(post.feedId);
-        if (feed) {
-            let canReact = await isAuthorized(userDid, feed.circleId, getPostViewFeature(post.postType));
-            if (!canReact) {
-                return { success: false, message: "You are not authorized to react to this content" };
-            }
+        if (!feed) {
+            return { success: false, message: "You are not authorized to react to this content" };
+        }
+        const canReact = await isAuthorized(userDid, feed.circleId, getPostCommentFeature(post.postType));
+        if (!canReact) {
+            return { success: false, message: "You are not authorized to react to this content" };
         }
 
         // Attribute the reaction to whichever persona the client says is currently active —
@@ -1118,8 +1121,13 @@ export async function unlikeContentAction(
 
     try {
         // Must match whichever identity actually recorded the reaction (see likeContentAction).
+        // Only removes this identity's own reaction; without one, nothing changes (the count used to
+        // drop anyway, so anyone could push any post's count down, below zero too).
         const { authorDid } = await resolveActingAuthor(userDid, postAsCircleId);
-        await unlikeContent(contentId, contentType, authorDid, reactionType);
+        const removed = await unlikeContent(contentId, contentType, authorDid, reactionType);
+        if (!removed) {
+            return { success: false, message: "You haven't liked this" };
+        }
         return { success: true, message: "Content unliked successfully" };
     } catch (error) {
         return { success: false, message: error instanceof Error ? error.message : "Failed to unlike content." };
