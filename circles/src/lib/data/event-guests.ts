@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 import { Circles, EventRsvps, Events } from "./db";
-import { ALL_TICKETS_CONFIRMED, roomForAnotherConfirmationFilter } from "@/lib/events/guest-capacity";
+import { NO_PLACES_LEFT, roomForAnotherConfirmationFilter } from "@/lib/events/guest-capacity";
 import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
 import { mayMessageEventGuest } from "./event";
 import { addDmGrant, findOrCreateDmConversation } from "./mongo-chat";
@@ -64,7 +64,7 @@ export const confirmEventGuest = async (
     );
     if (result.matchedCount > 0) return { ok: true };
     if (await isConfirmedGuest(eventId, guestDid)) return { ok: true, alreadyConfirmed: true };
-    return { ok: false, message: ALL_TICKETS_CONFIRMED };
+    return { ok: false, message: NO_PLACES_LEFT };
 };
 
 export const unconfirmEventGuest = async (eventId: string, guestDid: string): Promise<boolean> => {

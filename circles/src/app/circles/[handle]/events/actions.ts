@@ -2169,7 +2169,7 @@ const loadEventForOrganiser = async (
 
 /**
  * Mark someone who clicked Attend as a confirmed guest (event guests, part 2): organisers only.
- * Confirmed guests never exceed the event's capacity ("All places are confirmed").
+ * Confirmed guests plus places taken outside Peerify never exceed the event's capacity ("No places left").
  */
 export async function confirmEventGuestAction(
     circleHandle: string,

@@ -136,7 +136,7 @@ describe("confirming guests", () => {
     test("never more than the capacity", async () => {
         expect((await confirm(ANN)).success).toBe(true);
         expect((await confirm(BO)).success).toBe(true);
-        expect(await confirm(CY)).toEqual({ success: false, message: "All places are confirmed" });
+        expect(await confirm(CY)).toEqual({ success: false, message: "No places left" });
         expect(confirmedDids()).toEqual([ANN, BO]);
     });
 
@@ -151,7 +151,7 @@ describe("confirming guests", () => {
     test("places taken outside Peerify fill the capacity too", async () => {
         seed({ capacity: 3, metadata: { peerify: { placesTakenOutside: 2 } } });
         expect((await confirm(ANN)).success).toBe(true);
-        expect(await confirm(BO)).toEqual({ success: false, message: "All places are confirmed" });
+        expect(await confirm(BO)).toEqual({ success: false, message: "No places left" });
         expect(confirmedDids()).toEqual([ANN]);
         // Once the organiser lowers the outside count, there's room again.
         fakeDb.col("Events").docs[0].metadata.peerify.placesTakenOutside = 1;

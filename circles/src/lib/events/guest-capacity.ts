@@ -11,7 +11,9 @@
 
 export const EVENT_CAPACITY_MAX = 100_000;
 export const EVENT_CAPACITY_INVALID = "Capacity must be a whole number of at least 1, or left empty.";
-export const ALL_TICKETS_CONFIRMED = "All places are confirmed";
+// Refusal when confirmed guests plus places taken outside Peerify fill the capacity (2026-11-22;
+// was "All places are confirmed", which read wrongly once outside places can fill an event).
+export const NO_PLACES_LEFT = "No places left";
 export const PLACES_TAKEN_OUTSIDE_INVALID = "Places taken outside Peerify must be a whole number of 0 or more.";
 
 // The form's capacity field: empty means no limit.
