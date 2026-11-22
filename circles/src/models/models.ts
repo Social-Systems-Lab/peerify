@@ -2331,6 +2331,10 @@ export const peerifyEventMetadataSchema = z.object({
     // exact address or a door code). Never in the public metadata (sanitizePeerifyPublicEventMetadata
     // is an allowlist); confirmed guests get it from getEventGuestDetailsAction.
     guestNote: z.string().max(2000).optional(),
+    // Places sold or given away outside Peerify (2026-11-22), counted against the capacity. For the
+    // people who can edit the event only: left out of the public metadata like guestNote. Set from
+    // the form's own "placesTakenOutside" field, never from this JSON (parsePeerifyEventMetadata).
+    placesTakenOutside: z.number().int().min(0).optional(),
     publicMapLocation: locationSchema.optional(),
     publicMapDisplay: z.enum(["exact", "area"]).optional(),
     publicMapRadiusKm: z.number().positive().optional(),

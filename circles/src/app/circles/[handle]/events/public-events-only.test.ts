@@ -51,12 +51,20 @@ const storedEvent = (extra: Record<string, unknown> = {}) => ({
     startAt: new Date("2026-11-01T18:00:00Z"),
     endAt: new Date("2026-11-01T21:00:00Z"),
     location: { precision: 4, city: "Uppsala", street: STREET, lngLat: { lng: 17.64, lat: 59.85 } },
-    metadata: { peerify: { locationDisclosure: "approximate", privateLocationNote: NOTE, guestNote: `${NOTE} (guests)` } },
+    metadata: {
+        peerify: {
+            locationDisclosure: "approximate",
+            privateLocationNote: NOTE,
+            guestNote: `${NOTE} (guests)`,
+            placesTakenOutside: 4242,
+        },
+    },
     ...extra,
 });
 const leaks = (output: unknown) => {
     const text = JSON.stringify(output) ?? "";
-    return { street: text.includes(STREET), note: text.includes(NOTE) };
+    // Places taken outside Peerify (2026-11-22): for the people who can edit the event only.
+    return { street: text.includes(STREET), note: text.includes(NOTE), outside: text.includes("placesTakenOutside") };
 };
 
 const form = (fields: Record<string, string>) => {
@@ -95,22 +103,26 @@ describe("getEventAction (event page)", () => {
         sessionDid = MEMBER;
         const event = await getEventAction("host", EVENT_ID);
         expect(event).not.toBeNull();
-        expect(leaks(event)).toEqual({ street: false, note: false });
+        expect(leaks(event)).toEqual({ street: false, note: false, outside: false });
     });
 
     test("a public-disclosure event still shows its address to members, but never the private note", async () => {
         fakeDb.setAggregateResult("Events", [
-            storedEvent({ metadata: { peerify: { locationDisclosure: "public", privateLocationNote: NOTE } } }),
+            storedEvent({
+                metadata: {
+                    peerify: { locationDisclosure: "public", privateLocationNote: NOTE, placesTakenOutside: 7 },
+                },
+            }),
         ]);
         sessionDid = MEMBER;
-        expect(leaks(await getEventAction("host", EVENT_ID))).toEqual({ street: true, note: false });
+        expect(leaks(await getEventAction("host", EVENT_ID))).toEqual({ street: true, note: false, outside: false });
     });
 
     test("the author and a moderator get the full event", async () => {
         sessionDid = AUTHOR;
-        expect(leaks(await getEventAction("host", EVENT_ID))).toEqual({ street: true, note: true });
+        expect(leaks(await getEventAction("host", EVENT_ID))).toEqual({ street: true, note: true, outside: true });
         sessionDid = MODERATOR;
-        expect(leaks(await getEventAction("host", EVENT_ID))).toEqual({ street: true, note: true });
+        expect(leaks(await getEventAction("host", EVENT_ID))).toEqual({ street: true, note: true, outside: true });
     });
 
     test("an event of a circle the viewer can't see isn't served through another circle's URL", async () => {

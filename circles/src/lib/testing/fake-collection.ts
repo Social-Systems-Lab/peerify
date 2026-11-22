@@ -111,7 +111,7 @@ const matchesCondition = (value: unknown, condition: unknown): boolean => {
 const isMissing = (value: unknown) => value === null || value === undefined;
 
 // Aggregation expressions, as far as $expr in the code under test needs them: "$field.path",
-// "$$variable.path", literals, $lt/$lte/$gt/$gte/$eq/$ne, $size, $filter, $ifNull, $and/$or/$not.
+// "$$variable.path", literals, $lt/$lte/$gt/$gte/$eq/$ne, $size, $filter, $ifNull, $add, $and/$or/$not.
 const evalExpr = (doc: Doc, expr: unknown, vars: Record<string, unknown> = {}): unknown => {
     if (typeof expr === "string" && expr.startsWith("$$")) {
         const [name, ...rest] = expr.slice(2).split(".");
@@ -164,6 +164,12 @@ const evalExpr = (doc: Doc, expr: unknown, vars: Record<string, unknown> = {}): 
         case "$ifNull": {
             const values = args();
             return values.find((value) => !isMissing(value)) ?? values[values.length - 1];
+        }
+        case "$add": {
+            // As in MongoDB: null or missing anywhere gives null.
+            const values = args();
+            if (values.some(isMissing)) return null;
+            return (values as number[]).reduce((sum, value) => sum + value, 0);
         }
         case "$and":
             return args().every(truthy);

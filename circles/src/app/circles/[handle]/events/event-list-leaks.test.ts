@@ -64,7 +64,14 @@ const listFromDatabase = () => [
     event("e2", {
         title: "House show",
         location: { precision: 4, city: "Stockholm", street: HIDDEN_STREET, lngLat: { lng: HIDDEN_LNG, lat: 59.3 } },
-        metadata: { peerify: { locationDisclosure: "approximate", privateLocationNote: NOTE, guestNote: `${NOTE} (guests)` } },
+        metadata: {
+            peerify: {
+                locationDisclosure: "approximate",
+                privateLocationNote: NOTE,
+                guestNote: `${NOTE} (guests)`,
+                placesTakenOutside: 4242,
+            },
+        },
         invitations: [INVITEE],
     }),
     event("e3", { title: DRAFT_TITLE, stage: "draft" }),
@@ -79,12 +86,22 @@ const leaks = (value: unknown) => {
         hiddenStreet: t.includes(HIDDEN_STREET),
         hiddenPin: t.includes(String(HIDDEN_LNG)),
         note: t.includes(NOTE),
+        // Places taken outside Peerify (2026-11-22): for the people who can edit the event only.
+        outside: t.includes("placesTakenOutside"),
         invitee: t.includes(INVITEE),
         draft: t.includes(DRAFT_TITLE),
         crewOnly: t.includes(CREW_TITLE),
     };
 };
-const NO_LEAKS = { hiddenStreet: false, hiddenPin: false, note: false, invitee: false, draft: false, crewOnly: false };
+const NO_LEAKS = {
+    hiddenStreet: false,
+    hiddenPin: false,
+    note: false,
+    outside: false,
+    invitee: false,
+    draft: false,
+    crewOnly: false,
+};
 
 beforeEach(() => {
     sessionDid = undefined;
@@ -128,6 +145,7 @@ describe("getEventsAction (events tab, user toolbox, task form)", () => {
             hiddenStreet: true,
             hiddenPin: true,
             note: true,
+            outside: true,
             invitee: true,
             draft: true,
             crewOnly: true,

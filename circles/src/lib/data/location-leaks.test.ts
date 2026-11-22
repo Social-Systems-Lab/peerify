@@ -121,6 +121,7 @@ describe("getOpenEventsForList", () => {
                         locationDisclosure: "approximate",
                         privateLocationNote: "Door code 1234",
                         guestNote: "Door code 5678 for guests",
+                        placesTakenOutside: 4242,
                     },
                 },
             },
@@ -131,6 +132,7 @@ describe("getOpenEventsForList", () => {
         expect(events[0].location?.lngLat).toBeUndefined();
         expect(events[0].location?.city).toBe("Stockholm");
         expect(JSON.stringify(events)).not.toContain("Door code");
+        expect(JSON.stringify(events)).not.toContain("placesTakenOutside");
     });
 
     test("a public event keeps its address", async () => {

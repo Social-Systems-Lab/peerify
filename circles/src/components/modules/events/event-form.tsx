@@ -311,6 +311,10 @@ export default function EventForm({
     const [privateLocationNote, setPrivateLocationNote] = useState<string>(peerifyMetadata?.privateLocationNote || "");
     // Event guests (2026-11-20): shown only to confirmed guests and the organisers.
     const [guestNote, setGuestNote] = useState<string>(peerifyMetadata?.guestNote || "");
+    // Places taken outside Peerify (2026-11-22): only with a capacity; only editors see it.
+    const [placesTakenOutside, setPlacesTakenOutside] = useState<string>(
+        peerifyMetadata?.placesTakenOutside ? String(peerifyMetadata.placesTakenOutside) : "",
+    );
     const [publicMapLocation, setPublicMapLocation] = useState<Location | undefined>(
         peerifyMetadata?.publicMapLocation,
     );
@@ -687,6 +691,7 @@ export default function EventForm({
                 fd.set("endAt", finalEnd.toISOString());
                 fd.set("allDay", allDay ? "on" : "");
                 if (capacity) fd.set("capacity", capacity);
+                if (capacity && placesTakenOutside.trim()) fd.set("placesTakenOutside", placesTakenOutside);
                 fd.set("visibility", isPrivate ? "private" : "public");
                 const trimmedPrice = price.trim();
                 const parsedPrice = trimmedPrice.length > 0 ? Number(trimmedPrice) : undefined;
@@ -1323,6 +1328,26 @@ export default function EventForm({
                         <p className="mt-1 text-xs text-muted-foreground">
                             How many guests you can confirm. Leave empty for no limit. The event shows how many
                             places are left.
+                        </p>
+                    </div>
+
+                    <div>
+                        <Label htmlFor="placesTakenOutside">Places taken outside Peerify (optional)</Label>
+                        <Input
+                            id="placesTakenOutside"
+                            type="number"
+                            min={0}
+                            step={1}
+                            inputMode="numeric"
+                            placeholder="e.g., 5"
+                            value={capacity ? placesTakenOutside : ""}
+                            disabled={!capacity}
+                            onChange={(e) => setPlacesTakenOutside(e.target.value)}
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            {capacity
+                                ? "Places you've sold or given away elsewhere, e.g. tickets sold at the door. Only organisers see this number; guests see places left."
+                                : "Set a capacity first."}
                         </p>
                     </div>
 

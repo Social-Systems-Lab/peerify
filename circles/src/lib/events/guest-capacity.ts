@@ -3,10 +3,16 @@
 // event as `guestConfirmations` and never exceed `capacity`: the write itself carries the condition,
 // so two confirms at the same moment can't go over (as the shift confirm cap, shift-capacity.ts).
 // An event without a capacity has no limit. Nothing here reads the database.
+//
+// Places taken outside Peerify (2026-11-22): an organiser can record places sold or given away
+// elsewhere (e.g. tickets sold at the door) as `metadata.peerify.placesTakenOutside`. They count
+// against the capacity like confirmed guests. The number is for the people who can edit the event:
+// sanitizePeerifyPublicEventMetadata is an allowlist and leaves it out for everyone else.
 
 export const EVENT_CAPACITY_MAX = 100_000;
 export const EVENT_CAPACITY_INVALID = "Capacity must be a whole number of at least 1, or left empty.";
 export const ALL_TICKETS_CONFIRMED = "All places are confirmed";
+export const PLACES_TAKEN_OUTSIDE_INVALID = "Places taken outside Peerify must be a whole number of 0 or more.";
 
 // The form's capacity field: empty means no limit.
 export const parseEventCapacity = (
@@ -22,8 +28,50 @@ export const parseEventCapacity = (
     return { ok: true, capacity: value };
 };
 
-export const capacityBelowConfirmedMessage = (confirmed: number) =>
-    `${confirmed} ${confirmed === 1 ? "guest is" : "guests are"} confirmed, so the capacity can't be lower than ${confirmed}.`;
+// The form's "Places taken outside Peerify" field: empty means none (0).
+export const parsePlacesTakenOutside = (raw: unknown): { ok: true; value: number } | { ok: false; message: string } => {
+    if (raw === undefined || raw === null) return { ok: true, value: 0 };
+    const text = String(raw).trim();
+    if (text === "") return { ok: true, value: 0 };
+    const value = Number(text);
+    if (!Number.isInteger(value) || value < 0 || value > EVENT_CAPACITY_MAX) {
+        return { ok: false, message: PLACES_TAKEN_OUTSIDE_INVALID };
+    }
+    return { ok: true, value };
+};
+
+// The stored outside count of an event (0 when none).
+export const getPlacesTakenOutside = (event: { metadata?: unknown } | null | undefined): number => {
+    const value = (event?.metadata as { peerify?: { placesTakenOutside?: unknown } } | null | undefined)?.peerify
+        ?.placesTakenOutside;
+    return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : 0;
+};
+
+// The metadata with the outside count set (or removed when 0). Never changes `metadata` itself.
+export const withPlacesTakenOutside = <M extends Record<string, any> | null | undefined>(
+    metadata: M,
+    placesTakenOutside: number,
+): Record<string, any> | undefined => {
+    const peerify = { ...((metadata?.peerify as Record<string, unknown> | undefined) ?? {}) };
+    if (placesTakenOutside > 0) peerify.placesTakenOutside = placesTakenOutside;
+    else delete peerify.placesTakenOutside;
+    if (!metadata && Object.keys(peerify).length === 0) return undefined;
+    return { ...(metadata ?? {}), peerify };
+};
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+export const capacityBelowConfirmedMessage = (confirmed: number, placesTakenOutside = 0) => {
+    const parts = [
+        ...(confirmed > 0 || placesTakenOutside === 0
+            ? [`${plural(confirmed, "guest is", "guests are")} confirmed`]
+            : []),
+        ...(placesTakenOutside > 0
+            ? [`${plural(placesTakenOutside, "place is", "places are")} taken outside Peerify`]
+            : []),
+    ];
+    return `${parts.join(" and ")}, so the capacity can't be lower than ${confirmed + placesTakenOutside}.`;
+};
 
 // The number of confirmed guests, as an aggregation expression on an event document.
 export const confirmedGuestCountExpr = { $size: { $ifNull: ["$guestConfirmations", []] } };
@@ -33,9 +81,10 @@ export const roomForAnotherConfirmationFilter = () => ({
     $or: [{ capacity: null }, { $expr: { $lt: [confirmedGuestCountExpr, "$capacity"] } }],
 });
 
-// Matches an event whose confirmed guests fit within `capacity`.
-export const confirmedFitWithinFilter = (capacity: number) => ({
-    $expr: { $lte: [confirmedGuestCountExpr, capacity] },
+// Matches an event whose confirmed guests, plus `placesTakenOutside` (the value being saved), fit
+// within `capacity`.
+export const confirmedFitWithinFilter = (capacity: number, placesTakenOutside = 0) => ({
+    $expr: { $lte: [{ $add: [confirmedGuestCountExpr, placesTakenOutside] }, capacity] },
 });
 
 export const countConfirmedGuests = (event: { guestConfirmations?: unknown[] | null }) =>

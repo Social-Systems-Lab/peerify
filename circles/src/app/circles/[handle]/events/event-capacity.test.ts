@@ -9,7 +9,13 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { ObjectId } from "mongodb";
 import { createFakeDb } from "@/lib/testing/fake-db";
 import { features } from "@/lib/data/constants";
-import { EVENT_CAPACITY_INVALID, formatEventPlacesLeft, parseEventCapacity } from "@/lib/events/guest-capacity";
+import {
+    EVENT_CAPACITY_INVALID,
+    PLACES_TAKEN_OUTSIDE_INVALID,
+    formatEventPlacesLeft,
+    parseEventCapacity,
+    parsePlacesTakenOutside,
+} from "@/lib/events/guest-capacity";
 
 const fakeDb = createFakeDb();
 mock.module("@/lib/data/db", () => fakeDb.module);
@@ -199,5 +205,125 @@ describe("the note for confirmed guests in the event form", () => {
         fakeDb.setAggregateResult("Events", [{ ...fakeDb.col("Events").docs[0], _id: EVENT_ID }]);
         expect((await updateEventAction("host", EVENT_ID, withNote(""))).success).toBe(true);
         expect(peerify().guestNote).toBeUndefined();
+    });
+});
+
+// Places taken outside Peerify (2026-11-22): places sold elsewhere count against the capacity like
+// confirmed guests. Stored as metadata.peerify.placesTakenOutside.
+describe("places taken outside Peerify", () => {
+    const stored = () => fakeDb.col("Events").docs[0];
+    const storedOutside = () => stored()?.metadata?.peerify?.placesTakenOutside;
+    const withConfirmed = (n: number) => Array.from({ length: n }, (_, i) => confirmation(i + 1));
+
+    test("parse: empty means none; whole numbers from 0 are kept; anything else is refused", () => {
+        expect(parsePlacesTakenOutside(undefined)).toEqual({ ok: true, value: 0 });
+        expect(parsePlacesTakenOutside(" ")).toEqual({ ok: true, value: 0 });
+        expect(parsePlacesTakenOutside("0")).toEqual({ ok: true, value: 0 });
+        expect(parsePlacesTakenOutside("5")).toEqual({ ok: true, value: 5 });
+        for (const raw of ["-1", "2.5", "abc", "1e9"]) {
+            expect(parsePlacesTakenOutside(raw)).toEqual({ ok: false, message: PLACES_TAKEN_OUTSIDE_INVALID });
+        }
+    });
+
+    test("create refuses a negative number, and more outside places than the capacity", async () => {
+        expect(await createEventAction("host", form({ capacity: "10", placesTakenOutside: "-2" }))).toEqual({
+            success: false,
+            message: PLACES_TAKEN_OUTSIDE_INVALID,
+        });
+        expect(await createEventAction("host", form({ capacity: "5", placesTakenOutside: "6" }))).toEqual({
+            success: false,
+            message: "6 places are taken outside Peerify, so the capacity can't be lower than 6.",
+        });
+    });
+
+    test("update saves it, and an empty field or 0 clears it", async () => {
+        seed({ capacity: 20 });
+        expect(
+            (await updateEventAction("host", EVENT_ID, form({ capacity: "20", placesTakenOutside: "5" }))).success,
+        ).toBe(true);
+        expect(storedOutside()).toBe(5);
+        fakeDb.setAggregateResult("Events", [{ ...stored(), _id: EVENT_ID }]);
+        expect(
+            (await updateEventAction("host", EVENT_ID, form({ capacity: "20", placesTakenOutside: "0" }))).success,
+        ).toBe(true);
+        expect(storedOutside()).toBeUndefined();
+    });
+
+    test("update refuses a negative number and keeps what was stored", async () => {
+        seed({ capacity: 20, metadata: { peerify: { locationDisclosure: "public", placesTakenOutside: 3 } } });
+        expect(await updateEventAction("host", EVENT_ID, form({ capacity: "20", placesTakenOutside: "-1" }))).toEqual({
+            success: false,
+            message: PLACES_TAKEN_OUTSIDE_INVALID,
+        });
+        expect(storedOutside()).toBe(3);
+    });
+
+    test("the capacity can't be lower than confirmed + outside", async () => {
+        seed({ capacity: 10, guestConfirmations: withConfirmed(2) });
+        expect(await updateEventAction("host", EVENT_ID, form({ capacity: "3", placesTakenOutside: "2" }))).toEqual({
+            success: false,
+            message:
+                "2 guests are confirmed and 2 places are taken outside Peerify, so the capacity can't be lower than 4.",
+        });
+        expect(storedCapacity()).toBe(10);
+        expect(storedOutside()).toBeUndefined();
+        expect(
+            (await updateEventAction("host", EVENT_ID, form({ capacity: "4", placesTakenOutside: "2" }))).success,
+        ).toBe(true);
+        expect(storedCapacity()).toBe(4);
+        expect(storedOutside()).toBe(2);
+    });
+
+    test("raising the outside places past what's left is refused; up to it is fine", async () => {
+        seed({ capacity: 5, guestConfirmations: withConfirmed(2) });
+        expect(await updateEventAction("host", EVENT_ID, form({ capacity: "5", placesTakenOutside: "4" }))).toEqual({
+            success: false,
+            message:
+                "2 guests are confirmed and 4 places are taken outside Peerify, so the capacity can't be lower than 6.",
+        });
+        expect(
+            (await updateEventAction("host", EVENT_ID, form({ capacity: "5", placesTakenOutside: "3" }))).success,
+        ).toBe(true);
+        expect(storedOutside()).toBe(3);
+    });
+
+    test("clearing the capacity clears the outside places", async () => {
+        seed({ capacity: 10, metadata: { peerify: { locationDisclosure: "public", placesTakenOutside: 3 } } });
+        // The form sends no capacity (empty); a stray outside value is ignored.
+        expect((await updateEventAction("host", EVENT_ID, form({ placesTakenOutside: "3" }))).success).toBe(true);
+        expect(storedOutside()).toBeUndefined();
+    });
+
+    test("works on an older event stored with metadata: null", async () => {
+        seed({ capacity: 10, metadata: null });
+        expect(
+            (await updateEventAction("host", EVENT_ID, form({ capacity: "10", placesTakenOutside: "2" }))).success,
+        ).toBe(true);
+        expect(storedOutside()).toBe(2);
+    });
+
+    test("the capacity write carries confirmed + outside (a confirm landing after the first check)", async () => {
+        seed({ capacity: 5, guestConfirmations: withConfirmed(1) });
+        const events = fakeDb.col("Events");
+        const realFindOne = events.findOne.bind(events);
+        // The early check reads one confirmed guest; by the time of the write there are three.
+        let reads = 0;
+        (events as any).findOne = async (...args: any[]) => {
+            const doc = await realFindOne(...(args as [any]));
+            if (doc?.guestConfirmations && ++reads === 1) {
+                events.docs[0].guestConfirmations = withConfirmed(3);
+                return { ...doc, guestConfirmations: withConfirmed(1) };
+            }
+            return doc;
+        };
+        const result = await updateEventAction("host", EVENT_ID, form({ capacity: "5", placesTakenOutside: "3" }));
+        (events as any).findOne = realFindOne;
+        expect(result).toEqual({
+            success: false,
+            message:
+                "3 guests are confirmed and 3 places are taken outside Peerify, so the capacity can't be lower than 6.",
+        });
+        expect(storedCapacity()).toBe(5);
+        expect(storedOutside()).toBeUndefined();
     });
 });

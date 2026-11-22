@@ -26,7 +26,7 @@ const event = (extra: Record<string, unknown> = {}) =>
             street: STREET,
             lngLat: { lng: 18.07, lat: 59.33 },
         },
-        metadata: { peerify: { privateLocationNote: NOTE, guestNote: `${NOTE} for guests` } },
+        metadata: { peerify: { privateLocationNote: NOTE, guestNote: `${NOTE} for guests`, placesTakenOutside: 4242 } },
         ...extra,
     }) as Parameters<typeof buildEventShareText>[0];
 
@@ -43,6 +43,7 @@ describe("share text", () => {
         expect(text).not.toContain(STREET);
         expect(text).not.toContain("18.07");
         expect(text).not.toContain(NOTE);
+        expect(text).not.toContain("4242");
     });
 
     test("uses the organiser's public label when there is one", () => {
@@ -111,6 +112,7 @@ describe("one Share button: share sheet on phones, link dialog on desktop (2026-
             expect(all).not.toContain("18.07");
             expect(all).not.toContain("59.33");
             expect(all).not.toContain(NOTE);
+            expect(all).not.toContain("4242");
             expect(all.split(URL).length - 1).toBe(1);
         }
     });

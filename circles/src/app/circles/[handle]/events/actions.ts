@@ -39,6 +39,8 @@ import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tag
 import {
     capacityBelowConfirmedMessage,
     confirmedFitWithinFilter,
+    parsePlacesTakenOutside,
+    withPlacesTakenOutside,
     countConfirmedGuests,
     parseEventCapacity,
 } from "@/lib/events/guest-capacity";
@@ -190,6 +192,7 @@ const createEventSchema = z.object({
             { message: "Invalid event tags format" },
         ),
     capacity: z.string().optional(), // parse to number
+    placesTakenOutside: z.string().optional(), // parse to number; ignored without a capacity
     visibility: eventVisibilitySchema.optional(),
     peerifyEventMetadata: z
         .string()
@@ -734,6 +737,7 @@ export async function createEventAction(
             causes: formData.getAll("causes"),
             tags: (formData.get("tags") as string) ?? undefined,
             capacity: (formData.get("capacity") as string) ?? undefined,
+            placesTakenOutside: (formData.get("placesTakenOutside") as string) ?? undefined,
             visibility: (formData.get("visibility") as string) ?? undefined,
             peerifyEventMetadata: (formData.get("peerifyEventMetadata") as string) ?? undefined,
             recurrence: (formData.get("recurrence") as string) ?? undefined,
@@ -753,6 +757,13 @@ export async function createEventAction(
         const parsedCapacity = parseEventCapacity(data.capacity);
         if (!parsedCapacity.ok) return { success: false, message: parsedCapacity.message };
         const capacity = parsedCapacity.capacity;
+        const parsedOutside = parsePlacesTakenOutside(data.placesTakenOutside);
+        if (!parsedOutside.ok) return { success: false, message: parsedOutside.message };
+        // No capacity, no limit: nothing to count outside places against.
+        const placesTakenOutside = capacity === undefined ? 0 : parsedOutside.value;
+        if (capacity !== undefined && placesTakenOutside > capacity) {
+            return { success: false, message: capacityBelowConfirmedMessage(0, placesTakenOutside) };
+        }
 
         const locationData: EventModel["location"] = parseUsableLocationInput(data.location);
         if (eventNeedsLocation(isVirtual, isHybrid) && !locationData) {
@@ -776,7 +787,10 @@ export async function createEventAction(
             submittedTags = JSON.parse(data.tags);
         }
 
-        const metadata = parsePeerifyEventMetadata(data.peerifyEventMetadata)?.metadata;
+        const metadata = withPlacesTakenOutside(
+            parsePeerifyEventMetadata(data.peerifyEventMetadata)?.metadata,
+            placesTakenOutside,
+        );
         if (usesHiddenEventOptions(data.visibility, metadata?.peerify)) {
             return { success: false, message: HIDDEN_EVENT_OPTION_MESSAGE };
         }
@@ -912,6 +926,7 @@ export async function updateEventAction(
             causes: formData.getAll("causes"),
             tags: (formData.get("tags") as string) ?? undefined,
             capacity: (formData.get("capacity") as string) ?? undefined,
+            placesTakenOutside: (formData.get("placesTakenOutside") as string) ?? undefined,
             visibility: (formData.get("visibility") as string) ?? undefined,
             peerifyEventMetadata: (formData.get("peerifyEventMetadata") as string) ?? undefined,
             recurrence: (formData.get("recurrence") as string) ?? undefined,
@@ -927,10 +942,14 @@ export async function updateEventAction(
         // Checked before any upload; the write below checks it again atomically.
         const parsedCapacity = parseEventCapacity(data.capacity);
         if (!parsedCapacity.ok) return { success: false, message: parsedCapacity.message };
+        const parsedOutside = parsePlacesTakenOutside(data.placesTakenOutside);
+        if (!parsedOutside.ok) return { success: false, message: parsedOutside.message };
+        // No capacity, no limit: clearing the capacity clears the places taken outside too.
+        const placesTakenOutside = parsedCapacity.capacity === undefined ? 0 : parsedOutside.value;
         if (parsedCapacity.capacity !== undefined) {
             const confirmed = await countConfirmedGuestsOf(eventId);
-            if (confirmed > parsedCapacity.capacity) {
-                return { success: false, message: capacityBelowConfirmedMessage(confirmed) };
+            if (confirmed + placesTakenOutside > parsedCapacity.capacity) {
+                return { success: false, message: capacityBelowConfirmedMessage(confirmed, placesTakenOutside) };
             }
         }
 
@@ -1016,7 +1035,10 @@ export async function updateEventAction(
 
         const startAt = data.startAt ? parseDate(data.startAt) : event.startAt;
         const endAt = data.endAt ? parseDate(data.endAt) : event.endAt;
-        const metadata = mergePeerifyEventMetadata(event.metadata, parsedPeerifyMetadata);
+        const metadata = withPlacesTakenOutside(
+            mergePeerifyEventMetadata(event.metadata, parsedPeerifyMetadata),
+            placesTakenOutside,
+        );
 
         const updateData: Partial<EventModel> = {
             title: data.title,
@@ -1044,15 +1066,21 @@ export async function updateEventAction(
         const user = await getUserByDid(userDid);
         if (!user) return { success: false, message: "User not found" };
 
-        // The capacity can't go below the guests already confirmed. Set it first with that condition
-        // in the write, so a confirm landing meanwhile can't leave more confirmed than places.
+        // The capacity can't go below the guests already confirmed plus the places taken outside
+        // Peerify. Set both first with that condition in the write, so a confirm landing meanwhile
+        // can't leave more places taken than there are. The whole metadata is set (not the nested
+        // path): an older event may store `metadata: null`, which a dotted $set can't write into.
         if (parsedCapacity.capacity !== undefined) {
             const capacitySet = await Events.updateOne(
-                { _id: new ObjectId(eventId), ...confirmedFitWithinFilter(parsedCapacity.capacity) },
-                { $set: { capacity: parsedCapacity.capacity } },
+                {
+                    _id: new ObjectId(eventId),
+                    ...confirmedFitWithinFilter(parsedCapacity.capacity, placesTakenOutside),
+                },
+                { $set: { capacity: parsedCapacity.capacity, metadata } },
             );
             if (capacitySet.matchedCount === 0) {
-                return { success: false, message: capacityBelowConfirmedMessage(await countConfirmedGuestsOf(eventId)) };
+                const confirmed = await countConfirmedGuestsOf(eventId);
+                return { success: false, message: capacityBelowConfirmedMessage(confirmed, placesTakenOutside) };
             }
         }
 
