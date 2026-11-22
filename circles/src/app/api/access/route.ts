@@ -6,7 +6,7 @@ import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { isModuleEnabled } from "@/lib/auth/client-auth";
 import { canViewProfileCirclesList } from "@/lib/data/profile-circles-access";
 import { PROFILE_CIRCLES_MODULE } from "@/lib/peerify/profile-circles-list";
-import { getsLimitedPersonalProfile } from "@/lib/peerify/personal-profile-access";
+import { canViewFullPersonalProfile } from "@/lib/data/personal-profile-access";
 
 export async function POST(req: Request) {
     try {
@@ -38,11 +38,12 @@ export async function POST(req: Request) {
             }
         }
 
-        // A signed-out visitor sees a personal profile's limited version on its home tab only
-        // (the layout renders it); every other tab sends them to sign in (Tim, 2026-11-22). The
-        // bare /circles/<handle> URL passes too: it only redirects to the default tab.
-        if (getsLimitedPersonalProfile(circle, userDid) && moduleHandle !== "home" && circleRoot !== true) {
-            return NextResponse.json({ authenticated: false, authorized: false });
+        // Anyone who gets a personal profile's limited version (everyone but the owner,
+        // superadmins and accepted connections) sees it on the home tab only, where the layout
+        // renders it; every other tab is refused: sign in when signed out, access denied otherwise
+        // (Tim, 2026-11-22). The bare /circles/<handle> URL passes: it only redirects to home.
+        if (moduleHandle !== "home" && circleRoot !== true && !(await canViewFullPersonalProfile(circle, userDid))) {
+            return NextResponse.json({ authenticated: !!userDid, authorized: false });
         }
 
         const isFundingRoute = moduleHandle === "funding";

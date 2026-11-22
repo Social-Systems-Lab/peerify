@@ -23,11 +23,8 @@ import { PilotChromeScope } from "@/components/layout/pilot-chrome-scope";
 import { toPublicCircle } from "@/lib/utils/public-circle";
 import { canViewUnpublishedCircle } from "@/lib/data/member";
 import { showsParentCircleBadge } from "@/lib/peerify/parent-circle-badge";
-import {
-    getsLimitedPersonalProfile,
-    isPersonalProfile,
-    toLimitedPersonalProfile,
-} from "@/lib/peerify/personal-profile-access";
+import { isPersonalProfile, toLimitedPersonalProfile } from "@/lib/peerify/personal-profile-access";
+import { canViewFullPersonalProfile } from "@/lib/data/personal-profile-access";
 import { PersonalProfilePlaceholder } from "@/components/modules/home/personal-profile-placeholder";
 
 type Props = { params: Promise<{ handle: string }>; children: React.ReactNode };
@@ -57,10 +54,11 @@ export default async function RootLayout(props: Props) {
         redirect("/not-found");
     }
     // A personal profile's limited version (name, handle, picture) replaces the whole page, tabs
-    // and child route included, for a signed-out visitor (Tim, 2026-11-22). /api/access keeps them
-    // off every tab but home, and the home page renders nothing for them.
-    if (getsLimitedPersonalProfile(circle, userDid)) {
-        return <PersonalProfilePlaceholder profile={toLimitedPersonalProfile(circle)} />;
+    // and child route included, for everyone but the owner, superadmins and accepted connections
+    // (Tim, 2026-11-22). /api/access keeps the others off every tab but home, and the home page
+    // renders nothing for them.
+    if (!(await canViewFullPersonalProfile(circle, userDid))) {
+        return <PersonalProfilePlaceholder profile={toLimitedPersonalProfile(circle)} signedIn={!!userDid} />;
     }
     // Identity only: HomeContent just links to the parent (circleType/handle/name), and this is
     // sent to every visitor of a sub-circle page. Only when the page shows the "Child of" badge: a
