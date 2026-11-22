@@ -1,12 +1,15 @@
 // Run: IS_BUILD=true bun test src/lib/data/feed-author-limits.test.ts
 // Post and comment authors (Tim, 2026-11-22): an author who is a personal profile the viewer has
-// no relationship with is sent as name, handle and picture only (plus _id, did and circleType for
-// linking). The author themselves, their accepted connections and superadmins get the author as
+// no relationship with is sent as name, handle and picture only (plus _id and did for linking),
+// and the badge next to the name (Verified / Founding Member), the same one everyone else sees. The author themselves, their accepted connections and superadmins get the author as
 // before; artist, band and venue authors are unchanged. Checks the returned payload.
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { ObjectId } from "mongodb";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { createFakeDb } from "@/lib/testing/fake-db";
+import { UserStatusBadge } from "@/components/modules/users/user-status-badge";
 
 const fakeDb = createFakeDb();
 mock.module("@/lib/data/db", () => fakeDb.module);
@@ -43,13 +46,15 @@ const bandAuthor = () => ({
     handle: "band",
     description: "Public band text",
 });
+// The feed and comment aggregations build authors without circleType, so no viewer gets a badge
+// there; the limited author doesn't add one (it would read "Unverified").
 const LIMITED_AUTHOR = {
     _id: AUTHOR_ID,
     did: AUTHOR,
     handle: "author",
     name: "Author Name",
     picture: { url: "https://cdn.example/author.png" },
-    circleType: "user",
+    isVerified: true,
 };
 
 beforeEach(() =>
@@ -115,5 +120,57 @@ describe("artist, band and venue authors", () => {
     test("unchanged for a stranger", async () => {
         const [shaped]: any[] = await limitContentAuthorsForViewer([{ author: bandAuthor() }], STRANGER);
         expect(shaped.author).toEqual(bandAuthor());
+    });
+});
+
+describe("the badge next to a stranger's name", () => {
+    const badgeHtml = (author: unknown) =>
+        renderToStaticMarkup(createElement(UserStatusBadge, { user: author as any }));
+
+    // The single post page's author is a whole public profile (toPublicCircle), with circleType.
+    const pageAuthor = (extra: Record<string, unknown>) => ({
+        ...personAuthor(),
+        circleType: "user",
+        isVerified: undefined,
+        ...extra,
+    });
+
+    test("a verified author: Verified, as for everyone else", async () => {
+        const [shaped]: any[] = await limitContentAuthorsForViewer(
+            [{ author: pageAuthor({ verificationStatus: "verified" }) }],
+            STRANGER,
+        );
+        expect(shaped.author).toEqual({ ...LIMITED_AUTHOR, circleType: "user", isVerified: true });
+        expect(badgeHtml(shaped.author)).toContain("Verified");
+        expect(badgeHtml(shaped.author)).not.toContain("Unverified");
+        expect(JSON.stringify(shaped)).not.toContain("CANARY");
+    });
+
+    test("a founding member: Founding Member, as for everyone else", async () => {
+        const [shaped]: any[] = await limitContentAuthorsForViewer(
+            [{ author: pageAuthor({ isVerified: true, isFoundingMember: true, foundingMemberNumber: 7 }) }],
+            STRANGER,
+        );
+        expect(shaped.author.isFoundingMember).toBe(true);
+        expect(shaped.author.foundingMemberNumber).toBeUndefined();
+        expect(badgeHtml(shaped.author)).toContain("Founding Member");
+    });
+
+    test("an unverified author: Unverified, as for everyone else", async () => {
+        const [shaped]: any[] = await limitContentAuthorsForViewer(
+            [{ author: pageAuthor({ verificationStatus: "pending" }) }],
+            STRANGER,
+        );
+        expect(shaped.author.isVerified).toBeUndefined();
+        expect(shaped.author.verificationStatus).toBeUndefined();
+        expect(badgeHtml(shaped.author)).toBe(badgeHtml(pageAuthor({ verificationStatus: "pending" })));
+    });
+
+    test("feed authors (no circleType): no badge for a stranger, as for everyone else", async () => {
+        const unverified = { ...personAuthor(), isVerified: false };
+        const [shaped]: any[] = await limitContentAuthorsForViewer([{ author: unverified }], STRANGER);
+        expect(shaped.author.circleType).toBeUndefined();
+        expect(badgeHtml(shaped.author)).toBe("");
+        expect(badgeHtml(unverified)).toBe("");
     });
 });

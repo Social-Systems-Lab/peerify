@@ -38,6 +38,7 @@ import { getIssueById } from "./issue";
 import { getFundingAskDocumentById, getFundingCirclePermissions, isFundingAskVisibleToViewer } from "./funding";
 import { sdgs } from "./sdgs";
 import { isAuthorized } from "@/lib/auth/auth";
+import { isVerifiedUser } from "@/lib/auth/verification";
 import { features, getPostViewFeature } from "./constants";
 import { isEventShadowPost } from "@/lib/events/event-shadow-post";
 
@@ -625,7 +626,8 @@ function redactContentListLocations<T extends LocationBearingContent>(items: T[]
 // Personal profile authors (Tim, 2026-11-22): a post's or comment's author who is a personal
 // profile the viewer has no relationship with (getFullProfileOwnerDids: themselves, a superadmin
 // viewer, an accepted connection) is sent as name, handle and picture only, plus the ids the UI
-// links with (_id, did) and circleType. No about text, images, location, metadata or badges.
+// links with (_id, did) and the name badge (toLimitedAuthor). No about text, images, location or
+// metadata.
 // Applies to the post's author, its highlighted comment's author and a shared post's author, at
 // every depth. Artist, band and venue authors are left alone. Runs after redactContentLocations.
 type AuthorBearingContent = {
@@ -639,14 +641,21 @@ const collectAuthorDids = (item: AuthorBearingContent | null | undefined, into: 
     if (item.highlightedComment?.author?.did) into.add(item.highlightedComment.author.did);
     collectAuthorDids(item.sharedPostData, into);
 };
+// The badge next to the name stays (Tim, 2026-11-22): the same Verified or Founding Member badge
+// everyone else sees (UserStatusBadge), as booleans only. circleType is kept only when the author
+// already had it: the feed and comment authors don't, so no viewer gets a badge there, and adding
+// it would show "Unverified" next to every stranger.
 const toLimitedAuthor = (author: Record<string, unknown>): Record<string, unknown> => {
-    const limited: Record<string, unknown> = { circleType: "user" };
+    const limited: Record<string, unknown> = {};
+    if (author.circleType !== undefined) limited.circleType = "user";
     for (const key of ["_id", "did", "handle", "name"]) {
         if (author[key] !== undefined) limited[key] = key === "_id" ? String(author[key]) : author[key];
     }
     const picture = author.picture as { url?: string } | string | undefined;
     const pictureUrl = typeof picture === "string" ? picture : picture?.url;
     if (pictureUrl) limited.picture = { url: pictureUrl };
+    if (isVerifiedUser(author as Parameters<typeof isVerifiedUser>[0])) limited.isVerified = true;
+    if (author.isFoundingMember === true) limited.isFoundingMember = true;
     return limited;
 };
 const limitItemAuthors = <T extends AuthorBearingContent>(item: T, limitedDids: Set<string>): T => {
