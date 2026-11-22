@@ -10,6 +10,7 @@ import {
     USER_CIRCLE_OWNER_ONLY_USER_GROUPS,
 } from "@/models/models";
 import { ChatRoomMembers, Circles, Members } from "./db";
+import { getFullProfileOwnerDids } from "./personal-profile-access";
 import { ObjectId } from "mongodb";
 import { redactLocationForViewer, viewerBypassesLocationRedaction, type LocationViewerContext } from "../utils";
 import { toPublicLocation } from "../utils/public-circle";
@@ -114,7 +115,44 @@ export const getMembersWithMetrics = async (
 
     // sort members by rank
     members.sort((a, b) => (a.metrics?.rank ?? 0) - (b.metrics?.rank ?? 0));
-    return circleId ? shapeMemberGroupsForViewer(members, circleId, userDid) : members;
+    const shaped = circleId ? await shapeMemberGroupsForViewer(members, circleId, userDid) : members;
+    return limitMemberRowsForViewer(shaped, userDid);
+};
+
+// Personal profiles in the follower list (Tim, 2026-11-22): a row whose person the viewer has no
+// relationship with (getFullProfileOwnerDids: they are the viewer, the viewer is a superadmin, or
+// an accepted connection) carries name, handle and picture only, plus what the row itself needs
+// (who, which circle, groups, when they followed). No about text, images, location, follower
+// count, distance or settings. Rows that aren't personal profiles are left alone.
+const MEMBER_ROW_FIELDS = [
+    "_id",
+    "userDid",
+    "circleId",
+    "userGroups",
+    "joinedAt",
+    "circleType",
+    "did",
+    "handle",
+    "name",
+];
+export const limitMemberRowsForViewer = async (
+    members: MemberDisplay[],
+    viewerDid: string | undefined,
+): Promise<MemberDisplay[]> => {
+    const personal = members.filter((member) => member.circleType === "user").map((member) => member.userDid);
+    if (personal.length === 0) return members;
+    const full = await getFullProfileOwnerDids(viewerDid, personal);
+    return members.map((member) => {
+        if (member.circleType !== "user" || full.has(member.userDid)) return member;
+        const limited: Record<string, unknown> = {};
+        for (const key of MEMBER_ROW_FIELDS) {
+            const value = (member as unknown as Record<string, unknown>)[key];
+            if (value !== undefined) limited[key] = value;
+        }
+        const pictureUrl = member.picture?.url;
+        if (pictureUrl) limited.picture = { url: pictureUrl };
+        return limited as unknown as MemberDisplay;
+    });
 };
 
 /**
