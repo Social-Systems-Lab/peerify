@@ -12,3 +12,6 @@
 /releases/
 /current
 /current.tmp
+
+# Never commit private notes (e.g. peerify-security-log-PRIVATE.md); case-sensitive
+*PRIVATE*
