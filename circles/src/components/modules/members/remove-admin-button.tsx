@@ -20,6 +20,7 @@ import { hasHigherAccess, isAuthorized } from "@/lib/auth/client-auth";
 import { features } from "@/lib/data/constants";
 import { updateUserGroupsAction } from "@/components/modules/members/actions";
 import { Circle, MemberDisplay } from "@/models/models";
+import { canOfferAdminRemoval } from "./circle-creator";
 
 type Props = {
     circle: Circle;
@@ -50,7 +51,11 @@ export default function RemoveAdminButton({ circle, admin }: Props) {
         isAuthorized(user, circle, features.general.edit_lower_user_groups) ||
         isAuthorized(user, circle, features.general.edit_same_level_user_groups);
     const canEditSameLevel = isAuthorized(user, circle, features.general.edit_same_level_user_groups);
-    const canRemove = canEditUserGroups && hasHigherAccess(user, admin, circle, canEditSameLevel);
+    // Hidden on the creator's row unless a superadmin (not the creator) is looking (2026-11-22).
+    const canRemove =
+        canOfferAdminRemoval(user, circle, admin.userDid) &&
+        canEditUserGroups &&
+        hasHigherAccess(user, admin, circle, canEditSameLevel);
     const isSelf = user?.did === admin.userDid;
 
     if (!canRemove) {

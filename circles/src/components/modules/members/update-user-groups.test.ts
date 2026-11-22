@@ -183,6 +183,17 @@ describe("demoting the creator", () => {
         expect(await groupsOf(CREATOR)).toEqual(["admins", "members"]);
     });
 
+    test("the creator can't demote themselves even as a superadmin (tim-solo, 2026-11-22)", async () => {
+        await fakeDb.col("Circles").updateOne({ did: CREATOR }, { $set: { isAdmin: true } });
+        sessionDid = CREATOR;
+        const result = await updateUserGroupsAction(target(CREATOR), band, DEMOTED);
+        expect(result).toEqual({
+            success: false,
+            message: "As the creator of this circle you can't give up the admin role.",
+        });
+        expect(await groupsOf(CREATOR)).toEqual(["admins", "members"]);
+    });
+
     test("a superadmin can", async () => {
         sessionDid = SUPERADMIN;
         expect(await updateUserGroupsAction(target(CREATOR), band, DEMOTED)).toEqual({ success: true });

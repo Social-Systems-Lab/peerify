@@ -212,6 +212,14 @@ describe("removing the creator", () => {
         expect(await isMember(CREATOR)).not.toBeNull();
     });
 
+    test("the creator can't remove themselves even as a superadmin (2026-11-22)", async () => {
+        await fakeDb.col("Circles").updateOne({ did: CREATOR }, { $set: { isAdmin: true } });
+        sessionDid = CREATOR;
+        const result = await removeMemberAction(target(CREATOR), band);
+        expect(result).toEqual({ success: false, message: "As the creator of this circle you can't leave it." });
+        expect(await isMember(CREATOR)).not.toBeNull();
+    });
+
     test("a moderator can't", async () => {
         sessionDid = MODERATOR;
         const result = await removeMemberAction(target(CREATOR), band);

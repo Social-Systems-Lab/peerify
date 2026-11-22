@@ -54,6 +54,10 @@ const ADMIN_ROLE_REMOVAL_REQUEST_ALREADY_PENDING_MESSAGE =
     "An admin removal request is already pending for this admin.";
 const CREATOR_REMOVAL_MESSAGE = "Only a Peerify admin can remove the creator of this circle.";
 const CREATOR_DEMOTION_MESSAGE = "Only a Peerify admin can take the admin role from the creator of this circle.";
+// The creator never removes themselves or drops their own admin role, superadmin or not (matches
+// leaveCircle). A superadmin can still remove or demote a creator who is someone else.
+const CREATOR_SELF_REMOVAL_MESSAGE = "As the creator of this circle you can't leave it.";
+const CREATOR_SELF_DEMOTION_MESSAGE = "As the creator of this circle you can't give up the admin role.";
 
 async function notifyTargetAdminOfRemovalRequest(circle: Circle, targetUserDid: string, requestedByDid: string): Promise<void> {
     try {
@@ -79,7 +83,8 @@ async function notifyTargetAdminOfRemovalRequest(circle: Circle, targetUserDid: 
 // target an admin?" read the userGroups of the member object the browser sent, so an admin could
 // send an admin's or the creator's DID with userGroups: [] and remove them outright, skipping the
 // removal request and the last-admin rule.
-// - The creator (circle.createdBy) can be removed only by a superadmin (user.isAdmin).
+// - The creator (circle.createdBy) can be removed only by a superadmin (user.isAdmin), and never by
+//   themselves, even as a superadmin (2026-11-22, like leaveCircle).
 // - An admin can be removed directly by the creator or a superadmin. Another admin only creates a
 //   removal request, which the target must approve. Admins may still remove themselves.
 // - Never the last admin, and no admin changes while a detach request is pending.
@@ -107,6 +112,9 @@ export const removeMemberAction = async (member: MemberDisplay, circle: Circle):
         const targetIsCreator = !!existingCircle.createdBy && existingCircle.createdBy === targetDid;
         const targetIsAdmin = target.userGroups?.includes("admins") ?? false;
 
+        if (targetIsCreator && targetDid === userDid) {
+            return { success: false, message: CREATOR_SELF_REMOVAL_MESSAGE };
+        }
         if (targetIsCreator && !callerIsSuperadmin) {
             return { success: false, message: CREATOR_REMOVAL_MESSAGE };
         }
@@ -195,9 +203,9 @@ export const updateUserGroupsAction = async (
 
     try {
         // Taking the admin role away follows removeMemberAction's rule (2026-11-22): only a
-        // superadmin can demote the creator; the creator and superadmins demote an admin directly,
-        // another admin only creates a removal request the target must approve; never the last
-        // admin. Groups and the creator are read from the database. Superadmins need no role in
+        // superadmin can demote the creator, and the creator never demotes themselves (superadmin
+        // or not); the creator and superadmins demote an admin directly, another admin only
+        // creates a removal request the target must approve; never the last admin. Groups and the creator are read from the database. Superadmins need no role in
         // the circle and may edit every group (still never an owner-only group, see below).
         const circleId = circle._id ?? "";
         const existingCircle = circleId ? await getCircleById(circleId) : null;
@@ -241,6 +249,9 @@ export const updateUserGroupsAction = async (
         const isAdmin = existingMember.userGroups?.includes("admins");
         const isAddingAdmin = !isAdmin && newGroups.includes("admins");
         const isRemovingAdmin = isAdmin && !newGroups.includes("admins");
+        if (isRemovingAdmin && targetIsCreator && member.userDid === userDid) {
+            return { success: false, message: CREATOR_SELF_DEMOTION_MESSAGE };
+        }
         if (isRemovingAdmin && targetIsCreator && !callerIsSuperadmin) {
             return { success: false, message: CREATOR_DEMOTION_MESSAGE };
         }
