@@ -267,6 +267,12 @@ export const leaveCircle = async (circle: Circle): Promise<CircleActionResponse>
         if (!member) {
             throw new Error("Member not found");
         }
+        // The creator can't leave (2026-11-22): only a superadmin can remove them, so the circle
+        // never loses its creator this way. Read from the database, not the circle the client sent.
+        const existingCircle = await getCircleById(circle._id ?? "");
+        if (existingCircle?.createdBy && existingCircle.createdBy === userDid) {
+            return { success: false, message: "As the creator of this circle you can't leave it." };
+        }
         const isAdmin = member.userGroups?.includes("admins");
         if (isAdmin) {
             const pendingDetachRequest = await getPendingDetachCircleRequest(circle._id ?? "");
