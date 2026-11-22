@@ -24,6 +24,12 @@ export const getMember = async (userDid: string, circleId: string): Promise<Memb
     return await Members.findOne({ userDid: userDid, circleId: circleId });
 };
 
+// A platform admin ("superadmin": user.isAdmin), read from the database.
+export const isSuperadmin = async (userDid: string): Promise<boolean> => {
+    const user = await Circles.findOne({ did: userDid }, { projection: { isAdmin: 1 } });
+    return user?.isAdmin === true;
+};
+
 // Who besides the creator may see an unpublished (draft/pending) circle. Shared by /api/access and
 // the circle layout so the two gates can't drift. This only decides whether the page loads: what
 // it shows is still shaped by the edit_about check (toPublicCircle's viewerCanManage), so a

@@ -16,6 +16,7 @@ import {
     getMember,
     grantsOwnerOnlyGroup,
     isCircleAdmin,
+    isSuperadmin,
     OWNER_ONLY_ROLE_MESSAGE,
     removeMember,
     updateMemberUserGroups,
@@ -51,6 +52,7 @@ const ADMIN_ROLE_REMOVAL_REQUEST_CREATED_MESSAGE =
     "Admin removal request created. The admin must approve before their admin role is removed.";
 const ADMIN_ROLE_REMOVAL_REQUEST_ALREADY_PENDING_MESSAGE =
     "An admin removal request is already pending for this admin.";
+const CREATOR_REMOVAL_MESSAGE = "Only a Peerify admin can remove the creator of this circle.";
 
 async function notifyTargetAdminOfRemovalRequest(circle: Circle, targetUserDid: string, requestedByDid: string): Promise<void> {
     try {
@@ -71,6 +73,16 @@ async function notifyTargetAdminOfRemovalRequest(circle: Circle, targetUserDid: 
     }
 }
 
+// Removing a member (2026-11-22). Only the target's DID and the circle's id are taken from the
+// client: the target's groups and the circle's creator are read from the database. Before, "is the
+// target an admin?" read the userGroups of the member object the browser sent, so an admin could
+// send an admin's or the creator's DID with userGroups: [] and remove them outright, skipping the
+// removal request and the last-admin rule.
+// - The creator (circle.createdBy) can be removed only by a superadmin (user.isAdmin).
+// - An admin can be removed directly by the creator or a superadmin. Another admin only creates a
+//   removal request, which the target must approve. Admins may still remove themselves.
+// - Never the last admin, and no admin changes while a detach request is pending.
+// Superadmins don't need a role in the circle; everyone else needs the remove permissions as before.
 export const removeMemberAction = async (member: MemberDisplay, circle: Circle): Promise<RemoveMemberResponse> => {
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
@@ -78,42 +90,60 @@ export const removeMemberAction = async (member: MemberDisplay, circle: Circle):
     }
 
     try {
-        // confirm the user is authorized to remove member
-        let authorized = await isAuthorized(userDid, circle._id ?? "", features.general.remove_lower_members);
-        let canRemoveSameLevel = await isAuthorized(
-            userDid,
-            circle._id ?? "",
-            features.general.remove_same_level_members,
-        );
-
-        if (!authorized && !canRemoveSameLevel) {
-            return { success: false, message: "You are not authorized to remove this member" };
+        const circleId = circle._id ?? "";
+        const targetDid = member.userDid;
+        const existingCircle = circleId ? await getCircleById(circleId) : null;
+        if (!existingCircle) {
+            return { success: false, message: "Circle not found" };
         }
-        authorized = await hasHigherAccess(userDid, member.userDid, circle._id ?? "", canRemoveSameLevel);
-        if (!authorized) {
-            return { success: false, message: "You don't have high enough access to remove this member" };
+        const target = await getMember(targetDid, circleId);
+        if (!target) {
+            return { success: false, message: "This person is not a member of this circle" };
+        }
+
+        const callerIsSuperadmin = await isSuperadmin(userDid);
+        const callerIsCreator = !!existingCircle.createdBy && existingCircle.createdBy === userDid;
+        const targetIsCreator = !!existingCircle.createdBy && existingCircle.createdBy === targetDid;
+        const targetIsAdmin = target.userGroups?.includes("admins") ?? false;
+
+        if (targetIsCreator && !callerIsSuperadmin) {
+            return { success: false, message: CREATOR_REMOVAL_MESSAGE };
+        }
+
+        if (!callerIsSuperadmin) {
+            // confirm the user is authorized to remove member
+            let authorized = await isAuthorized(userDid, circleId, features.general.remove_lower_members);
+            let canRemoveSameLevel = await isAuthorized(userDid, circleId, features.general.remove_same_level_members);
+
+            if (!authorized && !canRemoveSameLevel) {
+                return { success: false, message: "You are not authorized to remove this member" };
+            }
+            authorized = await hasHigherAccess(userDid, targetDid, circleId, canRemoveSameLevel);
+            if (!authorized) {
+                return { success: false, message: "You don't have high enough access to remove this member" };
+            }
         }
 
         // make sure last admin isn't removed
-        const isAdmin = member.userGroups?.includes("admins");
-        if (isAdmin) {
-            const pendingDetachRequest = await getPendingDetachCircleRequest(circle._id ?? "");
+        if (targetIsAdmin) {
+            const pendingDetachRequest = await getPendingDetachCircleRequest(circleId);
             if (pendingDetachRequest) {
                 return { success: false, message: DETACH_ADMIN_CHANGE_BLOCK_MESSAGE };
             }
-            const adminCount = await countAdmins(circle._id ?? "");
+            const adminCount = await countAdmins(circleId);
             if (adminCount <= 1) {
                 return { success: false, message: "Cannot remove the last admin." };
             }
 
-            if (member.userDid !== userDid) {
+            const removesDirectly = callerIsSuperadmin || callerIsCreator || targetDid === userDid;
+            if (!removesDirectly) {
                 const { created } = await createAdminRoleRemovalRequest({
-                    circleId: circle._id ?? "",
-                    targetUserDid: member.userDid,
+                    circleId,
+                    targetUserDid: targetDid,
                     requestedByDid: userDid,
                 });
 
-                let circlePath = await getCirclePath(circle);
+                let circlePath = await getCirclePath(existingCircle);
                 revalidatePath(`${circlePath}followers`);
 
                 if (created) {
@@ -134,10 +164,10 @@ export const removeMemberAction = async (member: MemberDisplay, circle: Circle):
         }
 
         // remove member from circle
-        await removeMember(member.userDid, circle._id ?? "");
+        await removeMember(targetDid, circleId);
 
         // clear page cache so page update
-        let circlePath = await getCirclePath(circle);
+        let circlePath = await getCirclePath(existingCircle);
         revalidatePath(`${circlePath}followers`);
 
         return { success: true };
