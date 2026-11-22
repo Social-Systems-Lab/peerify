@@ -15,6 +15,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **SECURITY (2026-11-16):** the cross-circle gap in 13 task/shift actions is fixed, together with private pending sign-ups and claims, and **LIVE on prod since 2026-11-17 (`ac61f445`)**. Tim's read-only prod check before the release found **nothing flagged** (53 tasks read).
 - **DESIGN DIRECTION: "Asks"** in the Crew feed (2026-11-15 (cont. 5); Tim's answers 2026-11-16). They are **built after the home show**; until then artists use ordinary Crew posts.
 - **Event guests, for the home show on 6 Dec (2026-11-20):** **G1 (the RSVP guard) is LIVE on prod (`22692897`; Tim's check passed).** **Part 1 (the organiser guest list with Message) is merged to `staging` (`53bfb6ab`) and pushed; not deployed (Tim's step); browser tests pending** (11 steps in `event-guests-part1.tar.gz`). **Part 2 (capacity, Confirmed, places left, guest note) is merged to `staging` (`303779da`) and pushed; not deployed (Tim's step); browser tests pending** (13 steps in `event-guests-part2.tar.gz`). **Follow-up (2026-11-21, pushed to `staging`, not deployed):** guest list rows stack for the narrow column; confirming no longer opens a DM (`cd382439` reverted), a confirmed guest has a "Message the organisers" button instead; the event page updates after the "You're confirmed" notice. Browser tests in `event-guests-followup.tar.gz`. Decisions D1–D9 are in the 2026-11-20 entry.
+- **Places taken outside Peerify (2026-11-22): built on `feature/places-outside`, NOT merged, NOT pushed, NOT deployed** (Tim asked to be asked before any push). Browser tests in `places-outside.tar.gz`. See the 2026-11-22 entry.
 - **Draft artist profiles for outreach (2026-11-21):** plan in `draft-artist-profiles-investigation.tar.gz`. **Leak fixes L1–L7 (`b56def2b`..`02dabed3`) are LIVE on prod since 2026-11-22** (`c94a40de`; pushed and released by Tim); report `draft-leak-fixes.tar.gz`. **On hold until Tim decides:** the import script, preview links, the superadmin transfer action.
 - **Crew round 2, for the home show on 6 Dec: BUILT and MERGED to `staging` (2026-11-18); BROWSER TESTS PENDING.**
   - What's in it: more sign-ups than places with the confirm cap, decline, and the "Shifts & tasks" view on the Crew page and the Crew Dashboard. Part 1 is `e2c5550d`, part 2 is `a20762f1`.
@@ -74,6 +75,24 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-22 — Events: places taken outside Peerify
+
+**State:** three commits on `feature/places-outside` (from `staging` at `c94a40de` plus the L1–L7 log correction `8f12ded5`) and this log entry. **Not merged, not pushed, not deployed.** No database commands. Plan: `places-outside-investigation.tar.gz`; this round: `places-outside.tar.gz` (browser test list in it). Decisions D1–D3 as recommended (Tim, 2026-11-22).
+
+- `2c55561c` **Stored and validated.** Optional "Places taken outside Peerify" after Capacity in the event form, for places sold elsewhere (e.g. at the door).
+  - Stored as `metadata.peerify.placesTakenOutside`. `sanitizePeerifyPublicEventMetadata` is an allowlist, so only the people who can edit the event (`canManageEvent`, the edit page's rule) get it, like the guest note. A top-level field would have needed SAFE_EVENT_PROJECTION plus a denylist strip.
+  - A whole number 0–100,000 (`parsePlacesTakenOutside`); empty or 0 removes it. Without a capacity it's ignored and cleared; the form disables the field until a capacity is set.
+  - Capacity can't be lower than confirmed + outside ("2 guests are confirmed and 2 places are taken outside Peerify, so the capacity can't be lower than 4."; unchanged wording when outside is 0). Checked before uploads, then in the guarded write, which now `$set`s capacity **and the whole metadata**: older events can store `metadata: null`, and a dotted `$set` into null fails in MongoDB.
+  - Canaries in `event-list-leaks`, `location-leaks` (lib/data), `event-share`, `public-events-only`: non-managers never get the number; the author and a moderator do (that's how the edit form gets it). Fake collection: `$add`.
+- `e09188d0` **Places left counts it.** The five event pipelines project `placesTaken` (confirmed + outside) **instead of** `confirmedGuests`: with both, anyone could subtract to get the outside count. `confirmedGuests` had one reader (places left in `RsvpPanel`). The confirm cap is `confirmed + outside < capacity`, still in the write. RsvpPanel wording unchanged (D5).
+- `db817674` **Organiser guest list header:** with a capacity, "8 confirmed here · 5 outside Peerify · 7 places left" (tickets left / Sold out / Full per D5; the outside count shows even when 0, D1). Without one, "8 confirmed". `getEventGuestsAction` sends `placesTakenOutside` and `ticketed` to organisers only. Confirm turns off when confirmed + outside reaches capacity (button title "No places left"; the server refusal still says "All places are confirmed").
+- D2: allowed on repeating events like Capacity (series-wide; confirming isn't available there).
+- Tests: `event-capacity.test.ts` (+11), `event-guest-confirm.test.ts` (+4), `rsvp-panel.test.tsx` (+1), `event-guest-list.test.tsx` (+2), canaries in four leak tests. The new behaviour cases fail on the old code (checked per commit). Checks per commit: tsc (old error only), eslint, prettier on my lines, build. Full sweep of 155 files one at a time at `db817674`: 154 pass, plus the known `participation-readiness.test.ts`. (A first sweep overlapped a local rebase and showed stale failures in `event-capacity.test.ts`; re-run clean.)
+
+**Noticed, not changed:** a "See and manage guests" holder who can't edit the event sees the outside count in the header but can't change it. Places left on an open page updates on the next load, as with Capacity.
 
 ---
 
