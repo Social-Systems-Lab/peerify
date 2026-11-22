@@ -17,7 +17,8 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **Event guests, for the home show on 6 Dec (2026-11-20):** **G1 (the RSVP guard) is LIVE on prod (`22692897`; Tim's check passed).** **Part 1 (the organiser guest list with Message) is merged to `staging` (`53bfb6ab`) and pushed; not deployed (Tim's step); browser tests pending** (11 steps in `event-guests-part1.tar.gz`). **Part 2 (capacity, Confirmed, places left, guest note) is merged to `staging` (`303779da`) and pushed; not deployed (Tim's step); browser tests pending** (13 steps in `event-guests-part2.tar.gz`). **Follow-up (2026-11-21, pushed to `staging`, not deployed):** guest list rows stack for the narrow column; confirming no longer opens a DM (`cd382439` reverted), a confirmed guest has a "Message the organisers" button instead; the event page updates after the "You're confirmed" notice. Browser tests in `event-guests-followup.tar.gz`. Decisions D1–D9 are in the 2026-11-20 entry.
 - **Places taken outside Peerify (2026-11-22): reviewed and approved by Tim, merged to `staging` (fast-forward) and pushed; NOT deployed (Tim's step).** Browser tests in `places-outside.tar.gz`. See the 2026-11-22 entry.
 - **Members and likes (2026-11-22 (cont.)): six fixes on `staging` (`365fc476`..`739c3fc7`), pushed (`d92d8ff1`), deployed to staging by Tim; his browser tests passed except the tim-solo self-demotion, fixed in round 3.**
-- **Members round 3 and error toasts (2026-11-22 (cont. 2)): four commits on `staging` (`ab9a49f9`..`bd1032b4`), NOT pushed, NOT deployed.** The creator can never give up their own admin role (superadmin or not); "Creator" label in the admin and follower lists; error toasts readable and staying until dismissed (platform-wide); Invite Admin / Remove admin buttons reset after an error. Invite Admin for existing followers (2a) is left for later. See the 2026-11-22 (cont. 2) entry. Admin removal and demotion follow one rule (creator / superadmin / removal request / last admin); the creator can't leave; likes need a verified profile, accept only "like", and unlike can't push counts down. Read-only like-count check for the data (`l01-like-count-check.mongosh.js`, not run yet). See the 2026-11-22 (cont.) entry.
+- **Personal profile privacy (2026-11-22 (cont. 3)): personal profiles (`circleType` "user") are full only for the owner, superadmins and accepted connections; everyone else gets name, handle and picture.** The stopgap (`a4794f84`) is LIVE on prod (Tim released it). Steps b and c plus Discover/map and the name badge (`7698178c`..`923d860a`) are pushed to `staging`, NOT deployed (Tim's step); browser checks in `privacy-steps-b-c.tar.gz` and `personal-artists-discover-badge.tar.gz`. **Next round (d–g) waits for Tim's go.** See the 2026-11-22 (cont. 3) entry.
+- **Members round 3 and error toasts (2026-11-22 (cont. 2)): four commits on `staging` (`ab9a49f9`..`bd1032b4`), pushed, NOT deployed.** The creator can never give up their own admin role (superadmin or not); "Creator" label in the admin and follower lists; error toasts readable and staying until dismissed (platform-wide); Invite Admin / Remove admin buttons reset after an error. Invite Admin for existing followers (2a) is left for later. See the 2026-11-22 (cont. 2) entry. Admin removal and demotion follow one rule (creator / superadmin / removal request / last admin); the creator can't leave; likes need a verified profile, accept only "like", and unlike can't push counts down. Read-only like-count check for the data (`l01-like-count-check.mongosh.js`, not run yet). See the 2026-11-22 (cont.) entry.
 - **Draft artist profiles for outreach (2026-11-21):** plan in `draft-artist-profiles-investigation.tar.gz`. **Leak fixes L1–L7 (`b56def2b`..`02dabed3`) are LIVE on prod since 2026-11-22** (`c94a40de`; pushed and released by Tim); report `draft-leak-fixes.tar.gz`. **On hold until Tim decides:** the import script, preview links, the superadmin transfer action.
 - **Crew round 2, for the home show on 6 Dec: BUILT and MERGED to `staging` (2026-11-18); BROWSER TESTS PENDING.**
   - What's in it: more sign-ups than places with the confirm cap, decline, and the "Shifts & tasks" view on the Crew page and the Crew Dashboard. Part 1 is `e2c5550d`, part 2 is `a20762f1`.
@@ -80,6 +81,52 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 ---
 
+## 2026-11-22 (cont. 3) — Personal profile privacy: one access rule, limited lists, off Discover and the map
+
+**Why:** Tim's privacy check (`privacy-check-storage-profiles.tar.gz`) found that the private-profile placeholder showed the follower count and social links, and that direct profile URLs had no privacy check. Tim's decisions:
+- **Scope:** personal profiles (`circleType` "user") only. Artist, band and venue circles keep their public behaviour.
+- **Who gets the full profile:** the owner, superadmins and accepted connections, on every route. Following doesn't count, and the search and map settings play no part.
+- **Everyone else gets the limited version:** name, handle and picture only.
+- **Solo artists on a personal account** (intent "artist") are limited too (option a). Artists who want a public page use an artist circle.
+
+**Also on `staging` before this entry (pushed earlier):**
+- `c846a377`: `docs/BACKLOG.md`, and `*PRIVATE*` in `.gitignore`.
+- `a4794f84`: the stopgap. Signed-out visitors get the limited page, personal profiles get `noindex` and no description in link previews, and the preview placeholder no longer shows the count or links. Tim released it to prod.
+
+**Commits on `staging`, one per change:**
+- `7698178c` One server-side rule, `canViewFullPersonalProfile` / `getFullProfileOwnerDids` (`lib/data/personal-profile-access.ts`). It's used by the profile layout, the home tab, `/api/access` (the bare URL is flagged `circleRoot`) and the metadata.
+- `9f75ef0c` The preview panel asks the server (`getPersonalProfilePreviewAction`) instead of deciding in the browser. Bookmarking follows the rule.
+- `e034ffb9` Followers table rows (`getMembersWithMetrics`) for a personal profile with no relationship to the viewer carry only name, handle and picture (`limitMemberRowsForViewer`).
+- `39ae9134` Post, comment, highlighted-comment and shared-post authors are trimmed the same way (`limitContentAuthorsForViewer` in `feed.ts`).
+- `960d12d0` Personal profiles never appear on the Explore map (`getSwipeCircles`) or as map pins for search results, artist-marked ones included. Discover asks search for artist circles only.
+- `923d860a` Limited authors keep the name badge as booleans (`isVerified`, `isFoundingMember`). `circleType` is kept only when the author had it: `39ae9134` had made strangers see "Unverified" next to every author. That was never pushed.
+
+**Tests:** each new test checks the payload, uses "CANARY" values for private fields, and fails on the code before its change.
+- `personal-profile-page.test.ts` (28)
+- `personal-profile-access.test.ts` (6)
+- `personal-profile-preview.test.ts` (8)
+- `content-preview-placeholder.test.tsx` (3)
+- `bookmark-unpublished.test.ts` (+2)
+- `member-rows-limited.test.ts` (5)
+- `feed-author-limits.test.ts` (12)
+- `discover-personal-artists.test.ts` (6)
+- `map-personal-profiles.test.ts` (4)
+
+**Not changed, per Tim:** the global feed and offer pins. Offer pins already show the offer, not the person.
+
+**Next round, waiting for Tim's go:**
+- d. Search: signed out gets no personal profiles; signed-in strangers get name, handle and picture.
+- e. The name-search picker respects "show in search" (connections excepted) and returns name, handle and picture.
+- f. Trim mentions, likers, task/issue assign pickers and the About Admins card.
+- g. Report on retiring the "solo artist on a personal account" code path.
+
+**Open questions for Tim:**
+- Events hosted by personal profiles with "show on map" still appear on the map with the host's name, handle and picture.
+- Keep or drop the Founding Member flag on limited authors.
+- `personal-artist-profiles.mongosh.js` (read-only, `DB=`) lists the affected profiles. It's in the report archive and hasn't been run yet.
+
+**State:** pushed to `staging` with this entry, after Tim's go. Not deployed. No database commands. Reports: `privacy-stopgap.tar.gz`, `privacy-steps-b-c.tar.gz`, `personal-artists-discover-badge.tar.gz`.
+
 ## 2026-11-22 (cont. 2) — Members round 3: creator keeps the admin role, "Creator" label; error toasts; stuck buttons
 
 **Why:** Tim's staging browser tests of the previous round passed, except one: on tim-solo, Tim Admin (the creator, and a superadmin) took away his own admin role from Settings › About › "Remove admin" (`updateUserGroupsAction`). The rule said "only a superadmin can demote the creator" and never asked whether that superadmin was the creator. Tim confirmed it (case A). Report `tim-solo-and-ui-scope.tar.gz` scoped four interface changes; Tim chose 2b, 2c and 2d, and left 2a (Invite Admin for existing followers) for later.
@@ -94,7 +141,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 
 **Not done / open:** 2a (Invite Admin for followers). The admin dashboard and system messages tab use sonner's `toast`, whose `Toaster` isn't mounted, so those 38 calls never show anything (found while scoping; not fixed). tim-solo's admin role for Tim Admin is not restored (data; another admin can do it through Edit User Groups).
 
-**State:** four commits plus this log entry on `staging` after `d92d8ff1`. **Not pushed, not deployed** (Tim asked to be asked before pushing). No database commands. Reports: `tim-solo-and-ui-scope.tar.gz` (scoping), `members-round3-and-toasts.tar.gz` (this round).
+**State:** four commits plus this log entry on `staging` after `d92d8ff1`. **Pushed** after Tim's go (correction 2026-11-22 (cont. 3); this line first said "not pushed"); not deployed by Claude. No database commands. Reports: `tim-solo-and-ui-scope.tar.gz` (scoping), `members-round3-and-toasts.tar.gz` (this round).
 
 ## 2026-11-22 (cont.) — Members and likes: admin removal rule, creator can't leave, likes need verification
 
