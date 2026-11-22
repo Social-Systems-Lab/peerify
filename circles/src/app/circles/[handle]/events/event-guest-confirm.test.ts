@@ -147,6 +147,23 @@ describe("confirming guests", () => {
         expect(confirmedDids()).toHaveLength(1);
     });
 
+    // Places taken outside Peerify (2026-11-22) count against the capacity like confirmed guests.
+    test("places taken outside Peerify fill the capacity too", async () => {
+        seed({ capacity: 3, metadata: { peerify: { placesTakenOutside: 2 } } });
+        expect((await confirm(ANN)).success).toBe(true);
+        expect(await confirm(BO)).toEqual({ success: false, message: "All places are confirmed" });
+        expect(confirmedDids()).toEqual([ANN]);
+        // Once the organiser lowers the outside count, there's room again.
+        fakeDb.col("Events").docs[0].metadata.peerify.placesTakenOutside = 1;
+        expect((await confirm(BO)).success).toBe(true);
+        expect(confirmedDids()).toEqual([ANN, BO]);
+    });
+
+    test("an event stored with metadata: null counts no outside places", async () => {
+        seed({ capacity: 1, metadata: null });
+        expect((await confirm(ANN)).success).toBe(true);
+    });
+
     test("no capacity: no limit", async () => {
         seed();
         for (const did of [ANN, BO, CY]) expect((await confirm(did)).success).toBe(true);

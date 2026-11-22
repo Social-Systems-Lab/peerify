@@ -2413,7 +2413,7 @@ export const eventSchema = z.object({
     capacity: z.number().optional(),
     // Guests an organiser confirmed among those who clicked Attend (event guests, 2026-11-20). Never
     // more than `capacity`. Server only: not in SAFE_EVENT_PROJECTION or PUBLIC_EVENT_PROJECTION;
-    // pages get the count (EventDisplay.confirmedGuests) and the guest list action the names.
+    // pages get a count (EventDisplay.placesTaken) and the guest list action the names.
     guestConfirmations: z
         .array(z.object({ userDid: didSchema, confirmedAt: z.date(), confirmedBy: didSchema }))
         .optional(),
@@ -2439,7 +2439,9 @@ export interface EventDisplay extends Event {
     author: Circle; // Creator's details
     circle?: Circle; // Circle details
     attendees?: number; // Aggregated RSVP count (e.g., 'going')
-    confirmedGuests?: number; // How many guests are confirmed (for "N tickets left"); never who
+    // Places taken: confirmed guests + places taken outside Peerify (for "N tickets left"). Never who,
+    // and never the two parts: the outside count is for organisers only (2026-11-22).
+    placesTaken?: number;
     userRsvpStatus?: "going" | "interested" | "none"; // Current user RSVP status
 }
 

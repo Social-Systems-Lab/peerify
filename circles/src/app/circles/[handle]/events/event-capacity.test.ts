@@ -15,6 +15,7 @@ import {
     formatEventPlacesLeft,
     parseEventCapacity,
     parsePlacesTakenOutside,
+    placesTakenExpr,
 } from "@/lib/events/guest-capacity";
 
 const fakeDb = createFakeDb();
@@ -36,7 +37,7 @@ mock.module("@/lib/auth/auth", () => ({
 }));
 mock.module("next/cache", () => ({ revalidatePath: () => undefined, revalidateTag: () => undefined }));
 
-const { createEventAction, updateEventAction } = await import("./actions");
+const { createEventAction, updateEventAction, getEventAction, getEventsAction } = await import("./actions");
 
 const confirmation = (n: number) => ({ userDid: `did:test:g${n}`, confirmedAt: new Date(), confirmedBy: AUTHOR });
 const storedEvent = (extra: Record<string, unknown> = {}) => ({
@@ -110,17 +111,17 @@ describe("parseEventCapacity", () => {
 
 describe("formatEventPlacesLeft (D5)", () => {
     test("no capacity: nothing to show", () => {
-        expect(formatEventPlacesLeft({ confirmedGuests: 3 })).toBeNull();
+        expect(formatEventPlacesLeft({ placesTaken: 3 })).toBeNull();
     });
 
     test("a ticketed event: tickets left, then Sold out", () => {
         const ticketed = { metadata: { peerify: { ticketed: true } } };
-        expect(formatEventPlacesLeft({ ...ticketed, capacity: 30, confirmedGuests: 27 })).toEqual({
+        expect(formatEventPlacesLeft({ ...ticketed, capacity: 30, placesTaken: 27 })).toEqual({
             text: "3 tickets left",
             full: false,
         });
-        expect(formatEventPlacesLeft({ ...ticketed, capacity: 30, confirmedGuests: 29 })?.text).toBe("1 ticket left");
-        expect(formatEventPlacesLeft({ ...ticketed, capacity: 30, confirmedGuests: 30 })).toEqual({
+        expect(formatEventPlacesLeft({ ...ticketed, capacity: 30, placesTaken: 29 })?.text).toBe("1 ticket left");
+        expect(formatEventPlacesLeft({ ...ticketed, capacity: 30, placesTaken: 30 })).toEqual({
             text: "Sold out",
             full: true,
         });
@@ -128,8 +129,8 @@ describe("formatEventPlacesLeft (D5)", () => {
 
     test("not ticketed: places left, then Full", () => {
         expect(formatEventPlacesLeft({ capacity: 10 })).toEqual({ text: "10 places left", full: false });
-        expect(formatEventPlacesLeft({ capacity: 2, confirmedGuests: 1 })?.text).toBe("1 place left");
-        expect(formatEventPlacesLeft({ capacity: 2, confirmedGuests: 2 })).toEqual({ text: "Full", full: true });
+        expect(formatEventPlacesLeft({ capacity: 2, placesTaken: 1 })?.text).toBe("1 place left");
+        expect(formatEventPlacesLeft({ capacity: 2, placesTaken: 2 })).toEqual({ text: "Full", full: true });
     });
 });
 
@@ -325,5 +326,45 @@ describe("places taken outside Peerify", () => {
         });
         expect(storedCapacity()).toBe(5);
         expect(storedOutside()).toBeUndefined();
+    });
+});
+
+// What pages get (2026-11-22): one count, placesTaken = confirmed + outside. The confirmed count on
+// its own is no longer sent: with both, anyone could work out the outside count.
+describe("the count the event pipelines send", () => {
+    const capturePipelines = async (load: () => Promise<unknown>) => {
+        const events = (fakeDb.module as Record<string, any>).Events;
+        const realAggregate = events.aggregate;
+        const pipelines: unknown[] = [];
+        events.aggregate = (pipeline: unknown[]) => {
+            pipelines.push(pipeline);
+            return realAggregate(pipeline);
+        };
+        try {
+            await load();
+        } finally {
+            events.aggregate = realAggregate;
+        }
+        return JSON.stringify(pipelines);
+    };
+
+    test("the event page and the events list project placesTaken, never confirmedGuests", async () => {
+        sessionDid = "did:test:stranger";
+        for (const load of [() => getEventAction("host", EVENT_ID), () => getEventsAction("host")]) {
+            const sent = await capturePipelines(load);
+            expect(sent).toContain(`"placesTaken":${JSON.stringify(placesTakenExpr)}`);
+            expect(sent).not.toContain("confirmedGuests");
+        }
+    });
+
+    test("placesTaken adds the outside places to the confirmed guests", () => {
+        expect(JSON.stringify(placesTakenExpr)).toBe(
+            JSON.stringify({
+                $add: [
+                    { $size: { $ifNull: ["$guestConfirmations", []] } },
+                    { $ifNull: ["$metadata.peerify.placesTakenOutside", 0] },
+                ],
+            }),
+        );
     });
 });

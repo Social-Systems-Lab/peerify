@@ -76,9 +76,17 @@ export const capacityBelowConfirmedMessage = (confirmed: number, placesTakenOuts
 // The number of confirmed guests, as an aggregation expression on an event document.
 export const confirmedGuestCountExpr = { $size: { $ifNull: ["$guestConfirmations", []] } };
 
-// Matches an event that has room for one more confirmation: no capacity, or fewer confirmed than it.
+// The places taken outside Peerify, as an aggregation expression (0 when none).
+export const placesTakenOutsideExpr = { $ifNull: ["$metadata.peerify.placesTakenOutside", 0] };
+
+// The places taken: confirmed guests plus places taken outside Peerify. This sum is what pages get
+// (EventDisplay.placesTaken), never its two parts: the outside count is for organisers only.
+export const placesTakenExpr = { $add: [confirmedGuestCountExpr, placesTakenOutsideExpr] };
+
+// Matches an event that has room for one more confirmation: no capacity, or fewer places taken
+// (confirmed + outside) than it.
 export const roomForAnotherConfirmationFilter = () => ({
-    $or: [{ capacity: null }, { $expr: { $lt: [confirmedGuestCountExpr, "$capacity"] } }],
+    $or: [{ capacity: null }, { $expr: { $lt: [placesTakenExpr, "$capacity"] } }],
 });
 
 // Matches an event whose confirmed guests, plus `placesTakenOutside` (the value being saved), fit
@@ -91,15 +99,15 @@ export const countConfirmedGuests = (event: { guestConfirmations?: unknown[] | n
     Array.isArray(event.guestConfirmations) ? event.guestConfirmations.length : 0;
 
 // "3 tickets left" / "Sold out" for a ticketed event, "3 places left" / "Full" otherwise (D5).
-// null when the event has no capacity.
+// null when the event has no capacity. `placesTaken` is confirmed guests plus places taken outside.
 export const formatEventPlacesLeft = (event: {
     capacity?: number | null;
-    confirmedGuests?: number;
+    placesTaken?: number;
     metadata?: { peerify?: { ticketed?: boolean } } | Record<string, any>;
 }): { text: string; full: boolean } | null => {
     if (typeof event.capacity !== "number" || event.capacity < 1) return null;
     const ticketed = (event.metadata as any)?.peerify?.ticketed === true;
-    const left = Math.max(0, event.capacity - (event.confirmedGuests ?? 0));
+    const left = Math.max(0, event.capacity - (event.placesTaken ?? 0));
     if (left === 0) return { text: ticketed ? "Sold out" : "Full", full: true };
     const noun = ticketed ? (left === 1 ? "ticket" : "tickets") : left === 1 ? "place" : "places";
     return { text: `${left} ${noun} left`, full: false };

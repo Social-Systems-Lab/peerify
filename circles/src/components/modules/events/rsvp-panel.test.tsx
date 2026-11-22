@@ -38,34 +38,45 @@ describe("places left (D5) and the waiting list (D8)", () => {
     });
 
     test("a ticketed event with room: tickets left", () => {
-        const html = render({}, { ...ticketed, capacity: 30, confirmedGuests: 27 });
+        const html = render({}, { ...ticketed, capacity: 30, placesTaken: 27 });
         expect(html).toContain("3 tickets left");
         expect(html).toContain(">Attend</button>");
     });
 
     test("sold out: Attend becomes Join the waiting list", () => {
-        const html = render({}, { ...ticketed, capacity: 30, confirmedGuests: 30 });
+        const html = render({}, { ...ticketed, capacity: 30, placesTaken: 30 });
         expect(html).toContain("Sold out");
         expect(html).toContain(">Join the waiting list</button>");
         expect(html).not.toContain(">Attend</button>");
     });
 
     test("not ticketed: places left, then Full", () => {
-        expect(render({}, { capacity: 10, confirmedGuests: 4 })).toContain("6 places left");
-        expect(render({}, { capacity: 10, confirmedGuests: 10 })).toContain("Full");
+        expect(render({}, { capacity: 10, placesTaken: 4 })).toContain("6 places left");
+        expect(render({}, { capacity: 10, placesTaken: 10 })).toContain("Full");
+    });
+
+    // Places taken outside Peerify (2026-11-22): the server sends placesTaken = confirmed + outside.
+    test("places left come from the places taken; the outside count itself is never shown", () => {
+        // An organiser's copy of the event carries the outside count in its metadata.
+        const organiserCopy = { capacity: 20, placesTaken: 13, metadata: { peerify: { placesTakenOutside: 5 } } };
+        const html = render({}, organiserCopy);
+        expect(html).toContain("7 places left");
+        expect(html).not.toContain("outside");
+        const soldOut = { ...ticketed, capacity: 20, placesTaken: 20 };
+        expect(render({}, soldOut)).toContain("Sold out");
     });
 
     test("someone who clicked Attend on a full event and isn't confirmed is on the waiting list", () => {
         const html = render(
             { guestDetails: { isConfirmed: false, detailsAfterConfirmation: false } },
-            { capacity: 2, confirmedGuests: 2, userRsvpStatus: "going" },
+            { capacity: 2, placesTaken: 2, userRsvpStatus: "going" },
         );
         expect(html).toContain("Your status: on the waiting list");
         expect(html).toContain(">Cancel RSVP</button>");
     });
 
     test("signed out: Sign in to RSVP, and the places left still show", () => {
-        const html = render({ signedIn: false }, { capacity: 10, confirmedGuests: 4 });
+        const html = render({ signedIn: false }, { capacity: 10, placesTaken: 4 });
         expect(html).toContain("Sign in to RSVP");
         expect(html).toContain("6 places left");
     });

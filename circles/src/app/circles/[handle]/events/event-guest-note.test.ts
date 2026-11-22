@@ -82,7 +82,7 @@ const seed = (peerify: Record<string, unknown> = {}, extra: Record<string, unkno
     });
     // getEventById's stored shape: no guestConfirmations (in neither projection).
     const { guestConfirmations: _hidden, ...projected } = doc;
-    fakeDb.setAggregateResult("Events", [{ _id: EVENT_ID, ...projected, confirmedGuests: 1 }]);
+    fakeDb.setAggregateResult("Events", [{ _id: EVENT_ID, ...projected, placesTaken: 1 }]);
 };
 const detailsFor = async (did: string | undefined) => {
     sessionDid = did;

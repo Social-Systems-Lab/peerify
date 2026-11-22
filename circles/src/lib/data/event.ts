@@ -28,7 +28,7 @@ import { getCircleById, isCirclePublished, resolveViewerIsAdmin } from "./circle
 import { isAcceptedConnectionForUserDid } from "./relationships";
 import { canViewUnpublishedCircle, isCircleAdmin, isCircleAdminOfAny } from "./member";
 import { isPeerifyManagedIdentity } from "@/lib/peerify/artist-profile";
-import { confirmedGuestCountExpr } from "@/lib/events/guest-capacity";
+import { placesTakenExpr } from "@/lib/events/guest-capacity";
 
 // Safe projection for event queries
 export const SAFE_EVENT_PROJECTION = {
@@ -468,8 +468,9 @@ function buildPublicEventDisplayPipeline(match: Record<string, unknown>) {
                 _id: { $toString: "$_id" },
                 author: "$authorDetails",
                 circle: "$circleDetails",
-                // How many guests are confirmed, for "N tickets left" (event guests): never who.
-                confirmedGuests: confirmedGuestCountExpr,
+                // Places taken (confirmed + outside Peerify), for "N tickets left": never who, and never
+                // the outside count on its own (organisers only).
+                placesTaken: placesTakenExpr,
                 attendees: {
                     $let: {
                         vars: {
@@ -766,8 +767,9 @@ export const getEventsByCircleId = async (
                     _id: { $toString: "$_id" },
                     author: "$authorDetails",
                     circle: "$circleDetails",
-                    // How many guests are confirmed, for "N tickets left" (event guests): never who.
-                    confirmedGuests: confirmedGuestCountExpr,
+                    // Places taken (confirmed + outside Peerify), for "N tickets left": never who, and never
+                    // the outside count on its own (organisers only).
+                    placesTaken: placesTakenExpr,
                     attendees: {
                         $let: {
                             vars: {
@@ -1022,8 +1024,9 @@ export const getEventById = async (eventId: string, userDid: string): Promise<Ev
                     _id: { $toString: "$_id" },
                     author: "$authorDetails",
                     circle: "$circleDetails",
-                    // How many guests are confirmed, for "N tickets left" (event guests): never who.
-                    confirmedGuests: confirmedGuestCountExpr,
+                    // Places taken (confirmed + outside Peerify), for "N tickets left": never who, and never
+                    // the outside count on its own (organisers only).
+                    placesTaken: placesTakenExpr,
                     attendees: {
                         $let: {
                             vars: {
@@ -1949,8 +1952,9 @@ export const getOpenEventsForMap = async (
                     _id: { $toString: "$_id" },
                     author: "$authorDetails",
                     circle: "$circleDetails",
-                    // How many guests are confirmed, for "N tickets left" (event guests): never who.
-                    confirmedGuests: confirmedGuestCountExpr,
+                    // Places taken (confirmed + outside Peerify), for "N tickets left": never who, and never
+                    // the outside count on its own (organisers only).
+                    placesTaken: placesTakenExpr,
                     attendees: {
                         $let: {
                             vars: {
@@ -2192,8 +2196,9 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
                     _id: { $toString: "$_id" },
                     author: "$authorDetails",
                     circle: "$circleDetails",
-                    // How many guests are confirmed, for "N tickets left" (event guests): never who.
-                    confirmedGuests: confirmedGuestCountExpr,
+                    // Places taken (confirmed + outside Peerify), for "N tickets left": never who, and never
+                    // the outside count on its own (organisers only).
+                    placesTaken: placesTakenExpr,
                     attendees: {
                         $let: {
                             vars: {

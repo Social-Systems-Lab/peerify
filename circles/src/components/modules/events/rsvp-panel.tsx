@@ -9,7 +9,8 @@ import type { EventDisplay, Location } from "@/models/models";
 
 // The RSVP box on an event (event guests, part 2, 2026-11-20), the same in the event page and the
 // popup. On top of Attend / Interested / Cancel:
-// - "N tickets left" / "Sold out" (or places / Full) from the capacity and the confirmed count (D5);
+// - "N tickets left" / "Sold out" (or places / Full) from the capacity and the places taken (D5):
+//   confirmed guests plus places taken outside Peerify;
 // - when full, Attend becomes "Join the waiting list", and a guest who isn't confirmed reads as on
 //   the waiting list (D8);
 // - a confirmed guest sees "You're confirmed" and no Cancel or Interested (D4);
@@ -29,7 +30,7 @@ export type GuestDetailsForPanel = {
 };
 
 type Props = {
-    event: Pick<EventDisplay, "attendees" | "capacity" | "confirmedGuests" | "metadata" | "userRsvpStatus">;
+    event: Pick<EventDisplay, "attendees" | "capacity" | "placesTaken" | "metadata" | "userRsvpStatus">;
     size: "compact" | "full";
     signedIn: boolean;
     signInHref: string;
