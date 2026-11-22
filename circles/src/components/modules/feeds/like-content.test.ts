@@ -10,6 +10,7 @@
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { ObjectId } from "mongodb";
 import { createFakeDb } from "@/lib/testing/fake-db";
+import { UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 
 const fakeDb = createFakeDb();
 mock.module("@/lib/data/db", () => fakeDb.module);
@@ -188,5 +189,27 @@ describe("only likes", () => {
         expect((await likeContentAction(POST_ID, "track" as any)).success).toBe(false);
         expect((await unlikeContentAction(POST_ID, "track" as any)).success).toBe(false);
         expect(reactionsBy(VERIFIED)).toHaveLength(0);
+    });
+});
+
+describe("why a like is refused", () => {
+    test("an unverified profile gets the comment box's explanation", async () => {
+        sessionDid = UNVERIFIED;
+        const result = await likeContentAction(POST_ID, "post");
+        expect(result).toEqual({ success: false, message: UNVERIFIED_PROFILE_EXPLAINER });
+    });
+
+    test("a verified profile without the permission gets the plain refusal", async () => {
+        const COMMUNITY_POST = "64c2000000000000000000a3";
+        await fakeDb.col("Posts").insertOne({
+            _id: new ObjectId(COMMUNITY_POST),
+            feedId: FEED_ID,
+            postType: "community",
+            createdBy: OTHER,
+            reactions: {},
+        });
+        sessionDid = VERIFIED; // not a member, and Community likes need community.post
+        const result = await likeContentAction(COMMUNITY_POST, "post");
+        expect(result).toEqual({ success: false, message: "You are not authorized to react to this content" });
     });
 });

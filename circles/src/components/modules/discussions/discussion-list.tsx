@@ -70,6 +70,7 @@ import {
     deleteCommentAction,
     searchCirclesAction,
 } from "../feeds/actions";
+import { isLikeBlockedUntilVerified, isUnverifiedRefusal } from "../feeds/like-gate";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { HoverCardArrow } from "@radix-ui/react-hover-card";
 import { AiOutlineHeart, AiFillHeart } from "react-icons/ai";
@@ -471,8 +472,16 @@ export const DiscussionItem = ({
         });
     };
 
+    // An unverified profile can't like: show the comment box's explanation instead of a like that
+    // silently undoes (see feeds/like-gate.ts).
+    const [showLikeExplainer, setShowLikeExplainer] = useState(false);
+
     const handleLikePost = () => {
         if (!user) return;
+        if (!isLiked && isLikeBlockedUntilVerified(user, circle, post.postType)) {
+            setShowLikeExplainer(true);
+            return;
+        }
 
         if (isLiked) {
             setLikes((prev) => prev - 1);
@@ -499,6 +508,7 @@ export const DiscussionItem = ({
                         // Revert optimistic update on failure
                         setLikes((prev) => prev - 1);
                         setIsLiked(false);
+                        if (isUnverifiedRefusal(result)) setShowLikeExplainer(true);
                         console.error("Failed to like post:", result.message);
                     }
                 }
@@ -1178,6 +1188,10 @@ export const DiscussionItem = ({
                     {post.comments > 0 && <div>{post.comments}</div>}
                 </div>
             </div>
+            {/* Not twice: the comment box below already shows it when the viewer can't comment. */}
+            {showLikeExplainer && !(user && !canComment && !disableComments) && (
+                <p className="mt-2 pl-4 pr-4 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
+            )}
 
             {/* Comments Section */}
             <div className={`flex flex-col gap-2 ${embedded ? "pb-2" : "pb-4"} pl-4 pr-4`}>
@@ -1316,8 +1330,15 @@ const CommentItem = ({
         );
     };
 
+    // An unverified profile can't like: show the comment box's explanation (see feeds/like-gate.ts).
+    const [showLikeExplainer, setShowLikeExplainer] = useState(false);
+
     const handleLikeComment = () => {
         if (!user || comment.createdBy === user.did) return;
+        if (!isLiked && isLikeBlockedUntilVerified(user, circle, "discussion")) {
+            setShowLikeExplainer(true);
+            return;
+        }
 
         startTransition(async () => {
             try {
@@ -1332,6 +1353,8 @@ const CommentItem = ({
                     if (result.success) {
                         setLikes((prev) => prev + 1);
                         setIsLiked(true);
+                    } else if (isUnverifiedRefusal(result)) {
+                        setShowLikeExplainer(true);
                     }
                 }
             } catch (error) {
@@ -1605,7 +1628,7 @@ const CommentItem = ({
                         </div>
                     )}
 
-                    {showReplyInput && !canReply && (
+                    {(showLikeExplainer || (showReplyInput && !canReply)) && (
                         <p className="mt-2 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
                     )}
 

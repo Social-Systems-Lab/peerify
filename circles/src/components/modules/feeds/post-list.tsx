@@ -87,6 +87,8 @@ import { isAuthorized, hasFeatureAccessIgnoringVerification } from "@/lib/auth/c
 import { useActingIdentity, canActAsAuthorDid } from "@/lib/utils/acting-identity";
 import { getPostCommentFeature, getPostModerateFeature, LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { getParticipationState } from "@/lib/auth/participation-readiness";
+import { UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
+import { isLikeBlockedUntilVerified, isUnverifiedRefusal } from "./like-gate";
 import { CommunityParticipationDialog } from "@/components/modules/community/community-participation-dialog";
 import { SuggestionDataItem } from "react-mentions";
 import { over, set } from "lodash";
@@ -623,8 +625,16 @@ export const PostItem = ({
         onPostChanged?.();
     };
 
+    // An unverified profile can't like: show the comment box's explanation instead of a like that
+    // silently undoes (see like-gate.ts).
+    const [showLikeExplainer, setShowLikeExplainer] = useState(false);
+
     const handleLikePost = () => {
         if (!user) return;
+        if (!isLiked && isLikeBlockedUntilVerified(user, circle, post.postType)) {
+            setShowLikeExplainer(true);
+            return;
+        }
 
         if (isLiked) {
             setLikes((prev) => prev - 1);
@@ -651,6 +661,7 @@ export const PostItem = ({
                         // Revert optimistic update on failure
                         setLikes((prev) => prev - 1);
                         setIsLiked(false);
+                        if (isUnverifiedRefusal(result)) setShowLikeExplainer(true);
                         console.error("Failed to like post:", result.message);
                     }
                 }
@@ -1540,6 +1551,9 @@ export const PostItem = ({
                     {post.comments > 0 && <div>{post.comments}</div>}
                 </div>
             </div>
+            {showLikeExplainer && (
+                <p className="mt-2 pl-4 pr-4 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
+            )}
 
             {/* Comments Section */}
             <div className={`flex flex-col gap-2 ${embedded ? "pb-2" : "pb-4"} pl-4 pr-4`}>
@@ -1762,8 +1776,15 @@ const CommentItem = ({
         );
     };
 
+    // An unverified profile can't like: show the comment box's explanation (see like-gate.ts).
+    const [showLikeExplainer, setShowLikeExplainer] = useState(false);
+
     const handleLikeComment = () => {
         if (!user || comment.createdBy === user.did) return;
+        if (!isLiked && isLikeBlockedUntilVerified(user, circle, postType)) {
+            setShowLikeExplainer(true);
+            return;
+        }
 
         startTransition(async () => {
             try {
@@ -1778,6 +1799,8 @@ const CommentItem = ({
                     if (result.success) {
                         setLikes((prev) => prev + 1);
                         setIsLiked(true);
+                    } else if (isUnverifiedRefusal(result)) {
+                        setShowLikeExplainer(true);
                     }
                 }
             } catch (error) {
@@ -2052,6 +2075,9 @@ const CommentItem = ({
                                 </Popover>
                             </div>
                         </div>
+                    )}
+                    {showLikeExplainer && (
+                        <p className="mt-1 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
                     )}
 
                     {showReplyInput && canReply && user && (

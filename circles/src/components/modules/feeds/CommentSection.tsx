@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Edit, Heart, Loader2, MessageCircle, MoreHorizontal, Trash2 } from "lucide-react";
 import { UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
+import { isLikeBlockedUntilVerified, isUnverifiedRefusal } from "./like-gate";
 import { useIsMobile } from "@/components/utils/use-is-mobile";
 import { getPublishTime } from "@/lib/utils";
 import { contentPreviewAtom, sidePanelContentVisibleAtom, userAtom } from "@/lib/data/atoms";
@@ -143,8 +144,16 @@ const CommentItem = ({
         );
     };
 
+    // An unverified profile can't like: show the comment box's explanation instead of a like that
+    // undoes itself (see like-gate.ts).
+    const [showLikeExplainer, setShowLikeExplainer] = useState(false);
+
     const handleLikeComment = () => {
         if (!user || comment.createdBy === user.did) return;
+        if (!isLiked && isLikeBlockedUntilVerified(user, circle)) {
+            setShowLikeExplainer(true);
+            return;
+        }
 
         // Optimistic update
         const originalLiked = isLiked;
@@ -160,7 +169,15 @@ const CommentItem = ({
                     // Revert on failure
                     setIsLiked(originalLiked);
                     setLikes(originalLikes);
-                    toast({ title: "Error", description: result.message || "Action failed", variant: "destructive" });
+                    if (isUnverifiedRefusal(result)) {
+                        setShowLikeExplainer(true);
+                    } else {
+                        toast({
+                            title: "Error",
+                            description: result.message || "Action failed",
+                            variant: "destructive",
+                        });
+                    }
                 }
             } catch (error) {
                 // Revert on error
@@ -452,7 +469,7 @@ const CommentItem = ({
                         </div>
                     )}
                     {/* Reply Input Area */}
-                    {showReplyInput && !canReply && (
+                    {(showLikeExplainer || (showReplyInput && !canReply)) && (
                         <p className="mt-2 text-sm text-destructive">{UNVERIFIED_PROFILE_EXPLAINER}</p>
                     )}
                     {showReplyInput && canReply && (

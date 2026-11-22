@@ -76,7 +76,12 @@ import {
     notifyCommentMentions,
 } from "@/lib/data/notifications";
 import { ensureModuleIsEnabledOnCircle } from "@/lib/data/circle"; // Added
-import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
+import {
+    canPerformRestrictedAction,
+    getRestrictedActionMessage,
+    isVerifiedUser,
+    UNVERIFIED_PROFILE_EXPLAINER,
+} from "@/lib/auth/verification";
 import { searchMentionableUsersForUserDid, validateMentionPermissions } from "@/lib/data/chat";
 
 // Page size for the feed actions below. Clamped because limit/skip come straight from the client:
@@ -1088,7 +1093,12 @@ export async function likeContentAction(
         }
         const canReact = await isAuthorized(userDid, feed.circleId, getPostCommentFeature(post.postType));
         if (!canReact) {
-            return { success: false, message: "You are not authorized to react to this content" };
+            // An unverified profile gets the comment box's explanation, which the like buttons show.
+            const reactor = await getUserByDid(userDid);
+            const message = isVerifiedUser(reactor)
+                ? "You are not authorized to react to this content"
+                : UNVERIFIED_PROFILE_EXPLAINER;
+            return { success: false, message };
         }
 
         // Attribute the reaction to whichever persona the client says is currently active —
