@@ -163,3 +163,30 @@ describe("unliking", () => {
         expect(await likeCount("Posts", POST_ID)).toBe(1);
     });
 });
+
+describe("only likes", () => {
+    test("another reaction type is refused, and no counter is created", async () => {
+        sessionDid = VERIFIED;
+        for (const reactionType of ["love", "like.extra", "$set", ""]) {
+            expect((await likeContentAction(POST_ID, "post", reactionType)).success).toBe(false);
+        }
+        const post = (await fakeDb.col("Posts").findOne({ _id: new ObjectId(POST_ID) })) as any;
+        expect(post.reactions).toEqual({ like: 1 });
+        expect(reactionsBy(VERIFIED)).toHaveLength(0);
+    });
+
+    test("unlike with another reaction type is refused", async () => {
+        sessionDid = VERIFIED;
+        await likeContentAction(POST_ID, "post");
+        expect((await unlikeContentAction(POST_ID, "post", "love")).success).toBe(false);
+        expect(reactionsBy(VERIFIED)).toHaveLength(1);
+        expect(await likeCount("Posts", POST_ID)).toBe(2);
+    });
+
+    test("a content type other than post or comment is refused", async () => {
+        sessionDid = VERIFIED;
+        expect((await likeContentAction(POST_ID, "track" as any)).success).toBe(false);
+        expect((await unlikeContentAction(POST_ID, "track" as any)).success).toBe(false);
+        expect(reactionsBy(VERIFIED)).toHaveLength(0);
+    });
+});

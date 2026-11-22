@@ -1045,6 +1045,11 @@ export async function deleteCommentAction(commentId: string): Promise<{ success:
     }
 }
 
+// Reactions on posts and comments are likes only (2026-11-22). reactionType becomes a field name
+// (reactions.<type>), so anything else from the client would create arbitrary counters on a post.
+const isLikeOnPostOrComment = (contentType: unknown, reactionType: unknown): boolean =>
+    reactionType === "like" && (contentType === "post" || contentType === "comment");
+
 export async function likeContentAction(
     contentId: string,
     contentType: "post" | "comment",
@@ -1054,6 +1059,9 @@ export async function likeContentAction(
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
         return { success: false, message: "You need to be logged in to like content" };
+    }
+    if (!isLikeOnPostOrComment(contentType, reactionType)) {
+        return { success: false, message: "Only likes are supported" };
     }
 
     try {
@@ -1117,6 +1125,9 @@ export async function unlikeContentAction(
     const userDid = await getAuthenticatedUserDid();
     if (!userDid) {
         return { success: false, message: "You need to be logged in to unlike content" };
+    }
+    if (!isLikeOnPostOrComment(contentType, reactionType)) {
+        return { success: false, message: "Only likes are supported" };
     }
 
     try {
