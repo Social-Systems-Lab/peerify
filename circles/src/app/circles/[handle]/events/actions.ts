@@ -39,6 +39,7 @@ import { normalizeEventTags, type EventTagsValue } from "@/lib/peerify/event-tag
 import {
     capacityBelowConfirmedMessage,
     confirmedFitWithinFilter,
+    getPlacesTakenOutside,
     parsePlacesTakenOutside,
     withPlacesTakenOutside,
     countConfirmedGuests,
@@ -1995,6 +1996,10 @@ export type EventGuestsResult = {
     // Organisers only: the event's capacity (none = no limit) and how many guests are confirmed.
     capacity?: number;
     confirmedCount?: number;
+    // Organisers only, with a capacity: places taken outside Peerify (2026-11-22), and whether the
+    // event is ticketed (for "tickets left" / "Sold out" rather than places / Full).
+    placesTakenOutside?: number;
+    ticketed?: boolean;
 };
 
 /**
@@ -2026,7 +2031,15 @@ export async function getEventGuestsAction(circleHandle: string, eventId: string
                 canSeeGuests: true,
                 needsProfileToSeeGuests: false,
                 guests,
-                ...(typeof event?.capacity === "number" ? { capacity: event.capacity } : {}),
+                ...(typeof event?.capacity === "number"
+                    ? {
+                          capacity: event.capacity,
+                          placesTakenOutside: getPlacesTakenOutside(event),
+                          ticketed:
+                              (event.metadata as { peerify?: { ticketed?: boolean } } | undefined)?.peerify
+                                  ?.ticketed === true,
+                      }
+                    : {}),
                 confirmedCount: confirmedDids.size,
             };
         }

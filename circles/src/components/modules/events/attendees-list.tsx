@@ -17,6 +17,7 @@ import {
 } from "@/app/circles/[handle]/events/actions";
 import { useToast } from "@/components/ui/use-toast";
 import { contentPreviewAtom } from "@/lib/data/atoms";
+import { formatEventPlacesLeft } from "@/lib/events/guest-capacity";
 import MessageGuestDialog from "./message-guest-dialog";
 
 // An event's guest list (event guests, part 1, 2026-11-20): everyone who clicked Attend or
@@ -43,10 +44,24 @@ type ViewProps = {
     busyDid?: string | null;
 };
 
-type RowActions = Omit<ViewProps, "result"> & { allConfirmed: boolean };
+type RowActions = Omit<ViewProps, "result"> & { noPlacesLeft: boolean };
 
-export const confirmedSummary = (confirmedCount: number, capacity?: number) =>
-    typeof capacity === "number" ? `${confirmedCount} of ${capacity} confirmed` : `${confirmedCount} confirmed`;
+// The header's counts. With a capacity, both counts and what's left (2026-11-22, D1: the outside
+// count shows even when 0): "8 confirmed here · 5 outside Peerify · 7 places left".
+export const guestCountsSummary = (
+    confirmedCount: number,
+    capacity?: number,
+    placesTakenOutside = 0,
+    ticketed = false,
+): string => {
+    const placesLeft = formatEventPlacesLeft({
+        capacity,
+        placesTaken: confirmedCount + placesTakenOutside,
+        metadata: { peerify: { ticketed } },
+    });
+    if (!placesLeft) return `${confirmedCount} confirmed`;
+    return `${confirmedCount} confirmed here · ${placesTakenOutside} outside Peerify · ${placesLeft.text}`;
+};
 
 const formatSince = (since?: Date | string) => (since ? format(new Date(since), "d MMM yyyy") : null);
 
@@ -58,7 +73,7 @@ function GuestRow({
     onConfirm,
     onUnconfirm,
     busyDid,
-    allConfirmed,
+    noPlacesLeft,
 }: { guest: Guest } & RowActions) {
     const { user, message, since, confirmed } = guest;
     const busy = !!busyDid && busyDid === user.did;
@@ -103,8 +118,8 @@ function GuestRow({
                         <Button
                             type="button"
                             size="sm"
-                            disabled={busy || allConfirmed}
-                            title={allConfirmed ? "All places are confirmed" : undefined}
+                            disabled={busy || noPlacesLeft}
+                            title={noPlacesLeft ? "No places left" : undefined}
                             onClick={() => onConfirm(user.did!)}
                         >
                             Confirm
@@ -160,17 +175,18 @@ export function EventGuestListView({ result, ...rowProps }: ViewProps) {
     const attending = result.guests.filter((guest) => guest.status === "going");
     const interested = result.guests.filter((guest) => guest.status === "interested");
     const confirmedCount = result.confirmedCount ?? result.guests.filter((guest) => guest.confirmed).length;
-    const allConfirmed = typeof result.capacity === "number" && confirmedCount >= result.capacity;
+    const placesTakenOutside = result.placesTakenOutside ?? 0;
+    const noPlacesLeft = typeof result.capacity === "number" && confirmedCount + placesTakenOutside >= result.capacity;
     return (
         <div className="rounded-md border p-4">
             <div className="mb-1 font-semibold">Guests</div>
             <p className="mb-3 mt-0 text-xs text-muted-foreground">
-                Only the organisers see this list. {confirmedSummary(confirmedCount, result.capacity)}
-                {allConfirmed ? " (all places)" : ""}.
+                Only the organisers see this list.{" "}
+                {guestCountsSummary(confirmedCount, result.capacity, placesTakenOutside, result.ticketed)}.
             </p>
             <div className="space-y-4">
-                <GuestGroup title="Attending" guests={attending} allConfirmed={allConfirmed} {...rowProps} />
-                <GuestGroup title="Interested" guests={interested} allConfirmed={allConfirmed} {...rowProps} />
+                <GuestGroup title="Attending" guests={attending} noPlacesLeft={noPlacesLeft} {...rowProps} />
+                <GuestGroup title="Interested" guests={interested} noPlacesLeft={noPlacesLeft} {...rowProps} />
             </div>
         </div>
     );

@@ -118,15 +118,33 @@ describe("confirming guests on the list (part 2)", () => {
         expect(count(html, ">Confirmed</span>")).toBe(1);
         expect(count(html, ">Undo</button>")).toBe(1);
         expect(count(html, ">Confirm</button>")).toBe(1);
-        expect(html).toContain("1 of 2 confirmed");
+        expect(html).toContain("1 confirmed here · 0 outside Peerify · 1 place left");
     });
+
+    const confirmDisabled = (html: string) =>
+        /<button[^>]*disabled=""[^>]*title="No places left"[^>]*>Confirm<\/button>/.test(html);
 
     test("when all places are confirmed, Confirm is disabled", () => {
         const html = render({ ...withConfirmations, confirmedCount: 2 }, true);
-        expect(html).toContain("2 of 2 confirmed (all places)");
-        expect(/<button[^>]*disabled=""[^>]*title="All places are confirmed"[^>]*>Confirm<\/button>/.test(html)).toBe(
-            true,
+        expect(html).toContain("2 confirmed here · 0 outside Peerify · Full");
+        expect(confirmDisabled(html)).toBe(true);
+    });
+
+    // Places taken outside Peerify (2026-11-22): organisers see both counts and what's left.
+    test("both counts and the places left, e.g. 8 confirmed here · 5 outside Peerify · 7 places left", () => {
+        const html = render({ ...withConfirmations, capacity: 20, confirmedCount: 8, placesTakenOutside: 5 }, true);
+        expect(html).toContain("8 confirmed here · 5 outside Peerify · 7 places left");
+        expect(confirmDisabled(html)).toBe(false);
+    });
+
+    test("ticketed: tickets left, then Sold out once outside places fill the rest; Confirm is then off", () => {
+        const ticketed = { ...withConfirmations, ticketed: true, capacity: 10, confirmedCount: 1 };
+        expect(render({ ...ticketed, placesTakenOutside: 6 }, true)).toContain(
+            "1 confirmed here · 6 outside Peerify · 3 tickets left",
         );
+        const soldOut = render({ ...ticketed, placesTakenOutside: 9 }, true);
+        expect(soldOut).toContain("1 confirmed here · 9 outside Peerify · Sold out");
+        expect(confirmDisabled(soldOut)).toBe(true);
     });
 
     test("no capacity: just the count", () => {

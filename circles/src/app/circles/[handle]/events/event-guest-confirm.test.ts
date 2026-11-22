@@ -212,6 +212,14 @@ describe("the guest list shows confirmations", () => {
         ]);
         expect(result.capacity).toBe(2);
         expect(result.confirmedCount).toBe(1);
+        expect(result.placesTakenOutside).toBe(0);
+    });
+
+    test("organisers get the places taken outside Peerify, and whether the event is ticketed", async () => {
+        seed({ capacity: 20, metadata: { peerify: { placesTakenOutside: 5, ticketed: true } } });
+        const result = await getEventGuestsAction("host", EVENT_ID);
+        expect(result.placesTakenOutside).toBe(5);
+        expect(result.ticketed).toBe(true);
     });
 
     test("a guest sees only their own entry and whether they're confirmed, not the counts", async () => {
@@ -221,6 +229,15 @@ describe("the guest list shows confirmations", () => {
         expect(result.guests.map((g) => [g.user.did, g.confirmed])).toEqual([[BO, true]]);
         expect(result.capacity).toBeUndefined();
         expect(result.confirmedCount).toBeUndefined();
+    });
+
+    test("a guest never gets the places taken outside Peerify", async () => {
+        seed({ capacity: 20, metadata: { peerify: { placesTakenOutside: 5 } } });
+        sessionDid = ANN;
+        const result = await getEventGuestsAction("host", EVENT_ID);
+        expect(result.guests.map((g) => g.user.did)).toEqual([ANN]);
+        expect(result.placesTakenOutside).toBeUndefined();
+        expect(JSON.stringify(result)).not.toContain("placesTakenOutside");
     });
 });
 
