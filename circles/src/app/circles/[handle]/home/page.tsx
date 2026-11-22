@@ -20,6 +20,7 @@ import { getEventsByCircleId, getPublicEventsByCircleId, shapeEventsForViewer } 
 import { getTracksByCircleId } from "@/lib/data/track";
 import { signAudioToken } from "@/lib/audio/audio-token";
 import { toPublicCircle } from "@/lib/utils/public-circle";
+import { getsLimitedPersonalProfile } from "@/lib/peerify/personal-profile-access";
 
 // TODO: Add error handling and loading states more robustly
 
@@ -35,6 +36,11 @@ export default async function CircleHomePage(props: PageProps) {
     const circle = await getCircleByHandle(handle);
     if (!circle) {
         notFound();
+    }
+    // The layout shows the limited version instead; render (and load) nothing, so none of this
+    // page's data reaches the payload (Tim, 2026-11-22).
+    if (getsLimitedPersonalProfile(circle, viewerDid)) {
+        return null;
     }
     const isPeerifyArtistProfile = isPeerifyArtistIdentity(circle);
 

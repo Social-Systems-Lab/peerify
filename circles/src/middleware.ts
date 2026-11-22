@@ -105,7 +105,8 @@ export async function middleware(request: NextRequest) {
         // /api/access reads the viewer from this Cookie header itself; userDid is no longer sent.
         const response = await fetchFirstAccessApi(
             accessApiUrls,
-            { circleHandle, moduleHandle },
+            // circleRoot: the bare /circles/<handle> URL, which only redirects to the default tab.
+            { circleHandle, moduleHandle, circleRoot: urlSegments.length === 2 },
             request.headers.get("cookie"),
         );
         const { authenticated, authorized, notFound, notFoundType, error } = await response.json();
@@ -166,7 +167,7 @@ function getAccessApiUrls(request: NextRequest, host: string | undefined, port: 
 
 async function fetchFirstAccessApi(
     accessApiUrls: string[],
-    body: { circleHandle: string; moduleHandle: string },
+    body: { circleHandle: string; moduleHandle: string; circleRoot: boolean },
     cookieHeader: string | null,
 ) {
     let lastError: unknown;

@@ -6,6 +6,7 @@ import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { isModuleEnabled } from "@/lib/auth/client-auth";
 import { canViewProfileCirclesList } from "@/lib/data/profile-circles-access";
 import { PROFILE_CIRCLES_MODULE } from "@/lib/peerify/profile-circles-list";
+import { getsLimitedPersonalProfile } from "@/lib/peerify/personal-profile-access";
 
 export async function POST(req: Request) {
     try {
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
         // userDid let anyone ask "may person X see circle Y / module Z?", e.g. whether a draft
         // handle exists or whether X is in a members-only group. A bad or missing token is a
         // signed-out viewer; middleware already cleared bad cookies before calling here.
-        const { circleHandle, moduleHandle } = await req.json();
+        const { circleHandle, moduleHandle, circleRoot } = await req.json();
         const userDid = await getAuthenticatedUserDid().catch(() => undefined);
 
         // get circle
@@ -35,6 +36,13 @@ export async function POST(req: Request) {
             if (!canViewUnpublished) {
                 return NextResponse.json({ notFound: true, notFoundType: "circle" }, { status: 404 });
             }
+        }
+
+        // A signed-out visitor sees a personal profile's limited version on its home tab only
+        // (the layout renders it); every other tab sends them to sign in (Tim, 2026-11-22). The
+        // bare /circles/<handle> URL passes too: it only redirects to the default tab.
+        if (getsLimitedPersonalProfile(circle, userDid) && moduleHandle !== "home" && circleRoot !== true) {
+            return NextResponse.json({ authenticated: false, authorized: false });
         }
 
         const isFundingRoute = moduleHandle === "funding";

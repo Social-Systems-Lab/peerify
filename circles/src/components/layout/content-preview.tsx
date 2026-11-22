@@ -335,7 +335,9 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                         </p>
                     )}
                     {/* The follower list is for the circle's admins and moderators (a personal profile's owner): others get the count. */}
-                    {memberCount > 0 && !canSeeFollowersLink(circle, user) && (
+                    {/* The private placeholder shows no count, Followers link or social links (Tim,
+                        2026-11-22). */}
+                    {!suppressed && memberCount > 0 && !canSeeFollowersLink(circle, user) && (
                         <p className="m-0 flex flex-row items-center justify-center pt-2 text-sm text-black">
                             <FaUsers />
                             <span className="ml-2">
@@ -343,7 +345,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             </span>
                         </p>
                     )}
-                    {memberCount > 0 && canSeeFollowersLink(circle, user) && (
+                    {!suppressed && memberCount > 0 && canSeeFollowersLink(circle, user) && (
                         <button
                             type="button"
                             className="flex flex-row items-center justify-center pt-2 text-black transition-opacity hover:opacity-70"
@@ -358,9 +360,11 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                             </p>
                         </button>
                     )}
-                    <div className="pt-2">
-                        <SocialLinks circle={circle} />
-                    </div>
+                    {!suppressed && (
+                        <div className="pt-2">
+                            <SocialLinks circle={circle} />
+                        </div>
+                    )}
                     {followActionsInFlow && !suppressed && user && (
                         <div className="flex flex-row justify-center gap-2 pt-3">{followActions}</div>
                     )}
@@ -448,7 +452,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                         )}
 
                         {/* SDGs */}
-                        {circle.causes && circle.causes.length > 0 && (
+                        {!suppressed && circle.causes && circle.causes.length > 0 && (
                             <div className="mt-4">
                                 <h3 className="mb-1.5 text-xs font-medium uppercase text-gray-500">SDGs</h3>
                                 <SdgList sdgHandles={circle.causes.slice(0, 8)} className="grid-cols-4" />

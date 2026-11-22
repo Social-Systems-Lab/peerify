@@ -115,7 +115,8 @@ describe("middleware forwards the visitor's cookie and no longer sends userDid",
         expect(text).toContain("Cookie: cookieHeader");
     });
     test("body has no userDid", () => {
-        expect(text).toContain("{ circleHandle, moduleHandle }");
-        expect(text).not.toContain("{ userDid, circleHandle, moduleHandle }");
+        // circleRoot added 2026-11-22 (bare profile URL); still no userDid in the body.
+        expect(text).toContain("{ circleHandle, moduleHandle, circleRoot: urlSegments.length === 2 }");
+        expect(text).not.toContain("userDid, circleHandle");
     });
 });
