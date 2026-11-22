@@ -16,7 +16,7 @@ export function Toaster() {
                             {icon && (
                                 <>
                                     {icon === "success" && <FaCircleCheck size="30px" color="#47db71" />}
-                                    {icon === "error" && <FaCircleXmark size="30px" color="white" />}
+                                    {icon === "error" && <FaCircleXmark size="30px" color="#b91c1c" />}
                                 </>
                             )}
 

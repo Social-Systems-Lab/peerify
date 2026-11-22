@@ -5,8 +5,13 @@ import * as React from "react";
 
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast";
 
-const TOAST_LIMIT = 1;
-const TOAST_REMOVE_DELAY = 1000000;
+// Error toasts (2026-11-22, platform-wide): an error (variant "destructive", or icon "error") gets
+// the error style and stays until the person closes it (duration Infinity; Radix still closes it on
+// ×, Escape or a swipe). Other toasts keep Radix's 5-second timeout. Up to TOAST_LIMIT show at
+// once, so a new toast no longer replaces an error; when there are too many, the oldest non-error
+// goes first. Closed toasts leave the list after their exit animation (TOAST_REMOVE_DELAY).
+const TOAST_LIMIT = 3;
+const TOAST_REMOVE_DELAY = 1000;
 
 type ToasterToast = Omit<ToastProps, "id" | "title" | "description" | "action"> & {
     id: string;
@@ -72,12 +77,32 @@ const addToRemoveQueue = (toastId: string) => {
     toastTimeouts.set(toastId, timeout);
 };
 
+export const isErrorToast = (toast: Pick<ToasterToast, "variant" | "icon">): boolean =>
+    toast.variant === "destructive" || toast.icon === "error";
+
+// Every toast() call goes through this: errors get the error style and no timeout unless the caller
+// set a duration itself.
+export const withErrorDefaults = <T extends Pick<ToasterToast, "variant" | "icon" | "duration">>(props: T): T =>
+    isErrorToast(props)
+        ? { ...props, variant: "destructive", duration: props.duration ?? Number.POSITIVE_INFINITY }
+        : props;
+
+const addToast = (toasts: ToasterToast[], toast: ToasterToast): ToasterToast[] => {
+    const next = [toast, ...toasts.filter((t) => t.open !== false)];
+    while (next.length > TOAST_LIMIT) {
+        // index 0 is the new toast, which always shows; otherwise drop the oldest non-error
+        const oldestNonError = next.map((t) => isErrorToast(t)).lastIndexOf(false);
+        next.splice(oldestNonError > 0 ? oldestNonError : next.length - 1, 1);
+    }
+    return next;
+};
+
 export const reducer = (state: State, action: Action): State => {
     switch (action.type) {
         case "ADD_TOAST":
             return {
                 ...state,
-                toasts: [action.toast, ...state.toasts].slice(0, TOAST_LIMIT),
+                toasts: addToast(state.toasts, action.toast),
             };
 
         case "UPDATE_TOAST":
@@ -151,7 +176,7 @@ function toast({ ...props }: Toast) {
     dispatch({
         type: "ADD_TOAST",
         toast: {
-            ...props,
+            ...withErrorDefaults(props),
             id,
             open: true,
             onOpenChange: (open) => {
