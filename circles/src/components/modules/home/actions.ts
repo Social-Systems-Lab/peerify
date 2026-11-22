@@ -7,7 +7,15 @@ import { ChatRoom, Circle, UserPrivate } from "@/models/models";
 import { cookies } from "next/headers";
 import { createPendingMembershipRequest, deletePendingMembershipRequest } from "@/lib/data/membership-requests";
 import { createPendingCrewApplication } from "@/lib/data/crew-applications";
-import { getCircleById, getCirclePath, updateCircle, getCircleByDid, getCirclesByIds, isCirclePublished } from "@/lib/data/circle";
+import {
+    getCircleById,
+    getCirclePath,
+    updateCircle,
+    getCircleByDid,
+    getCirclesByIds,
+    isCirclePublished,
+    resolveViewerIsAdmin,
+} from "@/lib/data/circle";
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
 import { getAuthenticatedUserDid, getAuthorizedMembers, isAuthorized } from "@/lib/auth/auth";
 import { getCrewApplicationReviewers } from "@/lib/data/crew-review";
@@ -39,6 +47,13 @@ import {
     ToolboxConnectionsSummary,
 } from "@/lib/data/relationships";
 import { Circles, UserRelationships } from "@/lib/data/db";
+import { canViewFullPersonalProfile } from "@/lib/data/personal-profile-access";
+import {
+    isPersonalProfile,
+    toLimitedPersonalProfile,
+    type LimitedPersonalProfile,
+} from "@/lib/peerify/personal-profile-access";
+import { toPublicCircle } from "@/lib/utils/public-circle";
 import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
 
 type CircleActionResponse = {
@@ -57,35 +72,37 @@ export const getUserPrivateAction = async (): Promise<UserPrivate | undefined> =
     return await getUserPrivate(userDid);
 };
 
-// Bypasses the suppressed-profile-preview placeholder for viewers who already follow the
-// profile owner's circle or have them as an accepted contact — reuses the same relationship
-// signals as FollowButton (Members collection) and MessageButton's "Connect" flow
-// (UserRelationships accepted edges) rather than introducing a new relationship concept.
-// The viewer's identity is derived from the auth cookie, not a client-supplied value, so a
-// caller can't fake "I'm a follower" to unlock a private profile.
-export const getProfilePreviewAccessAction = async (
-    targetCircleId: string,
-    targetDid: string,
-): Promise<{ hasAccess: boolean }> => {
+// The preview panel's data for a personal profile (Tim, 2026-11-22). The panel never renders a
+// personal profile from the object its opener happened to hold: it asks here, and the same
+// server-side rule as the profile page (canViewFullPersonalProfile: owner, superadmins, accepted
+// connections) decides. Everyone else gets the limited version, name, handle and picture only,
+// built fresh so nothing else rides along. Keyed on the owner's did (a followers row's _id is the
+// circle they follow, not their own profile). "not_personal" tells the panel to carry on as
+// before (artists, bands, venues).
+export type PersonalProfilePreview =
+    | { kind: "full"; circle: Circle }
+    | { kind: "limited"; profile: LimitedPersonalProfile }
+    | { kind: "not_personal" }
+    | { kind: "not_found" };
+
+export const getPersonalProfilePreviewAction = async (ownerDid: string): Promise<PersonalProfilePreview> => {
+    if (!ownerDid) return { kind: "not_found" };
     const viewerDid = await getAuthenticatedUserDid();
-    if (!viewerDid || !targetCircleId || !targetDid) {
-        return { hasAccess: false };
+    const circle = await getCircleByDid(ownerDid);
+    if (!circle) return { kind: "not_found" };
+    if (!isPersonalProfile(circle)) return { kind: "not_personal" };
+    if (!isCirclePublished(circle) && !(await canViewUnpublishedCircle(circle, viewerDid))) {
+        return { kind: "not_found" };
     }
-    if (viewerDid === targetDid) {
-        return { hasAccess: true };
+    if (!(await canViewFullPersonalProfile(circle, viewerDid))) {
+        return { kind: "limited", profile: toLimitedPersonalProfile(circle) };
     }
-
-    // Superadmins (user.isAdmin) see the real preview for any profile, regardless of the
-    // owner's mapVisible/searchable settings — resolved here from a trusted DB lookup on the
-    // cookie-derived viewerDid, not a client-supplied flag. Mirrors the bypass already added to
-    // getSwipeCircles/searchDiscoverableCircles.
-    const [viewer, membership, isContact] = await Promise.all([
-        Circles.findOne({ did: viewerDid }, { projection: { isAdmin: 1 } }),
-        getMember(viewerDid, targetCircleId),
-        isAcceptedConnectionForUserDid(viewerDid, targetDid),
-    ]);
-
-    return { hasAccess: viewer?.isAdmin === true || Boolean(membership) || isContact };
+    const shaped = toPublicCircle(circle, {
+        viewerDid,
+        viewerIsPlatformAdmin: await resolveViewerIsAdmin(viewerDid),
+        viewerCanManage: !!viewerDid && circle.did === viewerDid,
+    });
+    return { kind: "full", circle: JSON.parse(JSON.stringify(shaped)) };
 };
 
 export const followCircle = async (circle: Circle, answers?: Record<string, string>): Promise<CircleActionResponse> => {
@@ -317,20 +334,19 @@ export const cancelFollowRequest = async (circle: Circle): Promise<CircleActionR
 
 /**
  * Whether the signed-in viewer may bookmark or pin this circle (pinning also bookmarks). Only a
- * published circle (Tim, 2026-10-20: block unpublished ones); a personal profile the owner hasn't
- * made searchable only for viewers who may open its preview. Mirrors
- * isDiscoverableCircle/isSuppressedPersonalProfile (search.ts / content-preview.tsx): admins,
- * followers or accepted contacts, the same bypass getProfilePreviewAccessAction computes for the
- * preview card. Non-user circles (communities/venues) have no such restriction.
+ * published circle (Tim, 2026-10-20: block unpublished ones); a personal profile only for viewers
+ * who get it in full (canViewFullPersonalProfile, 2026-11-22). Non-user circles
+ * (communities/venues) have no such restriction.
  */
 const canBookmarkCircle = async (circleId: string): Promise<boolean> => {
     const targetCircle = await getCircleById(circleId);
     if (!targetCircle || !isCirclePublished(targetCircle)) {
         return false;
     }
-    if (targetCircle.circleType === "user" && (targetCircle as any)?.searchable !== true) {
-        const { hasAccess } = await getProfilePreviewAccessAction(circleId, targetCircle.did as string);
-        return hasAccess;
+    // A personal profile: only for viewers who get it in full (owner, superadmins, accepted
+    // connections), the same rule as its page and preview (Tim, 2026-11-22).
+    if (isPersonalProfile(targetCircle)) {
+        return canViewFullPersonalProfile(targetCircle, await getAuthenticatedUserDid());
     }
     return true;
 };

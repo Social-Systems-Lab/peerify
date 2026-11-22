@@ -72,3 +72,48 @@ describe("bookmarking and pinning unpublished circles", () => {
         expect(viewerDoc().bookmarkedCircles).toEqual([]);
     });
 });
+
+// Personal profiles (2026-11-22): bookmarking follows the profile rule. Only the owner, superadmins
+// and accepted connections, whatever the profile's search setting; following doesn't count.
+describe("bookmarking a personal profile", () => {
+    const STRANGER_PROFILE_ID = "64f000000000000000000003";
+    const CONNECTION_PROFILE_ID = "64f000000000000000000004";
+    const addProfiles = () => {
+        fakeDb.col("Circles").docs.push(
+            {
+                _id: new ObjectId(STRANGER_PROFILE_ID),
+                did: "did:test:stranger",
+                handle: "stranger",
+                circleType: "user",
+                publishStatus: "published",
+                searchable: true,
+            },
+            {
+                _id: new ObjectId(CONNECTION_PROFILE_ID),
+                did: "did:test:connection",
+                handle: "connection",
+                circleType: "user",
+                publishStatus: "published",
+                searchable: false,
+            },
+        );
+        fakeDb.col("UserRelationships").docs.push({
+            _id: new ObjectId(),
+            fromDid: VIEWER,
+            toDid: "did:test:connection",
+            connectStatus: "accepted",
+        });
+        fakeDb.col("Members").docs.push({ userDid: VIEWER, circleId: STRANGER_PROFILE_ID, userGroups: ["members"] });
+    };
+
+    test("a profile the viewer only follows, even if searchable: refused", async () => {
+        addProfiles();
+        expect(await toggleBookmarkAction(STRANGER_PROFILE_ID)).toBeUndefined();
+        expect(viewerDoc().bookmarkedCircles ?? []).toEqual([]);
+    });
+
+    test("an accepted connection's profile, even if not searchable: allowed", async () => {
+        addProfiles();
+        expect((await toggleBookmarkAction(CONNECTION_PROFILE_ID))?.bookmarkedCircles).toEqual([CONNECTION_PROFILE_ID]);
+    });
+});

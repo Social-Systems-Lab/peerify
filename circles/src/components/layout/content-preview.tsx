@@ -13,7 +13,12 @@ import { canSeeFollowersLink } from "@/lib/peerify/follower-list";
 import InviteButton from "../modules/home/invite-button";
 import FollowButton from "../modules/home/follow-button";
 import BookmarkButton from "../modules/home/bookmark-button";
-import { getProfilePreviewAccessAction, getViewerIsCircleAdminAction } from "../modules/home/actions";
+import {
+    getPersonalProfilePreviewAction,
+    getViewerIsCircleAdminAction,
+    type PersonalProfilePreview,
+} from "../modules/home/actions";
+import { toLimitedPersonalProfile } from "@/lib/peerify/personal-profile-access";
 import {
     Circle,
     FileInfo,
@@ -85,31 +90,52 @@ type CirclePreviewProps = {
     circleType: string;
     source?: "map" | "search";
 };
-// Defense-in-depth only: mapVisible/searchable are already enforced at the
-// query level (getSwipeCircles / searchDiscoverableCircles). This guard
-// exists in case a personal profile ever reaches this preview via some
-// other path. CirclePreview is shared between map-pin clicks and
-// search-result clicks, so it checks the field matching whichever surface
-// opened it — mapVisible for "map", searchable for "search" (and for any
-// caller that doesn't specify a source, e.g. the members-list preview,
-// which defaults to the stricter searchable check).
-const isSuppressedPersonalProfile = (
-    circle: WithMetric<Circle>,
-    circleType: string,
-    source?: "map" | "search",
-): boolean => {
-    if (circleType !== "user") {
-        return false;
-    }
-    if (source === "map") {
-        return (circle as any)?.mapVisible !== true;
-    }
-    return (circle as any)?.searchable !== true;
-};
-
-export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps) => {
+export const CirclePreview = ({ circle: openerCircle, circleType }: CirclePreviewProps) => {
     const router = useRouter();
-    const ownerRestrictsVisibility = isSuppressedPersonalProfile(circle, circleType, source);
+    // Personal profiles (Tim, 2026-11-22): never rendered from the object the opener happened to
+    // hold. The server decides (getPersonalProfilePreviewAction, the same rule as the profile
+    // page: owner, superadmins, accepted connections) and sends either the full profile or the
+    // limited version, name, handle and picture. Until it answers, and for everyone it limits, the
+    // panel shows only those three values, rebuilt here so nothing else from the opener renders.
+    // The search and map settings play no part, and following doesn't count. Relies on
+    // ContentPreview keying CirclePreview by target id to remount when the profile changes.
+    const isPersonal = (openerCircle?.circleType ?? circleType) === "user";
+    const ownerDid = openerCircle?.did ?? (openerCircle as unknown as { userDid?: string })?.userDid;
+    const [personalPreview, setPersonalPreview] = React.useState<PersonalProfilePreview | null>(null);
+    useEffect(() => {
+        if (!isPersonal || !ownerDid) {
+            setPersonalPreview(null);
+            return;
+        }
+        let isCurrent = true;
+        getPersonalProfilePreviewAction(ownerDid)
+            .then((result) => {
+                if (isCurrent) setPersonalPreview(result);
+            })
+            .catch(() => {
+                if (isCurrent) setPersonalPreview({ kind: "not_found" });
+            });
+        return () => {
+            isCurrent = false;
+        };
+    }, [isPersonal, ownerDid]);
+    const suppressed = isPersonal && personalPreview?.kind !== "full" && personalPreview?.kind !== "not_personal";
+    const circle = React.useMemo((): WithMetric<Circle> => {
+        if (!isPersonal || personalPreview?.kind === "not_personal") return openerCircle;
+        if (personalPreview?.kind === "full") {
+            return { ...personalPreview.circle, metrics: openerCircle?.metrics } as WithMetric<Circle>;
+        }
+        const limited =
+            personalPreview?.kind === "limited" ? personalPreview.profile : toLimitedPersonalProfile(openerCircle);
+        return {
+            _id: openerCircle?._id,
+            did: ownerDid,
+            circleType: "user",
+            handle: limited.handle,
+            name: limited.name,
+            picture: limited.pictureUrl ? { url: limited.pictureUrl } : undefined,
+        } as WithMetric<Circle>;
+    }, [isPersonal, personalPreview, openerCircle, ownerDid]);
     const memberCount = circle?.members ? (circleType === "user" ? circle.members - 1 : circle.members) : 0;
     const [, setImageGallery] = useAtom(imageGalleryAtom); // Keep for profile picture click
     const [, setContentPreview] = useAtom(contentPreviewAtom);
@@ -177,33 +203,6 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
         }, closeDelayMs);
     };
 
-    // Relationship-aware bypass: a follower or accepted contact still sees the full profile
-    // even when the owner hasn't opted into search/map discoverability. Defaults to "no
-    // access" (safe/closed) until the check resolves, so the private placeholder never
-    // flashes real data while this is loading. Relies on ContentPreview keying CirclePreview
-    // by target id to remount (and reset this) when the previewed profile changes without the
-    // panel closing in between — without that key, this state would leak across profiles.
-    const [hasRelationshipAccess, setHasRelationshipAccess] = React.useState(false);
-    useEffect(() => {
-        if (!ownerRestrictsVisibility) {
-            return;
-        }
-        if (!user?.did || !circle?._id || !circle?.did) {
-            setHasRelationshipAccess(false);
-            return;
-        }
-        let isCurrent = true;
-        getProfilePreviewAccessAction(circle._id, circle.did).then((result) => {
-            if (isCurrent) {
-                setHasRelationshipAccess(result.hasAccess);
-            }
-        });
-        return () => {
-            isCurrent = false;
-        };
-    }, [ownerRestrictsVisibility, user?.did, circle?._id, circle?.did]);
-
-    const suppressed = ownerRestrictsVisibility && !hasRelationshipAccess;
     const viewerIsOwnProfile = !!user?.did && !!circle?.did && user.did === circle.did;
 
     const openPledgeDialog = () => {
@@ -270,7 +269,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                     fallbackUrl={getDefaultHeroUrl(circle)}
                 />
 
-                {circle?.metrics && (
+                {!suppressed && circle?.metrics && (
                     <Indicators metrics={circle.metrics} className="absolute left-2 top-2 z-10" content={circle} /> // Added z-10
                 )}
 
@@ -306,7 +305,7 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                                 className="rounded-full border-2 border-white bg-white object-cover shadow-lg"
                                 src={
                                     suppressed
-                                        ? PEERIFY_DEFAULT_PROFILE_AVATAR_URL
+                                        ? (circle?.picture?.url ?? PEERIFY_DEFAULT_PROFILE_AVATAR_URL)
                                         : (circle?.picture?.url ?? "/images/default-user-picture.png")
                                 }
                                 alt="Picture"
@@ -327,11 +326,12 @@ export const CirclePreview = ({ circle, circleType, source }: CirclePreviewProps
                 </div>
                 <div className="mt-[44px] flex flex-col items-center justify-center overflow-y-auto">
                     <div className="header pt-[30px] text-2xl">
-                        {suppressed ? "This profile is private" : circle.name}
+                        {suppressed ? (circle.name ?? "This profile is private") : circle.name}
                     </div>
                     {suppressed && (
-                        <p className="max-w-[240px] px-4 pt-1 text-center text-sm text-gray-500">
-                            This person hasn&apos;t made their profile discoverable.
+                        <p className="max-w-[260px] px-4 pt-1 text-center text-sm text-gray-500">
+                            {circle.handle ? <span className="block">@{circle.handle}</span> : null}
+                            This profile is only visible to their connections.
                         </p>
                     )}
                     {/* The follower list is for the circle's admins and moderators (a personal profile's owner): others get the count. */}
