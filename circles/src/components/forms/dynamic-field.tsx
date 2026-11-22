@@ -43,6 +43,7 @@ import { ScrollArea } from "../ui/scroll-area";
 import { ItemGridCard } from "../onboarding/item-card";
 import SelectedItemBadge from "../onboarding/selected-item-badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "../ui/card";
+import { CreatorBadge } from "../modules/members/creator-badge";
 
 type RenderFieldProps = {
     field: FormFieldType;
@@ -820,7 +821,12 @@ export const MemberUserGroupsGrid: React.FC<MemberUserGroupsGridProps> = ({
                 <tbody>
                     {members.map((member, rowIndex) => (
                         <tr key={rowIndex} className="border-t">
-                            <td className="border-r p-2">{member.name}</td>
+                            <td className="border-r p-2">
+                                <span className="flex flex-wrap items-center gap-2">
+                                    {member.name}
+                                    <CreatorBadge circle={circle} userDid={member.userDid} />
+                                </span>
+                            </td>
                             {visibleUserGroups?.map((userGroup, colIndex) => {
                                 const canEdit =
                                     canEditUserGroups &&

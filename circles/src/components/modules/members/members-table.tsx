@@ -50,6 +50,7 @@ import { removeMemberAction, updateUserGroupsAction } from "./actions";
 import { useToast } from "@/components/ui/use-toast";
 import { FormProvider, useForm } from "react-hook-form";
 import { MemberUserGroupsGrid } from "@/components/forms/dynamic-field";
+import { CreatorBadge } from "./creator-badge";
 import InviteButton from "../home/invite-button";
 import InviteAdminDialog from "./invite-admin-dialog";
 import { useIsCompact } from "@/components/utils/use-is-compact";
@@ -181,6 +182,7 @@ const MemberTable: React.FC<MemberTableProps> = ({ circle, members }) => {
                         <div className="flex items-center gap-2">
                             <UserPicture name={memberName} picture={picture} />
                             <span className="ml-2 font-bold">{memberName}</span>
+                            <CreatorBadge circle={circle} userDid={info.row.original.userDid} />
                             {metrics && (
                                 <Indicators metrics={metrics} className="shadow-none" content={info.row.original} />
                             )}
@@ -212,7 +214,7 @@ const MemberTable: React.FC<MemberTableProps> = ({ circle, members }) => {
                 filterFn: multiSelectFilter,
             },
         ],
-        [circle.userGroups, isUser],
+        [circle.userGroups, circle.createdBy, isUser],
     );
 
     const table = useReactTable({

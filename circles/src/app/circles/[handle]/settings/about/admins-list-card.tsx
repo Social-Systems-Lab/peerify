@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import CancelAdminInvitationButton from "@/components/modules/members/cancel-admin-invitation-button";
 import InviteAdminDialog from "@/components/modules/members/invite-admin-dialog";
 import RemoveAdminButton from "@/components/modules/members/remove-admin-button";
+import { CreatorBadge } from "@/components/modules/members/creator-badge";
 import { Circle, MemberDisplay } from "@/models/models";
 
 // Flattened in page.tsx rather than passing raw AdminInvitation docs: the invitee's name/handle/
@@ -42,7 +43,10 @@ export function AdminsListCard({ circle, admins, pendingInvitations }: AdminsLis
                                 <AvatarFallback>{admin.name?.[0]}</AvatarFallback>
                             </Avatar>
                             <div className="flex flex-1 flex-col">
-                                <span className="text-sm font-medium">{admin.name}</span>
+                                <span className="flex items-center gap-2 text-sm font-medium">
+                                    {admin.name}
+                                    <CreatorBadge circle={circle} userDid={admin.userDid} />
+                                </span>
                                 {admin.handle ? (
                                     <span className="text-xs text-muted-foreground">@{admin.handle}</span>
                                 ) : null}
