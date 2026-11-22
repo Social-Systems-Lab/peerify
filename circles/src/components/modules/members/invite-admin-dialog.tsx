@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useTransition } from "react";
+import React, { useMemo, useState } from "react";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import UserPicker from "@/components/forms/user-picker";
 import { MemberUserGroupsGrid } from "@/components/forms/dynamic-field";
 import { getMyAcceptedConnectionsAction, inviteUserToAdminAction, searchMyAcceptedConnectionsAction } from "./actions";
 import { ADMIN_INVITATION_ALLOWED_USER_GROUPS, Circle, MemberDisplay } from "@/models/models";
+import { callAction } from "@/lib/utils/call-action";
 
 type Props = {
     circle: Circle;
@@ -22,7 +23,9 @@ export default function InviteAdminDialog({ circle }: Props) {
     const { toast } = useToast();
     const [open, setOpen] = useState(false);
     const [selected, setSelected] = useState<Circle[]>([]);
-    const [isPending, startTransition] = useTransition();
+    // A plain flag, cleared in finally (2026-11-22): with useTransition a call that threw left the
+    // button on "Sending..." (callAction also turns a throw into a failed result for the toast).
+    const [isSending, setIsSending] = useState(false);
     const methods = useForm<{ memberUserGroups: Record<string, string[]> }>({
         defaultValues: { memberUserGroups: {} },
     });
@@ -55,7 +58,7 @@ export default function InviteAdminDialog({ circle }: Props) {
         setOpen(false);
     };
 
-    const onSubmit = () => {
+    const onSubmit = async () => {
         if (selected.length === 0) return;
 
         const memberUserGroups = methods.getValues("memberUserGroups");
@@ -70,17 +73,22 @@ export default function InviteAdminDialog({ circle }: Props) {
             return;
         }
 
-        startTransition(async () => {
+        setIsSending(true);
+        try {
             const results = await Promise.all(
                 selected.map(async (candidate) => {
                     const offeredGroups: string[] = memberUserGroups?.[candidate.did!] || [];
-                    const result = await inviteUserToAdminAction(circle, candidate.did!, offeredGroups);
+                    const result = await callAction(() =>
+                        inviteUserToAdminAction(circle, candidate.did!, offeredGroups),
+                    );
                     return { candidate, result };
                 }),
             );
 
-            const succeeded = results.filter((r) => r.result.success && !r.result.notificationFailed);
-            const notNotified = results.filter((r) => r.result.success && r.result.notificationFailed);
+            const notified = (result: (typeof results)[number]["result"]) =>
+                !("notificationFailed" in result && result.notificationFailed);
+            const succeeded = results.filter((r) => r.result.success && notified(r.result));
+            const notNotified = results.filter((r) => r.result.success && !notified(r.result));
             const failed = results.filter((r) => !r.result.success);
 
             if (succeeded.length > 0) {
@@ -112,7 +120,9 @@ export default function InviteAdminDialog({ circle }: Props) {
             if (failed.length === 0) {
                 resetAndClose();
             }
-        });
+        } finally {
+            setIsSending(false);
+        }
     };
 
     return (
@@ -158,8 +168,8 @@ export default function InviteAdminDialog({ circle }: Props) {
                         <Button variant="outline" onClick={resetAndClose}>
                             Cancel
                         </Button>
-                        <Button onClick={onSubmit} disabled={isPending || selected.length === 0}>
-                            {isPending ? (
+                        <Button onClick={onSubmit} disabled={isSending || selected.length === 0}>
+                            {isSending ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Sending...

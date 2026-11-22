@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAtom } from "jotai";
 import { userAtom } from "@/lib/data/atoms";
@@ -21,6 +21,7 @@ import { features } from "@/lib/data/constants";
 import { updateUserGroupsAction } from "@/components/modules/members/actions";
 import { Circle, MemberDisplay } from "@/models/models";
 import { canOfferAdminRemoval } from "./circle-creator";
+import { callAction } from "@/lib/utils/call-action";
 
 type Props = {
     circle: Circle;
@@ -41,7 +42,9 @@ export default function RemoveAdminButton({ circle, admin }: Props) {
     const router = useRouter();
     const { toast } = useToast();
     const [step, setStep] = useState<Step>("closed");
-    const [isPending, startTransition] = useTransition();
+    // A plain flag, cleared in finally (2026-11-22, as in invite-admin-dialog.tsx), so "Removing..."
+    // can't stick after a call that threw.
+    const [isRemoving, setIsRemoving] = useState(false);
     const [acknowledgement, setAcknowledgement] = useState<Acknowledgement | null>(null);
 
     // Same gate + same-level comparison members-table.tsx already uses to decide whether to show
@@ -62,10 +65,11 @@ export default function RemoveAdminButton({ circle, admin }: Props) {
         return null;
     }
 
-    const onConfirm = () => {
-        startTransition(async () => {
+    const onConfirm = async () => {
+        setIsRemoving(true);
+        try {
             const newGroups = (admin.userGroups ?? []).filter((group) => group !== "admins");
-            const result = await updateUserGroupsAction(admin, circle, newGroups);
+            const result = await callAction(() => updateUserGroupsAction(admin, circle, newGroups));
 
             if (result.success) {
                 if (result.adminRoleRemovalRequestState === "created") {
@@ -96,7 +100,9 @@ export default function RemoveAdminButton({ circle, admin }: Props) {
             }
 
             setStep("closed");
-        });
+        } finally {
+            setIsRemoving(false);
+        }
     };
 
     return (
@@ -149,8 +155,8 @@ export default function RemoveAdminButton({ circle, admin }: Props) {
                         <DialogClose asChild>
                             <Button variant="outline">Cancel</Button>
                         </DialogClose>
-                        <Button variant="destructive" onClick={onConfirm} disabled={isPending}>
-                            {isPending ? (
+                        <Button variant="destructive" onClick={onConfirm} disabled={isRemoving}>
+                            {isRemoving ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                     Removing...
