@@ -30,6 +30,7 @@ import {
 import { redactCircleLocationForViewer, viewerBypassesLocationRedaction, type LocationViewerContext } from "../utils";
 import { toIdentityCircle, toPublicLocation, toPublicMetadata } from "../utils/public-circle";
 import { getUserByDid } from "./user";
+import { getFullProfileOwnerDids } from "./personal-profile-access";
 import { getMetrics } from "../utils/metrics";
 import { deleteVbdPost, upsertVbdPosts } from "./vdb";
 import { getProposalById } from "./proposal";
@@ -610,12 +611,72 @@ export const redactPostLocationsForViewer = async <T extends LocationBearingCont
     viewerDid?: string,
 ): Promise<T> => {
     const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
-    return redactContentLocations(post, { viewerDid, viewerIsAdmin });
+    const [shaped] = await limitContentAuthorsForViewer(
+        [redactContentLocations(post, { viewerDid, viewerIsAdmin })],
+        viewerDid,
+    );
+    return shaped;
 };
 
 function redactContentListLocations<T extends LocationBearingContent>(items: T[], viewer: LocationViewerContext): T[] {
     return items.map((item) => redactContentLocations(item, viewer));
 }
+
+// Personal profile authors (Tim, 2026-11-22): a post's or comment's author who is a personal
+// profile the viewer has no relationship with (getFullProfileOwnerDids: themselves, a superadmin
+// viewer, an accepted connection) is sent as name, handle and picture only, plus the ids the UI
+// links with (_id, did) and circleType. No about text, images, location, metadata or badges.
+// Applies to the post's author, its highlighted comment's author and a shared post's author, at
+// every depth. Artist, band and venue authors are left alone. Runs after redactContentLocations.
+type AuthorBearingContent = {
+    author?: { did?: string } | null;
+    highlightedComment?: { author?: { did?: string } | null } | null;
+    sharedPostData?: AuthorBearingContent | null;
+};
+const collectAuthorDids = (item: AuthorBearingContent | null | undefined, into: Set<string>): void => {
+    if (!item) return;
+    if (item.author?.did) into.add(item.author.did);
+    if (item.highlightedComment?.author?.did) into.add(item.highlightedComment.author.did);
+    collectAuthorDids(item.sharedPostData, into);
+};
+const toLimitedAuthor = (author: Record<string, unknown>): Record<string, unknown> => {
+    const limited: Record<string, unknown> = { circleType: "user" };
+    for (const key of ["_id", "did", "handle", "name"]) {
+        if (author[key] !== undefined) limited[key] = key === "_id" ? String(author[key]) : author[key];
+    }
+    const picture = author.picture as { url?: string } | string | undefined;
+    const pictureUrl = typeof picture === "string" ? picture : picture?.url;
+    if (pictureUrl) limited.picture = { url: pictureUrl };
+    return limited;
+};
+const limitItemAuthors = <T extends AuthorBearingContent>(item: T, limitedDids: Set<string>): T => {
+    const next: any = { ...item };
+    if (item.author?.did && limitedDids.has(item.author.did)) next.author = toLimitedAuthor(item.author);
+    const hcAuthor = item.highlightedComment?.author;
+    if (hcAuthor?.did && limitedDids.has(hcAuthor.did)) {
+        next.highlightedComment = { ...item.highlightedComment, author: toLimitedAuthor(hcAuthor) };
+    }
+    if (item.sharedPostData) next.sharedPostData = limitItemAuthors(item.sharedPostData, limitedDids);
+    return next as T;
+};
+export const limitContentAuthorsForViewer = async <T extends AuthorBearingContent>(
+    items: T[],
+    viewerDid: string | undefined,
+): Promise<T[]> => {
+    const dids = new Set<string>();
+    for (const item of items) collectAuthorDids(item, dids);
+    if (dids.size === 0) return items;
+    const personal = await Circles.find(
+        { did: { $in: Array.from(dids) }, circleType: "user" },
+        { projection: { did: 1 } },
+    ).toArray();
+    const personalDids = personal.map((doc) => String(doc.did));
+    if (personalDids.length === 0) return items;
+    const full = await getFullProfileOwnerDids(viewerDid, personalDids);
+    const limitedDids = new Set(personalDids.filter((did) => !full.has(did)));
+    if (limitedDids.size === 0) return items;
+    return items.map((item) => limitItemAuthors(item, limitedDids));
+};
 
 export const getFullPost = async (postId: string, userDid?: string): Promise<PostDisplay | null> => {
     const posts = (await Posts.aggregate([
@@ -918,7 +979,11 @@ export const getFullPost = async (postId: string, userDid?: string): Promise<Pos
     await fetchAndAttachSharedPostData(posts, userDid);
 
     const viewerIsAdmin = await resolveViewerIsAdmin(userDid);
-    return redactContentLocations(posts[0], { viewerDid: userDid, viewerIsAdmin });
+    const [shaped] = await limitContentAuthorsForViewer(
+        [redactContentLocations(posts[0], { viewerDid: userDid, viewerIsAdmin })],
+        userDid,
+    );
+    return shaped;
 };
 
 // Function to update the highlighted comment for a post
@@ -1409,7 +1474,10 @@ export async function getPostsFromMultipleFeeds(
         // --- End Fetch Internal Preview Data ---
 
         const viewerIsAdmin = await resolveViewerIsAdmin(userDid);
-        return redactContentListLocations(filteredPosts, { viewerDid: userDid, viewerIsAdmin });
+        return limitContentAuthorsForViewer(
+            redactContentListLocations(filteredPosts, { viewerDid: userDid, viewerIsAdmin }),
+            userDid,
+        );
     }
 
     // If no user is specified, only return posts with "everyone" user group
@@ -1423,7 +1491,10 @@ export async function getPostsFromMultipleFeeds(
     // --- End Fetch Internal Preview Data ---
 
     const viewerIsAdminForPublic = await resolveViewerIsAdmin(userDid);
-    return redactContentListLocations(publicPosts, { viewerDid: userDid, viewerIsAdmin: viewerIsAdminForPublic });
+    return limitContentAuthorsForViewer(
+        redactContentListLocations(publicPosts, { viewerDid: userDid, viewerIsAdmin: viewerIsAdminForPublic }),
+        userDid,
+    );
 }
 
 export async function getPostsFromMultipleFeedsWithMetrics(
@@ -1837,7 +1908,10 @@ export const getPosts = async (
         // --- End Fetch Internal Preview Data ---
 
         const viewerIsAdmin = await resolveViewerIsAdmin(userDid);
-        return redactContentListLocations(filteredPosts, { viewerDid: userDid, viewerIsAdmin });
+        return limitContentAuthorsForViewer(
+            redactContentListLocations(filteredPosts, { viewerDid: userDid, viewerIsAdmin }),
+            userDid,
+        );
     }
 
     // If no user is specified, only return posts with "everyone" user group
@@ -1851,7 +1925,10 @@ export const getPosts = async (
     // --- End Fetch Internal Preview Data ---
 
     const viewerIsAdminForPublic = await resolveViewerIsAdmin(userDid);
-    return redactContentListLocations(publicPostsForFeed, { viewerDid: userDid, viewerIsAdmin: viewerIsAdminForPublic });
+    return limitContentAuthorsForViewer(
+        redactContentListLocations(publicPostsForFeed, { viewerDid: userDid, viewerIsAdmin: viewerIsAdminForPublic }),
+        userDid,
+    );
 };
 
 // Internal previews: a post can point at another item via internalPreviewType/internalPreviewId, and
@@ -2342,7 +2419,10 @@ export const getAllComments = async (postId: string, userDid: string | undefined
     });
 
     const viewerIsAdmin = await resolveViewerIsAdmin(userDid);
-    return redactContentListLocations(comments, { viewerDid: userDid, viewerIsAdmin });
+    return limitContentAuthorsForViewer(
+        redactContentListLocations(comments, { viewerDid: userDid, viewerIsAdmin }),
+        userDid,
+    );
 };
 
 export const getPostsForEmbedding = async (): Promise<PostDisplay[]> => {
