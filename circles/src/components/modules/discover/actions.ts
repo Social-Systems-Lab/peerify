@@ -6,7 +6,7 @@ import { getMetricsForCircles } from "@/lib/data/circle";
 import { getOpenEventsForMap } from "@/lib/data/event";
 import { getCircleIdsWithTracks } from "@/lib/data/track";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
-import { Circle, WithMetric, EventDisplay } from "@/models/models";
+import { Circle, CircleType, WithMetric, EventDisplay } from "@/models/models";
 
 // hasPlayableTracks is attached after searchDiscoverableCircles' public redaction, so it never
 // needs to go through SAFE_CIRCLE_PROJECTION / PUBLIC_LIST_EXTRA_FIELDS. It is viewer-independent
@@ -37,6 +37,10 @@ export type DiscoverQueryInput = {
     dateRange?: { from?: string; to?: string };
 };
 
+// Artist circles only. A personal profile marked as an artist is never listed (2026-11-22): its
+// page is limited for strangers, and artists who want a public page use an artist circle.
+const DISCOVER_CIRCLE_TYPES: CircleType[] = ["circle"];
+
 /**
  * Fetches this screen's two result sets in parallel: discoverable artist circles (filtered down
  * from searchDiscoverableCircles' broader result set to isPeerifyArtistIdentity only — Discover
@@ -56,6 +60,7 @@ export async function getDiscoverResultsAction(input: DiscoverQueryInput): Promi
             ? searchDiscoverableCircles({
                   query: input.query,
                   limit: 40,
+                  circleTypes: DISCOVER_CIRCLE_TYPES,
                   primaryGenres,
                   actFilters: { actFormats: input.actFormats, actOffers: input.actOffers },
                   viewerDid: userDid,
@@ -76,6 +81,7 @@ export async function getDiscoverResultsAction(input: DiscoverQueryInput): Promi
         const availableActOffersPromise = includeArtists
             ? getAvailableActOffersForSearch({
                   query: input.query,
+                  circleTypes: DISCOVER_CIRCLE_TYPES,
                   primaryGenres,
                   actFilters: { actFormats: input.actFormats },
                   viewerDid: userDid,
@@ -87,7 +93,9 @@ export async function getDiscoverResultsAction(input: DiscoverQueryInput): Promi
             eventsPromise,
             availableActOffersPromise,
         ]);
-        const artists: DiscoverArtist[] = candidateCircles.filter((circle) => isPeerifyArtistIdentity(circle));
+        const artists: DiscoverArtist[] = candidateCircles.filter(
+            (circle) => circle.circleType !== "user" && isPeerifyArtistIdentity(circle),
+        );
 
         if (userDid && artists.length > 0) {
             await getMetricsForCircles(artists, userDid);

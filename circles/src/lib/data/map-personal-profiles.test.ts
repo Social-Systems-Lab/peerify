@@ -1,9 +1,9 @@
 // Run: IS_BUILD=true bun test src/lib/data/map-personal-profiles.test.ts
-// Explore map change A (2026-11-02): getSwipeCircles never returns a personal profile unless it's an
-// artist that turned mapVisible on, and platform admins get the same rule. Sits next to the
-// location-leaks tests and uses the same in-memory fakes (testing/fake-db.ts), so nothing real is
-// touched. Fails on the code before the change: a mapVisible fan came back, and an admin got every
-// personal profile.
+// Explore map change A (2026-11-02): getSwipeCircles never returns a non-artist personal profile,
+// and platform admins get the same rule. Since 2026-11-22 (Tim) no personal profile reaches the
+// map at all, artist-marked ones with mapVisible included: their pages are limited for strangers,
+// and artists who want a public page use an artist circle. Artist circles and venues stay.
+// Uses the in-memory fakes (testing/fake-db.ts), so nothing real is touched.
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { createFakeDb } from "@/lib/testing/fake-db";
@@ -61,15 +61,21 @@ describe("getSwipeCircles: personal profiles on the Explore map", () => {
         });
     });
 
-    test("anonymous: only artist personal profiles with mapVisible, plus non-personal circles", async () => {
-        expect(handles(await getSwipeCircles())).toEqual(["artist-intent-visible", "band", "venue"]);
+    test("anonymous: no personal profiles, artist-marked ones included; artist circles and venues stay", async () => {
+        expect(handles(await getSwipeCircles())).toEqual(["band", "venue"]);
     });
 
     test("signed-in stranger: the same", async () => {
-        expect(handles(await getSwipeCircles(STRANGER))).toEqual(["artist-intent-visible", "band", "venue"]);
+        expect(handles(await getSwipeCircles(STRANGER))).toEqual(["band", "venue"]);
     });
 
     test("platform admin: the same rule, no personal-profile bypass", async () => {
-        expect(handles(await getSwipeCircles(ADMIN))).toEqual(["artist-intent-visible", "band", "venue"]);
+        expect(handles(await getSwipeCircles(ADMIN))).toEqual(["band", "venue"]);
+    });
+
+    test("the payload carries nothing from an artist-marked personal profile", async () => {
+        for (const viewer of [undefined, STRANGER, ADMIN]) {
+            expect(JSON.stringify(await getSwipeCircles(viewer))).not.toContain("artist-intent");
+        }
     });
 });

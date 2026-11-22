@@ -1128,13 +1128,10 @@ export const MapExplorer: React.FC<MapExplorerProps> = ({ allDiscoverableCircles
             if (dateRange?.from || dateRange?.to) {
                 circles = circles.filter((c) => withinDateRange((c as any).createdAt));
             }
-            // Backstop for search results: searchDiscoverableCircles keeps a personal profile's
-            // location for platform admins, so drop personal profiles here unless they'd be on the
-            // map anyway (an artist with mapVisible, as getSwipeCircles). The results list keeps them.
+            // Backstop for search results: personal profiles never get a pin on the Explore map
+            // (as getSwipeCircles), artist-marked ones included. The results list keeps them.
             if (hasSearched) {
-                circles = circles.filter(
-                    (c) => c.circleType !== "user" || (isPeerifyArtistIdentity(c) && c.mapVisible === true),
-                );
+                circles = circles.filter((c) => c.circleType !== "user");
             }
             const mapData: Content[] = circles
                 .map((circle) => mapItemToContent(circle))

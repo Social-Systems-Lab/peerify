@@ -20,7 +20,7 @@ import { Circles, Members, MembershipRequests, Feeds, Posts, ChatRooms } from ".
 import { ObjectId } from "mongodb";
 import { randomInt } from "crypto";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
-import { ARTIST_IDENTITY_MONGO_QUERY, isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
+import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { getMetrics } from "../utils/metrics";
 import {
     escapeRegex,
@@ -307,9 +307,9 @@ export const resolveViewerIsAdmin = async (viewerDid?: string): Promise<boolean>
     return viewer?.isAdmin === true;
 };
 
-// The Explore map's circles. A personal profile (circleType "user") is kept only if it's an artist
-// (ARTIST_IDENTITY_MONGO_QUERY) and its owner turned mapVisible on; other personal profiles never
-// reach the map, for platform admins too. isAdmin (resolved from a trusted DB lookup on viewerDid,
+// The Explore map's circles. Personal profiles (circleType "user") never reach the map, for
+// platform admins too, artist-marked ones included (2026-11-22: their pages are limited for
+// strangers; artists who want a public page use an artist circle). isAdmin (resolved from a trusted DB lookup on viewerDid,
 // never a caller-supplied boolean) now only decides how much of each location the viewer gets
 // (toPublicCircleListItem below). getPublishedCircleQuery() is applied the same way for everyone.
 export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => {
@@ -321,12 +321,7 @@ export const getSwipeCircles = async (viewerDid?: string): Promise<Circle[]> => 
         isAdmin = viewer?.isAdmin === true;
     }
 
-    const mapVisibilityClause = {
-        $or: [
-            { circleType: { $ne: "user" } },
-            { $and: [{ circleType: "user" }, { mapVisible: true }, ARTIST_IDENTITY_MONGO_QUERY] },
-        ],
-    };
+    const mapVisibilityClause = { circleType: { $ne: "user" } };
 
     circles = await Circles.find(
         { $and: [getPublishedCircleQuery(), mapVisibilityClause] },
