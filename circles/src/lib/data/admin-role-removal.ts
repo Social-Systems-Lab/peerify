@@ -1,5 +1,5 @@
 import { DETACH_ADMIN_CHANGE_BLOCK_MESSAGE, getPendingDetachCircleRequest } from "@/lib/data/circle-detach";
-import { db } from "@/lib/data/db";
+import { Circles, db } from "@/lib/data/db";
 import { countAdmins, getMember, updateMemberUserGroups } from "@/lib/data/member";
 import { AdminRoleRemovalRequest } from "@/models/models";
 import { ObjectId } from "mongodb";
@@ -8,6 +8,15 @@ export const ADMIN_ROLE_REMOVAL_REQUEST_PENDING_STATUS = "pending" as const;
 
 const adminRoleRemovalRequestsCollection = () =>
     db.collection<AdminRoleRemovalRequest>("adminRoleRemovalRequests");
+
+// Only a superadmin can take the admin role from a circle's creator (2026-11-22), and superadmins do
+// it directly, so no request may target the creator: neither a new one nor an older pending one.
+const CREATOR_REQUEST_MESSAGE = "Only a Peerify admin can take the admin role from the creator of this circle.";
+const isCircleCreator = async (circleId: string, did: string): Promise<boolean> => {
+    if (!ObjectId.isValid(circleId)) return false;
+    const circle = await Circles.findOne({ _id: new ObjectId(circleId) }, { projection: { createdBy: 1 } });
+    return !!circle?.createdBy && circle.createdBy === did;
+};
 
 const getRequiredPendingRequest = async (requestId: string): Promise<AdminRoleRemovalRequest> => {
     const request = await adminRoleRemovalRequestsCollection().findOne({
@@ -60,6 +69,9 @@ export async function createAdminRoleRemovalRequest(params: {
     if (adminCount <= 1) {
         throw new Error("Cannot remove the last admin.");
     }
+    if (await isCircleCreator(params.circleId, params.targetUserDid)) {
+        throw new Error(CREATOR_REQUEST_MESSAGE);
+    }
 
     const existingRequest = await getPendingAdminRoleRemovalRequest(params.circleId, params.targetUserDid);
     if (existingRequest) {
@@ -94,6 +106,10 @@ export async function approveAdminRoleRemovalRequest(params: {
     const pendingDetachRequest = await getPendingDetachCircleRequest(request.circleId);
     if (pendingDetachRequest) {
         throw new Error(DETACH_ADMIN_CHANGE_BLOCK_MESSAGE);
+    }
+
+    if (await isCircleCreator(request.circleId, request.targetUserDid)) {
+        throw new Error(CREATOR_REQUEST_MESSAGE);
     }
 
     const targetMember = await getMember(request.targetUserDid, request.circleId);

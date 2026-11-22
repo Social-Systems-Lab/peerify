@@ -53,6 +53,7 @@ const ADMIN_ROLE_REMOVAL_REQUEST_CREATED_MESSAGE =
 const ADMIN_ROLE_REMOVAL_REQUEST_ALREADY_PENDING_MESSAGE =
     "An admin removal request is already pending for this admin.";
 const CREATOR_REMOVAL_MESSAGE = "Only a Peerify admin can remove the creator of this circle.";
+const CREATOR_DEMOTION_MESSAGE = "Only a Peerify admin can take the admin role from the creator of this circle.";
 
 async function notifyTargetAdminOfRemovalRequest(circle: Circle, targetUserDid: string, requestedByDid: string): Promise<void> {
     try {
@@ -193,28 +194,45 @@ export const updateUserGroupsAction = async (
     }
 
     try {
-        // confirm the user is authorized to edit user groups
-        let authorized = await isAuthorized(userDid, circle._id ?? "", features.general.edit_lower_user_groups);
-        let canEditSameLevel = await isAuthorized(
-            userDid,
-            circle._id ?? "",
-            features.general.edit_same_level_user_groups,
-        );
-        if (!authorized && !canEditSameLevel) {
-            return { success: false, message: "You are not authorized to edit user groups" };
+        // Taking the admin role away follows removeMemberAction's rule (2026-11-22): only a
+        // superadmin can demote the creator; the creator and superadmins demote an admin directly,
+        // another admin only creates a removal request the target must approve; never the last
+        // admin. Groups and the creator are read from the database. Superadmins need no role in
+        // the circle and may edit every group (still never an owner-only group, see below).
+        const circleId = circle._id ?? "";
+        const existingCircle = circleId ? await getCircleById(circleId) : null;
+        if (!existingCircle) {
+            throw new Error("Circle not found");
         }
+        const callerIsSuperadmin = await isSuperadmin(userDid);
+        const callerIsCreator = !!existingCircle.createdBy && existingCircle.createdBy === userDid;
+        const targetIsCreator = !!existingCircle.createdBy && existingCircle.createdBy === member.userDid;
 
-        // confirm the user has higher access than the member
-        authorized = await hasHigherAccess(userDid, member.userDid, circle._id ?? "", canEditSameLevel);
-        if (!authorized) {
-            return { success: false, message: "You don't have high enough access to edit this member's user groups" };
+        let canEditSameLevel = true;
+        let userAccessLevel = 0; // a superadmin ranks above every group
+        if (!callerIsSuperadmin) {
+            // confirm the user is authorized to edit user groups
+            let authorized = await isAuthorized(userDid, circleId, features.general.edit_lower_user_groups);
+            canEditSameLevel = await isAuthorized(userDid, circleId, features.general.edit_same_level_user_groups);
+            if (!authorized && !canEditSameLevel) {
+                return { success: false, message: "You are not authorized to edit user groups" };
+            }
+
+            // confirm the user has higher access than the member
+            authorized = await hasHigherAccess(userDid, member.userDid, circleId, canEditSameLevel);
+            if (!authorized) {
+                return {
+                    success: false,
+                    message: "You don't have high enough access to edit this member's user groups",
+                };
+            }
+
+            // validate new user groups to ensure they all have lower access level than the current user
+            userAccessLevel = await getMemberAccessLevel(userDid, circleId);
         }
-
-        // validate new user groups to ensure they all have lower access level than the current user
-        let userAccessLevel = await getMemberAccessLevel(userDid, circle._id ?? "");
 
         // get current user groups of the member
-        const existingMember = await getMember(member.userDid, circle._id ?? "");
+        const existingMember = await getMember(member.userDid, circleId);
         if (!existingMember) {
             throw new Error("Member not found");
         }
@@ -223,29 +241,33 @@ export const updateUserGroupsAction = async (
         const isAdmin = existingMember.userGroups?.includes("admins");
         const isAddingAdmin = !isAdmin && newGroups.includes("admins");
         const isRemovingAdmin = isAdmin && !newGroups.includes("admins");
+        if (isRemovingAdmin && targetIsCreator && !callerIsSuperadmin) {
+            return { success: false, message: CREATOR_DEMOTION_MESSAGE };
+        }
         if (isAddingAdmin || isRemovingAdmin) {
-            const pendingDetachRequest = await getPendingDetachCircleRequest(circle._id ?? "");
+            const pendingDetachRequest = await getPendingDetachCircleRequest(circleId);
             if (pendingDetachRequest) {
                 return { success: false, message: DETACH_ADMIN_CHANGE_BLOCK_MESSAGE };
             }
             if (isRemovingAdmin) {
-                const adminCount = await countAdmins(circle._id ?? "");
+                const adminCount = await countAdmins(circleId);
                 if (adminCount <= 1) {
                     return { success: false, message: "Cannot remove the last admin." };
                 }
 
-                if (member.userDid !== userDid) {
+                const demotesDirectly = callerIsSuperadmin || callerIsCreator || member.userDid === userDid;
+                if (!demotesDirectly) {
                     const { created } = await createAdminRoleRemovalRequest({
-                        circleId: circle._id ?? "",
+                        circleId,
                         targetUserDid: member.userDid,
                         requestedByDid: userDid,
                     });
 
-                    let circlePath = await getCirclePath(circle);
+                    let circlePath = await getCirclePath(existingCircle);
                     revalidatePath(`${circlePath}followers`);
 
                     if (created) {
-                        await notifyTargetAdminOfRemovalRequest(circle, member.userDid, userDid);
+                        await notifyTargetAdminOfRemovalRequest(existingCircle, member.userDid, userDid);
                         return {
                             success: true,
                             message: ADMIN_ROLE_REMOVAL_REQUEST_CREATED_MESSAGE,
@@ -262,10 +284,6 @@ export const updateUserGroupsAction = async (
             }
         }
 
-        const existingCircle = await getCircleById(circle?._id ?? "");
-        if (!existingCircle) {
-            throw new Error("Circle not found");
-        }
         const newUserGroups = safeModifyMemberUserGroups(
             existingMember.userGroups ?? [],
             newGroups,
@@ -281,10 +299,10 @@ export const updateUserGroupsAction = async (
         }
 
         // update member user groups in the circle
-        await updateMemberUserGroups(member.userDid, circle._id ?? "", newUserGroups);
+        await updateMemberUserGroups(member.userDid, circleId, newUserGroups);
 
         // clear page cache so page update
-        let circlePath = await getCirclePath(circle);
+        let circlePath = await getCirclePath(existingCircle);
         revalidatePath(`${circlePath}followers`);
 
         return { success: true };
