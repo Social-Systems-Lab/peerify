@@ -21,6 +21,8 @@ import { ObjectId } from "mongodb";
 import { randomInt } from "crypto";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
+import { toLimitedPersonalListItem } from "@/lib/peerify/personal-profile-access";
+import { getFullProfileOwnerDids } from "./personal-profile-access";
 import { getMetrics } from "../utils/metrics";
 import {
     escapeRegex,
@@ -1071,11 +1073,20 @@ export const getCirclePath = async (circle: Partial<Circle>): Promise<string> =>
 // never as a regex. Drafts only come back to their own owner (and platform admins), and every
 // result is shaped by toPublicCircleListItem: no street, exact pin or private metadata for anyone
 // else. Owners and platform admins get their circles unchanged, as before.
+// Name search for the signed-in pickers (global create, the event form's artist picker, event
+// invites). Personal profiles follow the people search rule (Tim, 2026-11-23; searchPeople in
+// search.ts): none signed out; signed in, only those with "Show me in search" on (any for a
+// superadmin), plus the viewer's own; the full entry for the owner, superadmins and accepted
+// connections, name, handle and picture for everyone else. Options:
+// - include: decides on the full record, before shaping (the artist picker's identity check);
+// - alsoFindableMembersOf: a circle id whose followers are findable even with search off (event
+//   invites, where the organiser already sees them in the Followers list).
 export const getCirclesBySearchQuery = async (
     query: string,
     limit: number = 10,
     circleType?: CircleType,
     viewerDid?: string,
+    options: { include?: (circle: Circle) => boolean; alsoFindableMembersOf?: string } = {},
 ): Promise<Circle[]> => {
     const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
     const conditions: any[] = [{ name: new RegExp(escapeRegex(query), "i") }];
@@ -1087,14 +1098,50 @@ export const getCirclesBySearchQuery = async (
             $or: [getPublishedCircleQuery(), ...(viewerDid ? [{ did: viewerDid }, { createdBy: viewerDid }] : [])],
         });
     }
-    const circles = await Circles.find({ $and: conditions }, { projection: SAFE_CIRCLE_PROJECTION })
-        .limit(limit)
-        .toArray();
-    return circles.map((circle: Circle) =>
-        toPublicCircleListItem(
-            { ...circle, _id: circle._id?.toString() },
-            { viewerDid, viewerIsPlatformAdmin: viewerIsAdmin },
-        ),
+    if (!viewerDid) {
+        conditions.push({ circleType: { $ne: "user" } });
+    } else if (!viewerIsAdmin) {
+        conditions.push({ $or: [{ circleType: { $ne: "user" } }, { searchable: true }, { did: viewerDid }] });
+    }
+    // Followers of alsoFindableMembersOf may match with search off, so fetch them separately.
+    const candidates = (await Circles.find({ $and: conditions }, { projection: SAFE_CIRCLE_PROJECTION })
+        .limit(limit * 3)
+        .toArray()) as Circle[];
+    const mayAddFollowers = circleType === undefined || circleType === "user";
+    if (viewerDid && !viewerIsAdmin && options.alsoFindableMembersOf && mayAddFollowers) {
+        const memberDids = (
+            await Members.find({ circleId: options.alsoFindableMembersOf }, { projection: { userDid: 1 } }).toArray()
+        ).map((member) => String(member.userDid));
+        if (memberDids.length > 0) {
+            const seen = new Set(candidates.map((circle) => String(circle._id)));
+            const followers = (await Circles.find(
+                {
+                    $and: [
+                        { name: new RegExp(escapeRegex(query), "i") },
+                        { circleType: "user" },
+                        { did: { $in: memberDids } },
+                        getPublishedCircleQuery(),
+                    ],
+                },
+                { projection: SAFE_CIRCLE_PROJECTION },
+            )
+                .limit(limit * 3)
+                .toArray()) as Circle[];
+            candidates.push(...followers.filter((circle) => !seen.has(String(circle._id))));
+        }
+    }
+    const included = (options.include ? candidates.filter(options.include) : candidates).slice(0, limit);
+    const fullDids = await getFullProfileOwnerDids(
+        viewerDid,
+        included.filter((circle) => circle.circleType === "user" && circle.did).map((circle) => circle.did!),
+    );
+    return included.map((circle: Circle) =>
+        circle.circleType === "user" && !(circle.did && fullDids.has(circle.did))
+            ? (toLimitedPersonalListItem(circle) as Circle)
+            : toPublicCircleListItem(
+                  { ...circle, _id: circle._id?.toString() },
+                  { viewerDid, viewerIsPlatformAdmin: viewerIsAdmin },
+              ),
     );
 };
 

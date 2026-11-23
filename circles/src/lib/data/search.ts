@@ -8,6 +8,7 @@ import { escapeRegex } from "../utils";
 import {
     buildActFilterMongoQuery,
     getAvailableActOffers,
+    isPeerifyArtistIdentity,
     type PeerifyActFilters,
     type PeerifyActOffer,
 } from "../peerify/artist-profile";
@@ -249,6 +250,7 @@ export const getAvailableActOffersForSearch = async ({
         .toArray()) as Circle[];
     const visible = circles.filter(
         (circle) =>
+            circle.circleType !== "user" && // personal profiles marked as artists are never listed
             isCirclePublished(circle) &&
             isDiscoverableCircle(circle, viewerIsAdmin) &&
             matchesCircleTypes(circle, normalizedTypes),
@@ -321,6 +323,12 @@ export const searchDiscoverableCircles = async ({
                 !isDiscoverableCircle(circle, viewerIsAdmin) ||
                 !matchesCircleTypes(circle, normalizedTypes)
             ) {
+                return false;
+            }
+
+            // Personal profiles marked as artists are never listed (Tim, 2026-11-22), as in
+            // Discover and on the map: artists who want a public page use an artist circle.
+            if (circle.circleType === "user" && isPeerifyArtistIdentity(circle)) {
                 return false;
             }
 
@@ -400,4 +408,19 @@ export const searchDiscoverableCircles = async ({
             { viewerDid, viewerIsPlatformAdmin: viewerIsAdmin },
         );
     });
+};
+
+/**
+ * People search (Tim, 2026-11-23): personal profiles only, for signed-in viewers only, with the
+ * same rule as searchDiscoverableCircles: "Show me in search" on (any for a superadmin), never one
+ * marked as an artist; the full entry for the owner, superadmins and accepted connections, name,
+ * handle and picture (found by name or handle only) for everyone else.
+ */
+export const searchPeople = async ({
+    query = "",
+    limit = 20,
+    viewerDid,
+}: Pick<SearchCirclesOptions, "query" | "limit" | "viewerDid">): Promise<WithMetric<Circle>[]> => {
+    if (!viewerDid || !normalizeValue(query)) return [];
+    return searchDiscoverableCircles({ query, limit, circleTypes: ["user"], viewerDid });
 };

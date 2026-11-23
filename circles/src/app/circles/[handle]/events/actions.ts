@@ -1653,13 +1653,13 @@ export async function searchArtistCirclesAction(
         // how map-explorer's search fetches broadly then filters client-side. Drafts are left out:
         // their pages show "not found" to everyone but their own admins. Results are already
         // public-shaped for this viewer (getCirclesBySearchQuery).
+        // The identity check runs on the full record, before personal profiles are shaped for this
+        // viewer (a stranger gets name, handle and picture; see getCirclesBySearchQuery).
         const userDid = await getAuthenticatedUserDid();
-        const circles = await getCirclesBySearchQuery(query, limit * 3, undefined, userDid);
-        return {
-            circles: circles
-                .filter((circle) => isPeerifyArtistIdentity(circle) && isCirclePublished(circle))
-                .slice(0, limit),
-        };
+        const circles = await getCirclesBySearchQuery(query, limit, undefined, userDid, {
+            include: (circle) => isPeerifyArtistIdentity(circle) && isCirclePublished(circle),
+        });
+        return { circles };
     } catch (error) {
         console.error("Error in searchArtistCirclesAction:", error);
         return defaultResult;
@@ -2485,7 +2485,11 @@ export async function searchEligibleUsersAction(
         // followers: same rule as the picker's list (getCircleMembersAction).
         if (!(await mayListInviteCandidates(userDid, circle, eventId))) return defaultResult;
 
-        const { circles } = await getCirclesBySearchQueryAction(query, limit, "user");
+        // The people search rule (getCirclesBySearchQuery), plus this circle's followers even with
+        // "Show me in search" off: the organiser already sees them in the Followers list.
+        const circles = await getCirclesBySearchQuery(query, limit, "user", userDid, {
+            alsoFindableMembersOf: circle._id as string,
+        });
 
         // Filter search results to only users who themselves have permission to view events in this circle
         const eligibilityChecks = await Promise.all(

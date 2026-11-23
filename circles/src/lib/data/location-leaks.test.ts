@@ -86,7 +86,9 @@ describe("getCirclesBySearchQuery", () => {
 
     test("a stranger gets no street, exact pin or venue address", async () => {
         const results = await getCirclesBySearchQuery("", 25, undefined, STRANGER);
-        expect(results.map((c) => c.name).sort()).toEqual(["Admin", "Club B", "Studio A"]);
+        // "Admin" is a personal profile with "Show me in search" off: not found by a stranger
+        // since the people search rule (2026-11-23, people-search.test.ts).
+        expect(results.map((c) => c.name).sort()).toEqual(["Club B", "Studio A"]);
         expect(leaks(results)).toEqual(NO_LEAKS);
     });
 
