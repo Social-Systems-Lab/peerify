@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchDiscoverableCircles } from "@/lib/data/search";
+import { getAuthenticatedUserDid } from "@/lib/auth/auth";
 import { CircleType } from "@/models/models";
 
 export async function GET(req: NextRequest) {
@@ -17,6 +18,8 @@ export async function GET(req: NextRequest) {
             query: q.trim(),
             limit: Math.min(Math.max(limit, 1), 25),
             circleTypes: type ? [type] : undefined,
+            // Personal profiles depend on who is asking (searchDiscoverableCircles): none signed out.
+            viewerDid: (await getAuthenticatedUserDid()) || undefined,
         });
 
         return NextResponse.json({ circles });

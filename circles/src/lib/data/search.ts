@@ -2,6 +2,8 @@ import { Circle, CircleType, WithMetric } from "@/models/models";
 import { Circles } from "./db";
 import { getPublishedCircleQuery, isCirclePublished, SAFE_CIRCLE_PROJECTION } from "./circle";
 import { toPublicCircleListItem } from "../utils/public-circle";
+import { toLimitedPersonalListItem } from "../peerify/personal-profile-access";
+import { getFullProfileOwnerDids } from "./personal-profile-access";
 import { escapeRegex } from "../utils";
 import {
     buildActFilterMongoQuery,
@@ -254,6 +256,21 @@ export const getAvailableActOffersForSearch = async ({
     return getAvailableActOffers(visible, actFilters);
 };
 
+// Personal profiles in search (Tim, 2026-11-23):
+// - signed out: none at all;
+// - signed in: those with "Show me in search" on (every one for a superadmin, isDiscoverableCircle).
+//   The owner, superadmins and accepted connections get the full entry (getFullProfileOwnerDids,
+//   the same rule as the profile page). Everyone else gets the limited entry, name, handle and
+//   picture (toLimitedPersonalListItem), found by name or handle only: matching on the about text,
+//   city, skills or genres would tell a stranger what the profile says.
+const scoreLimitedPersonalMatch = (circle: Circle, query: string, tokens: string[]) => {
+    const { name, handle } = getExactTerms(circle);
+    return (
+        scoreQueryAgainstValues(query, tokens, [name], { exact: 120, prefix: 96, contains: 70 }) +
+        scoreQueryAgainstValues(query, tokens, [handle], { exact: 112, prefix: 90, contains: 64 })
+    );
+};
+
 export const searchDiscoverableCircles = async ({
     query = "",
     limit = 20,
@@ -265,7 +282,9 @@ export const searchDiscoverableCircles = async ({
     const viewerIsAdmin = await getViewerIsAdmin(viewerDid);
 
     const normalizedQuery = normalizeValue(query);
-    const normalizedTypes = circleTypes.length > 0 ? circleTypes : SEARCHABLE_TYPES;
+    const requestedTypes = circleTypes.length > 0 ? circleTypes : SEARCHABLE_TYPES;
+    const normalizedTypes = viewerDid ? requestedTypes : requestedTypes.filter((type) => type !== "user");
+    if (normalizedTypes.length === 0) return [];
     const normalizedGenres = primaryGenres.filter(Boolean);
     const candidateLimit = Math.max(limit * 6, 120);
     const candidateQuery = buildCandidateQuery(
@@ -278,6 +297,10 @@ export const searchDiscoverableCircles = async ({
 
     const circles = (await Circles.find(candidateQuery, { projection: SAFE_CIRCLE_PROJECTION }).limit(candidateLimit).toArray()) as Circle[];
     const tokens = tokenizeQuery(normalizedQuery);
+    const personalDids = circles.filter((circle) => circle.circleType === "user" && circle.did).map((c) => c.did!);
+    const fullPersonalDids = await getFullProfileOwnerDids(viewerDid, personalDids);
+    const isLimitedPersonal = (circle: Circle) =>
+        circle.circleType === "user" && !(circle.did && fullPersonalDids.has(circle.did));
 
     const scored = circles
         .map((circle) => {
@@ -285,16 +308,25 @@ export const searchDiscoverableCircles = async ({
                 circle._id = circle._id.toString();
             }
 
-            const score = scoreCircleSearchMatch(circle, normalizedQuery, tokens);
-            return { circle, score };
+            const limited = isLimitedPersonal(circle);
+            const score = limited
+                ? scoreLimitedPersonalMatch(circle, normalizedQuery, tokens)
+                : scoreCircleSearchMatch(circle, normalizedQuery, tokens);
+            return { circle, score, limited };
         })
-        .filter(({ circle, score }) => {
+        .filter(({ circle, score, limited }) => {
             if (
                 !circle._id ||
                 !isCirclePublished(circle) ||
                 !isDiscoverableCircle(circle, viewerIsAdmin) ||
                 !matchesCircleTypes(circle, normalizedTypes)
             ) {
+                return false;
+            }
+
+            // A limited entry is found by name or handle only: never with no search words, and
+            // never through a genre filter.
+            if (limited && (!normalizedQuery || normalizedGenres.length > 0 || score <= 0)) {
                 return false;
             }
 
@@ -316,7 +348,13 @@ export const searchDiscoverableCircles = async ({
 
     const maxScore = scored[0]?.score || 1;
 
-    return scored.map(({ circle, score }) => {
+    return scored.map(({ circle, score, limited }) => {
+        if (limited) {
+            return {
+                ...toLimitedPersonalListItem(circle),
+                metrics: { searchRank: score / maxScore, similarity: score / maxScore },
+            } as WithMetric<Circle>;
+        }
         // Mirrors getSwipeCircles' own mapVisible rule (circle.ts) — a personal profile that
         // hasn't opted into map visibility must never produce a map marker. map.tsx's only gate
         // for creating a marker at all is item.location.lngLat, so stripping location here (a
