@@ -39,6 +39,7 @@ import { getFundingAskDocumentById, getFundingCirclePermissions, isFundingAskVis
 import { sdgs } from "./sdgs";
 import { isAuthorized } from "@/lib/auth/auth";
 import { isVerifiedUser } from "@/lib/auth/verification";
+import { toLimitedPersonalListItem } from "@/lib/peerify/personal-profile-access";
 import { features, getPostViewFeature } from "./constants";
 import { isEventShadowPost } from "@/lib/events/event-shadow-post";
 
@@ -630,16 +631,37 @@ function redactContentListLocations<T extends LocationBearingContent>(items: T[]
 // metadata.
 // Applies to the post's author, its highlighted comment's author and a shared post's author, at
 // every depth. Artist, band and venue authors are left alone. Runs after redactContentLocations.
+// Mentioned profiles (Tim, 2026-11-23) follow the same rule: a limited mention keeps name, handle
+// and picture, plus _id and did, and circleType "user" so the preview panel it opens asks the
+// server (getPersonalProfilePreviewAction) instead of rendering what the mention carried.
+type MentionBearing = { circle?: { did?: string } | null };
 type AuthorBearingContent = {
     author?: { did?: string } | null;
-    highlightedComment?: { author?: { did?: string } | null } | null;
+    mentionsDisplay?: MentionBearing[] | null;
+    highlightedComment?: { author?: { did?: string } | null; mentionsDisplay?: MentionBearing[] | null } | null;
     sharedPostData?: AuthorBearingContent | null;
+};
+const collectMentionDids = (mentions: MentionBearing[] | null | undefined, into: Set<string>): void => {
+    for (const mention of mentions ?? []) if (mention?.circle?.did) into.add(mention.circle.did);
 };
 const collectAuthorDids = (item: AuthorBearingContent | null | undefined, into: Set<string>): void => {
     if (!item) return;
     if (item.author?.did) into.add(item.author.did);
     if (item.highlightedComment?.author?.did) into.add(item.highlightedComment.author.did);
+    collectMentionDids(item.mentionsDisplay, into);
+    collectMentionDids(item.highlightedComment?.mentionsDisplay, into);
     collectAuthorDids(item.sharedPostData, into);
+};
+const limitMentions = <M extends MentionBearing>(
+    mentions: M[] | null | undefined,
+    limitedDids: Set<string>,
+): M[] | null | undefined => {
+    if (!mentions?.some((mention) => mention?.circle?.did && limitedDids.has(mention.circle.did))) return mentions;
+    return mentions.map((mention) =>
+        mention?.circle?.did && limitedDids.has(mention.circle.did)
+            ? { ...mention, circle: toLimitedPersonalListItem(mention.circle as Circle) }
+            : mention,
+    );
 };
 // The badge next to the name stays (Tim, 2026-11-22): the same Verified or Founding Member badge
 // everyone else sees (UserStatusBadge), as booleans only. circleType is kept only when the author
@@ -661,9 +683,16 @@ const toLimitedAuthor = (author: Record<string, unknown>): Record<string, unknow
 const limitItemAuthors = <T extends AuthorBearingContent>(item: T, limitedDids: Set<string>): T => {
     const next: any = { ...item };
     if (item.author?.did && limitedDids.has(item.author.did)) next.author = toLimitedAuthor(item.author);
-    const hcAuthor = item.highlightedComment?.author;
-    if (hcAuthor?.did && limitedDids.has(hcAuthor.did)) {
-        next.highlightedComment = { ...item.highlightedComment, author: toLimitedAuthor(hcAuthor) };
+    if (item.mentionsDisplay) next.mentionsDisplay = limitMentions(item.mentionsDisplay, limitedDids);
+    if (item.highlightedComment) {
+        const hcAuthor = item.highlightedComment.author;
+        next.highlightedComment = {
+            ...item.highlightedComment,
+            ...(hcAuthor?.did && limitedDids.has(hcAuthor.did) ? { author: toLimitedAuthor(hcAuthor) } : {}),
+            ...(item.highlightedComment.mentionsDisplay
+                ? { mentionsDisplay: limitMentions(item.highlightedComment.mentionsDisplay, limitedDids) }
+                : {}),
+        };
     }
     if (item.sharedPostData) next.sharedPostData = limitItemAuthors(item.sharedPostData, limitedDids);
     return next as T;
@@ -2576,17 +2605,29 @@ export const getReactions = async (
     const userDids = reactions.map((r) => r.userDid);
     const users = await Circles.find({ did: { $in: userDids } }, { projection: SAFE_CIRCLE_PROJECTION }).toArray();
     const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
-    return users.map((user) => ({
-        did: user.did,
-        name: user.name,
-        picture: user.picture,
-        // City level at most, like every other profile location in a post payload (see
-        // toFeedProfileLocation). user is already a full Circle here (SAFE_CIRCLE_PROJECTION).
-        location: toFeedProfileLocation(user as Circle, { viewerDid, viewerIsAdmin }),
-        description: user.description,
-        images: user.images,
-        handle: user.handle,
-    })) as Circle[];
+    // A liker who is a personal profile the viewer has no relationship with (Tim, 2026-11-23):
+    // name, handle and picture only, like post authors. The list shows the name.
+    const fullDids = await getFullProfileOwnerDids(
+        viewerDid,
+        users.filter((user) => user.circleType === "user" && user.did).map((user) => String(user.did)),
+    );
+    return users.map((user) => {
+        if (user.circleType === "user" && !fullDids.has(String(user.did))) {
+            const { did, handle, name, picture } = toLimitedPersonalListItem(user as Circle);
+            return { did, handle, name, picture };
+        }
+        return {
+            did: user.did,
+            name: user.name,
+            picture: user.picture,
+            // City level at most, like every other profile location in a post payload (see
+            // toFeedProfileLocation). user is already a full Circle here (SAFE_CIRCLE_PROJECTION).
+            location: toFeedProfileLocation(user as Circle, { viewerDid, viewerIsAdmin }),
+            description: user.description,
+            images: user.images,
+            handle: user.handle,
+        };
+    }) as Circle[];
 };
 
 export const checkIfLiked = async (
