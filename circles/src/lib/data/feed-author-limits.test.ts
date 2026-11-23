@@ -1,7 +1,8 @@
 // Run: IS_BUILD=true bun test src/lib/data/feed-author-limits.test.ts
 // Post and comment authors (Tim, 2026-11-22): an author who is a personal profile the viewer has
 // no relationship with is sent as name, handle and picture only (plus _id and did for linking),
-// and the badge next to the name (Verified / Founding Member), the same one everyone else sees. The author themselves, their accepted connections and superadmins get the author as
+// and the Verified badge next to the name. The Founding Member flag is for full views only (Tim,
+// 2026-11-23), so a verified founding member reads "Verified" to a stranger. The author themselves, their accepted connections and superadmins get the author as
 // before; artist, band and venue authors are unchanged. Checks the returned payload.
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
@@ -146,15 +147,31 @@ describe("the badge next to a stranger's name", () => {
         expect(JSON.stringify(shaped)).not.toContain("CANARY");
     });
 
-    test("a founding member: Founding Member, as for everyone else", async () => {
+    test("a founding member, to a stranger: no Founding Member flag, so a verified one reads Verified", async () => {
         const [shaped]: any[] = await limitContentAuthorsForViewer(
             [{ author: pageAuthor({ isVerified: true, isFoundingMember: true, foundingMemberNumber: 7 }) }],
             STRANGER,
         );
-        expect(shaped.author.isFoundingMember).toBe(true);
+        expect(shaped.author.isFoundingMember).toBeUndefined();
         expect(shaped.author.foundingMemberNumber).toBeUndefined();
-        expect(badgeHtml(shaped.author)).toContain("Founding Member");
+        expect(badgeHtml(shaped.author)).not.toContain("Founding Member");
+        expect(badgeHtml(shaped.author)).toContain("Verified");
     });
+
+    for (const [who, did] of [
+        ["the author", AUTHOR],
+        ["an accepted connection", FRIEND],
+        ["a superadmin", SUPERADMIN],
+    ] as const) {
+        test(`a founding member, to ${who}: Founding Member as before`, async () => {
+            const [shaped]: any[] = await limitContentAuthorsForViewer(
+                [{ author: pageAuthor({ isVerified: true, isFoundingMember: true }) }],
+                did,
+            );
+            expect(shaped.author.isFoundingMember).toBe(true);
+            expect(badgeHtml(shaped.author)).toContain("Founding Member");
+        });
+    }
 
     test("an unverified author: Unverified, as for everyone else", async () => {
         const [shaped]: any[] = await limitContentAuthorsForViewer(

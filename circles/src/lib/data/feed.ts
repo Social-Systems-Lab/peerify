@@ -663,8 +663,9 @@ const limitMentions = <M extends MentionBearing>(
             : mention,
     );
 };
-// The badge next to the name stays (Tim, 2026-11-22): the same Verified or Founding Member badge
-// everyone else sees (UserStatusBadge), as booleans only. circleType is kept only when the author
+// The Verified badge next to the name stays (Tim, 2026-11-22), as a boolean only. The Founding
+// Member flag doesn't (Tim, 2026-11-23): full views and connections keep it, so a verified founding
+// member reads "Verified" to a stranger. circleType is kept only when the author
 // already had it: the feed and comment authors don't, so no viewer gets a badge there, and adding
 // it would show "Unverified" next to every stranger.
 const toLimitedAuthor = (author: Record<string, unknown>): Record<string, unknown> => {
@@ -677,7 +678,6 @@ const toLimitedAuthor = (author: Record<string, unknown>): Record<string, unknow
     const pictureUrl = typeof picture === "string" ? picture : picture?.url;
     if (pictureUrl) limited.picture = { url: pictureUrl };
     if (isVerifiedUser(author as Parameters<typeof isVerifiedUser>[0])) limited.isVerified = true;
-    if (author.isFoundingMember === true) limited.isFoundingMember = true;
     return limited;
 };
 const limitItemAuthors = <T extends AuthorBearingContent>(item: T, limitedDids: Set<string>): T => {
