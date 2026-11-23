@@ -4,7 +4,8 @@
 // as an artist in people search; the full entry for the owner, superadmins and accepted
 // connections, name, handle and picture for everyone else. The pickers (getCirclesBySearchQuery:
 // global create, the event form's artist picker, event invites) use the same rule; event invites
-// also find the circle's followers with search off. Checks what the server sends.
+// also find the circle's followers with search off. Accepted connections find each other by name
+// and handle even with search off (Tim, 2026-11-23). Checks what the server sends.
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { ObjectId } from "mongodb";
@@ -121,7 +122,7 @@ describe("searchPeople", () => {
 
     test("an accepted connection: the full entry", async () => {
         const results = await searchPeople({ query: "canary", viewerDid: CONNECTION });
-        expect(handles(results)).toEqual(["canary-person"]);
+        expect(handles(results)).toEqual(["canary-hidden", "canary-person"]); // search off: a connection
         expect((results[0] as any).description).toBe("CANARY about text");
     });
 
@@ -151,11 +152,12 @@ describe("the global-create name-search picker (getCirclesBySearchQueryAction)",
         expect(circles.find((c) => c.handle === "canary-band")?.description).toBe("A band anyone may read about");
     });
 
-    test("an accepted connection: full entries for searchable profiles; search off still left out", async () => {
+    test("an accepted connection: full entries, a connection with search off included", async () => {
         sessionDid = CONNECTION;
         const { circles } = await getCirclesBySearchQueryAction("canary", 25);
-        expect(handles(circles)).not.toContain("canary-hidden");
+        expect(handles(circles)).toContain("canary-hidden");
         expect((circles.find((c) => c.handle === "canary-person") as any).description).toBe("CANARY about text");
+        expect((circles.find((c) => c.handle === "canary-hidden") as any).description).toBe("CANARY about text");
     });
 
     test("the owner finds their own profile with search off", async () => {
@@ -191,5 +193,34 @@ describe("event invites: the circle's followers are found with search off", () =
         ]);
         expectNoPrivateValues(withFollowers);
         expect(handles(await getCirclesBySearchQuery("canary", 10, "user", STRANGER))).not.toContain("canary-hidden");
+    });
+});
+
+describe("accepted connections find each other with search off (name and handle only)", () => {
+    test("searchPeople: by name and by handle, as the full entry", async () => {
+        for (const query of ["canary hidden", "canary-hidden"]) {
+            const results = await searchPeople({ query, viewerDid: CONNECTION });
+            const hidden: any = results.find((c) => c.handle === "canary-hidden");
+            expect(hidden?.description).toBe("CANARY about text");
+        }
+    });
+
+    test("searchPeople: not through the about text or city", async () => {
+        for (const query of ["about text", "City"]) {
+            expect(handles(await searchPeople({ query, viewerDid: CONNECTION }))).not.toContain("canary-hidden");
+        }
+    });
+
+    test("the global picker: by handle too", async () => {
+        sessionDid = CONNECTION;
+        expect(handles((await getCirclesBySearchQueryAction("canary-hid", 25)).circles)).toEqual(["canary-hidden"]);
+    });
+
+    test("a stranger still doesn't find a profile with search off", async () => {
+        sessionDid = STRANGER;
+        expect(handles(await searchPeople({ query: "canary hidden", viewerDid: STRANGER }))).not.toContain(
+            "canary-hidden",
+        );
+        expect(handles((await getCirclesBySearchQueryAction("canary hidden", 25)).circles)).toEqual([]);
     });
 });

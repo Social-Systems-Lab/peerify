@@ -44,3 +44,15 @@ export const getFullProfileOwnerDids = async (
     }
     return allowed;
 };
+
+// The viewer's accepted connections (the viewer's own "accepted" edges, as getFullProfileOwnerDids
+// reads them). They find each other by name and handle even with "Show me in search" off (Tim,
+// 2026-11-23): searchDiscoverableCircles / searchPeople and the name-search pickers.
+export const getAcceptedConnectionDids = async (viewerDid: string | null | undefined): Promise<string[]> => {
+    if (!viewerDid) return [];
+    const edges = await UserRelationships.find(
+        { fromDid: viewerDid, connectStatus: "accepted" },
+        { projection: { toDid: 1 } },
+    ).toArray();
+    return edges.map((edge) => String((edge as { toDid?: string }).toDid)).filter(Boolean);
+};

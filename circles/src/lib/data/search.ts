@@ -3,7 +3,7 @@ import { Circles } from "./db";
 import { getPublishedCircleQuery, isCirclePublished, SAFE_CIRCLE_PROJECTION } from "./circle";
 import { toPublicCircleListItem } from "../utils/public-circle";
 import { toLimitedPersonalListItem } from "../peerify/personal-profile-access";
-import { getFullProfileOwnerDids } from "./personal-profile-access";
+import { getAcceptedConnectionDids, getFullProfileOwnerDids } from "./personal-profile-access";
 import { escapeRegex } from "../utils";
 import {
     buildActFilterMongoQuery,
@@ -62,8 +62,12 @@ const toStringArray = (values?: string[]) => (values || []).map((value) => norma
 // viewerIsAdmin (resolved by the caller from a trusted DB lookup, never a caller-supplied
 // boolean — see searchDiscoverableCircles) lets superadmins see personal profiles the owner
 // hasn't opted into searchable for. Mirrors getSwipeCircles' mapVisible bypass in circle.ts.
-const isDiscoverableCircle = (circle: Circle, viewerIsAdmin: boolean) =>
-    viewerIsAdmin || circle.circleType !== "user" || Boolean(circle.searchable);
+// connectionDids: the viewer's accepted connections, found even with search off (Tim, 2026-11-23).
+const isDiscoverableCircle = (circle: Circle, viewerIsAdmin: boolean, connectionDids?: Set<string>) =>
+    viewerIsAdmin ||
+    circle.circleType !== "user" ||
+    Boolean(circle.searchable) ||
+    (!!circle.did && !!connectionDids?.has(circle.did));
 
 const matchesCircleTypes = (circle: Circle, circleTypes: CircleType[]) =>
     !!circle.circleType && circleTypes.includes(circle.circleType);
@@ -156,6 +160,7 @@ const buildCandidateQuery = (
     primaryGenres: string[],
     viewerIsAdmin: boolean,
     actFilters?: PeerifyActFilters,
+    connectionDids: string[] = [],
 ) => {
     const discoverableTypeClauses: Record<string, unknown>[] = [];
     const nonUserTypes = circleTypes.filter((type) => type !== "user");
@@ -166,7 +171,16 @@ const buildCandidateQuery = (
 
     if (circleTypes.includes("user")) {
         discoverableTypeClauses.push(
-            viewerIsAdmin ? { circleType: "user" } : { $and: [{ circleType: "user" }, { searchable: true }] },
+            viewerIsAdmin
+                ? { circleType: "user" }
+                : {
+                      $and: [
+                          { circleType: "user" },
+                          connectionDids.length > 0
+                              ? { $or: [{ searchable: true }, { did: { $in: connectionDids } }] }
+                              : { searchable: true },
+                      ],
+                  },
         );
     }
 
@@ -289,12 +303,15 @@ export const searchDiscoverableCircles = async ({
     if (normalizedTypes.length === 0) return [];
     const normalizedGenres = primaryGenres.filter(Boolean);
     const candidateLimit = Math.max(limit * 6, 120);
+    const connectionList = normalizedTypes.includes("user") ? await getAcceptedConnectionDids(viewerDid) : [];
+    const connectionDids = new Set(connectionList);
     const candidateQuery = buildCandidateQuery(
         normalizedQuery,
         normalizedTypes,
         normalizedGenres,
         viewerIsAdmin,
         actFilters,
+        connectionList,
     );
 
     const circles = (await Circles.find(candidateQuery, { projection: SAFE_CIRCLE_PROJECTION }).limit(candidateLimit).toArray()) as Circle[];
@@ -303,6 +320,13 @@ export const searchDiscoverableCircles = async ({
     const fullPersonalDids = await getFullProfileOwnerDids(viewerDid, personalDids);
     const isLimitedPersonal = (circle: Circle) =>
         circle.circleType === "user" && !(circle.did && fullPersonalDids.has(circle.did));
+    // Found only because they're the viewer's connection (search off): by name and handle only.
+    const isConnectionOnly = (circle: Circle) =>
+        circle.circleType === "user" &&
+        !viewerIsAdmin &&
+        !circle.searchable &&
+        !!circle.did &&
+        connectionDids.has(circle.did);
 
     const scored = circles
         .map((circle) => {
@@ -311,16 +335,17 @@ export const searchDiscoverableCircles = async ({
             }
 
             const limited = isLimitedPersonal(circle);
-            const score = limited
+            const nameOnly = limited || isConnectionOnly(circle);
+            const score = nameOnly
                 ? scoreLimitedPersonalMatch(circle, normalizedQuery, tokens)
                 : scoreCircleSearchMatch(circle, normalizedQuery, tokens);
-            return { circle, score, limited };
+            return { circle, score, limited, nameOnly };
         })
-        .filter(({ circle, score, limited }) => {
+        .filter(({ circle, score, nameOnly }) => {
             if (
                 !circle._id ||
                 !isCirclePublished(circle) ||
-                !isDiscoverableCircle(circle, viewerIsAdmin) ||
+                !isDiscoverableCircle(circle, viewerIsAdmin, connectionDids) ||
                 !matchesCircleTypes(circle, normalizedTypes)
             ) {
                 return false;
@@ -332,9 +357,9 @@ export const searchDiscoverableCircles = async ({
                 return false;
             }
 
-            // A limited entry is found by name or handle only: never with no search words, and
-            // never through a genre filter.
-            if (limited && (!normalizedQuery || normalizedGenres.length > 0 || score <= 0)) {
+            // A limited entry, or a connection with search off, is found by name or handle only:
+            // never with no search words, and never through a genre filter.
+            if (nameOnly && (!normalizedQuery || normalizedGenres.length > 0 || score <= 0)) {
                 return false;
             }
 

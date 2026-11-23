@@ -22,7 +22,7 @@ import { randomInt } from "crypto";
 import { getDefaultAccessRules, defaultUserGroups, getDefaultModules } from "./constants";
 import { isPeerifyArtistIdentity } from "@/lib/peerify/artist-profile";
 import { toLimitedPersonalListItem } from "@/lib/peerify/personal-profile-access";
-import { getFullProfileOwnerDids } from "./personal-profile-access";
+import { getAcceptedConnectionDids, getFullProfileOwnerDids } from "./personal-profile-access";
 import { getMetrics } from "../utils/metrics";
 import {
     escapeRegex,
@@ -1073,10 +1073,10 @@ export const getCirclePath = async (circle: Partial<Circle>): Promise<string> =>
 // never as a regex. Drafts only come back to their own owner (and platform admins), and every
 // result is shaped by toPublicCircleListItem: no street, exact pin or private metadata for anyone
 // else. Owners and platform admins get their circles unchanged, as before.
-// Name search for the signed-in pickers (global create, the event form's artist picker, event
-// invites). Personal profiles follow the people search rule (Tim, 2026-11-23; searchPeople in
+// Name or handle search for the signed-in pickers (global create, the event form's artist picker,
+// event invites). Personal profiles follow the people search rule (Tim, 2026-11-23; searchPeople in
 // search.ts): none signed out; signed in, only those with "Show me in search" on (any for a
-// superadmin), plus the viewer's own; the full entry for the owner, superadmins and accepted
+// superadmin), plus the viewer's own and their accepted connections'; the full entry for the owner, superadmins and accepted
 // connections, name, handle and picture for everyone else. Options:
 // - include: decides on the full record, before shaping (the artist picker's identity check);
 // - alsoFindableMembersOf: a circle id whose followers are findable even with search off (event
@@ -1089,7 +1089,9 @@ export const getCirclesBySearchQuery = async (
     options: { include?: (circle: Circle) => boolean; alsoFindableMembersOf?: string } = {},
 ): Promise<Circle[]> => {
     const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
-    const conditions: any[] = [{ name: new RegExp(escapeRegex(query), "i") }];
+    const pattern = new RegExp(escapeRegex(query), "i");
+    // Name or handle (handle added 2026-11-23, so connections find each other "by name and handle").
+    const conditions: any[] = [{ $or: [{ name: pattern }, { handle: pattern }] }];
     if (circleType) {
         conditions.push({ circleType });
     }
@@ -1101,7 +1103,16 @@ export const getCirclesBySearchQuery = async (
     if (!viewerDid) {
         conditions.push({ circleType: { $ne: "user" } });
     } else if (!viewerIsAdmin) {
-        conditions.push({ $or: [{ circleType: { $ne: "user" } }, { searchable: true }, { did: viewerDid }] });
+        // The viewer's accepted connections are found even with search off (Tim, 2026-11-23).
+        const connectionDids = await getAcceptedConnectionDids(viewerDid);
+        conditions.push({
+            $or: [
+                { circleType: { $ne: "user" } },
+                { searchable: true },
+                { did: viewerDid },
+                ...(connectionDids.length > 0 ? [{ did: { $in: connectionDids } }] : []),
+            ],
+        });
     }
     // Followers of alsoFindableMembersOf may match with search off, so fetch them separately.
     const candidates = (await Circles.find({ $and: conditions }, { projection: SAFE_CIRCLE_PROJECTION })
