@@ -2132,7 +2132,7 @@ export function AboutSettingsForm({
                     </Card>
                 )}
 
-                {/* Personal-profile-only: independent map/search visibility toggles. Opposite gate
+                {/* Personal-profile-only: the search visibility toggle (the map one is hidden). Opposite gate
                     from Access & permissions above. mapVisible/searchable default OFF (see
                     defaultValues) — do not copy the isPublic/showAdminsPublicly !== false pattern
                     here, it would default these ON instead.
@@ -2148,23 +2148,9 @@ export function AboutSettingsForm({
                             <CardTitle>Discoverability</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            <Controller
-                                name="mapVisible"
-                                control={form.control as unknown as Control}
-                                render={({ field }) => (
-                                    <DynamicSwitchField
-                                        field={{
-                                            name: "mapVisible",
-                                            type: "switch",
-                                            label: "Show me on the map",
-                                            description: "Let your profile appear as a pin on the public map.",
-                                        }}
-                                        formField={field}
-                                        control={form.control as unknown as Control}
-                                    />
-                                )}
-                            />
-
+                            {/* "Show me on the map" is hidden (Tim, 2026-11-23): personal profiles never get a
+                                pin since 2026-11-02 (getSwipeCircles), so the switch promised something that
+                                didn't happen. The stored mapVisible value is kept and saved back unchanged. */}
                             <Controller
                                 name="searchable"
                                 control={form.control as unknown as Control}
