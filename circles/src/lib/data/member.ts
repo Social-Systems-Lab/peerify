@@ -304,7 +304,7 @@ export const toCrewRosterForViewer = (
 // Admins are just Members docs whose userGroups includes "admins", same as getCrewMembers above -
 // no separate "admin membership" collection. Doesn't project location, so unlike
 // getCrewMembers/getMembers there's no toPublicMemberLocations pass needed here.
-export const getAdminMembers = async (circleId?: string): Promise<MemberDisplay[]> => {
+export const getAdminMembers = async (circleId?: string, viewerDid?: string): Promise<MemberDisplay[]> => {
     if (!circleId) return [];
 
     const members = await Members.aggregate([
@@ -328,11 +328,16 @@ export const getAdminMembers = async (circleId?: string): Promise<MemberDisplay[
                 name: "$userDetails.name",
                 picture: "$userDetails.picture",
                 handle: "$userDetails.handle",
+                circleType: "$userDetails.circleType",
+                did: "$userDetails.did",
             },
         },
     ]).toArray();
 
-    return (members as MemberDisplay[]).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    // An admin who is a personal profile the viewer has no relationship with: name, handle and
+    // picture URL only, plus the row's own fields (limitMemberRowsForViewer, Tim 2026-11-23).
+    const sorted = (members as MemberDisplay[]).sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    return limitMemberRowsForViewer(sorted, viewerDid);
 };
 
 export type CrewOfferer = {

@@ -46,7 +46,7 @@ import {
     submitTaskClaim,
     reviewTaskClaim,
 } from "@/lib/data/task";
-import { getMember, getMembers, getMemberIdsByUserGroup } from "@/lib/data/member"; // Will be created in member.ts
+import { getMember, getMembers, getMemberIdsByUserGroup, limitMemberRowsForViewer } from "@/lib/data/member"; // Will be created in member.ts
 import { updateAggregateRankCache } from "@/lib/data/ranking"; // Import cache update function
 import { getCirclesByDids } from "@/lib/data/circle";
 import { isTaskInCircle } from "@/lib/tasks/task-circle";
@@ -2588,9 +2588,10 @@ export const getMembersAction = async (circleId: string) => {
         return [];
     }
 
-    // get members of circle
-    let members = await getMembers(circleId);
-    return members;
+    // Members of the circle. A personal profile the viewer has no relationship with is name, handle
+    // and picture only (limitMemberRowsForViewer, Tim 2026-11-23); the assign dialog shows the
+    // name and picture and assigns by userDid.
+    return limitMemberRowsForViewer(await getMembers(circleId, userDid), userDid);
 };
 
 // TODO: Add actions for comment handling if using shadow posts or a dedicated system.

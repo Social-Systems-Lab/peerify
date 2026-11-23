@@ -30,7 +30,7 @@ import {
     changeIssueStage,
     assignIssue,
 } from "@/lib/data/issue";
-import { getMembers } from "@/lib/data/member";
+import { getMembers, limitMemberRowsForViewer } from "@/lib/data/member";
 import { Feeds, Posts, Issues } from "@/lib/data/db"; // Import DB collections
 import { Post } from "@/models/models"; // Import Post type
 import { createPost } from "@/lib/data/feed"; // Import createPost
@@ -912,9 +912,10 @@ export const getMembersAction = async (circleId: string) => {
         return [];
     }
 
-    // get members of circle
-    let members = await getMembers(circleId);
-    return members;
+    // Members of the circle. A personal profile the viewer has no relationship with is name, handle
+    // and picture only (limitMemberRowsForViewer, Tim 2026-11-23); the assign dialog shows the
+    // name and picture and assigns by userDid.
+    return limitMemberRowsForViewer(await getMembers(circleId, userDid), userDid);
 };
 
 // TODO: Add actions for comment handling if using shadow posts or a dedicated system.

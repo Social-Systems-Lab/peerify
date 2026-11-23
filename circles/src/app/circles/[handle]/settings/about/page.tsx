@@ -70,7 +70,7 @@ export default async function AboutSettingsPage(props: PageProps) {
     // profiles used to show it too (de05f7bd), but only the owner may hold admins/moderators there
     // now - granting them is refused server-side (grantsOwnerOnlyGroup in lib/data/member.ts).
     const showAdminsCard = circle.circleType !== "user";
-    const circleAdmins = showAdminsCard && circle._id ? await getAdminMembers(String(circle._id)) : [];
+    const circleAdmins = showAdminsCard && circle._id ? await getAdminMembers(String(circle._id), userDid) : [];
     // Sent-invitation list for the Admins card's "Pending invitations" section. Scoped to this
     // viewer's own invitations, matching cancelAdminInvitation's sender-only guard - see the
     // comment on getPendingAdminInvitationsSentByUser.
