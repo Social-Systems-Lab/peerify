@@ -273,12 +273,6 @@ export const CirclePreview = ({ circle: openerCircle, circleType }: CirclePrevie
                 {!suppressed && circle?.metrics && (
                     <Indicators metrics={circle.metrics} className="absolute left-2 top-2 z-10" content={circle} /> // Added z-10
                 )}
-
-                {!suppressed && user && circleType === "user" && circle._id !== user?._id && (
-                    <div className="absolute bottom-[10px] left-2 flex flex-row">
-                        <MessageButton circle={circle as Circle} renderCompact={false} />
-                    </div>
-                )}
             </div>
             <div className="flex flex-1 flex-col">
                 <div className="relative flex justify-center">
@@ -329,6 +323,13 @@ export const CirclePreview = ({ circle: openerCircle, circleType }: CirclePrevie
                     <div className="header pt-[30px] text-2xl">
                         {suppressed ? (circle.name ?? "This profile is private") : circle.name}
                     </div>
+                    {/* Message and Connect (2026-11-24): under the name, not in the cover's corner, where the
+                        avatar overlapping the cover covered the button next to Message. */}
+                    {!suppressed && user && circleType === "user" && circle._id !== user?._id && (
+                        <div data-preview-message-row="" className="mt-2 flex flex-wrap justify-center px-4">
+                            <MessageButton circle={circle as Circle} renderCompact={false} />
+                        </div>
+                    )}
                     {suppressed && (
                         <p className="max-w-[260px] px-4 pt-1 text-center text-sm text-gray-500">
                             {circle.handle ? <span className="block">@{circle.handle}</span> : null}
