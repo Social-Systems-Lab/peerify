@@ -58,7 +58,13 @@ export default async function RootLayout(props: Props) {
     // (Tim, 2026-11-22). /api/access keeps the others off every tab but home, and the home page
     // renders nothing for them.
     if (!(await canViewFullPersonalProfile(circle, userDid))) {
-        return <PersonalProfilePlaceholder profile={toLimitedPersonalProfile(circle)} signedIn={!!userDid} />;
+        return (
+            <PersonalProfilePlaceholder
+                profile={toLimitedPersonalProfile(circle)}
+                signedIn={!!userDid}
+                connectDid={userDid && circle.did ? circle.did : undefined}
+            />
+        );
     }
     // Identity only: HomeContent just links to the parent (circleType/handle/name), and this is
     // sent to every visitor of a sub-circle page. Only when the page shows the "Child of" badge: a

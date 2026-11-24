@@ -5,6 +5,7 @@
 // part. Personal profiles are never indexed and never describe themselves in link previews.
 // Artist, band and venue circles are unchanged.
 // These tests look at what the server hands to the page (the props payload), not just the screen.
+// Signed in, the limited version also carries the person's DID, for Connect (2026-11-24).
 // The database is in-memory fakes; the session is stubbed.
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
@@ -180,11 +181,14 @@ describe("personal profile page: the limited version", () => {
         test(`${who}: the layout sends name, handle and picture only`, async () => {
             sessionDid = did;
             const tree = await renderLayout("canary-person");
-            expect(limitedProps(tree)).toEqual({ profile: LIMITED, signedIn: !!did });
+            // Signed in, the DID too, for the Connect button (Tim, 2026-11-24). Signed out, not even that.
+            expect(limitedProps(tree)).toEqual(
+                did ? { profile: LIMITED, signedIn: true, connectDid: OWNER } : { profile: LIMITED, signedIn: false },
+            );
             const payload = payloadOf(tree);
             expect(payload).not.toContain("CANARY");
             expect(payload).not.toContain("4242");
-            expect(payload).not.toContain(OWNER); // not even the did
+            if (!did) expect(payload).not.toContain(OWNER);
             expect(payload).not.toContain(PROFILE_ID);
             expect(findByName(tree, "HomeContent")).toBe(false);
             expect(findByName(tree, "CircleTabs")).toBe(false);
@@ -208,9 +212,10 @@ describe("personal profile page: the limited version", () => {
     test("the search and map settings make no difference", async () => {
         seed({ searchable: false, mapVisible: false });
         sessionDid = STRANGER;
-        expect(limitedProps(await renderLayout("canary-person"))).toEqual({ profile: LIMITED, signedIn: true });
+        const expected = { profile: LIMITED, signedIn: true, connectDid: OWNER };
+        expect(limitedProps(await renderLayout("canary-person"))).toEqual(expected);
         seed({ searchable: true, mapVisible: true });
-        expect(limitedProps(await renderLayout("canary-person"))).toEqual({ profile: LIMITED, signedIn: true });
+        expect(limitedProps(await renderLayout("canary-person"))).toEqual(expected);
     });
 });
 

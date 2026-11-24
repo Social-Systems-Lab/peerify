@@ -41,6 +41,7 @@ import { PostItem } from "../modules/feeds/post-list";
 import Indicators from "../utils/indicators";
 import { LOG_LEVEL_TRACE, logLevel } from "@/lib/data/constants";
 import { MessageButton } from "../modules/home/message-button";
+import { LimitedProfileConnect } from "../modules/home/limited-profile-connect";
 import { Badge } from "@/components/ui/badge";
 import ImageCarousel from "@/components/ui/image-carousel";
 import { DEFAULT_HERO_URLS, getCircleCoverImages, getDefaultHeroUrl } from "@/lib/default-heroes";
@@ -333,6 +334,12 @@ export const CirclePreview = ({ circle: openerCircle, circleType }: CirclePrevie
                             {circle.handle ? <span className="block">@{circle.handle}</span> : null}
                             This profile is only visible to their connections.
                         </p>
+                    )}
+                    {/* Connect on the limited version (2026-11-24): signed in, not your own profile. It
+                        loads only the viewer's own request status and renders nothing until then, so
+                        a connection waiting for the full preview never sees it. */}
+                    {suppressed && user?.did && ownerDid && ownerDid !== user.did && (
+                        <LimitedProfileConnect targetDid={ownerDid} />
                     )}
                     {/* The follower list is for the circle's admins and moderators (a personal profile's owner): others get the count. */}
                     {/* The private placeholder shows no count, Followers link or social links (Tim,

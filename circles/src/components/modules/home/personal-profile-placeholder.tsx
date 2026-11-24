@@ -1,15 +1,20 @@
 import { Lock } from "lucide-react";
 import Link from "next/link";
 import type { LimitedPersonalProfile } from "@/lib/peerify/personal-profile-access";
+import { LimitedProfileConnect } from "./limited-profile-connect";
 
 // The limited version of a personal profile (Tim, 2026-11-22): name, handle and picture only.
-// A server component with plain markup, so only these three values reach the page payload.
+// A server component with plain markup, so only these three values reach the page payload. Signed
+// in, it also gets the person's DID (connectDid) for the Connect button (2026-11-24); strangers
+// already get the DID in search results and follower rows.
 export function PersonalProfilePlaceholder({
     profile,
     signedIn = false,
+    connectDid,
 }: {
     profile: LimitedPersonalProfile;
     signedIn?: boolean;
+    connectDid?: string;
 }) {
     const signInPath = `/login?redirectTo=${encodeURIComponent(`/circles/${profile.handle}`)}`;
     return (
@@ -30,6 +35,7 @@ export function PersonalProfilePlaceholder({
             <p className="mt-4 text-sm text-gray-600">
                 {profile.name ? `${profile.name}'s` : "This"} profile is only visible to their connections on Peerify.
             </p>
+            {signedIn && connectDid ? <LimitedProfileConnect targetDid={connectDid} /> : null}
             {signedIn ? null : (
                 <Link href={signInPath} className="mt-4 text-sm font-medium underline underline-offset-2">
                     Sign in
