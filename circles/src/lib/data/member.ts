@@ -6,6 +6,7 @@ import {
     Member,
     MemberDisplay,
     SortingOptions,
+    Weights,
     TourTeamOffering,
     USER_CIRCLE_OWNER_ONLY_USER_GROUPS,
 } from "@/models/models";
@@ -95,6 +96,9 @@ const toPublicMemberLocations = (members: MemberDisplay[], viewer: LocationViewe
         };
     });
 
+// Top for followers: the default weights without proximity (recentness 0.35, popularity 0.4).
+const FOLLOWER_TOP_WEIGHTS: Weights = { similarity: 0, proximity: 0, recentness: 0.35, popularity: 0.4, activity: 0 };
+
 export const getMembersWithMetrics = async (
     userDid: string | undefined,
     circleId?: string,
@@ -108,15 +112,18 @@ export const getMembersWithMetrics = async (
         user = (await Circles.findOne({ did: userDid }, { projection: SAFE_CIRCLE_PROJECTION })) ?? undefined;
     }
 
-    // Followers lists show no distance, for anyone (Tim, 2026-11-24): "near" sorts like Top, and the
-    // rows carry no distance or proximity (the distance on a 0–1 scale).
-    const followerSort = sort === "near" ? "top" : sort;
+    // Followers lists show no distance, for anyone (Tim, 2026-11-24): "near" sorts like Top, Top
+    // leaves proximity out (the other lists keep it), and the rows carry no distance or proximity
+    // (the distance on a 0–1 scale). The other sorts already give proximity no weight.
+    const topOrder = !sort || sort === "top" || sort === "near";
     for (const member of members) {
         const {
             distance: _distance,
             proximity: _proximity,
             ...metrics
-        } = await getMetrics(user, member, currentDate, followerSort);
+        } = topOrder
+            ? await getMetrics(user, member, currentDate, "custom", FOLLOWER_TOP_WEIGHTS)
+            : await getMetrics(user, member, currentDate, sort);
         member.metrics = metrics;
     }
 

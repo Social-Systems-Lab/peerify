@@ -131,3 +131,61 @@ describe("the filter tabs", () => {
         expect(html).not.toContain("4.2 km");
     });
 });
+
+describe("Top leaves proximity out (2026-11-24)", () => {
+    // Two followers alike in everything but where they are; the far one is listed first.
+    const twin = (did: string, lngLat: { lng: number; lat: number }) =>
+        person(did, lngLat, { members: 5, createdAt: new Date("2026-06-01") });
+    const FAR_TWIN = "did:test:far-twin";
+    const NEAR_TWIN = "did:test:near-twin";
+    const twins: Record<string, ReturnType<typeof twin>> = {
+        [FAR_TWIN]: twin(FAR_TWIN, { lng: -74.0, lat: 40.7 }),
+        [NEAR_TWIN]: twin(NEAR_TWIN, { lng: 18.43, lat: -33.93 }),
+    };
+    const twinRows = [FAR_TWIN, NEAR_TWIN].map((userDid) => ({
+        _id: new ObjectId(),
+        userDid,
+        circleId: CIRCLE_ID,
+        userGroups: ["members"],
+        joinedAt: new Date("2026-06-01"),
+    }));
+    const setUp = (viewerLocation: unknown) => {
+        fakeDb.reset({
+            Circles: [
+                { _id: new ObjectId(CIRCLE_ID), did: "did:test:band", handle: "band", circleType: "circle" },
+                { ...people[SUPERADMIN], location: viewerLocation },
+                ...Object.values(twins),
+            ],
+            Members: twinRows,
+            UserRelationships: [],
+        });
+        fakeDb.setAggregateResult(
+            "Members",
+            twinRows.map((row) => {
+                const who = twins[row.userDid];
+                return {
+                    ...row,
+                    _id: String(row._id),
+                    name: who.name,
+                    handle: who.handle,
+                    did: who.did,
+                    circleType: who.circleType,
+                    location: who.location,
+                    members: (who as any).members,
+                    createdAt: (who as any).createdAt,
+                };
+            }),
+        );
+    };
+    const order = async (sort?: string) =>
+        (await getMembersWithMetrics(SUPERADMIN, CIRCLE_ID, sort as any)).map((row) => row.userDid);
+
+    test("the viewer's location doesn't change the Top order", async () => {
+        for (const sort of [undefined, "top", "near"]) {
+            setUp(undefined);
+            const withoutLocation = await order(sort);
+            setUp({ precision: 2, city: "Cape Town", lngLat: CAPE_TOWN });
+            expect(await order(sort)).toEqual(withoutLocation);
+        }
+    });
+});
