@@ -242,7 +242,11 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
         }
     };
 
-    // This effect updates the location's precision (and exact opt-in) when the slider or checkbox changes
+    // This effect updates the location's precision (and exact opt-in) when the slider or checkbox
+    // changes, or when a location arrives (e.g. a form prefilling it from a circle), so the stored
+    // value takes the slider's precision. Not on onChange: parents often pass a new function on
+    // every render, and a value this effect can't settle (an exactConfirmedAt on a non-profile
+    // location) then looped until React gave up (#185, Create → Event, 2026-11-24).
     useEffect(() => {
         if (value && value.lngLat) {
             // Only update if we have an actual location and precision or opt-in has changed
@@ -257,7 +261,8 @@ const LocationPicker: React.FC<LocationPickerProps> = ({ value, onChange, compac
                 mapMarker.current.setLngLat(value.lngLat);
             }
         }
-    }, [precision, exactConfirmed, onChange]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps -- onChange and value left out on purpose (above)
+    }, [precision, exactConfirmed, value?.lngLat]);
 
     // Reflects a `value` that arrived from outside this component's own onChange loop (e.g. a
     // parent prefilling from the creating circle's saved location only after this component has

@@ -1076,7 +1076,7 @@ export default function EventForm({
 
                     <div>
                         <Label htmlFor="location">Location</Label>
-                        <LocationPicker value={location} onChange={(val) => setLocation(val)} compact />
+                        <LocationPicker value={location} onChange={setLocation} compact />
                         <p className="mt-1 text-xs text-muted-foreground">
                             {locationDisclosure === "public"
                                 ? "This address will be visible to everyone."
@@ -1188,11 +1188,7 @@ export default function EventForm({
                             {locationDisclosure !== "public" && (
                                 <div className="space-y-2">
                                     <Label>Public map area</Label>
-                                    <LocationPicker
-                                        value={publicMapLocation}
-                                        onChange={(val) => setPublicMapLocation(val)}
-                                        compact
-                                    />
+                                    <LocationPicker value={publicMapLocation} onChange={setPublicMapLocation} compact />
                                     <div className="space-y-1 text-xs font-medium text-muted-foreground">
                                         <p>
                                             This is not the venue address. It is only the approximate area shown on
