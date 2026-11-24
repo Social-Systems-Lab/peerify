@@ -105,6 +105,11 @@ export function safeModifyAccessRules(
 // User input is matched literally, never as a pattern: "." must not match every name.
 export const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// People and invite search ignore a leading "@" (Tim, 2026-11-24): "@tim" searches for "tim", and
+// "@" alone is an empty search.
+export const stripSearchAt = (query: string | undefined | null): string =>
+    (query ?? "").trim().replace(/^@+/, "").trim();
+
 export function getFullLocationName(location?: Location): string {
     if (!location) {
         return "";

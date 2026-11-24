@@ -1,6 +1,7 @@
 import { ObjectId } from "mongodb";
 import { Circle } from "@/models/models";
 import { ChatConversations, ChatMessageDocs, Circles, Members, UserRelationships } from "./db";
+import { stripSearchAt } from "@/lib/utils";
 
 const CONNECT_STATUS_VALUES = ["none", "pending_sent", "pending_received", "accepted"] as const;
 const DM_PERMISSION_VALUES = ["none", "allowed"] as const;
@@ -839,7 +840,7 @@ export const searchAcceptedConnectionsForUserDid = async (
     limit: number = 10,
 ): Promise<Circle[]> => {
     const connections = await getAcceptedConnectionCirclesForUserDid(userDid);
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = stripSearchAt(query).toLowerCase();
 
     const filtered = connections.filter((connection) => {
         if (!normalizedQuery) return true;

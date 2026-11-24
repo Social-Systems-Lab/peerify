@@ -4,7 +4,7 @@ import { getPublishedCircleQuery, isCirclePublished, SAFE_CIRCLE_PROJECTION } fr
 import { toPublicCircleListItem } from "../utils/public-circle";
 import { toLimitedPersonalListItem } from "../peerify/personal-profile-access";
 import { getAcceptedConnectionDids, getFullProfileOwnerDids } from "./personal-profile-access";
-import { escapeRegex } from "../utils";
+import { escapeRegex, stripSearchAt } from "../utils";
 import {
     buildActFilterMongoQuery,
     getAvailableActOffers,
@@ -288,7 +288,7 @@ const scoreLimitedPersonalMatch = (circle: Circle, query: string, tokens: string
 };
 
 export const searchDiscoverableCircles = async ({
-    query = "",
+    query: rawQuery = "",
     limit = 20,
     circleTypes = SEARCHABLE_TYPES,
     primaryGenres = [],
@@ -297,6 +297,7 @@ export const searchDiscoverableCircles = async ({
 }: SearchCirclesOptions): Promise<WithMetric<Circle>[]> => {
     const viewerIsAdmin = await getViewerIsAdmin(viewerDid);
 
+    const query = stripSearchAt(rawQuery);
     const normalizedQuery = normalizeValue(query);
     const requestedTypes = circleTypes.length > 0 ? circleTypes : SEARCHABLE_TYPES;
     const normalizedTypes = viewerDid ? requestedTypes : requestedTypes.filter((type) => type !== "user");
@@ -439,6 +440,6 @@ export const searchPeople = async ({
     limit = 20,
     viewerDid,
 }: Pick<SearchCirclesOptions, "query" | "limit" | "viewerDid">): Promise<WithMetric<Circle>[]> => {
-    if (!viewerDid || !normalizeValue(query)) return [];
+    if (!viewerDid || !normalizeValue(stripSearchAt(query))) return [];
     return searchDiscoverableCircles({ query, limit, circleTypes: ["user"], viewerDid });
 };

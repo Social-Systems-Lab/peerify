@@ -26,6 +26,7 @@ import { getAcceptedConnectionDids, getFullProfileOwnerDids } from "./personal-p
 import { getMetrics } from "../utils/metrics";
 import {
     escapeRegex,
+    stripSearchAt,
     getOfferPinLocation,
     OFFER_PIN_OFFSET_MAX_METERS,
     OFFER_PIN_OFFSET_MIN_METERS,
@@ -1089,7 +1090,7 @@ export const getCirclesBySearchQuery = async (
     options: { include?: (circle: Circle) => boolean; alsoFindableMembersOf?: string } = {},
 ): Promise<Circle[]> => {
     const viewerIsAdmin = await resolveViewerIsAdmin(viewerDid);
-    const pattern = new RegExp(escapeRegex(query), "i");
+    const pattern = new RegExp(escapeRegex(stripSearchAt(query)), "i");
     // Name or handle (handle added 2026-11-23, so connections find each other "by name and handle").
     const conditions: any[] = [{ $or: [{ name: pattern }, { handle: pattern }] }];
     if (circleType) {

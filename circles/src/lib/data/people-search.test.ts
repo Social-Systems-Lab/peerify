@@ -20,6 +20,7 @@ mock.module("@/lib/auth/auth", () => ({ ...realAuth, getAuthenticatedUserDid: as
 
 const { searchPeople } = await import("./search");
 const { getCirclesBySearchQuery } = await import("./circle");
+const { searchAcceptedConnectionsForUserDid } = await import("./relationships");
 const { getCirclesBySearchQueryAction, searchArtistCirclesAction } = await import(
     "@/app/circles/[handle]/events/actions"
 );
@@ -251,5 +252,51 @@ describe("accepted connections find each other with search off (name and handle 
             "canary-hidden",
         );
         expect(handles((await getCirclesBySearchQueryAction("canary hidden", 25)).circles)).toEqual([]);
+    });
+});
+
+describe('a leading "@" is ignored (2026-11-24)', () => {
+    test("searchPeople: the same results, in the same order, as without it", async () => {
+        for (const viewerDid of [STRANGER, CONNECTION]) {
+            for (const query of ["canary-person", "canary-hid", "canary"]) {
+                const plain = await searchPeople({ query, viewerDid });
+                expect(await searchPeople({ query: `@${query}`, viewerDid })).toEqual(plain);
+                expect(await searchPeople({ query: `  @${query} `, viewerDid })).toEqual(plain);
+            }
+        }
+    });
+
+    test("searchPeople: '@' alone is an empty search", async () => {
+        expect(await searchPeople({ query: "@", viewerDid: STRANGER })).toEqual([]);
+    });
+
+    test("the pickers (getCirclesBySearchQuery): found by @handle", async () => {
+        sessionDid = CONNECTION;
+        expect(handles((await getCirclesBySearchQueryAction("@canary-hid", 25)).circles)).toEqual(["canary-hidden"]);
+        expect(handles(await getCirclesBySearchQuery("@canary-person", 25, "user", STRANGER))).toEqual([
+            "canary-person",
+        ]);
+    });
+
+    test("event invites: a follower with search off is found by @handle", async () => {
+        const results = await getCirclesBySearchQuery("@canary-hidden", 25, "user", STRANGER, {
+            alsoFindableMembersOf: HOST_CIRCLE_ID,
+        });
+        expect(handles(results)).toEqual(["canary-hidden"]);
+    });
+
+    test("event invites from a personal profile (accepted connections): found by @handle", async () => {
+        expect(handles(await searchAcceptedConnectionsForUserDid(CONNECTION, "@canary-hid"))).toEqual([
+            "canary-hidden",
+        ]);
+        expect(handles(await searchAcceptedConnectionsForUserDid(CONNECTION, "@"))).toEqual(
+            handles(await searchAcceptedConnectionsForUserDid(CONNECTION, "")),
+        );
+    });
+
+    test("the pickers: '@' alone finds what an empty search finds, nothing more", async () => {
+        expect(handles(await getCirclesBySearchQuery("@", 25, "user", STRANGER))).toEqual(
+            handles(await getCirclesBySearchQuery("", 25, "user", STRANGER)),
+        );
     });
 });
