@@ -194,6 +194,35 @@ describe("event invites: the circle's followers are found with search off", () =
         expectNoPrivateValues(withFollowers);
         expect(handles(await getCirclesBySearchQuery("canary", 10, "user", STRANGER))).not.toContain("canary-hidden");
     });
+
+    test("a follower with search off is found by handle too (2026-11-24)", async () => {
+        const found = await getCirclesBySearchQuery("canary-hidden", 10, "user", STRANGER, {
+            alsoFindableMembersOf: HOST_CIRCLE_ID,
+        });
+        expect(handles(found)).toContain("canary-hidden");
+        expectNoPrivateValues(found);
+    });
+
+    test("a Crew member who chose to hide from the Crew list is still found (Tim, 2026-11-24)", async () => {
+        fakeDb
+            .col("Circles")
+            .docs.push(
+                person("did:test:robin", { handle: "robin-crew", name: "Robin Crew", searchable: false, ...PRIVATE }),
+            );
+        fakeDb.col("Members").docs.push({
+            _id: new ObjectId(),
+            userDid: "did:test:robin",
+            circleId: HOST_CIRCLE_ID,
+            userGroups: ["members", "crew"],
+            crewVisible: false,
+        });
+        for (const query of ["Robin", "robin-crew"]) {
+            const found = await getCirclesBySearchQuery(query, 10, "user", STRANGER, {
+                alsoFindableMembersOf: HOST_CIRCLE_ID,
+            });
+            expect(handles(found)).toContain("robin-crew");
+        }
+    });
 });
 
 describe("accepted connections find each other with search off (name and handle only)", () => {

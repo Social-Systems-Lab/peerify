@@ -1128,7 +1128,8 @@ export const getCirclesBySearchQuery = async (
             const followers = (await Circles.find(
                 {
                     $and: [
-                        { name: new RegExp(escapeRegex(query), "i") },
+                        // Name or handle, like the rest of this search (handle added 2026-11-24).
+                        { $or: [{ name: pattern }, { handle: pattern }] },
                         { circleType: "user" },
                         { did: { $in: memberDids } },
                         getPublishedCircleQuery(),
