@@ -184,7 +184,12 @@ const MemberTable: React.FC<MemberTableProps> = ({ circle, members }) => {
                             <span className="ml-2 font-bold">{memberName}</span>
                             <CreatorBadge circle={circle} userDid={info.row.original.userDid} />
                             {metrics && (
-                                <Indicators metrics={metrics} className="shadow-none" content={info.row.original} />
+                                <Indicators
+                                    metrics={metrics}
+                                    className="shadow-none"
+                                    content={info.row.original}
+                                    disableProximity
+                                />
                             )}
                         </div>
                     );
@@ -378,7 +383,7 @@ const MemberTable: React.FC<MemberTableProps> = ({ circle, members }) => {
                         </SelectContent>
                     </Select>
                 </div>
-                <ListFilter onFilterChange={handleFilterChange} showSdgFilter={false} />
+                <ListFilter onFilterChange={handleFilterChange} showSdgFilter={false} showNear={false} />
 
                 <div className="mt-3 overflow-hidden rounded-[15px] shadow-lg">
                     <Table className="overflow-hidden">

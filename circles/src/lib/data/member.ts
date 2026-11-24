@@ -108,9 +108,16 @@ export const getMembersWithMetrics = async (
         user = (await Circles.findOne({ did: userDid }, { projection: SAFE_CIRCLE_PROJECTION })) ?? undefined;
     }
 
-    // get metrics for each member
+    // Followers lists show no distance, for anyone (Tim, 2026-11-24): "near" sorts like Top, and the
+    // rows carry no distance or proximity (the distance on a 0–1 scale).
+    const followerSort = sort === "near" ? "top" : sort;
     for (const member of members) {
-        member.metrics = await getMetrics(user, member, currentDate, sort);
+        const {
+            distance: _distance,
+            proximity: _proximity,
+            ...metrics
+        } = await getMetrics(user, member, currentDate, followerSort);
+        member.metrics = metrics;
     }
 
     // sort members by rank

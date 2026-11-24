@@ -15,6 +15,8 @@ type ListFilterProps = {
     selectedSdgs?: SDG[];
     defaultValue?: string;
     showSdgFilter?: boolean;
+    // Followers lists leave Near out (2026-11-24); other lists keep it.
+    showNear?: boolean;
 };
 
 export const ListFilter = ({
@@ -23,6 +25,7 @@ export const ListFilter = ({
     selectedSdgs = [],
     defaultValue = "top",
     showSdgFilter = true,
+    showNear = true,
 }: ListFilterProps) => {
     const [filter, setFilter] = useState(defaultValue);
     const isCompact = useIsCompact();
@@ -50,18 +53,20 @@ export const ListFilter = ({
                             </span>
                         </Label>
                     </div>
-                    <div className="flex-1">
-                        <RadioGroupItem value="near" id="near" className="peer sr-only" />
-                        <Label
-                            htmlFor="near"
-                            className="flex h-8 cursor-pointer items-center justify-center border-b-2 border-transparent px-2 peer-data-[state=checked]:border-[hsl(var(--task-link))] dark:hover:bg-gray-800 dark:peer-data-[state=checked]:bg-green-900/30"
-                        >
-                            <MapPin className="mr-1 h-[18px] w-[18px] text-gray-500 peer-data-[state=checked]:text-[hsl(var(--task-link))] dark:text-gray-400 dark:peer-data-[state=checked]:text-green-300" />
-                            <span className="text-[13px] font-medium text-gray-700 peer-data-[state=checked]:text-[hsl(var(--task-link))] dark:text-gray-300 dark:peer-data-[state=checked]:text-green-300">
-                                Near
-                            </span>
-                        </Label>
-                    </div>
+                    {showNear && (
+                        <div className="flex-1">
+                            <RadioGroupItem value="near" id="near" className="peer sr-only" />
+                            <Label
+                                htmlFor="near"
+                                className="flex h-8 cursor-pointer items-center justify-center border-b-2 border-transparent px-2 peer-data-[state=checked]:border-[hsl(var(--task-link))] dark:hover:bg-gray-800 dark:peer-data-[state=checked]:bg-green-900/30"
+                            >
+                                <MapPin className="mr-1 h-[18px] w-[18px] text-gray-500 peer-data-[state=checked]:text-[hsl(var(--task-link))] dark:text-gray-400 dark:peer-data-[state=checked]:text-green-300" />
+                                <span className="text-[13px] font-medium text-gray-700 peer-data-[state=checked]:text-[hsl(var(--task-link))] dark:text-gray-300 dark:peer-data-[state=checked]:text-green-300">
+                                    Near
+                                </span>
+                            </Label>
+                        </div>
+                    )}
                     <div className="flex-1">
                         <RadioGroupItem value="new" id="new" className="peer sr-only" />
                         <Label
