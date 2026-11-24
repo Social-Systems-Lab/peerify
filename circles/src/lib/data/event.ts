@@ -1475,9 +1475,7 @@ export const countUpcomingEventsHostedByCircle = async (circleId: string): Promi
  * The published / non-personal part mirrors the host-circle $match in getOpenEventsForMap and
  * getOpenEventsForList below (publishStatus "published" or missing, circleType not "user"), so an
  * event those queries surface links to a page that can open. Keep the two in sync by hand: they
- * are separate expressions of the same rule. The one deliberate difference is the queries'
- * mapVisible branch — personal profiles can opt into the map, but their events stay behind the
- * sign-in wall here.
+ * are separate expressions of the same rule.
  */
 export const canAnonymousViewCircleEvents = async (circle: Circle): Promise<boolean> => {
     if (!circle._id) return false;
@@ -1823,7 +1821,6 @@ export const getOpenEventsForMap = async (
                                 enabledModules: 1,
                                 publishStatus: 1,
                                 circleType: 1,
-                                mapVisible: 1,
                             },
                         },
                     ],
@@ -1834,8 +1831,10 @@ export const getOpenEventsForMap = async (
 
             // Host-circle visibility gating — mirrors getSwipeCircles' own rule (circle.ts) so an
             // event can't surface on the map for a circle that couldn't surface there itself: the
-            // host circle must be published, and if it's a personal ("user") profile, must also have
-            // explicitly opted in via mapVisible. A missing host circle (e.g. deleted) fails closed.
+            // host circle must be published and must not be a personal ("user") profile. Events
+            // hosted by a personal profile never reach the map, whatever its stored mapVisible says
+            // (mapVisible retired for personal profiles, Tim 2026-11-24). A missing host circle
+            // (e.g. deleted) fails closed.
             // canAnonymousViewCircleEvents (above) mirrors this rule for logged-out event pages — keep in sync.
             {
                 $match: {
@@ -1847,19 +1846,14 @@ export const getOpenEventsForMap = async (
                                 { "circleDetails.publishStatus": { $exists: false } },
                             ],
                         },
-                        {
-                            $or: [
-                                { "circleDetails.circleType": { $ne: "user" } },
-                                { "circleDetails.mapVisible": true },
-                            ],
-                        },
+                        { "circleDetails.circleType": { $ne: "user" } },
                     ],
                 },
             },
 
             // Drop the gating-only fields just added to circleDetails' projection above, so the
             // client-facing `circle` shape is unchanged from before this fix.
-            { $unset: ["circleDetails.publishStatus", "circleDetails.circleType", "circleDetails.mapVisible"] },
+            { $unset: ["circleDetails.publishStatus", "circleDetails.circleType"] },
 
             // RSVP counts
             {
@@ -2067,7 +2061,6 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
                                 enabledModules: 1,
                                 publishStatus: 1,
                                 circleType: 1,
-                                mapVisible: 1,
                             },
                         },
                     ],
@@ -2078,8 +2071,8 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
 
             // Host-circle visibility gating — mirrors getSwipeCircles' own rule (circle.ts), same
             // as the identical fix already applied to getOpenEventsForMap: the host circle must be
-            // published, and if it's a personal ("user") profile, must also have explicitly opted in
-            // via mapVisible. A missing host circle (e.g. deleted) fails closed.
+            // published and must not be a personal ("user") profile (mapVisible retired for personal
+            // profiles, Tim 2026-11-24). A missing host circle (e.g. deleted) fails closed.
             // canAnonymousViewCircleEvents mirrors this rule for logged-out event pages — keep in sync.
             {
                 $match: {
@@ -2091,19 +2084,14 @@ export const getOpenEventsForList = async (userDid: string, range?: Range): Prom
                                 { "circleDetails.publishStatus": { $exists: false } },
                             ],
                         },
-                        {
-                            $or: [
-                                { "circleDetails.circleType": { $ne: "user" } },
-                                { "circleDetails.mapVisible": true },
-                            ],
-                        },
+                        { "circleDetails.circleType": { $ne: "user" } },
                     ],
                 },
             },
 
             // Drop the gating-only fields just added to circleDetails' projection above, so the
             // client-facing `circle` shape is unchanged from before this fix.
-            { $unset: ["circleDetails.publishStatus", "circleDetails.circleType", "circleDetails.mapVisible"] },
+            { $unset: ["circleDetails.publishStatus", "circleDetails.circleType"] },
 
             // RSVP counts
             {

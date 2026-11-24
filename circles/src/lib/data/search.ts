@@ -388,24 +388,17 @@ export const searchDiscoverableCircles = async ({
                 metrics: { searchRank: score / maxScore, similarity: score / maxScore },
             } as WithMetric<Circle>;
         }
-        // Mirrors getSwipeCircles' own mapVisible rule (circle.ts) — a personal profile that
-        // hasn't opted into map visibility must never produce a map marker. map.tsx's only gate
-        // for creating a marker at all is item.location.lngLat, so stripping location here (a
-        // real server-side exclusion, not another client-side masking layer on top of the
-        // pre-existing isSuppressedUserProfile, which only ever disguised a marker's title/image
-        // without preventing one from being created) makes that impossible — while the profile
-        // stays fully present, searchable, and viewable via Open; the intentionally separate
-        // `searchable` gate (isDiscoverableCircle, above) is untouched. viewerIsAdmin bypasses
-        // this the same way it bypasses the searchable gate, so an admin's search result for a
-        // private profile still carries a location instead of a half-fix with no pin.
-        const isMapVisible = viewerIsAdmin || circle.circleType !== "user" || circle.mapVisible === true;
-        const exposedLocation = isMapVisible ? circle.location : undefined;
+        // A personal profile's result never carries its location, for any viewer, owner and
+        // platform admins included: "Show me on the map" (mapVisible) is retired for personal
+        // profiles (Tim, 2026-11-24) and its stored value is ignored. map.tsx's only gate for
+        // creating a marker is item.location.lngLat, so this also means no pin. Other circles keep
+        // their (redacted, below) location.
+        const exposedLocation = circle.circleType === "user" ? undefined : circle.location;
         // Crew Offers have no visibility/audience field of their own (see tourTeamOfferingSchema)
         // — gating for them is 100% application logic, normally scoped to a circle's own Crew
         // (getCrewOfferings) or the owner's own profile self-display. Search results are neither,
         // so every viewer except the profile's own owner or a platform admin gets it stripped,
-        // regardless of the (unrelated) searchable/mapVisible flags this function otherwise keys
-        // location visibility off of.
+        // regardless of the (unrelated) searchable flag.
         const isOwnCircle = !!viewerDid && circle.did === viewerDid;
         // These results reach anonymous visitors (/api/circles/search): toPublicCircleListItem
         // allow-lists the fields, strips private metadata and redacts the location

@@ -54,17 +54,12 @@ const isPostDisplay = (c: any): c is PostDisplay => {
 
 const isEventDisplay = (content: any): content is EventDisplay => !!(content && content.startAt && content.title);
 
-// Defense-in-depth only: mapVisible is already enforced at the query level
-// (getSwipeCircles). This guard exists in case a personal profile ever
-// reaches this component via some other path. Search results are gated
-// on the separate `searchable` field — see search-results-panel.tsx.
-// viewerIsAdmin (sourced from userAtom.isAdmin, the same trusted-on-login client state the
-// admin nav link already reads in global-nav.tsx) lets superadmins see the real marker for
-// profiles the owner hasn't opted into mapVisible for, mirroring searchDiscoverableCircles.
-// getSwipeCircles no longer has that bypass: it never returns a non-artist personal profile,
-// admins included (2026-11-02).
+// Defense-in-depth only: the server never sends a personal profile with a location for the map
+// (getSwipeCircles returns none, search strips their location). This guard covers any other path.
+// "Show me on the map" (mapVisible) is retired for personal profiles (Tim, 2026-11-24), so it no
+// longer lets one through; superadmins see the real marker, as before.
 const isSuppressedUserProfile = (content: any, viewerIsAdmin: boolean): boolean =>
-    !viewerIsAdmin && content?.circleType === "user" && content?.mapVisible !== true;
+    !viewerIsAdmin && content?.circleType === "user";
 
 // An Offer map pin (OfferMapPin, models.ts) — one per individual offer. Carries zero identity of
 // the offering circle UNLESS it's venue-sourced (circleHandle present — see getOfferMapPins,
