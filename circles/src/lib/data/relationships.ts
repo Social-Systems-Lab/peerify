@@ -23,6 +23,9 @@ export type RelationshipEdge = {
     // requester keeps seeing "Requested" until the cooldown ends), and on the removed person's
     // edge when the other person removes the connection. Never sent to the client.
     declinedAt?: Date;
+    // When this edge's owner last sent the other person a request; counts toward the daily limit
+    // (CONNECTION_REQUESTS_PER_DAY). Older edges have none.
+    requestedAt?: Date;
     // Set on both edges when either person removes the connection; cleared if they connect again.
     // While set, an old DM between the pair no longer counts as legacy (see getDmEligibility).
     connectionRemovedAt?: Date;
@@ -32,6 +35,21 @@ export type RelationshipEdge = {
 
 // After a decline (or a removal) the other person can't send a new request for this long.
 export const CONNECTION_REQUEST_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+
+// Connection requests one person may send in a rolling 24 hours, superadmins included (Tim,
+// 2026-11-24). Counted from requestedAt, which every request sent stamps on the sender's edge.
+export const CONNECTION_REQUESTS_PER_DAY = 20;
+export const CONNECTION_REQUEST_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const CONNECTION_REQUEST_LIMIT_MESSAGE =
+    "You've sent a lot of connection requests today. Please try again tomorrow.";
+
+export const hasReachedConnectionRequestLimit = async (senderDid: string, now = new Date()): Promise<boolean> => {
+    const sent = await UserRelationships.countDocuments({
+        fromDid: senderDid,
+        requestedAt: { $gte: new Date(now.getTime() - CONNECTION_REQUEST_WINDOW_MS) },
+    });
+    return sent >= CONNECTION_REQUESTS_PER_DAY;
+};
 
 export const isWithinConnectionCooldown = (edge?: Pick<RelationshipEdge, "declinedAt"> | null, now = new Date()) =>
     !!edge?.declinedAt && now.getTime() - edge.declinedAt.getTime() < CONNECTION_REQUEST_COOLDOWN_MS;

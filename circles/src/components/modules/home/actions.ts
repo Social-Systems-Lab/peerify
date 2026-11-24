@@ -41,6 +41,8 @@ import {
     getProfileRelationshipState,
     getRelationshipEdge,
     isWithinConnectionCooldown,
+    hasReachedConnectionRequestLimit,
+    CONNECTION_REQUEST_LIMIT_MESSAGE,
     isAcceptedConnectionForUserDid,
     listToolboxConnectionsForUserDid,
     RelationshipConnectStatus,
@@ -753,21 +755,29 @@ export const sendConnectRequestAction = async (
 
         const now = new Date();
 
-        // Declined within the cooldown: report success and keep showing "Requested", but write no
-        // mirror edge and send no notification, so the requester isn't told about the decline.
-        if (isWithinConnectionCooldown(viewerEdge, now)) {
-            await UserRelationships.updateOne(
-                { fromDid: viewerDid, toDid: targetDid },
-                { $set: { connectStatus: "pending_sent", updatedAt: now } },
-            );
-            return { success: true, message: "Connection request sent" };
-        }
-
         // The viewer declined the target's request and is now asking them back while that request
-        // still shows as "Requested" on their side: treat it as accepting it.
+        // still shows as "Requested" on their side: treat it as accepting it. That's an accept, not
+        // a new request, so the daily limit doesn't apply.
         if (targetEdge?.connectStatus === "pending_sent" && isWithinConnectionCooldown(targetEdge, now)) {
             await acceptConnectionBetween(viewerDid, targetUser);
             return { success: true, message: "You're now connected", connected: true };
+        }
+
+        // At most CONNECTION_REQUESTS_PER_DAY requests in 24 hours, superadmins included. Checked
+        // before the cooldown branch, so a declined request can't be told apart by the limit.
+        if (await hasReachedConnectionRequestLimit(viewerDid, now)) {
+            return { success: false, message: CONNECTION_REQUEST_LIMIT_MESSAGE };
+        }
+
+        // Declined within the cooldown: report success and keep showing "Requested", but write no
+        // mirror edge and send no notification, so the requester isn't told about the decline. It
+        // still counts toward the daily limit (requestedAt).
+        if (isWithinConnectionCooldown(viewerEdge, now)) {
+            await UserRelationships.updateOne(
+                { fromDid: viewerDid, toDid: targetDid },
+                { $set: { connectStatus: "pending_sent", updatedAt: now, requestedAt: now } },
+            );
+            return { success: true, message: "Connection request sent" };
         }
 
         await UserRelationships.updateOne(
@@ -776,6 +786,7 @@ export const sendConnectRequestAction = async (
                 $set: {
                     connectStatus: "pending_sent",
                     updatedAt: now,
+                    requestedAt: now,
                 },
                 $unset: { declinedAt: "" },
                 $setOnInsert: {
