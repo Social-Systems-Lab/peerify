@@ -55,6 +55,15 @@ describe("the controls, by status", () => {
         expect(html).toContain('aria-disabled="true"');
     });
 
+    test("next to Connect: they'll see your profile while they decide (2026-11-24)", () => {
+        for (const canSend of [true, false]) {
+            expect(controls("none", canSend)).toContain("They&#x27;ll see your profile while they decide.");
+        }
+        for (const status of ["pending_sent", "pending_received"]) {
+            expect(controls(status)).not.toContain("see your profile while they decide");
+        }
+    });
+
     test("request sent: Requested, with Withdraw", () => {
         const html = controls("pending_sent");
         expect(html).toContain("Requested");

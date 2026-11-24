@@ -67,16 +67,20 @@ export function LimitedProfileConnectControls({
         );
     }
     // Unverified viewers see Connect greyed out; pressing it explains why (as on the full profile).
+    // The recipient of a request sees the sender's full profile while they decide (2026-11-24).
     return (
-        <Button
-            size="sm"
-            className={canSend ? "rounded-full" : "rounded-full opacity-50"}
-            aria-disabled={canSend ? undefined : true}
-            disabled={busy}
-            onClick={onConnect}
-        >
-            Connect
-        </Button>
+        <div className="flex flex-col items-center gap-1">
+            <Button
+                size="sm"
+                className={canSend ? "rounded-full" : "rounded-full opacity-50"}
+                aria-disabled={canSend ? undefined : true}
+                disabled={busy}
+                onClick={onConnect}
+            >
+                Connect
+            </Button>
+            <p className="text-xs text-gray-500">They&apos;ll see your profile while they decide.</p>
+        </div>
     );
 }
 

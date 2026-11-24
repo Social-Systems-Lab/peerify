@@ -1,5 +1,6 @@
 // The one server-side rule for personal profiles (Tim, 2026-11-22): the owner, superadmins
-// (user.isAdmin) and the owner's accepted connections get the full profile; everyone else, signed
+// (user.isAdmin) and the owner's accepted connections get the full profile (the page and preview
+// also the recipient of the owner's pending connection request, 2026-11-24); everyone else, signed
 // in or not, gets the limited version (name, handle, picture; see lib/peerify/personal-profile-
 // access.ts). Following doesn't count, and the search and map settings play no part. Circles that
 // aren't personal profiles (artists, bands, venues) are always "full".
@@ -13,6 +14,12 @@ const isSuperadminDid = async (did: string): Promise<boolean> => {
     return user?.isAdmin === true;
 };
 
+// The page and the preview (and what follows them: the page's tabs, bookmarking). Besides the
+// list rule below, the recipient of a pending connection request sees the sender in full while
+// they decide (Tim, 2026-11-24). One way only: the viewer's own edge must be "pending_received",
+// which only the recipient has; the sender still sees the recipient limited. Declining or
+// withdrawing resets the recipient's edge, and a resend inside the decline cooldown writes none,
+// so it ends there. Lists (getFullProfileOwnerDids) don't include it.
 export const canViewFullPersonalProfile = async (
     circle: Pick<Circle, "circleType" | "did"> | null | undefined,
     viewerDid: string | null | undefined,
@@ -20,7 +27,11 @@ export const canViewFullPersonalProfile = async (
     if (!isPersonalProfile(circle)) return true;
     const ownerDid = circle?.did;
     if (!viewerDid || !ownerDid) return false;
-    return (await getFullProfileOwnerDids(viewerDid, [ownerDid])).has(ownerDid);
+    if ((await getFullProfileOwnerDids(viewerDid, [ownerDid])).has(ownerDid)) return true;
+    return !!(await UserRelationships.findOne(
+        { fromDid: viewerDid, toDid: ownerDid, connectStatus: "pending_received" },
+        { projection: { _id: 1 } },
+    ));
 };
 
 // Batch form for lists (followers rows, post and comment authors): which of these personal
