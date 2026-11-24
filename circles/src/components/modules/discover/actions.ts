@@ -99,6 +99,14 @@ export async function getDiscoverResultsAction(input: DiscoverQueryInput): Promi
 
         if (userDid && artists.length > 0) {
             await getMetricsForCircles(artists, userDid);
+            // The order keeps proximity as one factor, but the cards show the artist's city, not a
+            // distance (2026-11-24), so the distance isn't sent.
+            for (const artist of artists) {
+                if (artist.metrics) {
+                    const { distance: _distance, proximity: _proximity, ...metrics } = artist.metrics;
+                    artist.metrics = metrics;
+                }
+            }
         }
 
         try {

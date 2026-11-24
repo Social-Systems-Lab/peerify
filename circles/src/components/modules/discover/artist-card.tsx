@@ -1,10 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { useAtomValue } from "jotai";
 import { ChevronDown, ChevronUp, Loader2, Pause, Play } from "lucide-react";
-import { userAtom } from "@/lib/data/atoms";
-import { haversineKm, getUserLocation } from "@/lib/utils";
+import { getPublicPlaceLabel } from "@/lib/utils";
 import { useExclusiveAudio } from "@/lib/audio/use-exclusive-audio";
 import { cancelFade, fadeOutPlayingAudio } from "@/lib/audio/fade";
 import { getTracksForCirclePreviewAction, TrackPreview } from "@/components/modules/circles/map-explorer-actions";
@@ -31,7 +29,6 @@ const SCROLL_FADE_DURATION_MS = 450;
  */
 export default function ArtistCard({ artist }: ArtistCardProps) {
     const [expanded, setExpanded] = useState(false);
-    const user = useAtomValue(userAtom);
     const cardRef = useRef<HTMLDivElement>(null);
 
     // Pause-on-scroll-away, matching the convention elsewhere (e.g. Instagram video). Observes
@@ -64,13 +61,11 @@ export default function ArtistCard({ artist }: ArtistCardProps) {
     }, []);
 
     const genre = artist.primaryGenres?.[0];
-    // location is stripped server-side (searchDiscoverableCircles) for any personal profile that
-    // hasn't opted into mapVisible, so this is frequently absent — display-only when both the
-    // artist and viewer have a resolvable point, never a filter.
-    const artistLngLat = artist.location?.lngLat as [number, number] | { lng: number; lat: number } | undefined;
-    const distanceKm = artistLngLat ? haversineKm(artistLngLat, getUserLocation(user)) : undefined;
-    const distanceLabel = distanceKm !== undefined && isFinite(distanceKm) ? `${Math.round(distanceKm)} km away` : undefined;
-    const subtitle = [genre, distanceLabel].filter(Boolean).join(" · ") || "Artist";
+    // The artist's city instead of the distance (Tim, 2026-11-24), at the precision the artist chose
+    // for their location and never more precise (getPublicPlaceLabel). searchDiscoverableCircles
+    // has already capped the location to that precision.
+    const placeLabel = getPublicPlaceLabel(artist.location);
+    const subtitle = [genre, placeLabel].filter(Boolean).join(" · ") || "Artist";
     // Same two fields CirclePreview shows as its own bio blocks (content-preview.tsx), already
     // present on this list's WithMetric<Circle> payload — no new fetch. Omitted entirely (not a
     // placeholder string) when neither is set, so a bio-less artist's row doesn't grow at all.

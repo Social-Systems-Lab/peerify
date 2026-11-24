@@ -110,6 +110,21 @@ export const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/
 export const stripSearchAt = (query: string | undefined | null): string =>
     (query ?? "").trim().replace(/^@+/, "").trim();
 
+// A place name for a list (Discover, 2026-11-24), at the precision the owner chose and never more
+// precise: the city at City or finer (Street and Exact included), the region at Region, the
+// country at Country. Never a street or coordinates. Falls back to a coarser name when the finer
+// one isn't stored; no stored precision means the country at most.
+export function getPublicPlaceLabel(location?: Partial<Location> | null): string | undefined {
+    if (!location) return undefined;
+    const precision = typeof location.precision === "number" ? location.precision : 0;
+    const candidates = [
+        precision >= 2 ? location.city : undefined,
+        precision >= 1 ? location.region : undefined,
+        location.country,
+    ];
+    return candidates.map((value) => value?.trim()).find((value) => !!value) || undefined;
+}
+
 export function getFullLocationName(location?: Location): string {
     if (!location) {
         return "";
