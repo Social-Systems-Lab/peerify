@@ -56,7 +56,7 @@ import {
     type LimitedPersonalProfile,
 } from "@/lib/peerify/personal-profile-access";
 import { toPublicCircle } from "@/lib/utils/public-circle";
-import { canPerformRestrictedAction, getRestrictedActionMessage } from "@/lib/auth/verification";
+import { canSendConnectionRequest, getRestrictedActionMessage } from "@/lib/auth/verification";
 
 type CircleActionResponse = {
     success: boolean;
@@ -725,8 +725,9 @@ export const sendConnectRequestAction = async (
         return { success: false, message: "Invalid connection request" };
     }
 
+    // Verified profiles only, superadmins included (no exemption, 2026-11-24).
     const viewer = await getCircleByDid(viewerDid);
-    if (!canPerformRestrictedAction(viewer)) {
+    if (!canSendConnectionRequest(viewer)) {
         return { success: false, message: getRestrictedActionMessage("connect with people") };
     }
 

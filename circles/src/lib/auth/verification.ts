@@ -26,6 +26,12 @@ export function canPerformRestrictedAction(user: VerificationSubject): boolean {
     return canBypassVerificationRestrictions(user) || isVerifiedUser(user);
 }
 
+// Sending a connection request: verified profiles only, superadmins included (no exemption, Tim
+// 2026-11-24). The buttons use this so they match the server (sendConnectRequestAction).
+export function canSendConnectionRequest(user: VerificationSubject): boolean {
+    return isVerifiedUser(user);
+}
+
 export function getRestrictedActionMessage(action: string): string {
     return `You need to verify your account before you can ${action}.`;
 }

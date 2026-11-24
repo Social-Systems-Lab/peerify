@@ -172,6 +172,25 @@ describe("the limited preview", () => {
         expect(html).not.toContain("CANARY");
     });
 
+    test("an unverified superadmin gets Connect greyed out, like any unverified viewer", () => {
+        const store = createStore();
+        store.set(userAtom, { did: VIEWER, isAdmin: true, isVerified: false } as any);
+        const html = renderToStaticMarkup(
+            <Provider store={store}>
+                <LimitedProfileConnect targetDid={PERSON} />
+            </Provider>,
+        );
+        expect(html).toContain('data-can-connect="false"');
+        store.set(userAtom, { did: VIEWER, isVerified: true } as any);
+        expect(
+            renderToStaticMarkup(
+                <Provider store={store}>
+                    <LimitedProfileConnect targetDid={PERSON} />
+                </Provider>,
+            ),
+        ).toContain('data-can-connect="true"');
+    });
+
     test("signed out, or your own profile: no control", () => {
         expect(render()).not.toContain("data-limited-connect");
         expect(render(PERSON)).not.toContain("data-limited-connect");

@@ -20,10 +20,12 @@ mock.module("next/cache", () => ({ revalidatePath: () => undefined, revalidateTa
 
 const { sendConnectRequestAction } = await import("./actions");
 const { CONNECTION_REQUESTS_PER_DAY } = await import("@/lib/data/relationships");
+const { canSendConnectionRequest } = await import("@/lib/auth/verification");
 
 const SENDER = "did:test:sender";
 const SUPERADMIN = "did:test:superadmin";
 const UNVERIFIED = "did:test:unverified";
+const UNVERIFIED_SUPERADMIN = "did:test:unverified-superadmin";
 const HOUR = 60 * 60 * 1000;
 
 const person = (did: string, extra: Record<string, unknown> = {}) => ({
@@ -61,6 +63,7 @@ beforeEach(() => {
             person(SENDER),
             person(SUPERADMIN, { isAdmin: true }),
             person(UNVERIFIED, { isVerified: false }),
+            person(UNVERIFIED_SUPERADMIN, { isAdmin: true, isVerified: false }),
             ...Array.from({ length: 25 }, (_, i) => person(targetDid(i))),
         ],
         UserRelationships: [],
@@ -158,4 +161,22 @@ test("an unverified sender is refused, as before", async () => {
     const result = await sendConnectRequestAction(targetDid(0));
     expect(result.success).toBe(false);
     expect(edge(UNVERIFIED, targetDid(0))).toBeUndefined();
+});
+
+describe("verified senders only, no superadmin exemption (Tim, 2026-11-24)", () => {
+    test("canSendConnectionRequest: verified yes; unverified no, superadmin or not", () => {
+        expect(canSendConnectionRequest({ isVerified: true } as any)).toBe(true);
+        expect(canSendConnectionRequest({ verificationStatus: "verified" } as any)).toBe(true);
+        expect(canSendConnectionRequest({ isVerified: true, isAdmin: true } as any)).toBe(true);
+        expect(canSendConnectionRequest({ isVerified: false } as any)).toBe(false);
+        expect(canSendConnectionRequest({ isAdmin: true, isVerified: false } as any)).toBe(false);
+        expect(canSendConnectionRequest(undefined as any)).toBe(false);
+    });
+
+    test("the server refuses an unverified superadmin", async () => {
+        sessionDid = UNVERIFIED_SUPERADMIN;
+        const result = await sendConnectRequestAction(targetDid(0));
+        expect(result.success).toBe(false);
+        expect(edge(UNVERIFIED_SUPERADMIN, targetDid(0))).toBeUndefined();
+    });
 });

@@ -37,7 +37,7 @@ import { ChevronDown, Loader2 } from "lucide-react";
 import { TbMessage } from "react-icons/tb";
 import { useRouter } from "next/navigation";
 import { findOrCreateDMConversationAction } from "../chat/actions";
-import { canPerformRestrictedAction, UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
+import { canSendConnectionRequest, UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import type { DmEligibilityReason, RelationshipConnectStatus } from "@/lib/data/relationships";
 
 type MessageButtonProps = {
@@ -76,7 +76,8 @@ export const MessageButton = ({ circle, renderCompact }: MessageButtonProps) => 
         return null;
     }
 
-    const canSendConnectRequest = canPerformRestrictedAction(user);
+    // Verified only, superadmins included, as on the server (2026-11-24).
+    const canSendConnectRequest = canSendConnectionRequest(user);
     const connectButtonClassName = compact ? "rounded-full px-3" : "rounded-full";
 
     const handleConnectRequest = async () => {

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { userAtom } from "@/lib/data/atoms";
-import { canPerformRestrictedAction, UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
+import { canSendConnectionRequest, UNVERIFIED_PROFILE_EXPLAINER } from "@/lib/auth/verification";
 import type { RelationshipConnectStatus } from "@/lib/data/relationships";
 import {
     acceptConnectRequestAction,
@@ -134,10 +134,10 @@ export function LimitedProfileConnect({ targetDid }: { targetDid: string }) {
     );
 
     if (isOwn) return null;
-    const canSend = canPerformRestrictedAction(user);
+    const canSend = canSendConnectionRequest(user);
 
     return (
-        <div className="mt-4" data-limited-connect="">
+        <div className="mt-4" data-limited-connect="" data-can-connect={canSend ? "true" : "false"}>
             <LimitedProfileConnectControls
                 status={status}
                 canSend={canSend}
