@@ -18,3 +18,8 @@ export const showsCrewDashboardButton = (circle: Circle, authorizedToEdit: boole
 
 export const CREW_OFF_APPLICATION_MESSAGE =
     "Crew is switched off for this profile, so it isn't taking applications right now.";
+
+// The Leave Crew button in the Crew page's Crew card (backlog item 2, 2026-11-25): Crew members
+// only. Admins and moderators who aren't Crew see the Crew page too, but get no button.
+export const showsLeaveCrewButton = (userGroups: string[] | undefined): boolean =>
+    userGroups?.includes("crew") ?? false;

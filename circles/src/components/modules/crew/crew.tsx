@@ -7,6 +7,8 @@ import CrewSpaceModule from "./crew-space";
 import CrewOffersWidget from "./crew-offers-widget";
 import CrewLanding from "./crew-landing";
 import CrewShiftsPanel from "./crew-shifts-panel";
+import LeaveCrewButton from "./leave-crew-button";
+import { showsLeaveCrewButton } from "@/lib/peerify/crew-visibility";
 import { getCrewShiftsAndTasksAction } from "./actions";
 import ContentDisplayWrapper from "@/components/utils/content-display-wrapper";
 import { Circle } from "@/models/models";
@@ -71,6 +73,13 @@ export default async function CrewModule({ circle }: CrewModuleProps) {
                         <ContentDisplayWrapper content={members}>
                             <CrewMemberRail circle={circle} members={members} />
                         </ContentDisplayWrapper>
+                        {/* Backlog item 2: an obvious way out, for Crew members only. Leaving keeps
+                            the follow (leaveCrewAction drops only the "crew" group). */}
+                        {showsLeaveCrewButton(viewerMember?.userGroups) && circle._id ? (
+                            <div className="mt-4 border-t border-black/5 pt-3">
+                                <LeaveCrewButton circleId={String(circle._id)} circleName={circle.name ?? ""} />
+                            </div>
+                        ) : null}
                     </div>
                     <CrewOffersWidget circle={circle} />
                 </div>
