@@ -38,6 +38,10 @@ import { findOrCreateDMConversationAction } from "../modules/chat/actions";
 import { getConnectStatusesAction } from "../modules/home/actions";
 import type { RelationshipConnectStatus } from "@/lib/data/relationships";
 import { showsActorPicture } from "./notification-avatar";
+import {
+    getNotificationActionClassName as getNotificationActionClassNameFor,
+    getNotificationActionLabel as getNotificationActionLabelFor,
+} from "./notification-actions";
 
 type Notification = {
     id: string;
@@ -641,83 +645,20 @@ export const Notifications = ({
         [user?.handle],
     );
 
-    const getNotificationActionLabel = useCallback((groupedNotification: GroupedNotification) => {
-        const notification = groupedNotification.latestNotification;
-        const href = getNotificationHref(notification);
+    const getNotificationActionLabel = useCallback(
+        (groupedNotification: GroupedNotification) =>
+            getNotificationActionLabelFor(
+                groupedNotification.latestNotification.notificationType,
+                getNotificationHref(groupedNotification.latestNotification),
+            ),
+        [getNotificationHref],
+    );
 
-        if (!href) {
-            return null;
-        }
-
-        switch (notification.notificationType) {
-            case "contact_request_received":
-                return "Respond";
-            case "contact_request_accepted":
-                return "Message";
-            case "pm_received":
-                return "Reply";
-            case "task_assigned":
-            case "task_shift_signup":
-                return "Review";
-            case "user_verification_request":
-            case "user_verification_reply_received":
-            case "event_host_change_requested":
-            case "crew_application":
-            case "admin_invitation_received":
-                return "Review";
-            case "admin_invitation_decided":
-                return "View";
-            case "crew_application_approved":
-                return "View Crew";
-            case "crew_broadcast":
-                return "View Broadcast";
-            case "user_verification_clarification_requested":
-                return "Respond";
-            case "task_shift_confirmed":
-                return "Open";
-            case "task_accepted":
-                return "View";
-            case "task_shift_attendance_verified":
-            case "task_changes_requested":
-            case "task_verified":
-            case "task_claim_approved":
-            case "task_claim_declined":
-            case "task_shift_declined":
-            case "post_comment":
-            case "comment_reply":
-            case "post_mention":
-            case "comment_mention":
-            case "track_comment":
-            case "task_status_changed":
-            case "task_approved":
-            case "task_submitted_for_review":
-            case "task_claim_submitted":
-            case "task_changes_requested":
-            case "task_verified":
-            case "issue_assigned":
-            case "issue_status_changed":
-            case "issue_approved":
-            case "issue_submitted_for_review":
-            case "goal_status_changed":
-            case "goal_approved":
-            case "goal_submitted_for_review":
-            case "proposal_submitted_for_review":
-            case "proposal_moved_to_voting":
-            case "proposal_approved_for_voting":
-            case "proposal_resolved":
-                return "View";
-            default:
-                return null;
-        }
-    }, [getNotificationHref]);
-
-    const getNotificationActionClassName = useCallback((groupedNotification: GroupedNotification) => {
-        if (groupedNotification.latestNotification.notificationType === "contact_request_received") {
-            return "ml-2 rounded-full bg-amber-500 px-3 py-1 text-xs font-medium text-white shadow-sm hover:bg-amber-600";
-        }
-
-        return "ml-2 rounded-md border px-2 py-1 text-xs text-gray-600 hover:bg-gray-100";
-    }, []);
+    const getNotificationActionClassName = useCallback(
+        (groupedNotification: GroupedNotification) =>
+            getNotificationActionClassNameFor(groupedNotification.latestNotification.notificationType),
+        [],
+    );
 
     const handleNotificationClick = useCallback(async (groupedNotification: GroupedNotification) => {
         await markNotificationGroupAsRead(groupedNotification);
