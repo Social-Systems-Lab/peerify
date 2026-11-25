@@ -1,5 +1,7 @@
-// Pure: no database, no I/O. Whether a task notice still needs its recipient to act (backlog
-// item 3, 2026-11-25). Worked out each time the bell loads, from the task as it is now, rather
+// Pure: no database, no I/O. Whether a notice still needs its recipient to act (backlog item 3,
+// 2026-11-25; every decision notice, crew polish 2026-11-25). Each notice type that asks its
+// recipient to decide something has one rule below, reading facts loaded once per bell load
+// (loadNoticeFacts in notifications.ts). Worked out each time the bell loads, from the task as it is now, rather
 // than stored on the notice: the claim can be approved on the task page or by another organiser,
 // the task reassigned or deleted, and every one of those would otherwise need its own hook (and
 // notices from before today would never clear).
@@ -12,7 +14,7 @@
 //    assigned to the recipient and not yet accepted. The same test as the task page's
 //    "Confirm I'll do this" / "Accept Task" button (task-detail.tsx).
 //
-// Only `needed` and, for a claim, its id go back to the browser: nothing else from the task.
+// Only `needed` and, for a claim, its id go back to the browser: nothing else from the records.
 
 export type TaskActionFacts = {
     _id: string;
@@ -23,7 +25,7 @@ export type TaskActionFacts = {
     claims?: { claimId?: string; claimantDid?: string; status?: string }[];
 };
 
-export type TaskNoticeAction = { needed: boolean; claimId?: string };
+export type NoticeAction = { needed: boolean; claimId?: string };
 
 export const CLAIM_REVIEW_NOTICE_TYPES = new Set(["task_claim_submitted"]);
 export const ASSIGNEE_CONFIRM_NOTICE_TYPES = new Set(["task_assigned", "task_claim_approved"]);
@@ -38,7 +40,7 @@ export const getTaskNoticeAction = (
     content: Record<string, any> | undefined,
     task: TaskActionFacts | undefined,
     recipientDid: string,
-): TaskNoticeAction | undefined => {
+): NoticeAction | undefined => {
     if (!isTaskActionNoticeType(type)) {
         return undefined;
     }
@@ -60,32 +62,82 @@ export const getTaskNoticeAction = (
     return { needed: task.assignedTo === recipientDid && !task.acceptedBy };
 };
 
-// The task ids the bell's page of notices needs, for one lookup.
-export const getTaskIdsForActionNotices = (notices: { type: string; content?: Record<string, any> }[]): string[] => {
-    const ids = new Set<string>();
-    for (const notice of notices) {
-        const taskId = notice.content?.taskId;
-        if (isTaskActionNoticeType(notice.type) && typeof taskId === "string" && /^[0-9a-f]{24}$/i.test(taskId)) {
-            ids.add(taskId);
-        }
-    }
-    return [...ids];
+// --- Every notice type ---------------------------------------------------------------------------
+
+type NoticeContent = Record<string, any> | undefined;
+type Notice = { type: string; content?: NoticeContent };
+
+// What the rules read, loaded once per bell load for the notices on the page.
+export type NoticeFacts = {
+    tasks: TaskActionFacts[];
 };
 
-// Adds `taskAction` to each task notice that can need action; other notices are returned as they are.
-export const withTaskNoticeActions = <T extends { type: string; content?: Record<string, any> }>(
-    notices: T[],
-    tasks: TaskActionFacts[],
+export const emptyNoticeFacts = (): NoticeFacts => ({ tasks: [] });
+
+const OBJECT_ID = /^[0-9a-f]{24}$/i;
+export const isObjectIdString = (value: unknown): value is string => typeof value === "string" && OBJECT_ID.test(value);
+
+type IndexedFacts = {
+    tasksById: Map<string, TaskActionFacts>;
+};
+
+const indexFacts = (facts: NoticeFacts): IndexedFacts => ({
+    tasksById: new Map(facts.tasks.map((task) => [String(task._id), task])),
+});
+
+type Rule = (content: NoticeContent, facts: IndexedFacts, recipientDid: string, type: string) => NoticeAction;
+
+const taskRule: Rule = (content, facts, recipientDid, type) =>
+    getTaskNoticeAction(type, content, facts.tasksById.get(String(content?.taskId ?? "")), recipientDid) ?? {
+        needed: false,
+    };
+
+const RULES: Record<string, Rule> = {
+    task_claim_submitted: taskRule,
+    task_assigned: taskRule,
+    task_claim_approved: taskRule,
+};
+
+export const isActionNoticeType = (type: string): boolean => type in RULES;
+
+export const getNoticeAction = (
+    type: string,
+    content: NoticeContent,
+    facts: NoticeFacts,
     recipientDid: string,
-): (T & { taskAction?: TaskNoticeAction })[] => {
-    const byId = new Map(tasks.map((task) => [String(task._id), task]));
+): NoticeAction | undefined => {
+    const rule = RULES[type];
+    return rule ? rule(content, indexFacts(facts), recipientDid, type) : undefined;
+};
+
+// What to look up for this page of notices: one query per kind, only for the types present.
+export type NoticeLookups = {
+    taskIds: string[];
+};
+
+export const getNoticeLookups = (notices: Notice[]): NoticeLookups => {
+    const taskIds = new Set<string>();
+    for (const notice of notices) {
+        const content = notice.content;
+        if (isTaskActionNoticeType(notice.type) && isObjectIdString(content?.taskId)) {
+            taskIds.add(content.taskId);
+        }
+    }
+    return { taskIds: [...taskIds] };
+};
+
+export const hasNoticeLookups = (lookups: NoticeLookups): boolean => lookups.taskIds.length > 0;
+
+// Adds `action` to each notice that can need action; other notices are returned as they are.
+export const withNoticeActions = <T extends Notice>(
+    notices: T[],
+    facts: NoticeFacts,
+    recipientDid: string,
+): (T & { action?: NoticeAction })[] => {
+    const indexed = indexFacts(facts);
     return notices.map((notice) => {
-        const taskAction = getTaskNoticeAction(
-            notice.type,
-            notice.content,
-            byId.get(String(notice.content?.taskId ?? "")),
-            recipientDid,
-        );
-        return taskAction ? { ...notice, taskAction } : notice;
+        const rule = RULES[notice.type];
+        if (!rule) return notice;
+        return { ...notice, action: rule(notice.content, indexed, recipientDid, notice.type) };
     });
 };

@@ -45,7 +45,15 @@ Notifications?.createIndex({ userId: 1, type: 1, actorDid: 1, createdAt: -1 });
 // Notification content shape (leak round 3, 2026-11-05): see notification-shape.ts.
 export { shapeNotificationContent } from "./notification-shape";
 import { shapeNotificationContent } from "./notification-shape";
-import { getTaskIdsForActionNotices, withTaskNoticeActions, type TaskActionFacts } from "./notification-action-state";
+import {
+    emptyNoticeFacts,
+    getNoticeLookups,
+    hasNoticeLookups,
+    withNoticeActions,
+    type NoticeFacts,
+    type NoticeLookups,
+    type TaskActionFacts,
+} from "./notification-action-state";
 
 const getSummaryNotificationType = (type: string): SummaryNotificationType | null => {
     const directMatch = Object.keys(summaryNotificationTypeDetails).find((summaryType) => summaryType === type);
@@ -419,37 +427,35 @@ export async function listNotificationsForUser(
         ...notification,
         content: shapeStoredNotificationContent(notification.type, notification.content),
     }));
-    return await addTaskNoticeActions(shaped, userDid);
+    return await addNoticeActions(shaped, userDid);
 }
 
-// Backlog item 3 (2026-11-25): whether each task notice still needs the recipient to act, from the
-// tasks as they are now (notification-action-state.ts). One lookup for the page, only the fields
-// the rule reads (claims whole: they stay on the server); nothing from the tasks is sent on except
-// `taskAction`. If the lookup fails the
-// notices go out without it, as before (plain View buttons).
-async function addTaskNoticeActions<T extends { type: string; content?: any }>(notices: T[], userDid: string) {
-    const taskIds = getTaskIdsForActionNotices(notices);
-    if (taskIds.length === 0) {
-        return notices;
+// Backlog item 3 and crew polish (2026-11-25): whether each notice that asks its recipient to decide
+// something still needs them, from the records as they are now (notification-action-state.ts). One
+// lookup per kind of record, only for the types on this page, reading only the fields the rules
+// read (task claims whole: they stay on the server). Only `action` is sent on. If a lookup fails,
+// the notices go out without it, as before (plain buttons).
+async function loadNoticeFacts(lookups: NoticeLookups): Promise<NoticeFacts> {
+    const facts = emptyNoticeFacts();
+    if (lookups.taskIds.length > 0) {
+        const tasks = await Tasks.find(
+            { _id: { $in: lookups.taskIds.map((id) => new ObjectId(id)) } },
+            { projection: { _id: 1, stage: 1, taskType: 1, assignedTo: 1, acceptedBy: 1, claims: 1 } },
+        ).toArray();
+        facts.tasks = tasks.map((task: any): TaskActionFacts => ({ ...task, _id: String(task._id) }));
+    }
+    return facts;
+}
+
+async function addNoticeActions<T extends { type: string; content?: any }>(notices: T[], userDid: string) {
+    const lookups = getNoticeLookups(notices);
+    if (!hasNoticeLookups(lookups)) {
+        return withNoticeActions(notices, emptyNoticeFacts(), userDid);
     }
     try {
-        const tasks = await Tasks.find(
-            { _id: { $in: taskIds.map((id) => new ObjectId(id)) } },
-            {
-                projection: {
-                    _id: 1,
-                    stage: 1,
-                    taskType: 1,
-                    assignedTo: 1,
-                    acceptedBy: 1,
-                    claims: 1,
-                },
-            },
-        ).toArray();
-        const facts: TaskActionFacts[] = tasks.map((task: any) => ({ ...task, _id: String(task._id) }));
-        return withTaskNoticeActions(notices, facts, userDid);
+        return withNoticeActions(notices, await loadNoticeFacts(lookups), userDid);
     } catch (error) {
-        console.error("Failed to work out task notice actions:", error);
+        console.error("Failed to work out notice actions:", error);
         return notices;
     }
 }

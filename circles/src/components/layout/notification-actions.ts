@@ -2,24 +2,34 @@
 // notifications.tsx (2026-11-25, backlog item 3) so they can be tested, as notification-avatar.ts
 // was. A notice with no link gets no button.
 //
-// Backlog item 3 (2026-11-25): a task notice that still needs its recipient (taskAction.needed,
-// worked out on load in lib/data/notification-action-state.ts) gets an inline button instead of
-// View: Approve on a claim (organisers), Accept on an assignment or an approved claim (the
-// assignee). It stands out, with an "Action needed" line, until it's handled. Decline stays on the
-// task page; clicking the row still opens the task.
-import type { TaskNoticeAction } from "@/lib/data/notification-action-state";
+// Backlog item 3 (2026-11-25): a notice that still needs its recipient (action.needed, worked out
+// on load in lib/data/notification-action-state.ts) stands out until it's handled: an amber
+// border, an amber button and an "Action needed" line (ACTION_NEEDED_REMINDERS; crew polish
+// 2026-11-25 widened it from task notices to every decision notice). Task claims and assignments
+// also get an inline button instead of View: Approve on a claim (organisers), Accept on an
+// assignment or an approved claim (the assignee). Decline stays on the task page; clicking the row
+// still opens the item.
+import type { NoticeAction } from "@/lib/data/notification-action-state";
+
+// The "Action needed" line per notice type. A type that can need action but isn't listed gets the
+// plain "Action needed".
+const ACTION_NEEDED_REMINDERS: Record<string, string> = {
+    task_claim_submitted: "Action needed: approve this claim, or open the task to decline it",
+    task_assigned: "Action needed: please confirm you'll do this",
+    task_claim_approved: "Action needed: please confirm you'll do this",
+};
 
 export type InlineTaskAction = "approveClaim" | "acceptTask";
 
 export const getInlineTaskAction = (
     notificationType: string,
-    taskAction: TaskNoticeAction | undefined,
+    action: NoticeAction | undefined,
 ): InlineTaskAction | null => {
-    if (!taskAction?.needed) {
+    if (!action?.needed) {
         return null;
     }
     if (notificationType === "task_claim_submitted") {
-        return taskAction.claimId ? "approveClaim" : null;
+        return action.claimId ? "approveClaim" : null;
     }
     if (notificationType === "task_assigned" || notificationType === "task_claim_approved") {
         return "acceptTask";
@@ -27,30 +37,19 @@ export const getInlineTaskAction = (
     return null;
 };
 
-export const getActionNeededReminder = (
-    notificationType: string,
-    taskAction: TaskNoticeAction | undefined,
-): string | null => {
-    switch (getInlineTaskAction(notificationType, taskAction)) {
-        case "approveClaim":
-            return "Action needed: approve this claim, or open the task to decline it";
-        case "acceptTask":
-            return "Action needed: please confirm you'll do this";
-        default:
-            return null;
-    }
-};
+export const getActionNeededReminder = (notificationType: string, action: NoticeAction | undefined): string | null =>
+    action?.needed ? (ACTION_NEEDED_REMINDERS[notificationType] ?? "Action needed") : null;
 
 export const getNotificationActionLabel = (
     notificationType: string,
     href: string | null,
-    taskAction?: TaskNoticeAction,
+    action?: NoticeAction,
 ): string | null => {
     if (!href) {
         return null;
     }
 
-    const inlineAction = getInlineTaskAction(notificationType, taskAction);
+    const inlineAction = getInlineTaskAction(notificationType, action);
     if (inlineAction === "approveClaim") {
         return "Approve";
     }
@@ -122,7 +121,5 @@ const PRIMARY_ACTION_CLASS =
     "ml-2 rounded-full bg-amber-500 px-3 py-1 text-xs font-medium text-white shadow-sm hover:bg-amber-600";
 const DEFAULT_ACTION_CLASS = "ml-2 rounded-md border px-2 py-1 text-xs text-gray-600 hover:bg-gray-100";
 
-export const getNotificationActionClassName = (notificationType: string, taskAction?: TaskNoticeAction): string =>
-    notificationType === "contact_request_received" || getInlineTaskAction(notificationType, taskAction)
-        ? PRIMARY_ACTION_CLASS
-        : DEFAULT_ACTION_CLASS;
+export const getNotificationActionClassName = (notificationType: string, action?: NoticeAction): string =>
+    notificationType === "contact_request_received" || action?.needed ? PRIMARY_ACTION_CLASS : DEFAULT_ACTION_CLASS;

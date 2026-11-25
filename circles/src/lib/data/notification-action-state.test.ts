@@ -5,15 +5,17 @@
 //    for the bell's Approve button (notices don't store one).
 //  - task_assigned / task_claim_approved: needed while the task is open, assigned to the recipient
 //    and not yet accepted.
+// Crew polish (2026-11-25): one `action` field for every notice type with a rule (getNoticeAction).
 // The last block runs listNotificationsForUser on in-memory fakes (testing/fake-db.ts).
 
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { ObjectId } from "mongodb";
 import { createFakeDb } from "@/lib/testing/fake-db";
 import {
-    getTaskIdsForActionNotices,
+    getNoticeAction,
+    getNoticeLookups,
     getTaskNoticeAction,
-    withTaskNoticeActions,
+    withNoticeActions,
     type TaskActionFacts,
 } from "./notification-action-state";
 
@@ -105,7 +107,7 @@ describe("other notices", () => {
     });
 
     test("only valid task ids of action notices are looked up, once each", () => {
-        const ids = getTaskIdsForActionNotices([
+        const { taskIds: ids } = getNoticeLookups([
             { type: "task_assigned", content: { taskId: TASK_ID } },
             { type: "task_claim_submitted", content: { taskId: TASK_ID } },
             { type: "task_accepted", content: { taskId: "64a000000000000000007999" } },
@@ -114,15 +116,15 @@ describe("other notices", () => {
         expect(ids).toEqual([TASK_ID]);
     });
 
-    test("only taskAction is added; nothing from the task leaks into the notice", () => {
+    test("only action is added; nothing from the task leaks into the notice", () => {
         const notices = [
             { type: "task_claim_submitted", content: claimNotice() },
             { type: "post_like", content: {} },
         ];
         const secretTask = { ...task({ claims: [{ ...pendingClaim, note: "my phone is 555" } as any] }), title: "T" };
-        const [claim, like] = withTaskNoticeActions(notices, [secretTask], ORGANISER);
-        expect(Object.keys(claim).sort()).toEqual(["content", "taskAction", "type"]);
-        expect(claim.taskAction).toEqual({ needed: true, claimId: "claim-1" });
+        const [claim, like] = withNoticeActions(notices, { tasks: [secretTask] }, ORGANISER);
+        expect(Object.keys(claim).sort()).toEqual(["action", "content", "type"]);
+        expect(claim.action).toEqual({ needed: true, claimId: "claim-1" });
         expect(JSON.stringify(claim)).not.toContain("555");
         expect(like).toEqual(notices[1]);
     });
@@ -130,7 +132,7 @@ describe("other notices", () => {
 
 const { listNotificationsForUser } = await import("./notifications");
 
-describe("listNotificationsForUser adds taskAction from the stored task", () => {
+describe("listNotificationsForUser adds action from the stored task", () => {
     beforeEach(() => {
         fakeDb.reset({
             Tasks: [
@@ -165,8 +167,8 @@ describe("listNotificationsForUser adds taskAction from the stored task", () => 
 
     test("pending claim: needed with its id; other notices unchanged; no task fields sent", async () => {
         const [claim, like] = (await listNotificationsForUser(ORGANISER, 50)) as any[];
-        expect(claim.taskAction).toEqual({ needed: true, claimId: "claim-1" });
-        expect(like.taskAction).toBeUndefined();
+        expect(claim.action).toEqual({ needed: true, claimId: "claim-1" });
+        expect(like.action).toBeUndefined();
         expect(JSON.stringify(claim)).not.toContain("private note");
         expect(JSON.stringify(claim)).not.toContain("Carry chairs");
     });
@@ -175,6 +177,21 @@ describe("listNotificationsForUser adds taskAction from the stored task", () => 
         fakeDb.col("Tasks").docs[0].claims[0].status = "approved";
         fakeDb.col("Tasks").docs[0].assignedTo = CLAIMANT;
         const [claim] = (await listNotificationsForUser(ORGANISER, 50)) as any[];
-        expect(claim.taskAction).toEqual({ needed: false });
+        expect(claim.action).toEqual({ needed: false });
+    });
+});
+
+describe("the general rule table", () => {
+    test("task types go through the task rule; others have none (yet)", () => {
+        const facts = { tasks: [task({ claims: [pendingClaim] })] };
+        expect(getNoticeAction("task_claim_submitted", claimNotice(), facts, ORGANISER)).toEqual({
+            needed: true,
+            claimId: "claim-1",
+        });
+        expect(getNoticeAction("post_like", {}, facts, ORGANISER)).toBeUndefined();
+    });
+
+    test("a rule's notice whose record isn't found: not needed (never a wrong amber)", () => {
+        expect(getNoticeAction("task_assigned", assigneeNotice, { tasks: [] }, CLAIMANT)).toEqual({ needed: false });
     });
 });

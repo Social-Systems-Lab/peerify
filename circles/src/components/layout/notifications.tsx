@@ -44,7 +44,7 @@ import {
     getNotificationActionClassName as getNotificationActionClassNameFor,
     getNotificationActionLabel as getNotificationActionLabelFor,
 } from "./notification-actions";
-import type { TaskNoticeAction } from "@/lib/data/notification-action-state";
+import type { NoticeAction } from "@/lib/data/notification-action-state";
 import { acceptTaskAction, reviewTaskClaimAction } from "@/app/circles/[handle]/tasks/actions";
 
 type Notification = {
@@ -98,8 +98,8 @@ type Notification = {
     // Connection request fields (top level on the stored record, not in content)
     actorDid?: string;
     resolution?: ConnectionRequestResolution;
-    // Task notices that can need their recipient (top level, worked out on load; backlog item 3)
-    taskAction?: TaskNoticeAction;
+    // Notices that can need their recipient (top level, worked out on load; backlog item 3)
+    action?: NoticeAction;
     // For grouping purposes
     key?: string;
 };
@@ -146,7 +146,7 @@ type StoredNotificationRecord = {
     createdAt: string | Date;
     actorDid?: string;
     resolution?: ConnectionRequestResolution;
-    taskAction?: TaskNoticeAction;
+    action?: NoticeAction;
 };
 
 export const Notifications = ({
@@ -312,7 +312,7 @@ export const Notifications = ({
                     invitationId: typeof content.invitationId === "string" ? content.invitationId : undefined,
                     actorDid: record.actorDid ?? content.user?.did,
                     resolution: record.resolution,
-                    taskAction: record.taskAction,
+                    action: record.action,
                     key: groupKey,
                 };
 
@@ -658,7 +658,7 @@ export const Notifications = ({
             getNotificationActionLabelFor(
                 groupedNotification.latestNotification.notificationType,
                 getNotificationHref(groupedNotification.latestNotification),
-                groupedNotification.latestNotification.taskAction,
+                groupedNotification.latestNotification.action,
             ),
         [getNotificationHref],
     );
@@ -667,7 +667,7 @@ export const Notifications = ({
         (groupedNotification: GroupedNotification) =>
             getNotificationActionClassNameFor(
                 groupedNotification.latestNotification.notificationType,
-                groupedNotification.latestNotification.taskAction,
+                groupedNotification.latestNotification.action,
             ),
         [],
     );
@@ -720,7 +720,7 @@ export const Notifications = ({
     const runInlineTaskAction = useCallback(
         async (groupedNotification: GroupedNotification) => {
             const notification = groupedNotification.latestNotification;
-            const action = getInlineTaskAction(notification.notificationType, notification.taskAction);
+            const action = getInlineTaskAction(notification.notificationType, notification.action);
             const circleHandle = notification.circle?.handle;
             const taskId = notification.taskId;
             if (!action || !circleHandle || !taskId) {
@@ -734,7 +734,7 @@ export const Notifications = ({
                         ? await reviewTaskClaimAction(
                               circleHandle,
                               taskId,
-                              notification.taskAction?.claimId ?? "",
+                              notification.action?.claimId ?? "",
                               "approved",
                           )
                         : await acceptTaskAction(circleHandle, taskId);
@@ -937,7 +937,7 @@ export const Notifications = ({
                             } ${
                                 getActionNeededReminder(
                                     groupedNotification.latestNotification.notificationType,
-                                    groupedNotification.latestNotification.taskAction,
+                                    groupedNotification.latestNotification.action,
                                 )
                                     ? "border-l-4 border-amber-400"
                                     : ""
@@ -945,7 +945,7 @@ export const Notifications = ({
                             data-action-needed={
                                 getActionNeededReminder(
                                     groupedNotification.latestNotification.notificationType,
-                                    groupedNotification.latestNotification.taskAction,
+                                    groupedNotification.latestNotification.action,
                                 )
                                     ? "true"
                                     : undefined
@@ -1035,12 +1035,12 @@ export const Notifications = ({
                                 <p className="text-sm">{createGroupedMessage(groupedNotification)}</p>
                                 {getActionNeededReminder(
                                     groupedNotification.latestNotification.notificationType,
-                                    groupedNotification.latestNotification.taskAction,
+                                    groupedNotification.latestNotification.action,
                                 ) ? (
                                     <p className="text-xs font-medium text-amber-700">
                                         {getActionNeededReminder(
                                             groupedNotification.latestNotification.notificationType,
-                                            groupedNotification.latestNotification.taskAction,
+                                            groupedNotification.latestNotification.action,
                                         )}
                                     </p>
                                 ) : null}
@@ -1085,7 +1085,7 @@ export const Notifications = ({
                                             if (
                                                 getInlineTaskAction(
                                                     groupedNotification.latestNotification.notificationType,
-                                                    groupedNotification.latestNotification.taskAction,
+                                                    groupedNotification.latestNotification.action,
                                                 )
                                             ) {
                                                 void runInlineTaskAction(groupedNotification);

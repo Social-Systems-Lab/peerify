@@ -109,3 +109,22 @@ describe("the action-needed state", () => {
         expect(getNotificationActionClassName("task_assigned", HANDLED)).not.toContain("bg-amber-500");
     });
 });
+
+// Crew polish (2026-11-25): the amber state and "Action needed" line follow action.needed for any
+// notice type, not only task claims and assignments.
+describe("action needed on any notice type", () => {
+    test("a type without its own line gets the plain one, and the amber button", () => {
+        expect(getActionNeededReminder("some_new_request", NEEDED)).toBe("Action needed");
+        expect(getNotificationActionClassName("some_new_request", NEEDED)).toContain("bg-amber-500");
+    });
+
+    test("its label stays the usual one (no inline action)", () => {
+        expect(getNotificationActionLabel("crew_application", HREF, NEEDED)).toBe("Review");
+    });
+
+    test("not needed or unknown: plain", () => {
+        expect(getActionNeededReminder("crew_application", HANDLED)).toBeNull();
+        expect(getNotificationActionClassName("crew_application", HANDLED)).not.toContain("bg-amber-500");
+        expect(getNotificationActionClassName("crew_application", undefined)).not.toContain("bg-amber-500");
+    });
+});
