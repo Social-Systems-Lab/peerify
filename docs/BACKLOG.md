@@ -313,6 +313,16 @@ Each item can become one GitHub issue: the heading is the issue title, and the r
 - **Area:** UI · **Type:** Review · **Priority:** P2 · **Size:** M
 - **Done when:** Main flows (signup, profile setup, map, events, crew) are checked on a phone, and issues filed.
 
+### 67. Simpler sorting on the followers list
+- **Area:** Circles, Followers · **Type:** UX · **Priority:** P3 · **Size:** S
+- **Problem:** The followers list (admins only) shows the Top / New / Activity / Resonates tabs from the shared list filter. They mean little for a list of followers, and it isn't clear what Top ranks by.
+- **Proposal:**
+  - Hide the four tabs on the followers list only (hide, don't delete; feeds and events keep them).
+  - Default to newest followers first.
+  - Clickable Follower and Followed At column headers sort by name (A–Z) or by date.
+  - Keep the user-group dropdown ("Everyone").
+- **Done when:** The followers list has no tabs, opens newest first, and sorts by name or date from the column headers.
+
 ---
 
 ## Payments and memberships
@@ -379,6 +389,11 @@ Each item can become one GitHub issue: the heading is the issue title, and the r
 - **Area:** Admin · **Type:** Bug · **Priority:** P3 · **Size:** S
 - **Problem:** The admin dashboard and the system messages tab use a second toast library whose display isn't mounted anywhere, so their 38 messages never show.
 - **Done when:** Those screens use the platform's main toasts, and their messages appear.
+
+### 68. Leading "@" in search not ignored in the browser
+- **Area:** Search · **Type:** Bug · **Priority:** P3 · **Size:** S
+- **Problem:** Commit `60e829bf` should make "@handle" search like "handle", and its tests pass, but on staging typing "@" plus a handle didn't find the person.
+- **Done when:** We know why the browser differs from the tests, and either it works or the change is removed. Keep "@" free for mentions (see item 54).
 
 ---
 
@@ -455,3 +470,5 @@ Each item can become one GitHub issue: the heading is the issue title, and the r
 - Tour-routing optimisation.
 - Merch logistics and complex fan-club billing.
 - Royalty and licensing engine, and collecting-society integration.
+
+- 
