@@ -1,4 +1,5 @@
 // src/lib/data/notifications.ts - Functions to send and group notifications
+import { ObjectId } from "mongodb";
 import {
     Circle,
     Comment,
@@ -21,7 +22,7 @@ import {
     Track,
     ConnectionRequestResolution,
 } from "@/models/models";
-import { DefaultNotificationSettings, Notifications, UserNotificationSettings } from "./db";
+import { DefaultNotificationSettings, Notifications, Tasks, UserNotificationSettings } from "./db";
 import { sanitizeObjectForJSON } from "../utils/sanitize";
 import { getUser, getUserPrivate } from "./user";
 import { canUserViewPost, getFeed, getPost } from "./feed";
@@ -44,6 +45,7 @@ Notifications?.createIndex({ userId: 1, type: 1, actorDid: 1, createdAt: -1 });
 // Notification content shape (leak round 3, 2026-11-05): see notification-shape.ts.
 export { shapeNotificationContent } from "./notification-shape";
 import { shapeNotificationContent } from "./notification-shape";
+import { getTaskIdsForActionNotices, withTaskNoticeActions, type TaskActionFacts } from "./notification-action-state";
 
 const getSummaryNotificationType = (type: string): SummaryNotificationType | null => {
     const directMatch = Object.keys(summaryNotificationTypeDetails).find((summaryType) => summaryType === type);
@@ -409,10 +411,43 @@ export async function listNotificationsForUser(
         .sort({ createdAt: -1, _id: -1 })
         .limit(limit)
         .toArray();
-    return notifications.map((notification) => ({
+    const shaped = notifications.map((notification) => ({
         ...notification,
         content: shapeStoredNotificationContent(notification.type, notification.content),
     }));
+    return await addTaskNoticeActions(shaped, userDid);
+}
+
+// Backlog item 3 (2026-11-25): whether each task notice still needs the recipient to act, from the
+// tasks as they are now (notification-action-state.ts). One lookup for the page, only the fields
+// the rule reads (claims whole: they stay on the server); nothing from the tasks is sent on except
+// `taskAction`. If the lookup fails the
+// notices go out without it, as before (plain View buttons).
+async function addTaskNoticeActions<T extends { type: string; content?: any }>(notices: T[], userDid: string) {
+    const taskIds = getTaskIdsForActionNotices(notices);
+    if (taskIds.length === 0) {
+        return notices;
+    }
+    try {
+        const tasks = await Tasks.find(
+            { _id: { $in: taskIds.map((id) => new ObjectId(id)) } },
+            {
+                projection: {
+                    _id: 1,
+                    stage: 1,
+                    taskType: 1,
+                    assignedTo: 1,
+                    acceptedBy: 1,
+                    claims: 1,
+                },
+            },
+        ).toArray();
+        const facts: TaskActionFacts[] = tasks.map((task: any) => ({ ...task, _id: String(task._id) }));
+        return withTaskNoticeActions(notices, facts, userDid);
+    } catch (error) {
+        console.error("Failed to work out task notice actions:", error);
+        return notices;
+    }
 }
 
 export async function getUnreadNotificationCountForUser(userDid: string, options?: NotificationQueryOptions) {
