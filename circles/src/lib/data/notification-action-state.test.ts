@@ -12,12 +12,16 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { ObjectId } from "mongodb";
 import { createFakeDb } from "@/lib/testing/fake-db";
 import {
+    emptyNoticeFacts,
     getNoticeAction,
     getNoticeLookups,
     getTaskNoticeAction,
     withNoticeActions,
+    type NoticeFacts,
     type TaskActionFacts,
 } from "./notification-action-state";
+
+const factsWith = (facts: Partial<NoticeFacts>): NoticeFacts => ({ ...emptyNoticeFacts(), ...facts });
 
 const fakeDb = createFakeDb();
 mock.module("@/lib/data/db", () => fakeDb.module);
@@ -122,7 +126,7 @@ describe("other notices", () => {
             { type: "post_like", content: {} },
         ];
         const secretTask = { ...task({ claims: [{ ...pendingClaim, note: "my phone is 555" } as any] }), title: "T" };
-        const [claim, like] = withNoticeActions(notices, { tasks: [secretTask] }, ORGANISER);
+        const [claim, like] = withNoticeActions(notices, factsWith({ tasks: [secretTask] }), ORGANISER);
         expect(Object.keys(claim).sort()).toEqual(["action", "content", "type"]);
         expect(claim.action).toEqual({ needed: true, claimId: "claim-1" });
         expect(JSON.stringify(claim)).not.toContain("555");
@@ -182,16 +186,18 @@ describe("listNotificationsForUser adds action from the stored task", () => {
 });
 
 describe("the general rule table", () => {
-    test("task types go through the task rule; others have none (yet)", () => {
-        const facts = { tasks: [task({ claims: [pendingClaim] })] };
-        expect(getNoticeAction("task_claim_submitted", claimNotice(), facts, ORGANISER)).toEqual({
+    test("task types go through the task rule; types without a rule are left alone", () => {
+        const facts = factsWith({ tasks: [task({ claims: [pendingClaim] })] });
+        expect(getNoticeAction({ type: "task_claim_submitted", content: claimNotice() }, facts, ORGANISER)).toEqual({
             needed: true,
             claimId: "claim-1",
         });
-        expect(getNoticeAction("post_like", {}, facts, ORGANISER)).toBeUndefined();
+        expect(getNoticeAction({ type: "post_like", content: {} }, facts, ORGANISER)).toBeUndefined();
     });
 
     test("a rule's notice whose record isn't found: not needed (never a wrong amber)", () => {
-        expect(getNoticeAction("task_assigned", assigneeNotice, { tasks: [] }, CLAIMANT)).toEqual({ needed: false });
+        expect(getNoticeAction({ type: "task_assigned", content: assigneeNotice }, emptyNoticeFacts(), CLAIMANT)).toEqual({
+            needed: false,
+        });
     });
 });

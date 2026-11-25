@@ -22,7 +22,14 @@ import {
     Track,
     ConnectionRequestResolution,
 } from "@/models/models";
-import { DefaultNotificationSettings, Notifications, Tasks, UserNotificationSettings } from "./db";
+import {
+    CrewApplications,
+    DefaultNotificationSettings,
+    MembershipRequests,
+    Notifications,
+    Tasks,
+    UserNotificationSettings,
+} from "./db";
 import { sanitizeObjectForJSON } from "../utils/sanitize";
 import { getUser, getUserPrivate } from "./user";
 import { canUserViewPost, getFeed, getPost } from "./feed";
@@ -52,6 +59,8 @@ import {
     withNoticeActions,
     type NoticeFacts,
     type NoticeLookups,
+    type PendingRequestFacts,
+    type RequestLookup,
     type TaskActionFacts,
 } from "./notification-action-state";
 
@@ -444,7 +453,24 @@ async function loadNoticeFacts(lookups: NoticeLookups): Promise<NoticeFacts> {
         ).toArray();
         facts.tasks = tasks.map((task: any): TaskActionFacts => ({ ...task, _id: String(task._id) }));
     }
+    facts.pendingCrewApplications = await findPendingRequests(CrewApplications, lookups.crewApplications);
+    facts.pendingMembershipRequests = await findPendingRequests(MembershipRequests, lookups.membershipRequests);
     return facts;
+}
+
+// Pending rows (Crew applications or follow requests) for the circles and people on the page.
+async function findPendingRequests(
+    collection: { find: (filter: object, options: object) => { toArray: () => Promise<any[]> } },
+    lookup: RequestLookup,
+): Promise<PendingRequestFacts[]> {
+    if (lookup.circleIds.length === 0) return [];
+    const rows = await collection
+        .find(
+            { status: "pending", circleId: { $in: lookup.circleIds }, userDid: { $in: lookup.userDids } },
+            { projection: { _id: 0, circleId: 1, userDid: 1 } },
+        )
+        .toArray();
+    return rows.map((row) => ({ circleId: String(row.circleId), userDid: String(row.userDid) }));
 }
 
 async function addNoticeActions<T extends { type: string; content?: any }>(notices: T[], userDid: string) {

@@ -65,68 +65,130 @@ export const getTaskNoticeAction = (
 // --- Every notice type ---------------------------------------------------------------------------
 
 type NoticeContent = Record<string, any> | undefined;
-type Notice = { type: string; content?: NoticeContent };
+// `resolution` is top level on a stored notice (contact requests), not in content.
+type Notice = { type: string; content?: NoticeContent; resolution?: string };
+
+// A pending request from one person to one circle (a Crew application or a follow request).
+export type PendingRequestFacts = { circleId: string; userDid: string };
 
 // What the rules read, loaded once per bell load for the notices on the page.
 export type NoticeFacts = {
     tasks: TaskActionFacts[];
+    pendingCrewApplications: PendingRequestFacts[];
+    pendingMembershipRequests: PendingRequestFacts[];
 };
 
-export const emptyNoticeFacts = (): NoticeFacts => ({ tasks: [] });
+export const emptyNoticeFacts = (): NoticeFacts => ({
+    tasks: [],
+    pendingCrewApplications: [],
+    pendingMembershipRequests: [],
+});
+
+const requestKey = (circleId: unknown, userDid: unknown) => `${String(circleId)}|${String(userDid)}`;
+// The circle and the person a request notice is about: content.circle and content.user.
+const requestOf = (content: NoticeContent) => {
+    const circleId = content?.circle?._id;
+    const userDid = content?.user?.did;
+    return circleId && typeof userDid === "string" ? { circleId: String(circleId), userDid } : null;
+};
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
 export const isObjectIdString = (value: unknown): value is string => typeof value === "string" && OBJECT_ID.test(value);
 
 type IndexedFacts = {
     tasksById: Map<string, TaskActionFacts>;
+    pendingCrewApplications: Set<string>;
+    pendingMembershipRequests: Set<string>;
 };
 
 const indexFacts = (facts: NoticeFacts): IndexedFacts => ({
     tasksById: new Map(facts.tasks.map((task) => [String(task._id), task])),
+    pendingCrewApplications: new Set(facts.pendingCrewApplications.map((r) => requestKey(r.circleId, r.userDid))),
+    pendingMembershipRequests: new Set(facts.pendingMembershipRequests.map((r) => requestKey(r.circleId, r.userDid))),
 });
 
-type Rule = (content: NoticeContent, facts: IndexedFacts, recipientDid: string, type: string) => NoticeAction;
+type Rule = (notice: Notice, facts: IndexedFacts, recipientDid: string) => NoticeAction;
 
-const taskRule: Rule = (content, facts, recipientDid, type) =>
-    getTaskNoticeAction(type, content, facts.tasksById.get(String(content?.taskId ?? "")), recipientDid) ?? {
-        needed: false,
+const taskRule: Rule = (notice, facts, recipientDid) =>
+    getTaskNoticeAction(
+        notice.type,
+        notice.content,
+        facts.tasksById.get(String(notice.content?.taskId ?? "")),
+        recipientDid,
+    ) ?? { needed: false };
+
+// crew_application (to reviewers): the applicant still has a pending application to that circle.
+// follow_request (to admins): the person still has a pending request to follow that circle.
+const pendingRequestRule =
+    (pick: (facts: IndexedFacts) => Set<string>): Rule =>
+    (notice, facts) => {
+        const request = requestOf(notice.content);
+        return { needed: !!request && pick(facts).has(requestKey(request.circleId, request.userDid)) };
     };
+
+// contact_request_received: open until it has a resolution, which is stored on the notice whichever
+// surface the request was answered or withdrawn from (resolveConnectionRequestNotifications).
+const contactRequestRule: Rule = (notice) => ({ needed: !notice.resolution });
 
 const RULES: Record<string, Rule> = {
     task_claim_submitted: taskRule,
     task_assigned: taskRule,
     task_claim_approved: taskRule,
+    crew_application: pendingRequestRule((facts) => facts.pendingCrewApplications),
+    follow_request: pendingRequestRule((facts) => facts.pendingMembershipRequests),
+    contact_request_received: contactRequestRule,
 };
 
 export const isActionNoticeType = (type: string): boolean => type in RULES;
 
-export const getNoticeAction = (
-    type: string,
-    content: NoticeContent,
-    facts: NoticeFacts,
-    recipientDid: string,
-): NoticeAction | undefined => {
-    const rule = RULES[type];
-    return rule ? rule(content, indexFacts(facts), recipientDid, type) : undefined;
+export const getNoticeAction = (notice: Notice, facts: NoticeFacts, recipientDid: string): NoticeAction | undefined => {
+    const rule = RULES[notice.type];
+    return rule ? rule(notice, indexFacts(facts), recipientDid) : undefined;
 };
 
 // What to look up for this page of notices: one query per kind, only for the types present.
+// Request lookups list the circles and people; the query matches pending rows with both in the lists.
+export type RequestLookup = { circleIds: string[]; userDids: string[] };
+
 export type NoticeLookups = {
     taskIds: string[];
+    crewApplications: RequestLookup;
+    membershipRequests: RequestLookup;
 };
+
+const collectRequest = (lookup: { circleIds: Set<string>; userDids: Set<string> }, content: NoticeContent) => {
+    const request = requestOf(content);
+    if (request) {
+        lookup.circleIds.add(request.circleId);
+        lookup.userDids.add(request.userDid);
+    }
+};
+const toLookup = (lookup: { circleIds: Set<string>; userDids: Set<string> }): RequestLookup => ({
+    circleIds: [...lookup.circleIds],
+    userDids: [...lookup.userDids],
+});
 
 export const getNoticeLookups = (notices: Notice[]): NoticeLookups => {
     const taskIds = new Set<string>();
+    const crew = { circleIds: new Set<string>(), userDids: new Set<string>() };
+    const follow = { circleIds: new Set<string>(), userDids: new Set<string>() };
     for (const notice of notices) {
         const content = notice.content;
         if (isTaskActionNoticeType(notice.type) && isObjectIdString(content?.taskId)) {
             taskIds.add(content.taskId);
+        } else if (notice.type === "crew_application") {
+            collectRequest(crew, content);
+        } else if (notice.type === "follow_request") {
+            collectRequest(follow, content);
         }
     }
-    return { taskIds: [...taskIds] };
+    return { taskIds: [...taskIds], crewApplications: toLookup(crew), membershipRequests: toLookup(follow) };
 };
 
-export const hasNoticeLookups = (lookups: NoticeLookups): boolean => lookups.taskIds.length > 0;
+export const hasNoticeLookups = (lookups: NoticeLookups): boolean =>
+    lookups.taskIds.length > 0 ||
+    lookups.crewApplications.circleIds.length > 0 ||
+    lookups.membershipRequests.circleIds.length > 0;
 
 // Adds `action` to each notice that can need action; other notices are returned as they are.
 export const withNoticeActions = <T extends Notice>(
@@ -138,6 +200,6 @@ export const withNoticeActions = <T extends Notice>(
     return notices.map((notice) => {
         const rule = RULES[notice.type];
         if (!rule) return notice;
-        return { ...notice, action: rule(notice.content, indexed, recipientDid, notice.type) };
+        return { ...notice, action: rule(notice, indexed, recipientDid) };
     });
 };

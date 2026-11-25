@@ -17,6 +17,9 @@ const ACTION_NEEDED_REMINDERS: Record<string, string> = {
     task_claim_submitted: "Action needed: approve this claim, or open the task to decline it",
     task_assigned: "Action needed: please confirm you'll do this",
     task_claim_approved: "Action needed: please confirm you'll do this",
+    crew_application: "Action needed: approve or decline this application",
+    follow_request: "Action needed: approve or decline this follow request",
+    contact_request_received: "Action needed: accept or decline this request",
 };
 
 export type InlineTaskAction = "approveClaim" | "acceptTask";
@@ -67,6 +70,8 @@ export const getNotificationActionLabel = (
         case "task_assigned":
         case "task_shift_signup":
             return "Review";
+        // Crew polish (2026-11-25): follow requests had a link but no button.
+        case "follow_request":
         case "user_verification_request":
         case "user_verification_reply_received":
         case "event_host_change_requested":
