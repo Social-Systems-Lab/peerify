@@ -22,6 +22,9 @@ const ACTION_NEEDED_REMINDERS: Record<string, string> = {
     crew_application: "Action needed: approve or decline this application",
     follow_request: "Action needed: approve or decline this follow request",
     contact_request_received: "Action needed: accept or decline this request",
+    admin_invitation_received: "Action needed: accept or decline this invitation",
+    event_host_change_requested: "Action needed: approve or decline this host change",
+    event_invitation: "Action needed: let them know if you're coming",
 };
 
 export type InlineTaskAction = "approveClaim" | "acceptTask";
@@ -82,6 +85,9 @@ export const getNotificationActionLabel = (
             return "Review";
         case "admin_invitation_decided":
             return "View";
+        // Crew polish (2026-11-25): event invitations had a link but no button.
+        case "event_invitation":
+            return "RSVP";
         case "crew_application_approved":
             return "View Crew";
         case "crew_broadcast":

@@ -110,17 +110,35 @@ type Notice = { type: string; content?: NoticeContent; resolution?: string };
 // A pending request from one person to one circle (a Crew application or a follow request).
 export type PendingRequestFacts = { circleId: string; userDid: string };
 
+// A pending admin invitation (AdminInvitations), by id and by circle + invitee.
+export type PendingInvitationFacts = { _id: string; circleId: string; invitedUserDid: string };
+
+// An event, for invitations: still open and not started.
+export type EventFacts = { _id: string; stage?: string; startAt?: Date | string };
+
 // What the rules read, loaded once per bell load for the notices on the page.
 export type NoticeFacts = {
     tasks: TaskActionFacts[];
     pendingCrewApplications: PendingRequestFacts[];
     pendingMembershipRequests: PendingRequestFacts[];
+    pendingAdminInvitations: PendingInvitationFacts[];
+    // Events with a pending host-change request (one per event at most).
+    pendingHostChangeEventIds: string[];
+    events: EventFacts[];
+    // Events the recipient has answered (an RSVP of any status).
+    rsvpEventIds: string[];
+    now: Date;
 };
 
-export const emptyNoticeFacts = (): NoticeFacts => ({
+export const emptyNoticeFacts = (now: Date = new Date()): NoticeFacts => ({
     tasks: [],
     pendingCrewApplications: [],
     pendingMembershipRequests: [],
+    pendingAdminInvitations: [],
+    pendingHostChangeEventIds: [],
+    events: [],
+    rsvpEventIds: [],
+    now,
 });
 
 const requestKey = (circleId: unknown, userDid: unknown) => `${String(circleId)}|${String(userDid)}`;
@@ -138,12 +156,26 @@ type IndexedFacts = {
     tasksById: Map<string, TaskActionFacts>;
     pendingCrewApplications: Set<string>;
     pendingMembershipRequests: Set<string>;
+    pendingInvitationIds: Set<string>;
+    pendingInvitationsByCircleAndInvitee: Set<string>;
+    pendingHostChangeEventIds: Set<string>;
+    eventsById: Map<string, EventFacts>;
+    rsvpEventIds: Set<string>;
+    now: Date;
 };
 
 const indexFacts = (facts: NoticeFacts): IndexedFacts => ({
     tasksById: new Map(facts.tasks.map((task) => [String(task._id), task])),
     pendingCrewApplications: new Set(facts.pendingCrewApplications.map((r) => requestKey(r.circleId, r.userDid))),
     pendingMembershipRequests: new Set(facts.pendingMembershipRequests.map((r) => requestKey(r.circleId, r.userDid))),
+    pendingInvitationIds: new Set(facts.pendingAdminInvitations.map((i) => String(i._id))),
+    pendingInvitationsByCircleAndInvitee: new Set(
+        facts.pendingAdminInvitations.map((i) => requestKey(i.circleId, i.invitedUserDid)),
+    ),
+    pendingHostChangeEventIds: new Set(facts.pendingHostChangeEventIds.map(String)),
+    eventsById: new Map(facts.events.map((event) => [String(event._id), event])),
+    rsvpEventIds: new Set(facts.rsvpEventIds.map(String)),
+    now: facts.now,
 });
 
 type Rule = (notice: Notice, facts: IndexedFacts, recipientDid: string) => NoticeAction;
@@ -169,6 +201,35 @@ const pendingRequestRule =
 // surface the request was answered or withdrawn from (resolveConnectionRequestNotifications).
 const contactRequestRule: Rule = (notice) => ({ needed: !notice.resolution });
 
+// admin_invitation_received (to the invitee): the invitation (content.invitationId) is still pending.
+// Notices from before invitationId was stored: a pending invitation to that circle for the recipient.
+const adminInvitationRule: Rule = (notice, facts, recipientDid) => {
+    const invitationId = notice.content?.invitationId;
+    if (isObjectIdString(invitationId)) {
+        return { needed: facts.pendingInvitationIds.has(invitationId) };
+    }
+    const circleId = notice.content?.circle?._id;
+    return { needed: !!circleId && facts.pendingInvitationsByCircleAndInvitee.has(requestKey(circleId, recipientDid)) };
+};
+
+// event_host_change_requested (to the requested host's admins): the event's request is still pending
+// (at most one pending request per event, createEventHostChangeRequest).
+const hostChangeRule: Rule = (notice, facts) => ({
+    needed: facts.pendingHostChangeEventIds.has(String(notice.content?.eventId ?? "")),
+});
+
+// event_invitation (to the guest): not answered yet, on an event that's still open and hasn't started.
+// The invitation's own status is never updated after it's sent (nothing writes EventInvitations
+// after insert), so the guest's RSVP is what says they've decided: any RSVP status counts.
+const eventInvitationRule: Rule = (notice, facts) => {
+    const eventId = String(notice.content?.eventId ?? "");
+    const event = facts.eventsById.get(eventId);
+    if (!event || event.stage !== "open" || !event.startAt || new Date(event.startAt) <= facts.now) {
+        return { needed: false };
+    }
+    return { needed: !facts.rsvpEventIds.has(eventId) };
+};
+
 const RULES: Record<string, Rule> = {
     task_claim_submitted: taskRule,
     task_assigned: taskRule,
@@ -178,6 +239,9 @@ const RULES: Record<string, Rule> = {
     crew_application: pendingRequestRule((facts) => facts.pendingCrewApplications),
     follow_request: pendingRequestRule((facts) => facts.pendingMembershipRequests),
     contact_request_received: contactRequestRule,
+    admin_invitation_received: adminInvitationRule,
+    event_host_change_requested: hostChangeRule,
+    event_invitation: eventInvitationRule,
 };
 
 export const isActionNoticeType = (type: string): boolean => type in RULES;
@@ -195,6 +259,11 @@ export type NoticeLookups = {
     taskIds: string[];
     crewApplications: RequestLookup;
     membershipRequests: RequestLookup;
+    // Admin invitations by id, and (older notices) by circle for the recipient.
+    adminInvitationIds: string[];
+    adminInvitationCircleIds: string[];
+    hostChangeEventIds: string[];
+    invitationEventIds: string[];
 };
 
 const collectRequest = (lookup: { circleIds: Set<string>; userDids: Set<string> }, content: NoticeContent) => {
@@ -213,6 +282,10 @@ export const getNoticeLookups = (notices: Notice[]): NoticeLookups => {
     const taskIds = new Set<string>();
     const crew = { circleIds: new Set<string>(), userDids: new Set<string>() };
     const follow = { circleIds: new Set<string>(), userDids: new Set<string>() };
+    const adminInvitationIds = new Set<string>();
+    const adminInvitationCircleIds = new Set<string>();
+    const hostChangeEventIds = new Set<string>();
+    const invitationEventIds = new Set<string>();
     for (const notice of notices) {
         const content = notice.content;
         if (isTaskActionNoticeType(notice.type) && isObjectIdString(content?.taskId)) {
@@ -221,15 +294,34 @@ export const getNoticeLookups = (notices: Notice[]): NoticeLookups => {
             collectRequest(crew, content);
         } else if (notice.type === "follow_request") {
             collectRequest(follow, content);
+        } else if (notice.type === "admin_invitation_received") {
+            if (isObjectIdString(content?.invitationId)) adminInvitationIds.add(content.invitationId);
+            else if (content?.circle?._id) adminInvitationCircleIds.add(String(content.circle._id));
+        } else if (notice.type === "event_host_change_requested") {
+            if (content?.eventId) hostChangeEventIds.add(String(content.eventId));
+        } else if (notice.type === "event_invitation") {
+            if (isObjectIdString(content?.eventId)) invitationEventIds.add(content.eventId);
         }
     }
-    return { taskIds: [...taskIds], crewApplications: toLookup(crew), membershipRequests: toLookup(follow) };
+    return {
+        taskIds: [...taskIds],
+        crewApplications: toLookup(crew),
+        membershipRequests: toLookup(follow),
+        adminInvitationIds: [...adminInvitationIds],
+        adminInvitationCircleIds: [...adminInvitationCircleIds],
+        hostChangeEventIds: [...hostChangeEventIds],
+        invitationEventIds: [...invitationEventIds],
+    };
 };
 
 export const hasNoticeLookups = (lookups: NoticeLookups): boolean =>
     lookups.taskIds.length > 0 ||
     lookups.crewApplications.circleIds.length > 0 ||
-    lookups.membershipRequests.circleIds.length > 0;
+    lookups.membershipRequests.circleIds.length > 0 ||
+    lookups.adminInvitationIds.length > 0 ||
+    lookups.adminInvitationCircleIds.length > 0 ||
+    lookups.hostChangeEventIds.length > 0 ||
+    lookups.invitationEventIds.length > 0;
 
 // Adds `action` to each notice that can need action; other notices are returned as they are.
 export const withNoticeActions = <T extends Notice>(

@@ -23,8 +23,12 @@ import {
     ConnectionRequestResolution,
 } from "@/models/models";
 import {
+    AdminInvitations,
     CrewApplications,
     DefaultNotificationSettings,
+    EventHostChangeRequests,
+    EventRsvps,
+    Events,
     MembershipRequests,
     Notifications,
     Tasks,
@@ -444,7 +448,7 @@ export async function listNotificationsForUser(
 // lookup per kind of record, only for the types on this page, reading only the fields the rules
 // read (task claims and participants whole: they stay on the server). Only `action` is sent on. If a lookup fails,
 // the notices go out without it, as before (plain buttons).
-async function loadNoticeFacts(lookups: NoticeLookups): Promise<NoticeFacts> {
+async function loadNoticeFacts(lookups: NoticeLookups, userDid: string): Promise<NoticeFacts> {
     const facts = emptyNoticeFacts();
     if (lookups.taskIds.length > 0) {
         const tasks = await Tasks.find(
@@ -467,6 +471,52 @@ async function loadNoticeFacts(lookups: NoticeLookups): Promise<NoticeFacts> {
     }
     facts.pendingCrewApplications = await findPendingRequests(CrewApplications, lookups.crewApplications);
     facts.pendingMembershipRequests = await findPendingRequests(MembershipRequests, lookups.membershipRequests);
+
+    const invitationMatches: object[] = [];
+    if (lookups.adminInvitationIds.length > 0) {
+        invitationMatches.push({ _id: { $in: lookups.adminInvitationIds.map((id) => new ObjectId(id)) } });
+    }
+    if (lookups.adminInvitationCircleIds.length > 0) {
+        invitationMatches.push({ circleId: { $in: lookups.adminInvitationCircleIds }, invitedUserDid: userDid });
+    }
+    if (invitationMatches.length > 0) {
+        const invitations = await AdminInvitations.find(
+            { status: "pending", $or: invitationMatches },
+            { projection: { _id: 1, circleId: 1, invitedUserDid: 1 } },
+        ).toArray();
+        facts.pendingAdminInvitations = invitations.map((row: any) => ({
+            _id: String(row._id),
+            circleId: String(row.circleId),
+            invitedUserDid: String(row.invitedUserDid),
+        }));
+    }
+
+    if (lookups.hostChangeEventIds.length > 0) {
+        const requests = await EventHostChangeRequests.find(
+            { status: "pending", eventId: { $in: lookups.hostChangeEventIds } },
+            { projection: { _id: 0, eventId: 1 } },
+        ).toArray();
+        facts.pendingHostChangeEventIds = requests.map((row: any) => String(row.eventId));
+    }
+
+    if (lookups.invitationEventIds.length > 0) {
+        const [events, rsvps] = await Promise.all([
+            Events.find(
+                { _id: { $in: lookups.invitationEventIds.map((id) => new ObjectId(id)) } },
+                { projection: { _id: 1, stage: 1, startAt: 1 } },
+            ).toArray(),
+            EventRsvps.find(
+                { eventId: { $in: lookups.invitationEventIds }, userDid },
+                { projection: { _id: 0, eventId: 1 } },
+            ).toArray(),
+        ]);
+        facts.events = events.map((event: any) => ({
+            _id: String(event._id),
+            stage: event.stage,
+            startAt: event.startAt,
+        }));
+        facts.rsvpEventIds = rsvps.map((row: any) => String(row.eventId));
+    }
     return facts;
 }
 
@@ -491,7 +541,7 @@ async function addNoticeActions<T extends { type: string; content?: any }>(notic
         return withNoticeActions(notices, emptyNoticeFacts(), userDid);
     }
     try {
-        return withNoticeActions(notices, await loadNoticeFacts(lookups), userDid);
+        return withNoticeActions(notices, await loadNoticeFacts(lookups, userDid), userDid);
     } catch (error) {
         console.error("Failed to work out notice actions:", error);
         return notices;
