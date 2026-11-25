@@ -105,7 +105,7 @@ describe("assignment notices (to the assignee)", () => {
 
 describe("other notices", () => {
     test("left alone", () => {
-        for (const type of ["task_accepted", "task_claim_declined", "task_shift_signup", "crew_application", "post_like"]) {
+        for (const type of ["task_accepted", "task_claim_declined", "task_shift_confirmed", "post_like"]) {
             expect(getTaskNoticeAction(type, assigneeNotice, task({ assignedTo: CLAIMANT }), CLAIMANT)).toBeUndefined();
         }
     });

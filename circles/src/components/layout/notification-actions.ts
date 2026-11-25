@@ -17,6 +17,8 @@ const ACTION_NEEDED_REMINDERS: Record<string, string> = {
     task_claim_submitted: "Action needed: approve this claim, or open the task to decline it",
     task_assigned: "Action needed: please confirm you'll do this",
     task_claim_approved: "Action needed: please confirm you'll do this",
+    task_shift_signup: "Action needed: confirm or decline this sign-up",
+    task_submitted_for_review: "Action needed: review this task",
     crew_application: "Action needed: approve or decline this application",
     follow_request: "Action needed: approve or decline this follow request",
     contact_request_received: "Action needed: accept or decline this request",

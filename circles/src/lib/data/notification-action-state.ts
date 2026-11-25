@@ -1,11 +1,12 @@
 // Pure: no database, no I/O. Whether a notice still needs its recipient to act (backlog item 3,
-// 2026-11-25; every decision notice, crew polish 2026-11-25). Each notice type that asks its
-// recipient to decide something has one rule below, reading facts loaded once per bell load
-// (loadNoticeFacts in notifications.ts). Worked out each time the bell loads, from the task as it is now, rather
-// than stored on the notice: the claim can be approved on the task page or by another organiser,
-// the task reassigned or deleted, and every one of those would otherwise need its own hook (and
-// notices from before today would never clear).
+// 2026-11-25; widened to every decision notice in the crew polish, 2026-11-25). Each notice type
+// that asks its recipient to decide something has one rule below, reading facts loaded once per bell
+// load (loadNoticeFacts in notifications.ts). It's worked out each time from the records as they are
+// now, rather than stored on the notice: the decision can be made on another page or by another
+// organiser, the item changed or deleted, and every one of those would otherwise need its own hook
+// (and notices from before would never clear).
 //
+// Task notices:
 //  - task_claim_submitted (to organisers): needed while the claimant's claim is still pending on an
 //    open, unassigned task. A task holds at most one pending claim per claimant (submitTaskClaim's
 //    update refuses a second), so the claimant's did (content.user.did) finds the claim, and its
@@ -13,6 +14,13 @@
 //  - task_assigned, task_claim_approved (to the assignee): needed while the task is open, still
 //    assigned to the recipient and not yet accepted. The same test as the task page's
 //    "Confirm I'll do this" / "Accept Task" button (task-detail.tsx).
+//  - task_shift_signup (to organisers): needed while the person who signed up (content.user.did) is
+//    still a participant with no verifiedAt on a shift that isn't resolved. Confirming sets
+//    verifiedAt; declining or leaving removes the participant.
+//  - task_submitted_for_review (to reviewers, resolvers and the author): one type, two meanings. A new
+//    task waiting for approval (stage "review"), or finished work waiting to be verified
+//    (submittedForReviewAt set, verifiedAt not, not resolved; requesting changes clears
+//    submittedForReviewAt). The author can verify too (getOutcomeTaskCompletionPlan).
 //
 // Only `needed` and, for a claim, its id go back to the browser: nothing else from the records.
 
@@ -23,15 +31,23 @@ export type TaskActionFacts = {
     assignedTo?: string;
     acceptedBy?: string;
     claims?: { claimId?: string; claimantDid?: string; status?: string }[];
+    participants?: { userDid?: string; verifiedAt?: Date | string | null }[];
+    submittedForReviewAt?: Date | string | null;
+    verifiedAt?: Date | string | null;
 };
 
 export type NoticeAction = { needed: boolean; claimId?: string };
 
 export const CLAIM_REVIEW_NOTICE_TYPES = new Set(["task_claim_submitted"]);
 export const ASSIGNEE_CONFIRM_NOTICE_TYPES = new Set(["task_assigned", "task_claim_approved"]);
+const SHIFT_SIGNUP_NOTICE_TYPE = "task_shift_signup";
+const TASK_REVIEW_NOTICE_TYPE = "task_submitted_for_review";
 
 export const isTaskActionNoticeType = (type: string): boolean =>
-    CLAIM_REVIEW_NOTICE_TYPES.has(type) || ASSIGNEE_CONFIRM_NOTICE_TYPES.has(type);
+    CLAIM_REVIEW_NOTICE_TYPES.has(type) ||
+    ASSIGNEE_CONFIRM_NOTICE_TYPES.has(type) ||
+    type === SHIFT_SIGNUP_NOTICE_TYPE ||
+    type === TASK_REVIEW_NOTICE_TYPE;
 
 const isOutcomeTask = (task: TaskActionFacts): boolean => (task.taskType ?? "outcome") === "outcome";
 
@@ -44,7 +60,30 @@ export const getTaskNoticeAction = (
     if (!isTaskActionNoticeType(type)) {
         return undefined;
     }
-    if (!task || task.stage !== "open" || !isOutcomeTask(task)) {
+    if (!task) {
+        return { needed: false };
+    }
+
+    if (type === SHIFT_SIGNUP_NOTICE_TYPE) {
+        const participantDid = content?.user?.did;
+        if (typeof participantDid !== "string" || task.taskType !== "shift" || task.stage === "resolved") {
+            return { needed: false };
+        }
+        return {
+            needed: (task.participants ?? []).some(
+                (participant) => participant.userDid === participantDid && !participant.verifiedAt,
+            ),
+        };
+    }
+
+    if (type === TASK_REVIEW_NOTICE_TYPE) {
+        if (task.stage === "review") {
+            return { needed: true };
+        }
+        return { needed: !!task.submittedForReviewAt && !task.verifiedAt && task.stage !== "resolved" };
+    }
+
+    if (task.stage !== "open" || !isOutcomeTask(task)) {
         return { needed: false };
     }
 
@@ -134,6 +173,8 @@ const RULES: Record<string, Rule> = {
     task_claim_submitted: taskRule,
     task_assigned: taskRule,
     task_claim_approved: taskRule,
+    task_shift_signup: taskRule,
+    task_submitted_for_review: taskRule,
     crew_application: pendingRequestRule((facts) => facts.pendingCrewApplications),
     follow_request: pendingRequestRule((facts) => facts.pendingMembershipRequests),
     contact_request_received: contactRequestRule,

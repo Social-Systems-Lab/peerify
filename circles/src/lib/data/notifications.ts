@@ -442,14 +442,26 @@ export async function listNotificationsForUser(
 // Backlog item 3 and crew polish (2026-11-25): whether each notice that asks its recipient to decide
 // something still needs them, from the records as they are now (notification-action-state.ts). One
 // lookup per kind of record, only for the types on this page, reading only the fields the rules
-// read (task claims whole: they stay on the server). Only `action` is sent on. If a lookup fails,
+// read (task claims and participants whole: they stay on the server). Only `action` is sent on. If a lookup fails,
 // the notices go out without it, as before (plain buttons).
 async function loadNoticeFacts(lookups: NoticeLookups): Promise<NoticeFacts> {
     const facts = emptyNoticeFacts();
     if (lookups.taskIds.length > 0) {
         const tasks = await Tasks.find(
             { _id: { $in: lookups.taskIds.map((id) => new ObjectId(id)) } },
-            { projection: { _id: 1, stage: 1, taskType: 1, assignedTo: 1, acceptedBy: 1, claims: 1 } },
+            {
+                projection: {
+                    _id: 1,
+                    stage: 1,
+                    taskType: 1,
+                    assignedTo: 1,
+                    acceptedBy: 1,
+                    claims: 1,
+                    participants: 1,
+                    submittedForReviewAt: 1,
+                    verifiedAt: 1,
+                },
+            },
         ).toArray();
         facts.tasks = tasks.map((task: any): TaskActionFacts => ({ ...task, _id: String(task._id) }));
     }
