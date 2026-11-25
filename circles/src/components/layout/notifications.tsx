@@ -39,9 +39,13 @@ import { getConnectStatusesAction } from "../modules/home/actions";
 import type { RelationshipConnectStatus } from "@/lib/data/relationships";
 import { showsActorPicture } from "./notification-avatar";
 import {
+    getActionNeededReminder,
+    getInlineTaskAction,
     getNotificationActionClassName as getNotificationActionClassNameFor,
     getNotificationActionLabel as getNotificationActionLabelFor,
 } from "./notification-actions";
+import type { TaskNoticeAction } from "@/lib/data/notification-action-state";
+import { acceptTaskAction, reviewTaskClaimAction } from "@/app/circles/[handle]/tasks/actions";
 
 type Notification = {
     id: string;
@@ -94,6 +98,8 @@ type Notification = {
     // Connection request fields (top level on the stored record, not in content)
     actorDid?: string;
     resolution?: ConnectionRequestResolution;
+    // Task notices that can need their recipient (top level, worked out on load; backlog item 3)
+    taskAction?: TaskNoticeAction;
     // For grouping purposes
     key?: string;
 };
@@ -140,6 +146,7 @@ type StoredNotificationRecord = {
     createdAt: string | Date;
     actorDid?: string;
     resolution?: ConnectionRequestResolution;
+    taskAction?: TaskNoticeAction;
 };
 
 export const Notifications = ({
@@ -305,6 +312,7 @@ export const Notifications = ({
                     invitationId: typeof content.invitationId === "string" ? content.invitationId : undefined,
                     actorDid: record.actorDid ?? content.user?.did,
                     resolution: record.resolution,
+                    taskAction: record.taskAction,
                     key: groupKey,
                 };
 
@@ -650,13 +658,17 @@ export const Notifications = ({
             getNotificationActionLabelFor(
                 groupedNotification.latestNotification.notificationType,
                 getNotificationHref(groupedNotification.latestNotification),
+                groupedNotification.latestNotification.taskAction,
             ),
         [getNotificationHref],
     );
 
     const getNotificationActionClassName = useCallback(
         (groupedNotification: GroupedNotification) =>
-            getNotificationActionClassNameFor(groupedNotification.latestNotification.notificationType),
+            getNotificationActionClassNameFor(
+                groupedNotification.latestNotification.notificationType,
+                groupedNotification.latestNotification.taskAction,
+            ),
         [],
     );
 
@@ -700,6 +712,59 @@ export const Notifications = ({
 
         console.log("Unknown notification type:", groupedNotification.latestNotification.notificationType);
     }, [getNotificationHref, markNotificationGroupAsRead, onNavigate, onOpenConnections, router, toast]);
+
+    // Backlog item 3: Approve a claim or Accept a task straight from the notice. The same server
+    // actions as the task page, which check who may do it. The bell then reloads, so the notice
+    // shows as handled (or, if someone else got there first, the message explains and it clears).
+    const [actingOnKey, setActingOnKey] = useState<string | null>(null);
+    const runInlineTaskAction = useCallback(
+        async (groupedNotification: GroupedNotification) => {
+            const notification = groupedNotification.latestNotification;
+            const action = getInlineTaskAction(notification.notificationType, notification.taskAction);
+            const circleHandle = notification.circle?.handle;
+            const taskId = notification.taskId;
+            if (!action || !circleHandle || !taskId) {
+                await handleNotificationClick(groupedNotification);
+                return;
+            }
+            setActingOnKey(groupedNotification.key);
+            try {
+                const result =
+                    action === "approveClaim"
+                        ? await reviewTaskClaimAction(
+                              circleHandle,
+                              taskId,
+                              notification.taskAction?.claimId ?? "",
+                              "approved",
+                          )
+                        : await acceptTaskAction(circleHandle, taskId);
+                if (result.success) {
+                    toast({
+                        title: action === "approveClaim" ? "Claim approved" : "Thanks, you're down for this",
+                        description: notification.taskTitle,
+                    });
+                    await markNotificationGroupAsRead(groupedNotification);
+                } else {
+                    toast({
+                        title: action === "approveClaim" ? "Couldn't approve the claim" : "Couldn't confirm",
+                        description: result.message,
+                        variant: "destructive",
+                    });
+                }
+            } catch (error) {
+                console.error("Inline task action failed:", error);
+                toast({
+                    title: "Something went wrong",
+                    description: "Please try from the task page.",
+                    variant: "destructive",
+                });
+            } finally {
+                setActingOnKey(null);
+                await fetchNotifications();
+            }
+        },
+        [fetchNotifications, handleNotificationClick, markNotificationGroupAsRead, toast],
+    );
 
     // Helper function to create a grouped notification message
     const createGroupedMessage = (groupedNotification: GroupedNotification) => {
@@ -869,7 +934,22 @@ export const Notifications = ({
                             key={groupedNotification.key}
                             className={`m-1 flex cursor-pointer items-center space-x-4 rounded-lg p-2 hover:bg-gray-100 ${
                                 groupedNotification.unreadNotificationIds.length > 0 ? "bg-gray-50" : ""
+                            } ${
+                                getActionNeededReminder(
+                                    groupedNotification.latestNotification.notificationType,
+                                    groupedNotification.latestNotification.taskAction,
+                                )
+                                    ? "border-l-4 border-amber-400"
+                                    : ""
                             }`}
+                            data-action-needed={
+                                getActionNeededReminder(
+                                    groupedNotification.latestNotification.notificationType,
+                                    groupedNotification.latestNotification.taskAction,
+                                )
+                                    ? "true"
+                                    : undefined
+                            }
                             onClick={() => void handleNotificationClick(groupedNotification)}
                         >
                             <div className="relative h-[40px] w-[40px]">
@@ -953,6 +1033,17 @@ export const Notifications = ({
                             </div>
                             <div className="flex-1">
                                 <p className="text-sm">{createGroupedMessage(groupedNotification)}</p>
+                                {getActionNeededReminder(
+                                    groupedNotification.latestNotification.notificationType,
+                                    groupedNotification.latestNotification.taskAction,
+                                ) ? (
+                                    <p className="text-xs font-medium text-amber-700">
+                                        {getActionNeededReminder(
+                                            groupedNotification.latestNotification.notificationType,
+                                            groupedNotification.latestNotification.taskAction,
+                                        )}
+                                    </p>
+                                ) : null}
                                 <p className="text-xs text-muted-foreground">
                                     {timeSince(groupedNotification.latestNotification.createdAt, false)}
                                 </p>
@@ -991,11 +1082,23 @@ export const Notifications = ({
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
+                                            if (
+                                                getInlineTaskAction(
+                                                    groupedNotification.latestNotification.notificationType,
+                                                    groupedNotification.latestNotification.taskAction,
+                                                )
+                                            ) {
+                                                void runInlineTaskAction(groupedNotification);
+                                                return;
+                                            }
                                             void handleNotificationClick(groupedNotification);
                                         }}
+                                        disabled={actingOnKey === groupedNotification.key}
                                         className={getNotificationActionClassName(groupedNotification)}
                                     >
-                                        {getNotificationActionLabel(groupedNotification)}
+                                        {actingOnKey === groupedNotification.key
+                                            ? "…"
+                                            : getNotificationActionLabel(groupedNotification)}
                                     </button>
                                 )
                             )}
