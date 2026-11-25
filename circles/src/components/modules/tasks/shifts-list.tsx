@@ -47,6 +47,7 @@ import {
     isShiftTask,
 } from "./shift-task-utils";
 import { getShiftStageInfo, taskTitleLinkClassName } from "./task-ui";
+import { canEditTask } from "@/lib/tasks/task-edit-rights";
 
 interface ShiftsListProps {
     tasksData: {
@@ -160,7 +161,12 @@ const ShiftsList: React.FC<ShiftsListProps> = ({ tasksData, circle, permissions 
         // "N pending" for organisers: Assign or Moderate Tasks (F3; option (a), 2026-11-19).
         const pendingSummary = managesShiftSignups(permissions) ? getShiftPendingSummary(shift) : null;
         const isAuthor = user?.did === shift.createdBy;
-        const canEdit = (isAuthor && shift.stage === "review") || permissions.canModerate;
+        const canEdit = canEditTask({
+            isAuthor,
+            canReview: permissions.canReview,
+            canModerate: permissions.canModerate,
+            stage: shift.stage,
+        });
         const canDelete = isAuthor || permissions.canModerate;
 
         return (

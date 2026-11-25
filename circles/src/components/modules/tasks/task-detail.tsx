@@ -102,6 +102,7 @@ import {
 import { ALL_PLACES_CONFIRMED, MANY_HAVE_OFFERED } from "@/lib/tasks/shift-capacity";
 import { getShiftStageInfo, getTaskPriorityInfo, getTaskStageInfo, getTaskWorkflowStatusBadge } from "./task-ui";
 import { getOutcomeTaskCompletionPlan } from "@/lib/task-completion-policy";
+import { canEditTask as canEditTaskRule } from "@/lib/tasks/task-edit-rights";
 
 const taskPriorityOptions: { value: TaskPriority | "none"; label: string }[] = [
     { value: "critical", label: "Critical" },
@@ -617,7 +618,12 @@ const TaskDetail: React.FC<TaskDetailProps> = ({ task, circle, permissions, curr
     const { color: stageColor, icon: StageIcon, text: stageText } = displayStageInfo;
     const priorityInfo = getTaskPriorityInfo(selectedPriority === "none" ? undefined : selectedPriority);
 
-    const canEditTask = (isAuthor && currentStage === "review") || permissions.canModerate;
+    const canEditTask = canEditTaskRule({
+        isAuthor,
+        canReview: permissions.canReview,
+        canModerate: permissions.canModerate,
+        stage: currentStage,
+    });
     const canDeleteTask = isAuthor || permissions.canModerate; // Renamed variable
 
     const handlePriorityChange = (value: TaskPriority | "none") => {

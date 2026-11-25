@@ -82,6 +82,7 @@ import {
     getTaskWorkflowStatusBadge,
 } from "./task-ui";
 import { getOutcomeTaskCompletionPlan } from "@/lib/task-completion-policy";
+import { canEditTask } from "@/lib/tasks/task-edit-rights";
 interface TasksListProps {
     tasksData: {
         tasks: TaskDisplay[];
@@ -1129,7 +1130,12 @@ const TasksList: React.FC<TasksListProps> = ({
     const renderTaskRow = (row: Row<TaskDisplay>, index: number) => {
         const task = row.original;
         const isAuthor = user?.did === task.createdBy;
-        const canEdit = (isAuthor && task.stage === "review") || permissions.canModerate;
+        const canEdit = canEditTask({
+            isAuthor,
+            canReview: permissions.canReview,
+            canModerate: permissions.canModerate,
+            stage: task.stage,
+        });
         const canDelete = isAuthor || permissions.canModerate;
         const isShiftTask = isShiftTaskItem(task);
         const canCompleteUnassigned = canCompleteUnassignedOutcomeTask(task);

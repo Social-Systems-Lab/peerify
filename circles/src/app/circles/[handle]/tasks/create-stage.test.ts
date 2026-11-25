@@ -193,3 +193,80 @@ describe("anyone else: waits for review, or can't create, as before", () => {
         expect(stored("Nope")).toBeUndefined();
     });
 });
+
+// Crew polish, commit 6 (2026-11-25): tasks made by someone with Approve tasks now start open, so the
+// author may keep editing their own task until it's resolved if they hold Approve tasks. Before, only
+// while it was in review (or with Moderate Tasks, admins only by default). Changing the type stays
+// review-only.
+const { updateTaskAction } = await import("./actions");
+const { canEditTask } = await import("@/lib/tasks/task-edit-rights");
+
+describe("who may edit (canEditTask)", () => {
+    const base = { isAuthor: true, canReview: false, canModerate: false };
+
+    test("the author: in review always; open only with Approve tasks", () => {
+        expect(canEditTask({ ...base, stage: "review" })).toBe(true);
+        expect(canEditTask({ ...base, stage: "open" })).toBe(false);
+        expect(canEditTask({ ...base, canReview: true, stage: "open" })).toBe(true);
+        expect(canEditTask({ ...base, canReview: true, stage: "inProgress" })).toBe(true);
+    });
+
+    test("Moderate Tasks: any task until resolved", () => {
+        expect(canEditTask({ isAuthor: false, canReview: false, canModerate: true, stage: "open" })).toBe(true);
+    });
+
+    test("not the author, without Moderate Tasks: no, even with Approve tasks", () => {
+        expect(canEditTask({ isAuthor: false, canReview: true, canModerate: false, stage: "open" })).toBe(false);
+    });
+
+    test("resolved: nobody", () => {
+        expect(canEditTask({ isAuthor: true, canReview: true, canModerate: true, stage: "resolved" })).toBe(false);
+    });
+});
+
+describe("editing your own task after it started open", () => {
+    const edit = async (did: string, title: string, newTitle: string, taskType: "outcome" | "shift" = "outcome") => {
+        sessionDid = did;
+        const id = String(stored(title)?._id);
+        return await updateTaskAction("artist", id, form(newTitle, taskType));
+    };
+
+    test("a moderator edits their own open task", async () => {
+        await create(MODERATOR, "Stage", "outcome");
+        expect(stored("Stage")?.stage).toBe("open");
+        const result = await edit(MODERATOR, "Stage", "Stage and lights");
+        expect(result.success).toBe(true);
+        expect(stored("Stage and lights")).not.toBeUndefined();
+    });
+
+    test("a moderator can't edit an admin's open task (not the author, no Moderate Tasks)", async () => {
+        fakeDb.col("Tasks").docs.push({
+            _id: new ObjectId(),
+            circleId: CIRCLE_ID,
+            createdBy: ADMIN,
+            title: "Merch",
+            description: "Sell shirts",
+            taskType: "outcome",
+            stage: "open",
+            userGroups: ["admins", "moderators", "crew"],
+        });
+        const result = await edit(MODERATOR, "Merch", "Merch table");
+        expect(result.success).toBe(false);
+        expect(stored("Merch table")).toBeUndefined();
+    });
+
+    test("a member allowed to create, without Approve tasks: edits only while in review", async () => {
+        seed({ tasks: { create: ["admins", "moderators", "members"] } });
+        await create(MEMBER, "Banner", "outcome");
+        expect((await edit(MEMBER, "Banner", "Big banner")).success).toBe(true);
+        fakeDb.col("Tasks").docs.find((t) => t.title === "Big banner")!.stage = "open";
+        expect((await edit(MEMBER, "Big banner", "Huge banner")).success).toBe(false);
+    });
+
+    test("changing the type stays review-only", async () => {
+        await create(ADMIN, "Tickets", "outcome");
+        const result = await edit(ADMIN, "Tickets", "Tickets", "shift");
+        expect(result.success).toBe(false);
+        expect(stored("Tickets")?.taskType).toBe("outcome");
+    });
+});

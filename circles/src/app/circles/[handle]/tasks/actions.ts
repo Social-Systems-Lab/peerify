@@ -61,6 +61,7 @@ import {
     getShiftEndAt as getSharedShiftEndAt,
 } from "@/components/modules/tasks/shift-task-utils";
 import { taskMessage, taskNoun } from "@/lib/tasks/task-messages";
+import { canEditTask } from "@/lib/tasks/task-edit-rights";
 import { parseTargetDateInput } from "@/lib/tasks/shift-calendar";
 import { listAcceptedConnectionsForUserDid } from "@/lib/data/relationships";
 // Import task notification functions (assuming they will be created)
@@ -855,7 +856,8 @@ export async function updateTaskAction(
 
         const isAuthor = userDid === task.createdBy;
         const canModerate = await isAuthorized(userDid, sourceCircle._id as string, features.tasks?.moderate);
-        const canEdit = (isAuthor && task.stage === "review") || (canModerate && task.stage !== "resolved");
+        const canReview = await isAuthorized(userDid, sourceCircle._id as string, features.tasks.review);
+        const canEdit = canEditTask({ isAuthor, canReview, canModerate, stage: task.stage });
         if (!canEdit) {
             return {
                 success: false,
@@ -1159,7 +1161,8 @@ export async function updateTaskPriorityAction(
 
         const isAuthor = userDid === task.createdBy;
         const canModerate = await isAuthorized(userDid, circle._id as string, features.tasks?.moderate);
-        const canEdit = (isAuthor && task.stage === "review") || (canModerate && task.stage !== "resolved");
+        const canReview = await isAuthorized(userDid, circle._id as string, features.tasks.review);
+        const canEdit = canEditTask({ isAuthor, canReview, canModerate, stage: task.stage });
 
         if (!canEdit) {
             return {
