@@ -89,6 +89,8 @@ const getNotificationPreferenceContext = (
 // Exported so callers that want to prepend/append custom text to a templated notification body
 // (e.g. an artist's optional note on Crew approval) can build the base text themselves and pass
 // the combined result via payload.messageBody, rather than duplicating the template string.
+export const TASK_CONFIRM_REMINDER = "Please confirm you'll do it.";
+
 export const buildNotificationBody = (type: string, payload: any): string => {
     const actorName = payload?.user?.name || payload?.author?.name || "Someone";
     const circleName = payload?.circle?.name || payload?.project?.name || "a circle";
@@ -165,8 +167,10 @@ export const buildNotificationBody = (type: string, payload: any): string => {
             return `${taskTitle} was verified`;
         case "task_approved":
             return `${taskTitle} was approved`;
+        // Backlog item 3 (2026-11-25): the assignee still has to confirm, and people forgot. The bell
+        // also shows an "Action needed" line with an Accept button until they do.
         case "task_assigned":
-            return `${actorName} assigned you to ${taskTitle}`;
+            return `${actorName} assigned you to ${taskTitle}. ${TASK_CONFIRM_REMINDER}`;
         case "task_accepted":
             return `${actorName} accepted ‘${taskTitle}’`;
         case "task_shift_signup":
@@ -183,7 +187,7 @@ export const buildNotificationBody = (type: string, payload: any): string => {
         case "task_claim_submitted":
             return `${actorName} claimed ${taskTitle}`;
         case "task_claim_approved":
-            return `${taskTitle} claim approved`;
+            return `${taskTitle} claim approved. ${TASK_CONFIRM_REMINDER}`;
         case "task_claim_declined":
             return `${taskTitle} claim declined`;
         case "goal_submitted_for_review":
