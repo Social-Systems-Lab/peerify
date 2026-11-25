@@ -673,10 +673,13 @@ export async function createTaskAction( // Renamed function
         }
         // --- End Image Uploads ---
 
-        // Determine initial stage based on circle rules (e.g., skip review?)
-        // For now, default to 'review' as per spec
-        const initialStage: TaskStage = "review"; // Updated type
-        // TODO: Check circle settings/access rules if review step can be skipped
+        // Crew polish (2026-11-25, backlog item 5 widened to tasks): if the creator could approve it
+        // themselves (Approve tasks in this circle: admins and moderators by default, following the
+        // circle's access rules and the verification gate), it starts open. Otherwise it waits for
+        // review, as before. Approving later only sends notifyTaskApproved (which skips the creator)
+        // and refreshes rankings, which creation does anyway.
+        const canApproveOwn = await isAuthorized(userDid, circle._id as string, features.tasks.review);
+        const initialStage: TaskStage = canApproveOwn ? "open" : "review";
 
         // Create the task object
         const newTaskData: Omit<Task, "_id" | "updatedAt" | "resolvedAt" | "assignedTo" | "commentPostId"> = {
@@ -763,7 +766,7 @@ export async function createTaskAction( // Renamed function
 
         return {
             success: true,
-            message: taskMessage(data.taskType, "created"),
+            message: taskMessage(data.taskType, initialStage === "open" ? "created" : "submitted"),
             taskId: createdTask._id?.toString(), // Renamed property, variable
         };
     } catch (error) {

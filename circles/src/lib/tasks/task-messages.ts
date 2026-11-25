@@ -2,12 +2,21 @@
 // and the form shows the server's message as the toast text, so a saved shift said
 // "Task updated successfully" (Tim, 2026-11-15). Shifts now get their own wording; tasks keep theirs.
 
-export type TaskMessageKind = "created" | "updated" | "deleted" | "createFailed" | "updateFailed" | "deleteFailed";
+// "created": it starts open (made by someone who can approve it). "submitted": it waits for review.
+export type TaskMessageKind =
+    | "created"
+    | "submitted"
+    | "updated"
+    | "deleted"
+    | "createFailed"
+    | "updateFailed"
+    | "deleteFailed";
 
 const isShift = (taskType: string | null | undefined) => taskType === "shift";
 
 const TASK_MESSAGES: Record<TaskMessageKind, string> = {
-    created: "Task submitted successfully",
+    created: "Task created",
+    submitted: "Task submitted for review",
     updated: "Task updated successfully",
     deleted: "Task deleted successfully",
     createFailed: "Failed to submit task",
@@ -17,6 +26,7 @@ const TASK_MESSAGES: Record<TaskMessageKind, string> = {
 
 const SHIFT_MESSAGES: Record<TaskMessageKind, string> = {
     created: "Shift created",
+    submitted: "Shift submitted for review",
     updated: "Shift updated",
     deleted: "Shift deleted",
     createFailed: "Failed to create shift",
