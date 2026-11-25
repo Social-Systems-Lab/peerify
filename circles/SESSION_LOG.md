@@ -31,6 +31,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - **Staging round fixes 5 (2026-11-19 (cont. 2)):** the claim-declined notice shows the circle's picture, like the shift-declined one.
   - Its personal counterpart, later: **"My Crews"** on the personal profile, owner only: upcoming shifts across all crews plus those crews' broadcasts in one feed (2026-11-15 (cont. 4)).
 - **LATER:**
+  - `AGENTS.md` (repo root) still describes the old Hetzner box (paths, npm, deploy); bring it in line with `CLAUDE.md` (noted 2026-11-25, not changed yet);
   - the event audience picker should always be available, not only after ticking "Share on Noticeboard";
   - `src/lib/auth/altcha.test.ts` is flaky (5-second timeouts in CPU-heavy tests); give it a longer timeout;
   - **known failing test:** `src/lib/auth/participation-readiness.test.ts` fails ("AssertionError: ready state: readiness.isReady true", an unhandled error between tests). It fails the same way on `staging` `4ad4d8a4`, before the shift date fix, so it isn't caused by it. Look at it later;
@@ -78,6 +79,23 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-25 — Full sweep and build at `270e79f3`; AGENTS.md out of date
+
+**Why:** Tim asked for the full test sweep and build at the tip of `staging` (`270e79f3`, which includes `98c36461`).
+
+**Results:**
+- `bun install --frozen-lockfile`: no changes.
+- `tsc --noEmit`: only the old `peerify-backup.test.ts` error.
+- `bun run lint`: 0 errors, 55 old warnings, none in the files `60e829bf`..`98c36461` touched.
+- **Tests:** 185 files, one at a time with `IS_BUILD=true`. 184 pass, plus the known `participation-readiness` failure (same message). `altcha.test.ts` passed.
+- `bun run build`: passes (check build only).
+
+**AGENTS.md is out of date:** it still describes the old Hetzner box (`tim@65.21.91.96`, `~/apps/peerify-app/circles`, `npm install --legacy-peer-deps`, PM2 on one box). `CLAUDE.md` is correct. Left unchanged for now, as Tim asked; listed under LATER.
+
+**State:** no code changes. This entry pushed to `staging`. No database commands.
 
 ---
 
