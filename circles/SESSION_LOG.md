@@ -10,6 +10,7 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - Build tool: bun. Runtime: Next.js standalone via PM2 (not Docker). Deploy: `deploy-staging.sh` / `scripts/deploy-peerify.sh` (paths picked by hostname).
 - **Prod = `main` = `4eda9667` (Tim released it on 2026-11-25 after a pre-release backup; all deploy checks passed).** It adds the Create → Event loop fix `0d08492c` and the 2026-11-24 (cont. 4) follow-ups (`60e829bf`..`98c36461`); see the 2026-11-25 (cont.) entry. Before that: prod = `6bc5d22f` (2026-11-24), the personal-profile privacy work; see the 2026-11-24 (cont. 3) entry. Earlier: prod = `fff1ad84` (privacy stopgap, steps b and c), and before that `c94a40de` (2026-11-22, the draft leak fixes L1–L7). Earlier still: prod = staging = `cbd8c7c1` before the event guest work (Tim, 2026-11-20). Before that: prod = `main` = `ac61f445` (released 2026-11-17; Tim confirmed prod, and `/api/version` reported `ac61f445` on both). `staging` contains `main`, so releases are fast-forwards. Only Tim can push `main` (from his Mac). See the "Release" entry of 2026-11-02 for how it works.
 - **PRIORITY NOW: Crew rework for the first real event**, a home show (house concert) about 3 weeks after 2026-11-14 (exact date not recorded here). Decisions A–D given 2026-11-14. **Live on prod since 2026-11-15 (`30f3fcd8`):** R1 (items 1, 2, 3, 5, 9), the identity fixes (event author, venue parent, venue contact off), the login `redirectTo` fix, the personal profile Circles list owner-only, and ZAR for events. **Also live since `60108f48`:** the crew UI polish (6 items, `29fcd32f`..`e36894f6`). **Also live since `ac61f445` (2026-11-17):** one Share button (`fix/share-simple`) and the task fixes (`fix/task-actions-circle-check`). See the 2026-11-15 entries.
+- **Backlog items 1–3 (Crew and task notices, P1 for 6 Dec; 2026-11-25 (cont. 2)):** item 1 (pending applications on the Crew Dashboard) was already live since `10214a46`; Tim browser-checked it on staging and it passes. Items 2 (visible Leave Crew) and 3 (Approve and Accept in task notices, "action needed" state, confirm reminder) are **built on `staging` (`ce1cf5e8`..`79c4f490`), NOT deployed; browser checks pending** (20 steps in `crew-items-2-3.tar.gz`).
 - **FUTURE (own session, after the Crew work; no design yet): "Secret Soirées"** — private events where the host's identity stays hidden until a ticket is sold, with messaging that doesn't reveal identity. The same need applies to offers. A larger task. It also covers "Created by" on shifts and tasks and the notifications that name the actor (accepted until then, 2026-11-15), and **venue contact threads that show the admins as the venue** (option 2; venues can't be messaged until then). **Plan past contributions and the three-level visibility (Public / Contacts / Organisers only) in the same session** (it also covers a personal profile's Circles list, owner-only since `e4973b87`: default only me, options Contacts or Public) (design direction in the 2026-11-15 (cont.) entry).
   - **Private spaces vs venues confuses people** (Tim tripped on it himself). Direction to decide in that session: let a home/private space or a pop-up host events directly, with the event belonging to the space rather than a personal profile, shown anonymously by default ("a private home in Cape Town"), and the host revealed only to accepted guests and crew.
 - **SECURITY (2026-11-16):** the cross-circle gap in 13 task/shift actions is fixed, together with private pending sign-ups and claims, and **LIVE on prod since 2026-11-17 (`ac61f445`)**. Tim's read-only prod check before the release found **nothing flagged** (53 tasks read).
@@ -33,7 +34,9 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
 - **LATER:**
   - `AGENTS.md` (repo root) still describes the old Hetzner box (paths, npm, deploy); bring it in line with `CLAUDE.md` (noted 2026-11-25, not changed yet);
   - the event audience picker should always be available, not only after ticking "Share on Noticeboard";
-  - `src/lib/auth/altcha.test.ts` is flaky (5-second timeouts in CPU-heavy tests); give it a longer timeout;
+  - `src/lib/auth/altcha.test.ts` is flaky (5-second timeouts in CPU-heavy tests); raise its timeout in a small separate commit. On 2026-11-25 it timed out in 3 of 3 lone runs and passed with `--timeout 60000`;
+  - **Join Crew doesn't show for some bands although Enable Crew is on:** seen on The Smand's Discover card on staging (2026-11-25). Still to check whether the Crew page itself shows it;
+  - leaving Crew doesn't cancel the person's pending sign-ups or claims on Crew-only tasks (organisers still see them);
   - **known failing test:** `src/lib/auth/participation-readiness.test.ts` fails ("AssertionError: ready state: readiness.isReady true", an unhandled error between tests). It fails the same way on `staging` `4ad4d8a4`, before the shift date fix, so it isn't caused by it. Look at it later;
   - `ensureCircleConversationAction` (`components/modules/chat/actions.ts` ~283) lets anyone, even signed out, create an empty conversation document for any circle id. It should require sign-in and membership;
   - the venue/circle members chat room can't be opened by anyone (no participants are ever added to its conversation). Decide in the UX month whether to fix it or remove it.
@@ -79,6 +82,32 @@ Live at: https://peerify.one  ·  Staging: https://staging.peerify.one
   - The followers/Team card staging checks were run by Tim on 2026-11-07, before the prod release. All passed.
   - **Venue contacts in notifications:** prod count 0 (2026-11-06 07:26Z).
   - **Reports:** `20261107-1225-r3-medium` and `-final`, `20261107-1548-followers-count-only` and `-final`. See the two 2026-11-07 entries.
+
+---
+
+## 2026-11-25 (cont. 2) — Backlog items 1–3: Crew applications checked; Leave Crew and task notice actions built
+
+**Why:** backlog items 1–3 (`docs/BACKLOG.md`), P1 for the 6 Dec home show. Investigation first (`crew-items-1-3.tar.gz`), then Tim chose the commits.
+
+**Item 1 (pending Crew applications on the Crew Dashboard, count badge, Review in the notification):** already built and live since 2026-11-06 (`10214a46`). No code change. **Tim browser-checked it on staging: passes.**
+
+**Item 2 (Leave Crew), item 3 (task notice actions): built on `staging`, 6 commits, not deployed:**
+- `ce1cf5e8` tests for `leaveCrewAction` (no change): it drops only `crew`, so the person still follows.
+- `81218bd7` a visible **Leave Crew** button in the Crew page's Crew card, for Crew members only (`showsLeaveCrewButton`); the avatar popover opens the same dialog (`crew/leave-crew-button.tsx`). The dialog now stays open ("Leaving…") until the action answers.
+- `e90e3255` the bell's button labels and styles in their own module, `layout/notification-actions.ts` (no change).
+- `239cd43b` `listNotificationsForUser` adds `taskAction: { needed, claimId? }` to task notices, from the tasks as they are now (one lookup per bell load; nothing stored, no migration). Claim notice: needed while the claimant's claim is pending. A task holds at most one pending claim per claimant (`submitTaskClaim`'s atomic update), so `content.user.did` finds the claim and its id; no `claimId` needs storing. Assignment / approved-claim notice: needed while the task is open, assigned to the recipient and not accepted.
+- `fddadc7c` **Approve** (organisers) and **Accept** (assignee) in the bell, calling `reviewTaskClaimAction` / `acceptTaskAction`; amber border, amber button and an "Action needed" line until handled. Decline stays on the task page.
+- `79c4f490` `task_assigned` and `task_claim_approved` text ends with "Please confirm you'll do it." (bell and push; stored notices keep their old text).
+
+**Left for after 6 Dec (Tim):** storing `claimId` on new claim notices (not needed, see above); "action needed" for `crew_application` notices.
+
+**Checks:** `bun install --frozen-lockfile` no changes; tsc only the old `peerify-backup.test.ts` error; lint 0 errors, the same 55 old warnings, none in touched files. Tests: 191 files one at a time with `IS_BUILD=true` (185 + 6 new, 48 new tests): 189 pass, plus the known `participation-readiness` failure and `altcha.test.ts` (5-second timeouts, also 3 of 3 alone; passes with `--timeout 60000`; it imports nothing these commits touch). `bun run build` passes (check build only).
+
+**Open (listed under LATER):** Join Crew missing for some bands with Enable Crew on (The Smand's Discover card on staging; Crew page not checked yet); leaving Crew doesn't cancel pending sign-ups or claims on Crew-only tasks; the altcha timeout.
+
+**Next:** Tim deploys staging and runs the 20 browser checks in `crew-items-2-3.tar.gz`, then the release to prod.
+
+**State:** these 6 commits and this entry pushed to `staging` after Tim's go. No database commands.
 
 ---
 
